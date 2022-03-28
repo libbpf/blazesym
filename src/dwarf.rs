@@ -221,13 +221,15 @@ struct DebugLinePrologue {
     opcode_base: u8,
 }
 
+/// The file information of a file for a CU.
 struct DebugLineFileInfo {
     name: String,
-    dir_idx: u32,
+    dir_idx: u32,		// Index to include_directories of DebugLineCU.
     mod_tm: u64,
     size: usize,
 }
 
+/// Represent a Compile Unit (CU) in a .debug_line section.
 struct DebugLineCU {
     prologue: DebugLinePrologue,
     standard_opcode_lengths: Vec<u8>,
@@ -271,7 +273,7 @@ impl DebugLineCU {
     }
 }
 
-
+/// Parse the list of directory pathes for a CU.
 fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error> {
     let mut strs = Vec::<String>::new();
     let mut pos = 0;
@@ -304,6 +306,7 @@ fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error>
     Err(Error::new(ErrorKind::InvalidData, "Do not found null string"))
 }
 
+/// Parse the list of file information for a CU.
 fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, usize), Error> {
     let mut strs = Vec::<DebugLineFileInfo>::new();
     let mut pos = 0;
@@ -714,7 +717,7 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
     Ok(matrix)
 }
 
-/// If addresses is empty, full versioned debug_line matrics are returned.
+/// If addresses is empty, it return a full version of debug_line matrics.
 /// If addresses is not empty, return only data needed to resolve given addresses .
 fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Result<Vec<DebugLineCU>, Error> {
     let debug_line_idx = parser.find_section(".debug_line")?;
@@ -774,6 +777,7 @@ fn parse_debug_line_elf(filename: &str) -> Result<Vec<DebugLineCU>, Error> {
     parse_debug_line_elf_parser(&parser, &[])
 }
 
+/// DwarfResolver provide abilities to query DWARF information of binaries.
 pub struct DwarfResolver {
     parser: Elf64Parser,
     debug_line_cus: Vec<DebugLineCU>,
