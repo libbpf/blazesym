@@ -258,6 +258,9 @@ impl SymResolver for KSymResolver {
     }
 }
 
+pub mod dwarf;
+mod elf;
+
 #[no_mangle]
 pub extern "C" fn sym_resolver_create() -> *mut KSymResolver {
     let mut resolver = Box::new(KSymResolver::new());

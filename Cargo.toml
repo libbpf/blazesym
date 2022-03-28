@@ -7,7 +7,7 @@ edition = "2018"
 
 [lib]
 name = "blazesym"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 
