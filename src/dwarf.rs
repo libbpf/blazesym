@@ -453,6 +453,7 @@ fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut
 }
 
 #[derive(Clone)]
+#[derive(Copy)]
 #[derive(Debug)]
 struct DebugLineStates {
     address: u64,
@@ -652,15 +653,12 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
     let mut matrix = Vec::<DebugLineStates>::new();
     let mut last_ip = 0;
     let mut should_sort = false;
-    // Performance hacking, swapping references is faster than swapping data.
-    let mut states_back_a = DebugLineStates::new(prologue);
-    let mut states_back_b = states_back_a.clone();
-    let mut states_cur = &mut states_back_a;
-    let mut states_last = &mut states_back_b;
+    let mut states_cur = DebugLineStates::new(prologue);
+    let mut states_last = states_cur.clone();
     let mut last_ip_pushed = false;
 
     while ip < stmts.len() {
-	match run_debug_line_stmt(stmts, prologue, ip, states_cur) {
+	match run_debug_line_stmt(stmts, prologue, ip, &mut states_cur) {
 	    Ok((sz, emit)) => {
 		ip += sz;
 		if emit {
@@ -682,11 +680,11 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
 				    }
 				    matrix.push(states_cur.clone());
 				    pushed = true;
-				    mem::swap(&mut states_cur, &mut states_last);
 				    break;
 				}
 			    }
 			    last_ip_pushed = pushed;
+			    states_last = states_cur;
 			} else {
 			    matrix.push(states_cur.clone());
 			}
