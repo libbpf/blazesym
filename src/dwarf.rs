@@ -673,7 +673,10 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
 			if addresses.len() > 0{
 			    let mut pushed = false;
 			    for addr in addresses {
-				if *addr == states_cur.address || (last_ip != 0 && *addr < states_cur.address && *addr > last_ip as u64) {
+				if *addr == states_cur.address || (last_ip != 0 &&
+								   !states_last.end_sequence &&
+								   *addr < states_cur.address &&
+								   *addr > last_ip as u64) {
 				    if !last_ip_pushed && *addr != states_cur.address {
 					// The address is falling between current and last emitted row.
 					matrix.push(states_last.clone());
@@ -718,13 +721,14 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Resul
     let debug_line_sz = parser.get_section_size(debug_line_idx)?;
     let mut remain_sz = debug_line_sz;
     let prologue_size: usize = mem::size_of::<DebugLinePrologueV2>();
+    let mut not_found = Vec::from(addresses);
 
     parser.section_seek(debug_line_idx)?;
 
     let mut all_cus = Vec::<DebugLineCU>::new();
     let mut buf = Vec::<u8>::new();
     while remain_sz > prologue_size {
-	let debug_line_cu = parse_debug_line_cu(&parser, addresses, &mut buf)?;
+	let debug_line_cu = parse_debug_line_cu(&parser, &not_found, &mut buf)?;
 	let prologue = &debug_line_cu.prologue;
 	remain_sz -= prologue.total_length as usize + 4;
 
@@ -732,7 +736,30 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Resul
 	    continue;
 	}
 
-	all_cus.push(debug_line_cu);
+	if addresses.len() > 0 {
+	    let mut last_row = &debug_line_cu.matrix[0];
+	    for row in debug_line_cu.matrix.as_slice() {
+		let mut i = 0;
+		// Remove addresses found in this CU from not_found.
+		while i < not_found.len() {
+		    let addr = addresses[i];
+		    if addr == row.address  || (addr < row.address && addr > last_row.address) {
+			not_found.remove(i);
+		    } else {
+			i = i + 1;
+		    }
+		}
+		last_row = row;
+	    }
+
+	    all_cus.push(debug_line_cu);
+
+	    if not_found.len() == 0{
+		return Ok(all_cus);
+	    }
+	} else {
+	    all_cus.push(debug_line_cu);
+	}
     }
 
     if remain_sz != 0 {
