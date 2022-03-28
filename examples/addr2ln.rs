@@ -23,9 +23,9 @@ fn main() {
 	// Remove prefixed 0x
 	addr_str = &addr_str[2..];
     }
-
-    let resolver = DwarfResolver::open(bin_name).unwrap();
     let addr = u64::from_str_radix(addr_str, 16).unwrap();
+
+    let resolver = DwarfResolver::open_for_addresses(bin_name, &[addr]).unwrap();
     if let Some((dir, file, line)) = resolver.find_line(addr) {
 	println!("0x{:x} @ {}/{}:{}", addr, dir, file, line);
     } else {

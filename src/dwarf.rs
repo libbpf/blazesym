@@ -32,10 +32,12 @@ fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
     None
 }
 
+
 fn decode_uhalf(data: &[u8]) -> u16 {
     (data[0] as u16) | ((data[1] as u16) << 8)
 }
 
+#[inline(always)]
 fn decode_shalf(data: &[u8]) -> i16 {
     let uh = decode_uhalf(data);
     if uh >= 0x8000 {
@@ -45,10 +47,12 @@ fn decode_shalf(data: &[u8]) -> i16 {
     }
 }
 
+#[inline(always)]
 fn decode_uword(data: &[u8]) -> u32 {
     (data[0] as u32) | ((data[1] as u32) << 8) | ((data[2] as u32) << 16) | ((data[3] as u32) << 24)
 }
 
+#[inline(always)]
 fn decode_sword(data: &[u8]) -> i32 {
     let uw = decode_uword(data);
     if uw >= 0x80000000 {
@@ -58,10 +62,12 @@ fn decode_sword(data: &[u8]) -> i32 {
     }
 }
 
+#[inline(always)]
 fn decode_udword(data: &[u8]) -> u64 {
     decode_uword(data) as u64 | ((decode_uword(&data[4..]) as u64) << 32)
 }
 
+#[inline(always)]
 fn decode_swdord(data: &[u8]) -> i64 {
     let udw = decode_udword(data);
     if udw >= 0x8000000000000000 {
@@ -201,6 +207,7 @@ struct DebugLinePrologueV2 {
 /// DebugLinePrologue is actually a V4.
 ///
 /// DebugLinePrologueV2 will be converted to this type.
+#[derive(Clone)]
 #[repr(packed)]
 struct DebugLinePrologue {
     total_length: u32,
@@ -231,7 +238,7 @@ struct DebugLineCU {
 
 impl DebugLineCU {
     fn find_line(&self, address: u64) -> Option<(&str, &str, usize)> {
-	let idx = search_address_key(&self.matrix, address, &|x: &DebugLineStates| -> u64 { x.address as u64 })?;
+	let idx = search_address_key(&self.matrix, address, &|x: &DebugLineStates| -> u64 { x.address })?;
 
 	let states = &self.matrix[idx];
 	if states.end_sequence {
@@ -359,11 +366,11 @@ fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, us
     Err(Error::new(ErrorKind::InvalidData, "Do not found null string"))
 }
 
-fn parse_debug_line_cu(parser: &Elf64Parser) -> Result<DebugLineCU, Error> {
+fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut Vec<u8>) -> Result<DebugLineCU, Error> {
     let mut prologue_sz: usize = mem::size_of::<DebugLinePrologueV2>();
     let prologue_v4_sz: usize = mem::size_of::<DebugLinePrologue>();
+    let buf = reused_buf;
 
-    let mut buf = Vec::<u8>::with_capacity(prologue_v4_sz);
     buf.resize(prologue_sz, 0);
     let prologue = unsafe {
 	parser.read_raw(buf.as_mut_slice())?;
@@ -382,13 +389,13 @@ fn parse_debug_line_cu(parser: &Elf64Parser) -> Result<DebugLineCU, Error> {
 	    parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..])?;
 	    let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
 	    let v4 = Box::<DebugLinePrologue>::from_raw(prologue_raw);
-	    buf.leak();
 	    prologue_sz = prologue_v4_sz;
-	    *v4
+	    let prologue_v4 = (*v4).clone();
+	    Box::leak(v4);
+	    prologue_v4
 	} else {
 	    // Convert V2 to V4
-	    buf.leak();
-	    DebugLinePrologue {
+	    let prologue_v4 = DebugLinePrologue {
 		total_length: v2.total_length,
 		version: v2.version,
 		prologue_length: v2.prologue_length,
@@ -398,13 +405,20 @@ fn parse_debug_line_cu(parser: &Elf64Parser) -> Result<DebugLineCU, Error> {
 		line_base: v2.line_base,
 		line_range: v2.line_range,
 		opcode_base: v2.opcode_base,
-	    }
+	    };
+	    Box::leak(v2);
+	    prologue_v4
 	}
     };
 
     let to_read = prologue.total_length as usize + 4 - prologue_sz;
-    let mut data_buf = Vec::<u8>::with_capacity(to_read);
-    data_buf.resize(to_read, 0);
+    let data_buf = buf;
+    if to_read <= data_buf.capacity() {
+	// Gain better performance by skipping initialization.
+	unsafe { data_buf.set_len(to_read) };
+    } else {
+	data_buf.resize(to_read, 0);
+    }
     unsafe { parser.read_raw(data_buf.as_mut_slice())? };
 
     let mut pos = 0;
@@ -420,8 +434,7 @@ fn parse_debug_line_cu(parser: &Elf64Parser) -> Result<DebugLineCU, Error> {
     let (files, bytes) = parse_debug_line_files(&data_buf[pos..])?;
     pos += bytes;
 
-    let mut states = DebugLineStates::new(&prologue);
-    let matrix = run_debug_line_stmts(&data_buf[pos..], &prologue, &mut states)?;
+    let matrix = run_debug_line_stmts(&data_buf[pos..], &prologue, addresses)?;
 
     #[cfg(debug_assertions)]
     for i in 1..matrix.len() {
@@ -442,7 +455,7 @@ fn parse_debug_line_cu(parser: &Elf64Parser) -> Result<DebugLineCU, Error> {
 #[derive(Clone)]
 #[derive(Debug)]
 struct DebugLineStates {
-    address: usize,
+    address: u64,
     file: usize,
     line: usize,
     column: usize,
@@ -487,6 +500,7 @@ impl DebugLineStates {
     }
 }
 
+#[inline(always)]
 fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 		       ip: usize, states: &mut DebugLineStates) -> Result<(usize, bool), Error> {
     // Standard opcodes
@@ -514,7 +528,7 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 	// Special opcodes
 	let desired_line_incr = (opcode - opcode_base) % prologue.line_range;
 	let addr_adv = (opcode - opcode_base) / prologue.line_range;
-	states.address += addr_adv as usize * prologue.minimum_instruction_length as usize;
+	states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
 	states.line = (states.line as i64 + (desired_line_incr as i16 + prologue.line_base as i16) as i64 *
 		       prologue.minimum_instruction_length as i64) as usize;
 	return Ok((1, true));
@@ -537,12 +551,12 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 		    match insn_size - 1 {
 			4 => {
 			    let address = decode_uword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-			    states.address = address as usize;
+			    states.address = address as u64;
 			    return Ok((1 + bytes as usize + insn_size as usize, false));
 			},
 			8 => {
 			    let address = decode_udword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-			    states.address = address as usize;
+			    states.address = address;
 			    return Ok((1 + bytes as usize + insn_size as usize, false));
 			},
 			_ => {}
@@ -576,7 +590,7 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 	},
 	DW_LNS_ADVANCE_PC => {
 	    if let Some((adv, bytes)) = decode_leb128(&stmts[(ip+1)..]) {
-		states.address += adv as usize * prologue.minimum_instruction_length as usize;
+		states.address += adv * prologue.minimum_instruction_length as u64;
 		return Ok((1 + bytes as usize, false));
 	    }
 	},
@@ -612,13 +626,13 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 	},
 	DW_LNS_CONST_ADD_PC => {
 	    let addr_adv = (255 - opcode_base) / prologue.line_range;
-	    states.address += addr_adv as usize * prologue.minimum_instruction_length as usize;
+	    states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
 	    return Ok((1, false));
 	},
 	DW_LNS_FIXED_ADVANCE_PC => {
 	    if (ip + 3) < stmts.len() {
 		let addr_adv = decode_uhalf(&stmts[(ip+1)..]);
-		states.address += addr_adv as usize * prologue.minimum_instruction_length as usize;
+		states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
 		return Ok((1, false));
 	    }
 	},
@@ -632,34 +646,58 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
     Err(Error::new(ErrorKind::InvalidData, format!("invalid opcode (0x{:x}/0x{:x}, ip=0x{:x}, opcode_base=0x{:x})", opcode, stmts[ip as usize], ip, opcode_base)))
 }
 
-fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue, states: &mut DebugLineStates) -> Result<Vec<DebugLineStates>, Error> {
+fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
+			addresses: &[u64]) -> Result<Vec<DebugLineStates>, Error> {
     let mut ip = 0;
     let mut matrix = Vec::<DebugLineStates>::new();
     let mut last_ip = 0;
     let mut should_sort = false;
+    // Performance hacking, swapping references is faster than swapping data.
+    let mut states_back_a = DebugLineStates::new(prologue);
+    let mut states_back_b = states_back_a.clone();
+    let mut states_cur = &mut states_back_a;
+    let mut states_last = &mut states_back_b;
+    let mut last_ip_pushed = false;
 
     while ip < stmts.len() {
-	match run_debug_line_stmt(stmts, prologue, ip, states) {
+	match run_debug_line_stmt(stmts, prologue, ip, states_cur) {
 	    Ok((sz, emit)) => {
 		ip += sz;
 		if emit {
-		    if states.address == 0 {
+		    if states_cur.address == 0 {
 			// This is a speical case. Somehow, rust
 			// compiler generate debug_line for some
 			// builtin code starting from 0.  And, it
 			// causes incorrect behavior.
-			states.force_no_emit = true;
+			states_cur.force_no_emit = true;
 		    }
-		    if !states.force_no_emit {
-			matrix.push(states.clone());
-			if last_ip > states.address {
+		    if !states_cur.force_no_emit {
+			if addresses.len() > 0{
+			    let mut pushed = false;
+			    for addr in addresses {
+				if *addr == states_cur.address || (last_ip != 0 && *addr < states_cur.address && *addr > last_ip as u64) {
+				    if !last_ip_pushed && *addr != states_cur.address {
+					// The address is falling between current and last emitted row.
+					matrix.push(states_last.clone());
+				    }
+				    matrix.push(states_cur.clone());
+				    pushed = true;
+				    mem::swap(&mut states_cur, &mut states_last);
+				    break;
+				}
+			    }
+			    last_ip_pushed = pushed;
+			} else {
+			    matrix.push(states_cur.clone());
+			}
+			if last_ip > states_cur.address {
 			    should_sort = true;
 			}
-			last_ip = states.address;
+			last_ip = states_cur.address;
 		    }
 		}
-		if states.should_reset {
-		    states.reset(prologue);
+		if states_cur.should_reset {
+		    states_cur.reset(prologue);
 		}
 	    },
 	    Err(e) => {
@@ -675,7 +713,9 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue, states: &mut
     Ok(matrix)
 }
 
-fn parse_debug_line_elf_parser(parser: &Elf64Parser) -> Result<Vec<DebugLineCU>, Error> {
+/// If addresses is empty, full versioned debug_line matrics are returned.
+/// If addresses is not empty, return only data needed to resolve given addresses .
+fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Result<Vec<DebugLineCU>, Error> {
     let debug_line_idx = parser.find_section(".debug_line")?;
     let debug_line_sz = parser.get_section_size(debug_line_idx)?;
     let mut remain_sz = debug_line_sz;
@@ -684,10 +724,15 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser) -> Result<Vec<DebugLineCU>,
     parser.section_seek(debug_line_idx)?;
 
     let mut all_cus = Vec::<DebugLineCU>::new();
+    let mut buf = Vec::<u8>::new();
     while remain_sz > prologue_size {
-	let debug_line_cu = parse_debug_line_cu(&parser)?;
+	let debug_line_cu = parse_debug_line_cu(&parser, addresses, &mut buf)?;
 	let prologue = &debug_line_cu.prologue;
 	remain_sz -= prologue.total_length as usize + 4;
+
+	if debug_line_cu.matrix.len() == 0 {
+	    continue;
+	}
 
 	all_cus.push(debug_line_cu);
     }
@@ -701,7 +746,7 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser) -> Result<Vec<DebugLineCU>,
 
 fn parse_debug_line_elf(filename: &str) -> Result<Vec<DebugLineCU>, Error> {
     let parser = Elf64Parser::open(filename)?;
-    parse_debug_line_elf_parser(&parser)
+    parse_debug_line_elf_parser(&parser, &[])
 }
 
 pub struct DwarfResolver {
@@ -711,16 +756,25 @@ pub struct DwarfResolver {
 }
 
 impl DwarfResolver {
-    pub fn open(filename: &str) -> Result<DwarfResolver, Error> {
+    /// When addresses is not empty, the returned instance only has
+    /// data that related to these addresses.  For this case, the
+    /// isntance have the ability that can serve only these addresses.
+    /// This would be much faster.
+    ///
+    /// If addresses is empty, the returned instance has all data from
+    /// the given file.  If the instance will be used for long
+    /// running, you would want to load all data into memory to have
+    /// the ability of handling all possible addresses.
+    pub fn open_for_addresses(filename: &str, addresses: &[u64]) -> Result<DwarfResolver, Error> {
 	let parser = Elf64Parser::open(filename)?;
-	let debug_line_cus = parse_debug_line_elf_parser(&parser)?;
+	let debug_line_cus = parse_debug_line_elf_parser(&parser, addresses)?;
 
 	let mut addr_to_dlcu = Vec::with_capacity(debug_line_cus.len());
 	for (idx, dlcu) in debug_line_cus.iter().enumerate() {
 	    if dlcu.matrix.len() == 0 {
 		continue;
 	    }
-	    let first_addr = dlcu.matrix[0].address as u64;
+	    let first_addr = dlcu.matrix[0].address;
 	    addr_to_dlcu.push((first_addr, idx as u32));
 	}
 	addr_to_dlcu.sort_by_key(|v| v.0);
@@ -739,6 +793,10 @@ impl DwarfResolver {
 	    debug_line_cus,
 	    addr_to_dlcu,
 	})
+    }
+
+    pub fn open(filename: &str) -> Result<DwarfResolver, Error> {
+	Self::open_for_addresses(filename, &[])
     }
 
     fn find_dlcu_index(&self, address: u64) -> Option<usize> {
@@ -832,9 +890,8 @@ mod tests {
 	    line_range: 14,
 	    opcode_base: 13,
 	};
-	let mut states = DebugLineStates::new(&prologue);
 
-	let result = run_debug_line_stmts(&stmts, &prologue, &mut states);
+	let result = run_debug_line_stmts(&stmts, &prologue, &[]);
 	if result.is_err() {
 	    let e = result.as_ref().err().unwrap();
 	    println!("result {:?}", e);
@@ -892,9 +949,8 @@ mod tests {
 	    line_range: 14,
 	    opcode_base: 13,
 	};
-	let mut states = DebugLineStates::new(&prologue);
 
-	let result = run_debug_line_stmts(&stmts, &prologue, &mut states);
+	let result = run_debug_line_stmts(&stmts, &prologue, &[]);
 	if result.is_err() {
 	    let e = result.as_ref().err().unwrap();
 	    println!("result {:?}", e);
