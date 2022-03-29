@@ -33,6 +33,7 @@ fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
 }
 
 
+#[inline(always)]
 fn decode_uhalf(data: &[u8]) -> u16 {
     (data[0] as u16) | ((data[1] as u16) << 8)
 }
@@ -456,7 +457,6 @@ fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut
 }
 
 #[derive(Clone)]
-#[derive(Copy)]
 #[derive(Debug)]
 struct DebugLineStates {
     address: u64,
@@ -468,7 +468,6 @@ struct DebugLineStates {
     basic_block: bool,
     end_sequence: bool,
     prologue_end: bool,
-    force_no_emit: bool,
     should_reset: bool,
 }
 
@@ -484,7 +483,6 @@ impl DebugLineStates {
 	    basic_block: false,
 	    end_sequence: false,
 	    prologue_end: false,
-	    force_no_emit: false,
 	    should_reset: false,
 	}
     }
@@ -499,15 +497,14 @@ impl DebugLineStates {
 	self.basic_block = false;
 	self.end_sequence = false;
 	self.prologue_end = false;
-	self.force_no_emit = false;
 	self.should_reset = false;
     }
 }
 
-#[inline(always)]
 fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 		       ip: usize, states: &mut DebugLineStates) -> Result<(usize, bool), Error> {
     // Standard opcodes
+    const DW_LNS_EXT: u8 = 0;
     const DW_LNS_COPY: u8 = 1;
     const DW_LNS_ADVANCE_PC: u8 = 2;
     const DW_LNS_ADVANCE_LINE: u8 = 3;
@@ -528,92 +525,96 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
     let opcode_base = prologue.opcode_base;
     let opcode = stmts[ip];
 
-    if opcode >= opcode_base {
-	// Special opcodes
-	let desired_line_incr = (opcode - opcode_base) % prologue.line_range;
-	let addr_adv = (opcode - opcode_base) / prologue.line_range;
-	states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
-	states.line = (states.line as i64 + (desired_line_incr as i16 + prologue.line_base as i16) as i64 *
-		       prologue.minimum_instruction_length as i64) as usize;
-	return Ok((1, true));
-    }
-
-    if opcode == 0 {
-	// Extended opcodes
-	if let Some((insn_size, bytes)) = decode_leb128(&stmts[(ip+1)..]) {
-	    if insn_size < 1 {
-		return Err(Error::new(ErrorKind::InvalidData, format!("invalid extended opcode (ip=0x{:x}, insn_size=0x{:x}", ip, insn_size)));
-	    }
-	    let ext_opcode = stmts[ip + 1 + bytes as usize];
-	    match ext_opcode {
-		DW_LINE_END_SEQUENCE => {
-		    states.end_sequence = true;
-		    states.should_reset = true;
-		    return Ok((1 + bytes as usize + insn_size as usize, true));
-		},
-		DW_LINE_SET_ADDRESS => {
-		    match insn_size - 1 {
-			4 => {
-			    let address = decode_uword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-			    states.address = address as u64;
-			    return Ok((1 + bytes as usize + insn_size as usize, false));
-			},
-			8 => {
-			    let address = decode_udword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-			    states.address = address;
-			    return Ok((1 + bytes as usize + insn_size as usize, false));
-			},
-			_ => {}
-		    }
-		},
-		DW_LINE_DEFINE_FILE => {
-		    return Err(Error::new(ErrorKind::Unsupported, "DW_LINE_define_file is not supported yet"));
-		},
-		DW_LINE_SET_DISCRIMINATOR => {
-		    if let Some((discriminator, discr_bytes)) = decode_leb128(&stmts[(ip + 1 + bytes as usize + 1)..]) {
-			if discr_bytes as u64 + 1 != insn_size {
-			    return Err(Error::new(ErrorKind::InvalidData,
-						  "unmatched instruction size for DW_LINE_set_discriminator"));
-			}
-			states.discriminator = discriminator;
-			return Ok((1 + bytes as usize + insn_size as usize, false));
-		    }
-		}
-		_ => {},
-	    }
-	    return Err(Error::new(ErrorKind::Unsupported,
-				  format!("invalid extended opcode (ip=0x{:x}, ext_opcode=0x{:x})", ip, ext_opcode)));
-	}
-	return Err(Error::new(ErrorKind::InvalidData,
-			      format!("invalid extended opcode (ip=0x{:x})", ip)));
-    }
-
     match opcode {
+	DW_LNS_EXT => {
+	    // Extended opcodes
+	    if let Some((insn_size, bytes)) = decode_leb128(&stmts[(ip+1)..]) {
+		if insn_size < 1 {
+		    return Err(Error::new(ErrorKind::InvalidData, format!("invalid extended opcode (ip=0x{:x}, insn_size=0x{:x}", ip, insn_size)));
+		}
+		let ext_opcode = stmts[ip + 1 + bytes as usize];
+		match ext_opcode {
+		    DW_LINE_END_SEQUENCE => {
+		    states.end_sequence = true;
+			states.should_reset = true;
+			Ok((1 + bytes as usize + insn_size as usize, true))
+		    },
+		    DW_LINE_SET_ADDRESS => {
+			match insn_size - 1 {
+			    4 => {
+				let address = decode_uword(&stmts[(ip + 1 + bytes as usize + 1)..]);
+				states.address = address as u64;
+				Ok((1 + bytes as usize + insn_size as usize, false))
+			    },
+			    8 => {
+				let address = decode_udword(&stmts[(ip + 1 + bytes as usize + 1)..]);
+				states.address = address;
+				Ok((1 + bytes as usize + insn_size as usize, false))
+			    },
+			    _ => {
+				Err(Error::new(ErrorKind::Unsupported, format!("unsupported address size ({})", insn_size)))
+			    }
+			}
+		    },
+		    DW_LINE_DEFINE_FILE => {
+			Err(Error::new(ErrorKind::Unsupported, "DW_LINE_define_file is not supported yet"))
+		    },
+		    DW_LINE_SET_DISCRIMINATOR => {
+			if let Some((discriminator, discr_bytes)) = decode_leb128(&stmts[(ip + 1 + bytes as usize + 1)..]) {
+			    if discr_bytes as u64 + 1 == insn_size {
+				states.discriminator = discriminator;
+				Ok((1 + bytes as usize + insn_size as usize, false))
+			    } else {
+				Err(Error::new(ErrorKind::InvalidData,
+						      "unmatched instruction size for DW_LINE_set_discriminator"))
+			    }
+			} else {
+			    Err(Error::new(ErrorKind::InvalidData, "discriminator is broken"))
+			}
+		    }
+		    _ => {
+			Err(Error::new(ErrorKind::Unsupported,
+				       format!("invalid extended opcode (ip=0x{:x}, ext_opcode=0x{:x})", ip, ext_opcode)))
+		    },
+		}
+	    } else {
+		Err(Error::new(ErrorKind::InvalidData,
+			       format!("invalid extended opcode (ip=0x{:x})", ip)))
+	    }
+	},
 	DW_LNS_COPY => {
-	    return Ok((1, true));
+	    Ok((1, true))
 	},
 	DW_LNS_ADVANCE_PC => {
 	    if let Some((adv, bytes)) = decode_leb128(&stmts[(ip+1)..]) {
 		states.address += adv * prologue.minimum_instruction_length as u64;
-		return Ok((1 + bytes as usize, false));
+		Ok((1 + bytes as usize, false))
+	    } else {
+		Err(Error::new(ErrorKind::InvalidData, "the operand of advance_pc is broken"))
 	    }
 	},
 	DW_LNS_ADVANCE_LINE => {
 	    if let Some((adv, bytes)) = decode_leb128_s(&stmts[(ip+1)..]) {
 		states.line = (states.line as i64 + adv) as usize;
-		return Ok((1 + bytes as usize, false));
+		Ok((1 + bytes as usize, false))
+	    } else {
+		Err(Error::new(ErrorKind::InvalidData, "the operand of advance_line is broken"))
 	    }
 	},
 	DW_LNS_SET_FILE => {
 	    if let Some((file_idx, bytes)) = decode_leb128(&stmts[(ip+1)..]) {
 		states.file = file_idx as usize;
-		return Ok((1 + bytes as usize, false));
+		Ok((1 + bytes as usize, false))
+	    } else {
+		Err(Error::new(ErrorKind::InvalidData, "the operand of set_file is broken"))
 	    }
 	},
 	DW_LNS_SET_COLUMN => {
 	    if let Some((column, bytes)) = decode_leb128(&stmts[(ip+1)..]) {
 		states.column = column as usize;
-		return Ok((1 + bytes as usize, false));
+		Ok((1 + bytes as usize, false))
+	    } else {
+		Err(Error::new(ErrorKind::InvalidData, "the operand of set_column is broken"))
 	    }
 	},
 	DW_LNS_NEGATE_STMT => {
@@ -622,43 +623,51 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 	    } else {
 		true
 	    };
-	    return Ok((1, false));
+	    Ok((1, false))
 	},
 	DW_LNS_SET_BASIC_BLOCK => {
 	    states.basic_block = true;
-	    return Ok((1, false));
+	    Ok((1, false))
 	},
 	DW_LNS_CONST_ADD_PC => {
 	    let addr_adv = (255 - opcode_base) / prologue.line_range;
 	    states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
-	    return Ok((1, false));
+	    Ok((1, false))
 	},
 	DW_LNS_FIXED_ADVANCE_PC => {
 	    if (ip + 3) < stmts.len() {
 		let addr_adv = decode_uhalf(&stmts[(ip+1)..]);
 		states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
-		return Ok((1, false));
+		Ok((1, false))
+	    } else {
+		Err(Error::new(ErrorKind::InvalidData, "the operand of fixed_advance_pc is broken"))
 	    }
 	},
 	DW_LNS_SET_PROLOGUE_END => {
 	    states.prologue_end = true;
-	    return Ok((1, false));
+	    Ok((1, false))
 	},
-	_ => {},
+	_ => {
+	    // Special opcodes
+	    let desired_line_incr = (opcode - opcode_base) % prologue.line_range;
+	    let addr_adv = (opcode - opcode_base) / prologue.line_range;
+	    states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
+	    states.line = (states.line as i64 + (desired_line_incr as i16 + prologue.line_base as i16) as i64 *
+			   prologue.minimum_instruction_length as i64) as usize;
+	    Ok((1, true))
+	},
     }
-
-    Err(Error::new(ErrorKind::InvalidData, format!("invalid opcode (0x{:x}/0x{:x}, ip=0x{:x}, opcode_base=0x{:x})", opcode, stmts[ip as usize], ip, opcode_base)))
 }
 
 fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
 			addresses: &[u64]) -> Result<Vec<DebugLineStates>, Error> {
     let mut ip = 0;
     let mut matrix = Vec::<DebugLineStates>::new();
-    let mut last_ip = 0;
     let mut should_sort = false;
     let mut states_cur = DebugLineStates::new(prologue);
     let mut states_last = states_cur.clone();
     let mut last_ip_pushed = false;
+    let mut force_no_emit = false;
 
     while ip < stmts.len() {
 	match run_debug_line_stmt(stmts, prologue, ip, &mut states_cur) {
@@ -670,18 +679,18 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
 			// compiler generate debug_line for some
 			// builtin code starting from 0.  And, it
 			// causes incorrect behavior.
-			states_cur.force_no_emit = true;
+			force_no_emit = true;
 		    }
-		    if !states_cur.force_no_emit {
-			if addresses.len() > 0{
+		    if !force_no_emit {
+			if addresses.len() > 0 {
 			    let mut pushed = false;
 			    for addr in addresses {
-				if *addr == states_cur.address || (last_ip != 0 &&
+				if *addr == states_cur.address || (states_last.address != 0 &&
 								   !states_last.end_sequence &&
 								   *addr < states_cur.address &&
-								   *addr > last_ip as u64) {
+								   *addr > states_last.address as u64) {
 				    if !last_ip_pushed && *addr != states_cur.address {
-					// The address is falling between current and last emitted row.
+					// The address falls between current and last emitted row.
 					matrix.push(states_last.clone());
 				    }
 				    matrix.push(states_cur.clone());
@@ -690,18 +699,18 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
 				}
 			    }
 			    last_ip_pushed = pushed;
-			    states_last = states_cur;
+			    states_last = states_cur.clone();
 			} else {
 			    matrix.push(states_cur.clone());
 			}
-			if last_ip > states_cur.address {
+			if states_last.address > states_cur.address {
 			    should_sort = true;
 			}
-			last_ip = states_cur.address;
 		    }
 		}
 		if states_cur.should_reset {
 		    states_cur.reset(prologue);
+		    force_no_emit = false;
 		}
 	    },
 	    Err(e) => {
