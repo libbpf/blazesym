@@ -1,16 +1,15 @@
 use super::elf::Elf64Parser;
-use std::fs::File;
 use std::io::{Error, ErrorKind};
 use std::mem;
-use std::env;
 
-use std::cell::RefCell;
+#[cfg(test)]
+use std::env;
 
 fn decode_leb128(data: &[u8]) -> Option<(u64, u8)> {
     let mut sz = 0;
     let mut v: u64 = 0;
     for c in data {
-	v = v | (((c & 0x7f) as u64) << sz);
+	v |= ((c & 0x7f) as u64) << sz;
 	sz += 7;
 	if (c & 0x80) == 0 {
 	    return Some((v, sz / 7));
@@ -78,7 +77,7 @@ fn decode_swdord(data: &[u8]) -> i64 {
     }
 }
 
-fn search_address_key<T, V: Ord>(data: &Vec<T>, address: V, keyfn: &dyn Fn(&T) -> V) -> Option<usize> {
+fn search_address_key<T, V: Ord>(data: &[T], address: V, keyfn: &dyn Fn(&T) -> V) -> Option<usize> {
     let mut left = 0;
     let mut right = data.len();
 
@@ -360,7 +359,7 @@ fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, us
 	    strs.push(DebugLineFileInfo {
 		name: str_r.unwrap(),
 		dir_idx: dir_idx as u32,
-		mod_tm: mod_tm,
+		mod_tm,
 		size: flen as usize,
 	    });
 	}
@@ -382,7 +381,8 @@ fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut
 	let v2 = Box::<DebugLinePrologueV2>::from_raw(prologue_raw);
 
 	if v2.version != 0x2 && v2.version != 0x4 {
-	    return Err(Error::new(ErrorKind::Unsupported, format!("Support DWARF version 2 & 4 (version: {})", v2.version)));
+	    let version = v2.version;
+	    return Err(Error::new(ErrorKind::Unsupported, format!("Support DWARF version 2 & 4 (version: {})", version)));
 	}
 
 	if v2.version == 0x4 {
@@ -451,8 +451,8 @@ fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut
 	prologue,
 	standard_opcode_lengths: std_op_lengths,
 	include_directories: inc_dirs,
-	files: files,
-	matrix: matrix,
+	files,
+	matrix,
     })
 }
 
@@ -501,6 +501,12 @@ impl DebugLineStates {
     }
 }
 
+/// Return `Ok((insn_bytes, emit))` if success.  `insn_bytes1 is the
+/// size of the instruction at the position given by ip.  `emit` is
+/// true if this instruction emit a new row to describe line
+/// information of an address.  Not every instructions emit rows.
+/// Some instructions create only intermediate states for the next row
+/// going to emit.
 fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 		       ip: usize, states: &mut DebugLineStates) -> Result<(usize, bool), Error> {
     // Standard opcodes
@@ -618,11 +624,7 @@ fn run_debug_line_stmt(stmts: &[u8], prologue: &DebugLinePrologue,
 	    }
 	},
 	DW_LNS_NEGATE_STMT => {
-	    states.is_stmt = if states.is_stmt {
-		false
-	    } else {
-		true
-	    };
+	    states.is_stmt = !states.is_stmt;
 	    Ok((1, false))
 	},
 	DW_LNS_SET_BASIC_BLOCK => {
@@ -682,7 +684,7 @@ fn run_debug_line_stmts(stmts: &[u8], prologue: &DebugLinePrologue,
 			force_no_emit = true;
 		    }
 		    if !force_no_emit {
-			if addresses.len() > 0 {
+			if !addresses.is_empty() {
 			    let mut pushed = false;
 			    for addr in addresses {
 				if *addr == states_cur.address || (states_last.address != 0 &&
@@ -740,15 +742,15 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Resul
     let mut all_cus = Vec::<DebugLineCU>::new();
     let mut buf = Vec::<u8>::new();
     while remain_sz > prologue_size {
-	let debug_line_cu = parse_debug_line_cu(&parser, &not_found, &mut buf)?;
+	let debug_line_cu = parse_debug_line_cu(parser, &not_found, &mut buf)?;
 	let prologue = &debug_line_cu.prologue;
 	remain_sz -= prologue.total_length as usize + 4;
 
-	if debug_line_cu.matrix.len() == 0 {
+	if debug_line_cu.matrix.is_empty() {
 	    continue;
 	}
 
-	if addresses.len() > 0 {
+	if !addresses.is_empty() {
 	    let mut last_row = &debug_line_cu.matrix[0];
 	    for row in debug_line_cu.matrix.as_slice() {
 		let mut i = 0;
@@ -758,7 +760,7 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Resul
 		    if addr == row.address  || (addr < row.address && addr > last_row.address) {
 			not_found.remove(i);
 		    } else {
-			i = i + 1;
+			i += 1;
 		    }
 		}
 		last_row = row;
@@ -766,7 +768,7 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Resul
 
 	    all_cus.push(debug_line_cu);
 
-	    if not_found.len() == 0{
+	    if not_found.is_empty() {
 		return Ok(all_cus);
 	    }
 	} else {
@@ -794,13 +796,15 @@ pub struct DwarfResolver {
 }
 
 impl DwarfResolver {
-    /// When addresses is not empty, the returned instance only has
+    /// Open a binary to load .debug_line only enough for a given list of addresses.
+    ///
+    /// When `addresses` is not empty, the returned instance only has
     /// data that related to these addresses.  For this case, the
     /// isntance have the ability that can serve only these addresses.
     /// This would be much faster.
     ///
-    /// If addresses is empty, the returned instance has all data from
-    /// the given file.  If the instance will be used for long
+    /// If `addresses` is empty, the returned instance has all data
+    /// from the given file.  If the instance will be used for long
     /// running, you would want to load all data into memory to have
     /// the ability of handling all possible addresses.
     pub fn open_for_addresses(filename: &str, addresses: &[u64]) -> Result<DwarfResolver, Error> {
@@ -809,7 +813,7 @@ impl DwarfResolver {
 
 	let mut addr_to_dlcu = Vec::with_capacity(debug_line_cus.len());
 	for (idx, dlcu) in debug_line_cus.iter().enumerate() {
-	    if dlcu.matrix.len() == 0 {
+	    if dlcu.matrix.is_empty() {
 		continue;
 	    }
 	    let first_addr = dlcu.matrix[0].address;
@@ -833,6 +837,10 @@ impl DwarfResolver {
 	})
     }
 
+    /// Open a binary to load and parse .debug_line for later uses.
+    ///
+    /// `filename` is the name of an ELF binary/or shared object that
+    /// has .debug_line section.
     pub fn open(filename: &str) -> Result<DwarfResolver, Error> {
 	Self::open_for_addresses(filename, &[])
     }
@@ -845,6 +853,10 @@ impl DwarfResolver {
 	Some(dlcu_idx)
     }
 
+    /// Find line information of an address.
+    ///
+    /// `address` is an offset from the head of the loaded binary/or
+    /// shared object.  This function returns a tuple of `(dir_name, file_name, line_no)`.
     pub fn find_line_as_ref(&self, address: u64) -> Option<(&str, &str, usize)> {
 	let idx = self.find_dlcu_index(address)?;
 	let dlcu = &self.debug_line_cus[idx as usize];
@@ -852,6 +864,13 @@ impl DwarfResolver {
 	dlcu.find_line(address)
     }
 
+    /// Find line information of an address.
+    ///
+    /// `address` is an offset from the head of the loaded binary/or
+    /// shared object.  This function returns a tuple of `(dir_name, file_name, line_no)`.
+    ///
+    /// This function is pretty much the same as `find_line_as_ref()`
+    /// except returning a copies of `String` instead of `&str`.
     pub fn find_line(&self, address: u64) -> Option<(String, String, usize)> {
 	let (dir, file, sz) = self.find_line_as_ref(address)?;
 	Some((String::from(dir), String::from(file), sz))

@@ -97,8 +97,7 @@ struct Elf64_Dyn {
 
 
 fn read_u8(file: &mut File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
-    let mut buf = Vec::with_capacity(size);
-    buf.resize(size, 0);
+    let mut buf = vec![0; size];
 
     file.seek(SeekFrom::Start(off))?;
     file.read_exact(buf.as_mut_slice())?;
@@ -108,7 +107,7 @@ fn read_u8(file: &mut File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
 
 fn read_elf_header(file: &mut File) -> Result<Elf64_Ehdr, Error> {
     const DSZ: usize = mem::size_of::<Elf64_Ehdr>();
-    let mut buf = Box::new([0 as u8; DSZ]);
+    let mut buf = Box::new([0_u8; DSZ]);
 
     let buf_m: &mut [u8; DSZ] = buf.borrow_mut();
     file.read_exact(buf_m)?;
@@ -119,7 +118,7 @@ fn read_elf_header(file: &mut File) -> Result<Elf64_Ehdr, Error> {
 	Box::from_raw(ehdr_raw_ptr)
     };
 
-    return Ok(*ehdr);
+    Ok(*ehdr)
 }
 
 fn read_elf_sections(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shdr>, Error> {
@@ -154,7 +153,7 @@ fn read_elf_section_offset_seek(file: &mut File, section: &Elf64_Shdr, offset: u
     Ok(())
 }
 
-fn extract_string(strtab: &Vec<u8>, off: usize) -> Option<String> {
+fn extract_string(strtab: &[u8], off: usize) -> Option<String> {
     let mut end = off;
 
     if off >= strtab.len() {
@@ -171,7 +170,7 @@ fn extract_string(strtab: &Vec<u8>, off: usize) -> Option<String> {
     Some(r.unwrap())
 }
 
-fn get_elf_section_name(sect: &Elf64_Shdr, strtab: &Vec<u8>) -> Option<String> {
+fn get_elf_section_name(sect: &Elf64_Shdr, strtab: &[u8]) -> Option<String> {
     extract_string(strtab, sect.sh_name as usize)
 }
 
@@ -224,7 +223,7 @@ impl Elf64Parser {
 	    return Ok(());
 	}
 
-	let shdrs = read_elf_sections(&mut *self.file.borrow_mut(), &me.ehdr.as_ref().unwrap())?;
+	let shdrs = read_elf_sections(&mut *self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
 	me.shdrs = Some(shdrs);
 
 	Ok(())

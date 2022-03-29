@@ -5,6 +5,7 @@ use std::u64;
 use std::collections::HashMap;
 use std::cell::RefCell;
 use std::ptr;
+use std::default::Default;
 
 use std::ffi::CString;
 use std::os::raw::c_char;
@@ -62,7 +63,7 @@ impl StackFrame for X86_64StackFrame {
 /// Parse a block of memory that is a copy of stack of thread to get frames.
 ///
 pub struct X86_64StackSession {
-    frames: Vec<Box<X86_64StackFrame>>,
+    frames: Vec<X86_64StackFrame>,
     stack: Vec<u8>,
     stack_base: u64,		// The base address of the stack
     registers: [u64; 17],
@@ -86,22 +87,22 @@ impl X86_64StackSession {
 
     fn _get_u64(&self, off: usize) -> u64 {
 	let stack = &self.stack;
-	return (stack[off] as u64) |
+	(stack[off] as u64) |
 	((stack[off + 1] as u64) << 8) |
 	((stack[off + 2] as u64) << 16) |
 	((stack[off + 3] as u64) << 24) |
 	((stack[off + 4] as u64) << 32) |
 	((stack[off + 5] as u64) << 40) |
 	((stack[off + 6] as u64) << 48) |
-	((stack[off + 7] as u64) << 56);
+	((stack[off + 7] as u64) << 56)
     }
 
     pub fn new(stack: Vec<u8>, stack_base: u64, registers: [u64; 17]) -> X86_64StackSession {
 	X86_64StackSession {
 	    frames: Vec::new(),
-	    stack: stack,
-	    stack_base: stack_base,
-	    registers: registers,
+	    stack,
+	    stack_base,
+	    registers,
 	    current_rbp: registers[REG_RBP],
 	    current_rip: registers[REG_RIP],
 	    current_frame_idx: 0,
@@ -116,7 +117,7 @@ impl StackSession for X86_64StackSession {
 	}
 
 	if self.frames.len() > self.current_frame_idx {
-	    let frame = &*self.frames[self.current_frame_idx];
+	    let frame = &self.frames[self.current_frame_idx];
 	    self.current_frame_idx += 1;
 	    return Some(frame);
 	}
@@ -125,7 +126,7 @@ impl StackSession for X86_64StackSession {
 	    rip: self.current_rip,
 	    rbp: self.current_rbp,
 	};
-	self.frames.push(Box::new(frame));
+	self.frames.push(frame);
 
 	if self._get_rbp_rel() <= (self.stack.len() - 16) {
 	    let new_rbp = self._get_u64(self._get_rbp_rel());
@@ -137,7 +138,7 @@ impl StackSession for X86_64StackSession {
 	}
 
 	self.current_frame_idx += 1;
-	Some(&**self.frames.last().unwrap())
+	Some(self.frames.last().unwrap() as &dyn StackFrame)
     }
 
     fn prev_frame(&mut self) -> Option<&dyn StackFrame> {
@@ -146,7 +147,7 @@ impl StackSession for X86_64StackSession {
 	}
 
 	self.current_frame_idx -= 1;
-	return Some(&*self.frames[self.current_frame_idx])
+	Some(&self.frames[self.current_frame_idx] as &dyn StackFrame)
     }
 
     fn go_top(&mut self) {
@@ -172,7 +173,7 @@ pub struct KSymResolver {
 
 impl KSymResolver {
     pub fn new() -> KSymResolver {
-	KSymResolver { syms: Vec::with_capacity(DFL_KSYM_CAP), sym_to_addr: RefCell::new(HashMap::new()) }
+	Default::default()
     }
 
     pub fn load(&mut self) -> Result<(), std::io::Error> {
@@ -181,7 +182,7 @@ impl KSymResolver {
 	let mut line = String::new();
 
 	while let Ok(sz) = reader.read_line(&mut line) {
-	    if sz <= 0 {
+	    if sz == 0 {
 		break;
 	    }
 	    let tokens: Vec<&str> = line.split_whitespace().collect();
@@ -218,7 +219,7 @@ impl KSymResolver {
 	let mut l = 0;
 	let mut r = self.syms.len();
 
-	if self.syms.len() > 0 && self.syms[0].addr > addr {
+	if !self.syms.is_empty() && self.syms[0].addr > addr {
 	    return None;
 	}
 
@@ -227,7 +228,7 @@ impl KSymResolver {
 	    let sym = &self.syms[v];
 
 	    if sym.addr == addr {
-		return Some(&sym);
+		return Some(sym);
 	    }
 	    if addr < sym.addr {
 		r = v;
@@ -236,7 +237,13 @@ impl KSymResolver {
 	    }
 	}
 
-	return Some(&self.syms[l]);
+	Some(&self.syms[l])
+    }
+}
+
+impl Default for KSymResolver {
+    fn default() -> Self {
+	KSymResolver { syms: Vec::with_capacity(DFL_KSYM_CAP), sym_to_addr: RefCell::new(HashMap::new()) }
     }
 }
 
@@ -261,23 +268,45 @@ impl SymResolver for KSymResolver {
 pub mod dwarf;
 mod elf;
 
+/// Create a KSymResolver
+///
+/// # Safety
+///
+/// This function is supposed to be used by C code.  The pointer
+/// returned should be free with `sym_resolver_free()`.
+///
 #[no_mangle]
-pub extern "C" fn sym_resolver_create() -> *mut KSymResolver {
+pub unsafe extern "C" fn sym_resolver_create() -> *mut KSymResolver {
     let mut resolver = Box::new(KSymResolver::new());
-    if let Err(_) = resolver.load() {
-	return ptr::null_mut();
+    if resolver.load().is_err() {
+	ptr::null_mut()
+    } else {
+	Box::leak(resolver)
     }
-    return Box::leak(resolver);
 }
 
+/// Free a KsymResolver
+///
+/// # Safety
+///
+/// The pointer passed in should be the one returned by
+/// `sym_resolver_create()`.
+///
 #[no_mangle]
-pub extern "C" fn sym_resolver_free(resolver_ptr: *mut KSymResolver) {
-    unsafe { Box::from_raw(resolver_ptr) };
+pub unsafe extern "C" fn sym_resolver_free(resolver_ptr: *mut KSymResolver) {
+    Box::from_raw(resolver_ptr);
 }
 
+/// Find the symbols of a give address if there is.
+///
+/// # Safety
+///
+/// The returned string is managed by `resolver_ptr`.  Don't try to
+/// free it.
+///
 #[no_mangle]
-pub extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver, addr: u64) -> *const c_char {
-    let resolver = unsafe { &*resolver_ptr };
+pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver, addr: u64) -> *const c_char {
+    let resolver = &*resolver_ptr;
     if let Some(sym) = resolver.find_address_ksym(addr) {
 	let mut c_name = sym.c_name.borrow_mut();
 	if c_name.is_none() {
