@@ -274,7 +274,7 @@ impl DebugLineCU {
     }
 }
 
-/// Parse the list of directory pathes for a CU.
+/// Parse the list of directory paths for a CU.
 fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error> {
     let mut strs = Vec::<String>::new();
     let mut pos = 0;
