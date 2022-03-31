@@ -473,11 +473,6 @@ pub struct SymbolizedResult {
     pub column: usize,
 }
 
-pub struct BlazeSymbolizer {
-    sym_files: Vec<SymbolFileCfg>,
-    resolver_map: Vec<((u64, u64), Box<dyn SymResolver>)>,
-}
-
 /// BlazeSymbolizer provides an interface to symbolize addresses with
 /// a list of symbol files.
 ///
@@ -486,6 +481,11 @@ pub struct BlazeSymbolizer {
 /// location (`SymbolFileCfg::Elf`), or Linux kernel image and a copy
 /// of its kallsyms (`SymbolFileCfg::LinuxKernel`).
 ///
+pub struct BlazeSymbolizer {
+    sym_files: Vec<SymbolFileCfg>,
+    resolver_map: Vec<((u64, u64), Box<dyn SymResolver>)>,
+}
+
 impl BlazeSymbolizer {
     pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
 	let mut resolvers = Vec::<((u64, u64), Box<dyn SymResolver>)>::new();
