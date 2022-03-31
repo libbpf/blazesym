@@ -1,4 +1,4 @@
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader, BufRead, Error, ErrorKind};
 use std::fs::File;
 use std::u64;
 
@@ -9,6 +9,11 @@ use std::default::Default;
 
 use std::ffi::CString;
 use std::os::raw::c_char;
+
+
+pub mod dwarf;
+mod elf;
+mod tools;
 
 pub trait StackFrame {
     fn get_ip(&self) -> u64;
@@ -21,9 +26,26 @@ pub trait StackSession {
     fn go_top(&mut self);
 }
 
+pub struct AddressLineInfo {
+    pub path: String,
+    pub line_no: usize,
+    pub column: usize,
+}
+
+/// The trait of symbol resolvers.
+///
+/// An symbol resolver usually provides information from one symbol
+/// source; e., a symbol file.
 pub trait SymResolver {
-    fn find_address(&self, addr: u64) -> Option<&str>;
-    fn find_symbol(&self, name: &str) -> Option<u64>;
+    /// Return the range that this resolver serve in an address space.
+    fn get_address_range(&self) -> (u64, u64);
+    /// Find the name and the start address of a symbol found for
+    /// the given address.
+    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)>;
+    /// Find the address of a symbol anme.
+    fn find_address(&self, name: &str) -> Option<u64>;
+    /// Find the file name and the line number of an address.
+    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo>;
 }
 
 pub const REG_RAX: usize = 0;
@@ -166,6 +188,10 @@ pub struct Ksym {
     c_name: RefCell<Option<CString>>,
 }
 
+/// The symbol resolver for /proc/kallsyms.
+///
+/// The users should provide the path of kallsyms, so you can provide
+/// a copy from other devices.
 pub struct KSymResolver {
     syms: Vec<Ksym>,
     sym_to_addr: RefCell<HashMap<&'static str, u64>>,
@@ -176,8 +202,8 @@ impl KSymResolver {
 	Default::default()
     }
 
-    pub fn load(&mut self) -> Result<(), std::io::Error> {
-	let f = File::open(KALLSYMS)?;
+    pub fn load_file_name(&mut self, filename: &str) -> Result<(), std::io::Error> {
+	let f = File::open(filename)?;
 	let mut reader = BufReader::new(f);
 	let mut line = String::new();
 
@@ -201,6 +227,10 @@ impl KSymResolver {
 	self.syms.sort_by(|a, b| a.addr.cmp(&b.addr));
 
 	Ok(())
+    }
+
+    pub fn load(&mut self) -> Result<(), std::io::Error> {
+	self.load_file_name(KALLSYMS)
     }
 
     fn ensure_sym_to_addr(&self) {
@@ -248,14 +278,18 @@ impl Default for KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn find_address(&self, addr: u64) -> Option<&str> {
+    fn get_address_range(&self) -> (u64, u64) {
+	(0xffffffff80000000, 0xffffffffffffffff)
+    }
+
+    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
 	if let Some(sym) = self.find_address_ksym(addr) {
-	    return Some(&sym.name);
+	    return Some((&sym.name, sym.addr));
 	}
 	None
     }
 
-    fn find_symbol(&self, name: &str) -> Option<u64> {
+    fn find_address(&self, name: &str) -> Option<u64> {
 	self.ensure_sym_to_addr();
 
 	if let Some(addr) = self.sym_to_addr.borrow().get(name) {
@@ -263,10 +297,11 @@ impl SymResolver for KSymResolver {
 	}
 	None
     }
-}
 
-pub mod dwarf;
-mod elf;
+    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+	None
+    }
+}
 
 /// Create a KSymResolver
 ///
@@ -317,6 +352,232 @@ pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver,
     ptr::null()
 }
 
+/// The symbol resolver for a single ELF file.
+///
+/// An ELF file may be loaded into an address space with a relocation.
+/// The callers should provide the path of an ELF file and where it is
+/// loaded.
+///
+/// For some ELF files, they are located at a specific address
+/// determined during compile-time.  For these cases, just pass `0` as
+/// it's loaded address.
+struct ElfResolver {
+    dwarf: dwarf::DwarfResolver,
+    loaded_address: u64,
+    size: u64,
+}
+
+impl ElfResolver {
+    fn new(file_name: &str, loaded_address: u64) -> Result<ElfResolver, Error> {
+	let parser = elf::Elf64Parser::open(file_name)?;
+	let e_type = parser.get_elf_file_type()?;
+	let phdrs = parser.get_all_program_headers()?;
+
+	/// Find the size of the block where the ELF file is/was
+	/// mapped.
+	let mut max_addr = 0;
+	if e_type == elf::ET_DYN || e_type == elf::ET_EXEC {
+	    for phdr in phdrs {
+		if phdr.p_type != elf::PT_LOAD {
+		    continue;
+		}
+		let end_at = phdr.p_vaddr + phdr.p_memsz;
+		if max_addr < end_at {
+		    max_addr = end_at;
+		}
+	    }
+	}
+
+	let dwarf = dwarf::DwarfResolver::from_parser_for_addresses(parser, &[])?;
+
+	Ok(ElfResolver { dwarf, loaded_address, size: max_addr })
+    }
+}
+
+impl SymResolver for ElfResolver {
+    fn get_address_range(&self) -> (u64, u64) {
+	(self.loaded_address, self.loaded_address + self.size)
+    }
+
+    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
+	let off = addr - self.loaded_address;
+	let parser = self.dwarf.get_parser();
+	match parser.find_symbol(addr, elf::STT_FUNC) {
+	    Ok((name, start_addr)) => Some((name, start_addr)),
+	    Err(_) => None,
+	}
+    }
+
+    fn find_address(&self, name: &str) -> Option<u64> {
+	None
+    }
+
+    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+	let off = addr - self.loaded_address;
+	let (directory, file, line_no) = self.dwarf.find_line_as_ref(off)?;
+	let mut path = String::from(directory);
+	if !path.is_empty() && &path[(path.len() - 1)..] != "/" {
+	    path.push('/');
+	}
+	path.push_str(file);
+	Some(AddressLineInfo { path, line_no, column: 0 })
+    }
+}
+
+struct LinuxKernelResolver {
+    ksymresolver: KSymResolver,
+    kernelresolver: ElfResolver,
+}
+
+impl LinuxKernelResolver {
+    fn new(kallsyms: &str, kernel_image: &str) -> Result<LinuxKernelResolver, Error> {
+	let mut ksymresolver = KSymResolver::new();
+	ksymresolver.load_file_name(kallsyms)?;
+	let kernelresolver = ElfResolver::new(kernel_image, 0)?;
+	Ok(LinuxKernelResolver { ksymresolver, kernelresolver})
+    }
+}
+
+impl SymResolver for LinuxKernelResolver {
+    fn get_address_range(&self) -> (u64, u64) {
+	(0xffffffff80000000, 0xffffffffffffffff)
+    }
+
+    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
+	self.ksymresolver.find_symbol(addr)
+    }
+    fn find_address(&self, name: &str) -> Option<u64> {
+	None
+    }
+    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+	self.kernelresolver.find_line_info(addr)
+    }
+}
+
+/// The meta info of a symbol file.
+#[derive(Clone)]
+pub enum SymbolFileCfg {
+    /// A single ELF file
+    Elf { file_name: String, loaded_address: u64 },
+    /// Linux Kernel's binary image and a copy of /proc/kallsyms
+    LinuxKernel { kallsyms: String, kernel_image: String },
+}
+
+/// The result of doing symbolization by BlazeSymbolizer.
+#[derive(Clone)]
+pub struct SymbolizedResult {
+    pub symbol: String,
+    pub start_address: u64,
+    pub path: String,
+    pub line_no: usize,
+    pub column: usize,
+}
+
+pub struct BlazeSymbolizer {
+    sym_files: Vec<SymbolFileCfg>,
+    resolver_map: Vec<((u64, u64), Box<dyn SymResolver>)>,
+}
+
+/// BlazeSymbolizer provides an interface to symbolize addresses with
+/// a list of symbol files.
+///
+/// Users should give BlazeSymbolizer a list of meta info of symbol
+/// files (`SymbolFileCfg`); for example, an ELF file and its loaded
+/// location (`SymbolFileCfg::Elf`), or Linux kernel image and a copy
+/// of its kallsyms (`SymbolFileCfg::LinuxKernel`).
+///
+impl BlazeSymbolizer {
+    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
+	let mut resolvers = Vec::<((u64, u64), Box<dyn SymResolver>)>::new();
+	for cfg in sym_files {
+	    let resolver: Box<dyn SymResolver> = match cfg {
+		SymbolFileCfg::Elf { file_name, loaded_address } => {
+		    let mut resolver = ElfResolver::new(&file_name, *loaded_address)?;
+		    Box::new(resolver)
+		},
+		SymbolFileCfg::LinuxKernel { kallsyms, kernel_image } => {
+		    let mut resolver = LinuxKernelResolver::new(&kallsyms, &kernel_image)?;
+		    Box::new(resolver)
+		},
+	    };
+	    resolvers.push((resolver.get_address_range(), resolver));
+	}
+	resolvers.sort_by_key(|x| (*x).0.0);
+
+	Ok(BlazeSymbolizer {
+	    sym_files: Vec::from(sym_files),
+	    resolver_map: resolvers,
+	})
+    }
+
+    fn find_resolver(&self, address: u64) -> Option<&dyn SymResolver> {
+	let idx =
+	    tools::search_address_key(&self.resolver_map,
+				      address,
+				      &|map: &((u64, u64), Box<dyn SymResolver>)| -> u64 { map.0.0 })?;
+	let end = self.resolver_map[idx].0.1;
+	if address >= end {
+	    None
+	} else {
+	    Some(self.resolver_map[idx].1.as_ref())
+	}
+    }
+
+    pub fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
+	let resolver = self.find_resolver(addr)?;
+	resolver.find_symbol(addr)
+    }
+
+    pub fn find_address(&self, name: &str) -> Option<u64> {
+	None
+    }
+
+    pub fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+	let resolver = self.find_resolver(addr)?;
+	resolver.find_line_info(addr)
+    }
+
+    pub fn symbolize(&self, addresses: &[u64]) -> Vec<Option<SymbolizedResult>> {
+	let info: Vec<Option<SymbolizedResult>> =
+	    addresses.iter().map(|addr| {
+		let sym = self.find_symbol(*addr);
+		let linfo = self.find_line_info(*addr);
+		if sym.is_none() && linfo.is_none() {
+		    None
+		} else if sym.is_none() {
+		    let linfo = linfo.unwrap();
+		    Some(SymbolizedResult {
+			symbol: "".to_string(),
+			start_address: 0,
+			path: linfo.path,
+			line_no: linfo.line_no,
+			column: linfo.column,
+		    })
+		} else if linfo.is_none() {
+		    let (sym, start) = sym.unwrap();
+		    Some(SymbolizedResult {
+			symbol: String::from(sym),
+			start_address: start,
+			path: "".to_string(),
+			line_no: 0,
+			column: 0,
+		    })
+		} else {
+		    let (sym, start) = sym.unwrap();
+		    let linfo = linfo.unwrap();
+		    Some(SymbolizedResult {
+			symbol: String::from(sym),
+			start_address: start,
+			path: linfo.path,
+			line_no: linfo.line_no,
+			column: linfo.column,
+		    })
+		}
+	    }).collect();
+	info
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,34 +593,34 @@ mod tests {
 	let sym = &resolver.syms[resolver.syms.len() / 2];
 	let addr = sym.addr;
 	let name = sym.name.clone();
-	let found = resolver.find_address(addr);
+	let found = resolver.find_symbol(addr);
 	assert!(found.is_some());
-	assert_eq!(found.unwrap(), &name);
+	assert_eq!(found.unwrap().0, &name);
     	let addr = addr + 1;
-	let found = resolver.find_address(addr);
+	let found = resolver.find_symbol(addr);
 	assert!(found.is_some());
-	assert_eq!(found.unwrap(), &name);
+	assert_eq!(found.unwrap().0, &name);
 
 	// Find the address of the first symbol
-	let found = resolver.find_address(0);
+	let found = resolver.find_symbol(0);
 	assert!(found.is_some());
 
 	// Find the address of the last symbol
 	let sym = &resolver.syms.last().unwrap();
 	let addr = sym.addr;
 	let name = sym.name.clone();
-	let found = resolver.find_address(addr);
+	let found = resolver.find_symbol(addr);
 	assert!(found.is_some());
-	assert_eq!(found.unwrap(), &name);
-	let found = resolver.find_address(addr + 1);
+	assert_eq!(found.unwrap().0, &name);
+	let found = resolver.find_symbol(addr + 1);
 	assert!(found.is_some());
-	assert_eq!(found.unwrap(), &name);
+	assert_eq!(found.unwrap().0, &name);
 
 	// Find the symbol placed at the middle
 	let sym = &resolver.syms[resolver.syms.len() / 2];
 	let addr = sym.addr;
 	let name = sym.name.clone();
-	let found = resolver.find_symbol(&name);
+	let found = resolver.find_address(&name);
 	assert!(found.is_some());
 	assert_eq!(found.unwrap(), addr);
     }
