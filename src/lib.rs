@@ -502,7 +502,7 @@ impl BlazeSymbolizer {
 	    };
 	    resolvers.push((resolver.get_address_range(), resolver));
 	}
-	resolvers.sort_by_key(|x| (*x).0.0);
+	resolvers.sort_by_key(|x| (*x).0.0); // sorted by the loaded addresses
 
 	Ok(BlazeSymbolizer {
 	    sym_files: Vec::from(sym_files),
@@ -515,8 +515,12 @@ impl BlazeSymbolizer {
 	    tools::search_address_key(&self.resolver_map,
 				      address,
 				      &|map: &((u64, u64), Box<dyn SymResolver>)| -> u64 { map.0.0 })?;
-	let end = self.resolver_map[idx].0.1;
-	if address >= end {
+	let (loaded_begin, loaded_end) = self.resolver_map[idx].0;
+	if loaded_begin != loaded_end && address >= loaded_end {
+	    // `begin == end` means this ELF file may have only
+	    // symbols and debug information.  For this case, we
+	    // always use this resolver if the given address is just
+	    // above its loaded address.
 	    None
 	} else {
 	    Some(self.resolver_map[idx].1.as_ref())
