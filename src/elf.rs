@@ -18,6 +18,14 @@ type Elf64_Word = u32;
 type Elf64_Xword = u64;
 type Elf64_Sxword = i64;
 
+pub const ET_NONE: u16 = 0;
+pub const ET_REL: u16 = 1;
+pub const ET_EXEC: u16 = 2;
+pub const ET_DYN: u16 = 3;
+pub const ET_CORE: u16 = 4;
+pub const ET_LOPROC: u16 = 0xff00;
+pub const ET_HIPROC: u16 = 0xffff;
+
 #[repr(C)]
 struct Elf64_Ehdr {
     e_ident: [u8; EI_NIDENT],	/* ELF "magic number" */
@@ -36,16 +44,33 @@ struct Elf64_Ehdr {
     e_shstrndx: Elf64_Half,
 }
 
+pub const PT_NULL: u32 = 0;
+pub const PT_LOAD: u32 = 1;
+pub const PT_DYNAMIC: u32 = 2;
+pub const PT_INTERP: u32 = 3;
+pub const PT_NOTE: u32 = 4;
+pub const PT_SHLIB: u32 = 5;
+pub const PT_PHDR: u32 = 6;
+pub const PT_TLS: u32 = 7;               /* Thread local storage segment */
+pub const PT_LOOS: u32 = 0x60000000;      /* OS-specific */
+pub const PT_HIOS: u32 = 0x6fffffff;      /* OS-specific */
+pub const PT_LOPROC: u32 = 0x70000000;
+pub const PT_HIPROC: u32 = 0x7fffffff;
+pub const PT_GNU_EH_FRAME: u32 = 0x6474e550;
+pub const PT_GNU_PROPERTY: u32 = 0x6474e553;
+
+pub const PT_GNU_STACK: u32 = PT_LOOS + 0x474e551;
+
 #[repr(C)]
-struct Elf64_Phdr {
-    p_type: Elf64_Word,
-    p_flags: Elf64_Word,
-    p_offset: Elf64_Off,	/* Segment file offset */
-    p_vaddr: Elf64_Addr,	/* Segment virtual address */
-    p_paddr: Elf64_Addr,	/* Segment physical address */
-    p_filesz: Elf64_Xword,	/* Segment size in file */
-    p_memsz: Elf64_Xword,	/* Segment size in memory */
-    p_align: Elf64_Xword,	/* Segment alignment, file & memory */
+pub struct Elf64_Phdr {
+    pub p_type: Elf64_Word,
+    pub p_flags: Elf64_Word,
+    pub p_offset: Elf64_Off,	/* Segment file offset */
+    pub p_vaddr: Elf64_Addr,	/* Segment virtual address */
+    pub p_paddr: Elf64_Addr,	/* Segment physical address */
+    pub p_filesz: Elf64_Xword,	/* Segment size in file */
+    pub p_memsz: Elf64_Xword,	/* Segment size in memory */
+    pub p_align: Elf64_Xword,	/* Segment alignment, file & memory */
 }
 
 #[repr(C)]
@@ -85,7 +110,7 @@ impl Elf64_Sym {
     }
 
     fn is_undef(&self) -> bool {
-	self.st_shndx == SHN_UNDEF;
+	self.st_shndx == SHN_UNDEF
     }
 }
 
@@ -155,6 +180,21 @@ fn read_elf_sections(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shd
     Ok(shdrs)
 }
 
+fn read_elf_program_headers(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Phdr>, Error> {
+    const HDRSIZE: usize = mem::size_of::<Elf64_Phdr>();
+    let off = ehdr.e_phoff as usize;
+    let num = ehdr.e_phnum as usize;
+
+    let mut buf = read_u8(file, off as u64, num * HDRSIZE)?;
+
+    let phdrs: Vec<Elf64_Phdr> = unsafe {
+	let phdrs_ptr = buf.as_mut_ptr() as *mut Elf64_Phdr;
+	buf.leak();
+	Vec::from_raw_parts(phdrs_ptr, num, num)
+    };
+    Ok(phdrs)
+}
+
 fn read_elf_section_raw(file: &mut File, section: &Elf64_Shdr) -> Result<Vec<u8>, Error> {
     read_u8(file, section.sh_offset as u64, section.sh_size as usize)
 }
@@ -172,7 +212,7 @@ fn read_elf_section_offset_seek(file: &mut File, section: &Elf64_Shdr, offset: u
     Ok(())
 }
 
-fn extract_string(strtab: &[u8], off: usize) -> Option<String> {
+fn extract_string<'a>(strtab: &'a [u8], off: usize) -> Option<&'a str> {
     let mut end = off;
 
     if off >= strtab.len() {
@@ -181,15 +221,14 @@ fn extract_string(strtab: &[u8], off: usize) -> Option<String> {
     while strtab[end] != 0 {
 	end += 1;
     }
-    let blk = &strtab[off..end];
-    let r = String::from_utf8(Vec::<u8>::from(blk));
-    if r.is_err() {
-	return None;
-    }
-    Some(r.unwrap())
+    let blk = strtab[off..end].as_ptr() as *mut u8;
+    let r = unsafe { String::from_raw_parts(blk, end - off, end - off) };
+    let ret = Some(unsafe { &*(r.as_str() as *const str) }); // eliminate lifetime
+    r.into_bytes().leak();
+    ret
 }
 
-fn get_elf_section_name(sect: &Elf64_Shdr, strtab: &[u8]) -> Option<String> {
+fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a str> {
     extract_string(strtab, sect.sh_name as usize)
 }
 
@@ -197,6 +236,7 @@ struct Elf64ParserBack {
     ehdr: Option<Elf64_Ehdr>,
     shdrs: Option<Vec<Elf64_Shdr>>,
     shstrtab: Option<Vec<u8>>,
+    phdrs: Option<Vec<Elf64_Phdr>>,
     symtab: Option<Vec<Elf64_Sym>>, // Sorted symtab
     symtab_origin: Option<Vec<Elf64_Sym>>, // The copy in the same order as the file
     strtab: Option<Vec<u8>>,
@@ -218,6 +258,7 @@ impl Elf64Parser {
 		ehdr: None,
 		shdrs: None,
 		shstrtab: None,
+		phdrs: None,
 		symtab: None,
 		symtab_origin: None,
 		strtab: None,
@@ -250,6 +291,21 @@ impl Elf64Parser {
 
 	let shdrs = read_elf_sections(&mut *self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
 	me.shdrs = Some(shdrs);
+
+	Ok(())
+    }
+
+    fn ensure_phdrs(&self) -> Result<(), Error> {
+	self.ensure_ehdr()?;
+
+	let mut me = self.backobj.borrow_mut();
+
+	if me.phdrs.is_some() {
+	    return Ok(());
+	}
+
+	let phdrs = read_elf_program_headers(&mut *self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
+	me.phdrs = Some(phdrs);
 
 	Ok(())
     }
@@ -320,6 +376,14 @@ impl Elf64Parser {
 	Ok(())
     }
 
+    pub fn get_elf_file_type(&self) -> Result<u16, Error> {
+	self.ensure_ehdr()?;
+
+	let me = self.backobj.borrow();
+
+	Ok(me.ehdr.as_ref().unwrap().e_type)
+    }
+
     fn check_section_index(&self, sect_idx: usize) -> Result<(), Error> {
 	let nsects = self.get_num_sections()?;
 
@@ -353,7 +417,7 @@ impl Elf64Parser {
     }
 
     /// Get the name of the section of a given index.
-    pub fn get_section_name(&self, sect_idx: usize) -> Result<String, Error> {
+    pub fn get_section_name(&self, sect_idx: usize) -> Result<&str, Error> {
 	self.check_section_index(sect_idx)?;
 
 	self.ensure_shstrtab()?;
@@ -361,7 +425,7 @@ impl Elf64Parser {
 	let me = self.backobj.borrow();
 
 	let sect = &me.shdrs.as_ref().unwrap()[sect_idx];
-	let name = get_elf_section_name(sect, me.shstrtab.as_ref().unwrap());
+	let name = get_elf_section_name(sect, unsafe { (*self.backobj.as_ptr()).shstrtab.as_ref().unwrap() });
 	if name.is_none() {
 	    return Err(Error::new(ErrorKind::InvalidData, "invalid section name"));
 	}
@@ -393,10 +457,10 @@ impl Elf64Parser {
 		return Ok(i);
 	    }
 	}
-	Err(Error::new(ErrorKind::NotFound, "Does not found the give section"))
+	Err(Error::new(ErrorKind::NotFound, format!("Does not found the give section: {}", name)))
     }
 
-    pub fn find_symbol(&self, address: u64, st_type: u8) -> Result<(String, u64), Error> {
+    pub fn find_symbol(&self, address: u64, st_type: u8) -> Result<(&str, u64), Error> {
 	self.ensure_symtab()?;
 	self.ensure_strtab()?;
 
@@ -414,7 +478,7 @@ impl Elf64Parser {
 	let idx = idx_r.unwrap();
 
 	let sym = &me.symtab.as_ref().unwrap()[idx];
-	let sym_name = match extract_string(me.strtab.as_ref().unwrap().as_slice(), sym.st_name as usize) {
+	let sym_name = match extract_string(unsafe { (*self.backobj.as_ptr()).strtab.as_ref().unwrap().as_slice() }, sym.st_name as usize) {
 	    Some(sym_name) => sym_name,
 	    None => {
 		return Err(Error::new(ErrorKind::InvalidData, "invalid symbol name string/offset"));
@@ -444,11 +508,11 @@ impl Elf64Parser {
 	Ok(unsafe { &(*me).symtab_origin.as_mut().unwrap()[idx] })
     }
 
-    pub fn get_symbol_name(&self, idx: usize) -> Result<String, Error> {
+    pub fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
 	let sym = self.get_symbol(idx)?;
 
-	let me = self.backobj.borrow();
-	let sym_name = match extract_string(me.strtab.as_ref().unwrap().as_slice(), sym.st_name as usize) {
+	let me = self.backobj.as_ptr();
+	let sym_name = match extract_string(unsafe { (*me).strtab.as_ref().unwrap().as_slice() }, sym.st_name as usize) {
 	    Some(name) => name,
 	    None => {
 		return Err(Error::new(ErrorKind::InvalidData, "invalid symb name string/offset"));
@@ -469,8 +533,19 @@ impl Elf64Parser {
 	Ok(symtab)
     }
 
+    pub fn get_all_program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
+	self.ensure_phdrs()?;
+
+	let phdrs = unsafe {
+	    let me = self.backobj.as_ptr();
+	    let phdrs_ref = (*me).phdrs.as_mut().unwrap();
+	    phdrs_ref
+	};
+	Ok(phdrs)
+    }
+
     #[cfg(debug_assertions)]
-    fn pick_symtab_addr(&self) -> (String, u64) {
+    fn pick_symtab_addr(&self) -> (&str, u64) {
 	self.ensure_symtab().unwrap();
 	self.ensure_strtab().unwrap();
 
