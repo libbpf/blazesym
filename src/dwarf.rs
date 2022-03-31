@@ -1,4 +1,6 @@
 use super::elf::Elf64Parser;
+use super::tools::search_address_key;
+
 use std::io::{Error, ErrorKind};
 use std::mem;
 
@@ -75,34 +77,6 @@ fn decode_swdord(data: &[u8]) -> i64 {
     } else {
 	udw as i64
     }
-}
-
-fn search_address_key<T, V: Ord>(data: &[T], address: V, keyfn: &dyn Fn(&T) -> V) -> Option<usize> {
-    let mut left = 0;
-    let mut right = data.len();
-
-    if right == 0 {
-	return None;
-    }
-    if address < keyfn(&data[0]) {
-	return None;
-    }
-
-    while (left + 1) < right {
-	let v = (left + right) / 2;
-	let key = keyfn(&data[v]);
-
-	if key == address {
-	    return Some(v);
-	}
-	if address < key {
-	    right = v;
-	} else {
-	    left = v;
-	}
-    }
-
-    Some(left)
 }
 
 struct ArangesCU {
@@ -796,19 +770,11 @@ pub struct DwarfResolver {
 }
 
 impl DwarfResolver {
-    /// Open a binary to load .debug_line only enough for a given list of addresses.
-    ///
-    /// When `addresses` is not empty, the returned instance only has
-    /// data that related to these addresses.  For this case, the
-    /// isntance have the ability that can serve only these addresses.
-    /// This would be much faster.
-    ///
-    /// If `addresses` is empty, the returned instance has all data
-    /// from the given file.  If the instance will be used for long
-    /// running, you would want to load all data into memory to have
-    /// the ability of handling all possible addresses.
-    pub fn open_for_addresses(filename: &str, addresses: &[u64]) -> Result<DwarfResolver, Error> {
-	let parser = Elf64Parser::open(filename)?;
+    pub fn get_parser(&self) -> &Elf64Parser {
+	&self.parser
+    }
+
+    pub fn from_parser_for_addresses(parser: Elf64Parser, addresses: &[u64]) -> Result<DwarfResolver, Error> {
 	let debug_line_cus = parse_debug_line_elf_parser(&parser, addresses)?;
 
 	let mut addr_to_dlcu = Vec::with_capacity(debug_line_cus.len());
@@ -835,6 +801,22 @@ impl DwarfResolver {
 	    debug_line_cus,
 	    addr_to_dlcu,
 	})
+    }
+
+    /// Open a binary to load .debug_line only enough for a given list of addresses.
+    ///
+    /// When `addresses` is not empty, the returned instance only has
+    /// data that related to these addresses.  For this case, the
+    /// isntance have the ability that can serve only these addresses.
+    /// This would be much faster.
+    ///
+    /// If `addresses` is empty, the returned instance has all data
+    /// from the given file.  If the instance will be used for long
+    /// running, you would want to load all data into memory to have
+    /// the ability of handling all possible addresses.
+    pub fn open_for_addresses(filename: &str, addresses: &[u64]) -> Result<DwarfResolver, Error> {
+	let parser = Elf64Parser::open(filename)?;
+	Self::from_parser_for_addresses(parser, addresses)
     }
 
     /// Open a binary to load and parse .debug_line for later uses.
@@ -872,8 +854,8 @@ impl DwarfResolver {
     /// This function is pretty much the same as `find_line_as_ref()`
     /// except returning a copies of `String` instead of `&str`.
     pub fn find_line(&self, address: u64) -> Option<(String, String, usize)> {
-	let (dir, file, sz) = self.find_line_as_ref(address)?;
-	Some((String::from(dir), String::from(file), sz))
+	let (dir, file, line_no) = self.find_line_as_ref(address)?;
+	Some((String::from(dir), String::from(file), line_no))
     }
 
     #[cfg(test)]
