@@ -5,6 +5,8 @@ use std::borrow::BorrowMut;
 
 use std::cell::RefCell;
 
+use crate::tools::search_address_opt_key;
+
 const EI_NIDENT: usize = 16;
 
 type Elf64_Addr = u64;
@@ -60,14 +62,31 @@ struct Elf64_Shdr {
     sh_entsize: Elf64_Xword,	/* Entry size if section holds table */
 }
 
+pub const SHN_UNDEF: u16 = 0;
+
+pub const STT_NOTYPE: u8 = 0;
+pub const STT_OBJECT: u8 = 1;
+pub const STT_FUNC: u8 = 2;
+
+#[derive(Clone)]
 #[repr(C)]
-struct Elf64_Sym {
+pub struct Elf64_Sym {
     st_name: Elf64_Word,	/* Symbol name, index in string tbl */
     st_info: u8,		/* Type and binding attributes */
     st_other: u8,		/* No defined meaning, 0 */
     st_shndx: Elf64_Half,	/* Associated section index */
     st_value: Elf64_Addr,	/* Value of the symbol */
     st_size: Elf64_Xword,	/* Associated symbol size */
+}
+
+impl Elf64_Sym {
+    fn get_type(&self) -> u8 {
+	self.st_info & 0xf
+    }
+
+    fn is_undef(&self) -> bool {
+	self.st_shndx == SHN_UNDEF;
+    }
 }
 
 #[repr(C)]
@@ -178,11 +197,14 @@ struct Elf64ParserBack {
     ehdr: Option<Elf64_Ehdr>,
     shdrs: Option<Vec<Elf64_Shdr>>,
     shstrtab: Option<Vec<u8>>,
+    symtab: Option<Vec<Elf64_Sym>>, // Sorted symtab
+    symtab_origin: Option<Vec<Elf64_Sym>>, // The copy in the same order as the file
+    strtab: Option<Vec<u8>>,
 }
 
 /// A parser against ELF64 format.
 ///
-pub struct Elf64Parser {
+pub struct Elf64Parser{
     file: RefCell<File>,
     backobj: RefCell<Elf64ParserBack>,
 }
@@ -196,6 +218,9 @@ impl Elf64Parser {
 		ehdr: None,
 		shdrs: None,
 		shstrtab: None,
+		symtab: None,
+		symtab_origin: None,
+		strtab: None,
 	    }),
 	};
 	Ok(parser)
@@ -242,6 +267,55 @@ impl Elf64Parser {
 	let shstrtab_sec = &me.shdrs.as_ref().unwrap()[shstrndx as usize];
 	let shstrtab = read_elf_section_raw(&mut *self.file.borrow_mut(), shstrtab_sec)?;
 	me.shstrtab = Some(shstrtab);
+
+	Ok(())
+    }
+
+    fn ensure_symtab(&self) -> Result<(), Error> {
+	{
+	    let me = self.backobj.borrow();
+
+	    if me.symtab.is_some() {
+		return Ok(());
+	    }
+	}
+
+	let sect_idx = self.find_section(".symtab")?;
+	let symtab_raw = self.read_section_raw(sect_idx)?;
+
+	if symtab_raw.len() % mem::size_of::<Elf64_Sym>() != 0 {
+	    return Err(Error::new(ErrorKind::InvalidData, "size of the .symtab section does not match"));
+	}
+	let cnt = symtab_raw.len() / mem::size_of::<Elf64_Sym>();
+	let mut symtab: Vec<Elf64_Sym> = unsafe {
+	    let symtab_ptr = symtab_raw.as_ptr() as *mut Elf64_Sym;
+	    symtab_raw.leak();
+	    Vec::from_raw_parts(symtab_ptr, cnt, cnt)
+	};
+	let origin = symtab.clone();
+	symtab.sort_by_key(|x| x.st_value);
+
+	let mut me = self.backobj.borrow_mut();
+	me.symtab = Some(symtab);
+	me.symtab_origin = Some(origin);
+
+	Ok(())
+    }
+
+    fn ensure_strtab(&self) -> Result<(), Error> {
+	{
+	    let me = self.backobj.borrow();
+
+	    if me.strtab.is_some() {
+		return Ok(());
+	    }
+	}
+
+	let sect_idx = self.find_section(".strtab")?;
+	let strtab = self.read_section_raw(sect_idx)?;
+
+	let mut me = self.backobj.borrow_mut();
+	me.strtab = Some(strtab);
 
 	Ok(())
     }
@@ -322,6 +396,98 @@ impl Elf64Parser {
 	Err(Error::new(ErrorKind::NotFound, "Does not found the give section"))
     }
 
+    pub fn find_symbol(&self, address: u64, st_type: u8) -> Result<(String, u64), Error> {
+	self.ensure_symtab()?;
+	self.ensure_strtab()?;
+
+	let me = self.backobj.borrow();
+	let idx_r = search_address_opt_key(me.symtab.as_ref().unwrap(), address, &|sym: &Elf64_Sym| {
+	    if sym.st_info & 0xf != st_type || sym.st_shndx == SHN_UNDEF {
+		None
+	    } else {
+		Some(sym.st_value)
+	    }
+	});
+	if idx_r.is_none() {
+	    return Err(Error::new(ErrorKind::NotFound, "Does not found a symbol for the given address"));
+	}
+	let idx = idx_r.unwrap();
+
+	let sym = &me.symtab.as_ref().unwrap()[idx];
+	let sym_name = match extract_string(me.strtab.as_ref().unwrap().as_slice(), sym.st_name as usize) {
+	    Some(sym_name) => sym_name,
+	    None => {
+		return Err(Error::new(ErrorKind::InvalidData, "invalid symbol name string/offset"));
+	    }
+	};
+	Ok((sym_name, sym.st_value))
+    }
+
+    pub fn get_num_symbols(&self) -> Result<usize, Error> {
+	self.ensure_symtab()?;
+
+	let me = self.backobj.borrow();
+	Ok(me.symtab.as_ref().unwrap().len())
+    }
+
+    pub fn get_symbol(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
+	self.ensure_symtab()?;
+
+	let me = self.backobj.as_ptr();
+	Ok(unsafe { &(*me).symtab.as_mut().unwrap()[idx] })
+    }
+
+    pub fn get_symbol_origin(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
+	self.ensure_symtab()?;
+
+	let me = self.backobj.as_ptr();
+	Ok(unsafe { &(*me).symtab_origin.as_mut().unwrap()[idx] })
+    }
+
+    pub fn get_symbol_name(&self, idx: usize) -> Result<String, Error> {
+	let sym = self.get_symbol(idx)?;
+
+	let me = self.backobj.borrow();
+	let sym_name = match extract_string(me.strtab.as_ref().unwrap().as_slice(), sym.st_name as usize) {
+	    Some(name) => name,
+	    None => {
+		return Err(Error::new(ErrorKind::InvalidData, "invalid symb name string/offset"));
+	    }
+	};
+
+	Ok(sym_name)
+    }
+
+    pub fn get_all_symbols(&self) -> Result<&[Elf64_Sym], Error> {
+	self.ensure_symtab()?;
+
+	let symtab = unsafe {
+	    let me = self.backobj.as_ptr();
+	    let symtab_ref = (*me).symtab.as_mut().unwrap();
+	    symtab_ref
+	};
+	Ok(symtab)
+    }
+
+    #[cfg(debug_assertions)]
+    fn pick_symtab_addr(&self) -> (String, u64) {
+	self.ensure_symtab().unwrap();
+	self.ensure_strtab().unwrap();
+
+	let me = self.backobj.borrow();
+	let symtab = me.symtab.as_ref().unwrap();
+	let mut idx = symtab.len() / 2;
+	while symtab[idx].st_info & 0xf != STT_FUNC || symtab[idx].st_shndx == SHN_UNDEF {
+	    idx += 1;
+	}
+	let sym = &symtab[idx];
+	let addr = sym.st_value;
+	drop(me);
+
+	let sym_name = self.get_symbol_name(idx).unwrap();
+	(sym_name, addr)
+    }
+
     /// Read raw data from the file at the current position.
     ///
     /// The caller can use section_seek() to move the current position
@@ -375,5 +541,22 @@ mod tests {
 
 	let parser = Elf64Parser::open(bin_name).unwrap();
 	assert!(parser.find_section(".shstrtab").is_ok());
+    }
+
+    #[test]
+    fn test_elf64_symtab() {
+	let args: Vec<String> = env::args().collect();
+	let bin_name = &args[0];
+
+	let parser = Elf64Parser::open(bin_name).unwrap();
+	assert!(parser.find_section(".shstrtab").is_ok());
+
+	let (sym_name, addr) = parser.pick_symtab_addr();
+
+	let sym_r = parser.find_symbol(addr, STT_FUNC);
+	assert!(sym_r.is_ok());
+	let (sym_name_ret, addr_ret) = sym_r.unwrap();
+	assert_eq!(addr_ret, addr);
+	assert_eq!(sym_name_ret, sym_name);
     }
 }
