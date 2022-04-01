@@ -416,7 +416,7 @@ fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut
 
     #[cfg(debug_assertions)]
     for i in 1..matrix.len() {
-	if matrix[i].address < matrix[i - 1].address {
+	if matrix[i].address < matrix[i - 1].address && !matrix[i - 1].end_sequence {
 	    panic!("Not in ascent order @ [{}] {:?} [{}] {:?}", i - 1, matrix[i - 1], i, matrix[i]);
 	}
     }
@@ -905,7 +905,7 @@ mod tests {
 	let bin_name = &args[0];
 
 	let r = parse_debug_line_elf(bin_name);
-	if (r.is_err()) {
+	if r.is_err() {
 	    println!("{:?}", r.as_ref().err().unwrap());
 	}
 	assert!(r.is_ok());
