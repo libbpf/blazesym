@@ -11,3 +11,5 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
 
+[build-dependencies]
+cbindgen = "*"
