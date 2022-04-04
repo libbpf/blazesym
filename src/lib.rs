@@ -1,4 +1,4 @@
-use std::io::{BufReader, BufRead, Error, ErrorKind};
+use std::io::{BufReader, BufRead, Error};
 use std::fs::File;
 use std::u64;
 
@@ -7,9 +7,10 @@ use std::cell::RefCell;
 use std::ptr;
 use std::default::Default;
 
-use std::ffi::CString;
+use std::ffi::{CString, CStr};
 use std::os::raw::c_char;
-
+use std::alloc::{alloc, dealloc, Layout};
+use std::mem;
 
 pub mod dwarf;
 mod elf;
@@ -362,7 +363,8 @@ pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver,
 /// determined during compile-time.  For these cases, just pass `0` as
 /// it's loaded address.
 struct ElfResolver {
-    dwarf: dwarf::DwarfResolver,
+    dwarf: Option<dwarf::DwarfResolver>,
+    parser: Option<elf::Elf64Parser>,
     loaded_address: u64,
     size: u64,
 }
@@ -373,8 +375,8 @@ impl ElfResolver {
 	let e_type = parser.get_elf_file_type()?;
 	let phdrs = parser.get_all_program_headers()?;
 
-	/// Find the size of the block where the ELF file is/was
-	/// mapped.
+	// Find the size of the block where the ELF file is/was
+	// mapped.
 	let mut max_addr = 0;
 	if e_type == elf::ET_DYN || e_type == elf::ET_EXEC {
 	    for phdr in phdrs {
@@ -388,9 +390,19 @@ impl ElfResolver {
 	    }
 	}
 
-	let dwarf = dwarf::DwarfResolver::from_parser_for_addresses(parser, &[])?;
+	if let Ok(dwarf) = dwarf::DwarfResolver::from_parser_for_addresses(parser, &[]) {
+	    Ok(ElfResolver { dwarf: Some(dwarf), parser: None, loaded_address, size: max_addr })
+	} else {
+	    Ok(ElfResolver { dwarf: None, parser: Some(elf::Elf64Parser::open(file_name)?), loaded_address, size: max_addr })
+	}
+    }
 
-	Ok(ElfResolver { dwarf, loaded_address, size: max_addr })
+    fn get_parser(&self) -> Option<&elf::Elf64Parser> {
+	if let Some(dwarf) = self.dwarf.as_ref() {
+	    Some(dwarf.get_parser())
+	} else {
+	    self.parser.as_ref()
+	}
     }
 }
 
@@ -401,8 +413,8 @@ impl SymResolver for ElfResolver {
 
     fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
 	let off = addr - self.loaded_address;
-	let parser = self.dwarf.get_parser();
-	match parser.find_symbol(addr, elf::STT_FUNC) {
+	let parser = self.get_parser()?;
+	match parser.find_symbol(off, elf::STT_FUNC) {
 	    Ok((name, start_addr)) => Some((name, start_addr)),
 	    Err(_) => None,
 	}
@@ -414,13 +426,17 @@ impl SymResolver for ElfResolver {
 
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
 	let off = addr - self.loaded_address;
-	let (directory, file, line_no) = self.dwarf.find_line_as_ref(off)?;
-	let mut path = String::from(directory);
-	if !path.is_empty() && &path[(path.len() - 1)..] != "/" {
-	    path.push('/');
+	if let Some(dwarf) = self.dwarf.as_ref() {
+	    let (directory, file, line_no) = dwarf.find_line_as_ref(off)?;
+	    let mut path = String::from(directory);
+	    if !path.is_empty() && &path[(path.len() - 1)..] != "/" {
+		path.push('/');
+	    }
+	    path.push_str(file);
+	    Some(AddressLineInfo { path, line_no, column: 0 })
+	} else {
+	    None
 	}
-	path.push_str(file);
-	Some(AddressLineInfo { path, line_no, column: 0 })
     }
 }
 
@@ -492,11 +508,11 @@ impl BlazeSymbolizer {
 	for cfg in sym_files {
 	    let resolver: Box<dyn SymResolver> = match cfg {
 		SymbolFileCfg::Elf { file_name, loaded_address } => {
-		    let mut resolver = ElfResolver::new(&file_name, *loaded_address)?;
+		    let resolver = ElfResolver::new(&file_name, *loaded_address)?;
 		    Box::new(resolver)
 		},
 		SymbolFileCfg::LinuxKernel { kallsyms, kernel_image } => {
-		    let mut resolver = LinuxKernelResolver::new(&kallsyms, &kernel_image)?;
+		    let resolver = LinuxKernelResolver::new(&kallsyms, &kernel_image)?;
 		    Box::new(resolver)
 		},
 	    };
@@ -580,6 +596,211 @@ impl BlazeSymbolizer {
 	    }).collect();
 	info
     }
+}
+
+const CFG_T_ELF: u16 = 1;
+const CFG_T_LINUX_KERNEL: u16 = 2;
+
+#[repr(C)]
+pub struct SymbolFileCfgC {
+    cfg_type: u16,
+    file_name_1: *const c_char,
+    file_name_2: *const c_char,
+    loaded_address: u64,
+}
+
+#[repr(C)]
+pub struct BlazeSymbolizerC {
+    symbolizer: *mut BlazeSymbolizer,
+}
+
+#[repr(C)]
+pub struct SymbolizedResultC {
+    pub valid: bool,
+    pub symbol: *const c_char,
+    pub start_address: u64,
+    pub path: *const c_char,
+    pub line_no: usize,
+    pub column: usize,
+}
+
+/// Create a String from a pointer of C string
+///
+/// # Safety
+///
+/// Cstring should be terminated with a null byte.
+///
+unsafe fn from_cstr(cstr: *const c_char) -> String {
+    CStr::from_ptr(cstr).to_str().unwrap().to_owned()
+}
+
+/// Create an instance of BlazeSymbolizer for C code.
+///
+/// # Safety
+///
+/// Should free the pointer with blazesymbolizer_free.
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesymbolizer_new(cfg: *const SymbolFileCfgC, cfg_len: u32) -> *mut BlazeSymbolizerC {
+    let mut cfg_rs = Vec::<SymbolFileCfg>::with_capacity(cfg_len as usize);
+
+    for i in 0..cfg_len {
+	let c = cfg.offset(i as isize);
+	match (*c).cfg_type {
+	    CFG_T_ELF => {
+		cfg_rs.push(SymbolFileCfg::Elf {
+		    file_name: from_cstr((*c).file_name_1),
+		    loaded_address: (*c).loaded_address,
+		});
+	    },
+	    CFG_T_LINUX_KERNEL => {
+		cfg_rs.push(SymbolFileCfg::LinuxKernel {
+		    kallsyms: from_cstr((*c).file_name_1),
+		    kernel_image: from_cstr((*c).file_name_2),
+		});
+	    },
+	    _ => {
+		return ptr::null_mut();
+	    }
+	}
+    }
+
+    let symbolizer = match BlazeSymbolizer::new(&cfg_rs) {
+	Ok(s) => s,
+	Err(_) => {
+	    return ptr::null_mut();
+	}
+    };
+    let symbolizer_box = Box::new(symbolizer);
+    let c_box = Box::new(BlazeSymbolizerC { symbolizer: Box::into_raw(symbolizer_box) });
+    Box::into_raw(c_box)
+}
+
+/// Free an instance of BlazeSymbolizer.
+///
+/// # Safety
+///
+/// The pointer must be returned by blazesymbolizer_new.
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesymbolizer_free(symbolizer: *mut BlazeSymbolizerC) {
+    Box::from_raw((*symbolizer).symbolizer);
+    Box::from_raw(symbolizer);
+}
+
+/// Convert SymbolizedResults to SymbolizedResultCs.
+///
+/// # Safety
+///
+/// The returned pointer should be freed by blazesymbolizer_symbolizedresult_free.
+///
+unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>) -> *const SymbolizedResultC {
+    // Allocate a buffer to contain all SymbolizedResultC and C
+    // strings of symbol and path.
+    let buf_sz = results.iter().fold(0, |acc, opt| {
+	match opt {
+	    Some(result) => {
+		acc + result.symbol.len() + result.path.len() + 2
+	    },
+	    None => {
+		acc
+	    },
+	}
+    }) + 1 /* empty string */ + mem::size_of::<SymbolizedResultC>() * results.len();
+    let raw_buf_with_sz = alloc(Layout::from_size_align(buf_sz + mem::size_of::<u64>(), 8).unwrap());
+
+    // prepend an u64 to keep the size of the buffer.
+    *(raw_buf_with_sz as *mut u64) = buf_sz as u64;
+
+    let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
+
+    let mut rc_last = raw_buf as *mut SymbolizedResultC;
+    let mut cstr_last = raw_buf.add(mem::size_of::<SymbolizedResultC>() * results.len()) as *mut c_char;
+
+    let mut make_cstr = |src: &str| {
+	let cstr = cstr_last;
+	ptr::copy(src.as_ptr(), cstr as *mut u8, src.len());
+	*cstr.add(src.len()) = 0;
+	cstr_last = cstr_last.add(src.len() + 1);
+
+	cstr
+    };
+
+    // Make an empty C string to use later
+    let empty_cstr = make_cstr("");
+
+    // Convert all SymbolizedResults to SymbolizedResultCs
+    for opt in results {
+	match opt {
+	    Some(r) => {
+		let symbol_ptr = make_cstr(&r.symbol);
+
+		let path_ptr = make_cstr(&r.path);
+
+		let rc_ref = &mut *rc_last;
+		rc_ref.valid = true;
+		rc_ref.symbol = symbol_ptr;
+		rc_ref.start_address = r.start_address;
+		rc_ref.path = path_ptr;
+		rc_ref.line_no = r.line_no;
+		rc_ref.column = r.column;
+
+		rc_last = rc_last.add(1);
+	    },
+	    None => {
+		let rc_ref = &mut *rc_last;
+		rc_ref.valid = false;
+		rc_ref.symbol = empty_cstr;
+		rc_ref.start_address = 0;
+		rc_ref.path = empty_cstr;
+		rc_ref.line_no = 0;
+		rc_ref.column =0;
+
+		rc_last = rc_last.add(1);
+	    },
+	}
+    };
+
+    raw_buf as *const SymbolizedResultC
+}
+
+/// Symbolize addresses with the debug info in symbol/debug files.
+///
+/// Return an array of SymbolizedResultC with the same size as the
+/// number of input addresses.  The caller should free the returned
+/// array by calling `blazesymbolizer_symbolizedresult_free()`.
+///
+/// # Safety
+///
+/// The returned pointer should be freed by blazesymbolizer_symbolizedresult_free.
+///
+#[no_mangle]
+pub unsafe extern "C"
+fn blazesymbolizer_symbolize(symbolizer: *mut BlazeSymbolizerC,
+			     addresses: *const u64,
+			     address_cnt: usize) -> *const SymbolizedResultC {
+    let symbolizer = &*(*symbolizer).symbolizer;
+    let addresses = Vec::from_raw_parts(addresses as *mut u64, address_cnt, address_cnt);
+
+    let results = symbolizer.symbolize(&addresses);
+
+    addresses.leak();
+
+    convert_symbolizedresults_to_c(results)
+}
+
+/// Free an array returned by blazesymbolizer_symbolize.
+///
+/// # Safety
+///
+/// The pointer must be returned by blazesymbolizer_symbolize.
+///
+#[no_mangle]
+pub unsafe extern "C"
+fn blazesymbolizer_symbolizedresult_free(results: *const SymbolizedResultC) {
+    let raw_buf_with_sz = (results as *mut u8).offset(-(mem::size_of::<u64>() as isize));
+    let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
+    dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
 }
 
 #[cfg(test)]
