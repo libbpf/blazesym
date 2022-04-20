@@ -15,6 +15,9 @@ use std::mem;
 pub mod dwarf;
 mod elf;
 mod tools;
+mod elf_cache;
+
+use elf_cache::ElfBackend;
 
 pub trait StackFrame {
     fn get_ip(&self) -> u64;
@@ -363,15 +366,18 @@ pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver,
 /// determined during compile-time.  For these cases, just pass `0` as
 /// it's loaded address.
 struct ElfResolver {
-    dwarf: Option<dwarf::DwarfResolver>,
-    parser: Option<elf::Elf64Parser>,
+    backend: ElfBackend,
     loaded_address: u64,
     size: u64,
 }
 
 impl ElfResolver {
     fn new(file_name: &str, loaded_address: u64) -> Result<ElfResolver, Error> {
-	let parser = elf::Elf64Parser::open(file_name)?;
+	let backend = elf_cache::get_cache().find(file_name)?;
+	let parser = match &backend {
+	    ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
+	    ElfBackend::Elf(parser) => &*parser,
+	};
 	let e_type = parser.get_elf_file_type()?;
 	let phdrs = parser.get_all_program_headers()?;
 
@@ -390,18 +396,13 @@ impl ElfResolver {
 	    }
 	}
 
-	if let Ok(dwarf) = dwarf::DwarfResolver::from_parser_for_addresses(parser, &[]) {
-	    Ok(ElfResolver { dwarf: Some(dwarf), parser: None, loaded_address, size: max_addr })
-	} else {
-	    Ok(ElfResolver { dwarf: None, parser: Some(elf::Elf64Parser::open(file_name)?), loaded_address, size: max_addr })
-	}
+	Ok(ElfResolver { backend, loaded_address, size: max_addr })
     }
 
     fn get_parser(&self) -> Option<&elf::Elf64Parser> {
-	if let Some(dwarf) = self.dwarf.as_ref() {
-	    Some(dwarf.get_parser())
-	} else {
-	    self.parser.as_ref()
+	match &self.backend {
+	    ElfBackend::Dwarf(dwarf) => Some(dwarf.get_parser()),
+	    ElfBackend::Elf(parser) => Some(&*parser),
 	}
     }
 }
@@ -426,7 +427,7 @@ impl SymResolver for ElfResolver {
 
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
 	let off = addr - self.loaded_address;
-	if let Some(dwarf) = self.dwarf.as_ref() {
+	if let ElfBackend::Dwarf(dwarf) = &self.backend {
 	    let (directory, file, line_no) = dwarf.find_line_as_ref(off)?;
 	    let mut path = String::from(directory);
 	    if !path.is_empty() && &path[(path.len() - 1)..] != "/" {
@@ -508,11 +509,11 @@ impl BlazeSymbolizer {
 	for cfg in sym_files {
 	    let resolver: Box<dyn SymResolver> = match cfg {
 		SymbolFileCfg::Elf { file_name, loaded_address } => {
-		    let resolver = ElfResolver::new(&file_name, *loaded_address)?;
+		    let resolver = ElfResolver::new(file_name, *loaded_address)?;
 		    Box::new(resolver)
 		},
 		SymbolFileCfg::LinuxKernel { kallsyms, kernel_image } => {
-		    let resolver = LinuxKernelResolver::new(&kallsyms, &kernel_image)?;
+		    let resolver = LinuxKernelResolver::new(kallsyms, kernel_image)?;
 		    Box::new(resolver)
 		},
 	    };
@@ -573,7 +574,16 @@ impl BlazeSymbolizer {
 			line_no: linfo.line_no,
 			column: linfo.column,
 		    })
-		} else if linfo.is_none() {
+		} else if let Some(linfo) = linfo {
+		    let (sym, start) = sym.unwrap();
+		    Some(SymbolizedResult {
+			symbol: String::from(sym),
+			start_address: start,
+			path: linfo.path,
+			line_no: linfo.line_no,
+			column: linfo.column,
+		    })
+		} else {
 		    let (sym, start) = sym.unwrap();
 		    Some(SymbolizedResult {
 			symbol: String::from(sym),
@@ -581,16 +591,6 @@ impl BlazeSymbolizer {
 			path: "".to_string(),
 			line_no: 0,
 			column: 0,
-		    })
-		} else {
-		    let (sym, start) = sym.unwrap();
-		    let linfo = linfo.unwrap();
-		    Some(SymbolizedResult {
-			symbol: String::from(sym),
-			start_address: start,
-			path: linfo.path,
-			line_no: linfo.line_no,
-			column: linfo.column,
 		    })
 		}
 	    }).collect();

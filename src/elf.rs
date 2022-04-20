@@ -5,7 +5,7 @@ use std::borrow::BorrowMut;
 
 use std::cell::RefCell;
 
-use crate::tools::search_address_opt_key;
+use crate::tools::{search_address_opt_key, extract_string};
 
 const EI_NIDENT: usize = 16;
 
@@ -212,22 +212,6 @@ fn read_elf_section_offset_seek(file: &mut File, section: &Elf64_Shdr, offset: u
     Ok(())
 }
 
-fn extract_string<'a>(strtab: &'a [u8], off: usize) -> Option<&'a str> {
-    let mut end = off;
-
-    if off >= strtab.len() {
-	return None;
-    }
-    while strtab[end] != 0 {
-	end += 1;
-    }
-    let blk = strtab[off..end].as_ptr() as *mut u8;
-    let r = unsafe { String::from_raw_parts(blk, end - off, end - off) };
-    let ret = Some(unsafe { &*(r.as_str() as *const str) }); // eliminate lifetime
-    r.into_bytes().leak();
-    ret
-}
-
 fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a str> {
     extract_string(strtab, sect.sh_name as usize)
 }
@@ -250,8 +234,7 @@ pub struct Elf64Parser{
 }
 
 impl Elf64Parser {
-    pub fn open(filename: &str) -> Result<Elf64Parser, Error> {
-	let file = File::open(filename)?;
+    pub fn open_file(file: File) -> Result<Elf64Parser, Error> {
 	let parser = Elf64Parser {
 	    file: RefCell::new(file),
 	    backobj: RefCell::new(Elf64ParserBack {
@@ -265,6 +248,11 @@ impl Elf64Parser {
 	    }),
 	};
 	Ok(parser)
+    }
+
+    pub fn open(filename: &str) -> Result<Elf64Parser, Error> {
+	let file = File::open(filename)?;
+	Self::open_file(file)
     }
 
     fn ensure_ehdr(&self) -> Result<(), Error> {

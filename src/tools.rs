@@ -81,3 +81,20 @@ pub fn search_address_opt_key<T, V: Ord>(data: &[T], address: V, keyfn: &dyn Fn(
 
     Some(left)
 }
+
+pub fn extract_string(raw: &[u8], off: usize) -> Option<&str> {
+    let mut end = off;
+
+    if off >= raw.len() {
+	return None;
+    }
+    while raw[end] != 0 {
+	end += 1;
+    }
+    let blk = raw[off..end].as_ptr() as *mut u8;
+    let r = unsafe { String::from_raw_parts(blk, end - off, end - off) };
+    let ret = Some(unsafe { &*(r.as_str() as *const str) }); // eliminate lifetime
+    r.into_bytes().leak();
+    ret
+}
+

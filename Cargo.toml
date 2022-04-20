@@ -10,6 +10,7 @@ name = "blazesym"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
+nix = "*"
 
 [build-dependencies]
 cbindgen = "*"

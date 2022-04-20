@@ -3,6 +3,7 @@ use super::tools::search_address_key;
 
 use std::io::{Error, ErrorKind};
 use std::mem;
+use std::rc::Rc;
 
 #[cfg(test)]
 use std::env;
@@ -764,18 +765,18 @@ fn parse_debug_line_elf(filename: &str) -> Result<Vec<DebugLineCU>, Error> {
 
 /// DwarfResolver provide abilities to query DWARF information of binaries.
 pub struct DwarfResolver {
-    parser: Elf64Parser,
+    parser: Rc<Elf64Parser>,
     debug_line_cus: Vec<DebugLineCU>,
     addr_to_dlcu: Vec<(u64, u32)>,
 }
 
 impl DwarfResolver {
     pub fn get_parser(&self) -> &Elf64Parser {
-	&self.parser
+	&*self.parser
     }
 
-    pub fn from_parser_for_addresses(parser: Elf64Parser, addresses: &[u64]) -> Result<DwarfResolver, Error> {
-	let debug_line_cus = parse_debug_line_elf_parser(&parser, addresses)?;
+    pub fn from_parser_for_addresses(parser: Rc<Elf64Parser>, addresses: &[u64]) -> Result<DwarfResolver, Error> {
+	let debug_line_cus = parse_debug_line_elf_parser(&*parser, addresses)?;
 
 	let mut addr_to_dlcu = Vec::with_capacity(debug_line_cus.len());
 	for (idx, dlcu) in debug_line_cus.iter().enumerate() {
@@ -816,7 +817,7 @@ impl DwarfResolver {
     /// the ability of handling all possible addresses.
     pub fn open_for_addresses(filename: &str, addresses: &[u64]) -> Result<DwarfResolver, Error> {
 	let parser = Elf64Parser::open(filename)?;
-	Self::from_parser_for_addresses(parser, addresses)
+	Self::from_parser_for_addresses(Rc::new(parser), addresses)
     }
 
     /// Open a binary to load and parse .debug_line for later uses.
