@@ -302,7 +302,7 @@ impl SymResolver for KSymResolver {
 	None
     }
 
-    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, _addr: u64) -> Option<AddressLineInfo> {
 	None
     }
 }
@@ -421,7 +421,7 @@ impl SymResolver for ElfResolver {
 	}
     }
 
-    fn find_address(&self, name: &str) -> Option<u64> {
+    fn find_address(&self, _name: &str) -> Option<u64> {
 	None
     }
 
@@ -463,7 +463,7 @@ impl SymResolver for LinuxKernelResolver {
     fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
 	self.ksymresolver.find_symbol(addr)
     }
-    fn find_address(&self, name: &str) -> Option<u64> {
+    fn find_address(&self, _name: &str) -> Option<u64> {
 	None
     }
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
@@ -499,6 +499,7 @@ pub struct SymbolizedResult {
 /// of its kallsyms (`SymbolFileCfg::LinuxKernel`).
 ///
 pub struct BlazeSymbolizer {
+    #[allow(dead_code)]
     sym_files: Vec<SymbolFileCfg>,
     resolver_map: Vec<((u64, u64), Box<dyn SymResolver>)>,
 }
@@ -549,7 +550,7 @@ impl BlazeSymbolizer {
 	resolver.find_symbol(addr)
     }
 
-    pub fn find_address(&self, name: &str) -> Option<u64> {
+    pub fn find_address(&self, _name: &str) -> Option<u64> {
 	None
     }
 

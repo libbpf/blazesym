@@ -40,6 +40,7 @@ fn decode_uhalf(data: &[u8]) -> u16 {
     (data[0] as u16) | ((data[1] as u16) << 8)
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 fn decode_shalf(data: &[u8]) -> i16 {
     let uh = decode_uhalf(data);
@@ -55,6 +56,7 @@ fn decode_uword(data: &[u8]) -> u32 {
     (data[0] as u32) | ((data[1] as u32) << 8) | ((data[2] as u32) << 16) | ((data[3] as u32) << 24)
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 fn decode_sword(data: &[u8]) -> i32 {
     let uw = decode_uword(data);
@@ -70,6 +72,7 @@ fn decode_udword(data: &[u8]) -> u64 {
     decode_uword(data) as u64 | ((decode_uword(&data[4..]) as u64) << 32)
 }
 
+#[allow(dead_code)]
 #[inline(always)]
 fn decode_swdord(data: &[u8]) -> i64 {
     let udw = decode_udword(data);
@@ -80,9 +83,9 @@ fn decode_swdord(data: &[u8]) -> i64 {
     }
 }
 
-struct ArangesCU {
-    debug_line_off: usize,
-    aranges: Vec<(u64, u64)>,
+pub struct ArangesCU {
+    pub debug_line_off: usize,
+    pub aranges: Vec<(u64, u64)>,
 }
 
 fn parse_aranges_cu(data: &[u8]) -> Result<(ArangesCU, usize), Error> {
@@ -93,7 +96,7 @@ fn parse_aranges_cu(data: &[u8]) -> Result<(ArangesCU, usize), Error> {
     let version = decode_uhalf(&data[4..]);
     let offset = decode_uword(&data[6..]);
     let addr_sz = data[10];
-    let seg_sz = data[11];
+    let _seg_sz = data[11];
 
     if data.len() < (len + 4) as usize {
 	return Err(Error::new(ErrorKind::InvalidData, "data is broken (too small)"));
@@ -141,7 +144,7 @@ fn parse_aranges_cu(data: &[u8]) -> Result<(ArangesCU, usize), Error> {
 
     Ok((ArangesCU {
 	    debug_line_off: offset as usize,
-	    aranges: aranges,
+	    aranges,
         },
 	len as usize + 4))
 }
@@ -162,7 +165,7 @@ fn parse_aranges_elf_parser(parser: &Elf64Parser) -> Result<Vec<ArangesCU>, Erro
     Ok(acus)
 }
 
-fn parse_aranges_elf(filename: &str) -> Result<Vec<ArangesCU>, Error> {
+pub fn parse_aranges_elf(filename: &str) -> Result<Vec<ArangesCU>, Error> {
     let parser = Elf64Parser::open(filename)?;
     parse_aranges_elf_parser(&parser)
 }
@@ -182,7 +185,7 @@ struct DebugLinePrologueV2 {
 /// DebugLinePrologue is actually a V4.
 ///
 /// DebugLinePrologueV2 will be converted to this type.
-#[derive(Clone)]
+#[allow(dead_code)]
 #[repr(packed)]
 struct DebugLinePrologue {
     total_length: u32,
@@ -200,13 +203,16 @@ struct DebugLinePrologue {
 struct DebugLineFileInfo {
     name: String,
     dir_idx: u32,		// Index to include_directories of DebugLineCU.
+    #[allow(dead_code)]
     mod_tm: u64,
+    #[allow(dead_code)]
     size: usize,
 }
 
 /// Represent a Compile Unit (CU) in a .debug_line section.
 struct DebugLineCU {
     prologue: DebugLinePrologue,
+    #[allow(dead_code)]
     standard_opcode_lengths: Vec<u8>,
     include_directories: Vec<String>,
     files: Vec<DebugLineFileInfo>,
@@ -369,7 +375,7 @@ fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut
 	    let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
 	    let v4 = Box::<DebugLinePrologue>::from_raw(prologue_raw);
 	    prologue_sz = prologue_v4_sz;
-	    let prologue_v4 = (*v4).clone();
+	    let prologue_v4 = DebugLinePrologue { ..(*v4) };
 	    Box::leak(v4);
 	    prologue_v4
 	} else {
@@ -758,6 +764,7 @@ fn parse_debug_line_elf_parser(parser: &Elf64Parser, addresses: &[u64]) -> Resul
     Ok(all_cus)
 }
 
+#[allow(dead_code)]
 fn parse_debug_line_elf(filename: &str) -> Result<Vec<DebugLineCU>, Error> {
     let parser = Elf64Parser::open(filename)?;
     parse_debug_line_elf_parser(&parser, &[])

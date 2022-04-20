@@ -9,21 +9,38 @@ use crate::tools::{search_address_opt_key, extract_string};
 
 const EI_NIDENT: usize = 16;
 
+#[allow(non_camel_case_types)]
 type Elf64_Addr = u64;
+#[allow(non_camel_case_types)]
 type Elf64_Half = u16;
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
 type Elf64_SHalf = u16;
+#[allow(non_camel_case_types)]
 type Elf64_Off = u64;
+#[allow(non_camel_case_types)]
+#[allow(dead_code)]
 type Elf64_Sword = i32;
+#[allow(non_camel_case_types)]
 type Elf64_Word = u32;
+#[allow(non_camel_case_types)]
 type Elf64_Xword = u64;
+#[allow(non_camel_case_types)]
 type Elf64_Sxword = i64;
 
+#[allow(dead_code)]
 pub const ET_NONE: u16 = 0;
+#[allow(dead_code)]
 pub const ET_REL: u16 = 1;
+#[allow(dead_code)]
 pub const ET_EXEC: u16 = 2;
+#[allow(dead_code)]
 pub const ET_DYN: u16 = 3;
+#[allow(dead_code)]
 pub const ET_CORE: u16 = 4;
+#[allow(dead_code)]
 pub const ET_LOPROC: u16 = 0xff00;
+#[allow(dead_code)]
 pub const ET_HIPROC: u16 = 0xffff;
 
 #[repr(C)]
@@ -44,21 +61,36 @@ struct Elf64_Ehdr {
     e_shstrndx: Elf64_Half,
 }
 
+#[allow(dead_code)]
 pub const PT_NULL: u32 = 0;
+#[allow(dead_code)]
 pub const PT_LOAD: u32 = 1;
+#[allow(dead_code)]
 pub const PT_DYNAMIC: u32 = 2;
+#[allow(dead_code)]
 pub const PT_INTERP: u32 = 3;
+#[allow(dead_code)]
 pub const PT_NOTE: u32 = 4;
+#[allow(dead_code)]
 pub const PT_SHLIB: u32 = 5;
+#[allow(dead_code)]
 pub const PT_PHDR: u32 = 6;
+#[allow(dead_code)]
 pub const PT_TLS: u32 = 7;               /* Thread local storage segment */
+#[allow(dead_code)]
 pub const PT_LOOS: u32 = 0x60000000;      /* OS-specific */
+#[allow(dead_code)]
 pub const PT_HIOS: u32 = 0x6fffffff;      /* OS-specific */
+#[allow(dead_code)]
 pub const PT_LOPROC: u32 = 0x70000000;
+#[allow(dead_code)]
 pub const PT_HIPROC: u32 = 0x7fffffff;
+#[allow(dead_code)]
 pub const PT_GNU_EH_FRAME: u32 = 0x6474e550;
+#[allow(dead_code)]
 pub const PT_GNU_PROPERTY: u32 = 0x6474e553;
 
+#[allow(dead_code)]
 pub const PT_GNU_STACK: u32 = PT_LOOS + 0x474e551;
 
 #[repr(C)]
@@ -89,8 +121,11 @@ struct Elf64_Shdr {
 
 pub const SHN_UNDEF: u16 = 0;
 
+#[allow(dead_code)]
 pub const STT_NOTYPE: u8 = 0;
+#[allow(dead_code)]
 pub const STT_OBJECT: u8 = 1;
+#[allow(dead_code)]
 pub const STT_FUNC: u8 = 2;
 
 #[derive(Clone)]
@@ -104,6 +139,7 @@ pub struct Elf64_Sym {
     st_size: Elf64_Xword,	/* Associated symbol size */
 }
 
+#[allow(dead_code)]
 impl Elf64_Sym {
     fn get_type(&self) -> u8 {
 	self.st_info & 0xf
@@ -114,12 +150,14 @@ impl Elf64_Sym {
     }
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 struct Elf64_Rel {
     r_offset: Elf64_Addr,	/* Location at which to apply the action */
     r_info: Elf64_Xword,	/* index and type of relocation */
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 struct Elf64_Rela {
     r_offset: Elf64_Addr,	/* Location at which to apply the action */
@@ -127,12 +165,14 @@ struct Elf64_Rela {
     r_addend: Elf64_Sxword,	/* Constant addend used to compute value */
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 union Elf64_Dyn_un{
     d_val: Elf64_Xword,
     d_ptr: Elf64_Addr,
 }
 
+#[allow(dead_code)]
 #[repr(C)]
 struct Elf64_Dyn {
     d_tag: Elf64_Sxword,	/* entry tag value */
@@ -532,6 +572,7 @@ impl Elf64Parser {
 	Ok(phdrs)
     }
 
+    #[allow(dead_code)]
     #[cfg(debug_assertions)]
     fn pick_symtab_addr(&self) -> (&str, u64) {
 	self.ensure_symtab().unwrap();

@@ -1,7 +1,6 @@
 use super::elf::Elf64Parser;
 use super::dwarf::DwarfResolver;
 
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Error;
@@ -179,6 +178,7 @@ pub struct ElfCache {
 }
 
 impl ElfCache {
+    #[allow(dead_code)]
     pub fn get_max_elfs(&self) -> usize {
 	self.max_elfs
     }
