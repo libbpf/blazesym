@@ -4,6 +4,10 @@ use std::env;
 use std::path::Path;
 
 fn main() {
+    if env::var("GEN_C_HEADER").is_err() {
+	return;
+    }
+
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let build_type = env::var("PROFILE").unwrap();
     let target_path = Path::new(&crate_dir).join("target").join(build_type);
