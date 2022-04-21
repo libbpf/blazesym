@@ -1041,7 +1041,7 @@ mod tests {
 	    println!("{:?}", r.as_ref().err().unwrap());
 	}
 	assert!(r.is_ok());
-	let acus = r.unwrap();
+	let _acus = r.unwrap();
     }
 
     #[test]

@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
 nix = "*"
+regex = "*"
 
 [build-dependencies]
 cbindgen = "*"

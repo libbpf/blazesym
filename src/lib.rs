@@ -478,6 +478,8 @@ pub enum SymbolFileCfg {
     Elf { file_name: String, loaded_address: u64 },
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
     LinuxKernel { kallsyms: String, kernel_image: String },
+    /// This one will be exapended into all ELF files loaded.
+    Process { process_id: u32 },
 }
 
 /// The result of doing symbolization by BlazeSymbolizer.
@@ -489,6 +491,8 @@ pub struct SymbolizedResult {
     pub line_no: usize,
     pub column: usize,
 }
+
+type ResolverList = Vec<((u64, u64), Box<dyn SymResolver>)>;
 
 /// BlazeSymbolizer provides an interface to symbolize addresses with
 /// a list of symbol files.
@@ -505,22 +509,46 @@ pub struct BlazeSymbolizer {
 }
 
 impl BlazeSymbolizer {
-    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
-	let mut resolvers = Vec::<((u64, u64), Box<dyn SymResolver>)>::new();
+    fn build_resolvers_proc_maps(process_id: u32, resolvers: &mut ResolverList) -> Result<(), Error> {
+	let entries = tools::parse_maps(process_id)?;
+	for entry in entries.iter() {
+	    if entry.offset != 0 {
+		continue;
+	    }
+	    if &entry.path[..1] != "/" {
+		continue;
+	    }
+	    let resolver = ElfResolver::new(&entry.path, entry.loaded_address)?;
+	    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+	}
+
+	Ok(())
+    }
+
+    fn build_resolvers(sym_files: &[SymbolFileCfg]) -> Result<ResolverList, Error> {
+	let mut resolvers = ResolverList::new();
 	for cfg in sym_files {
-	    let resolver: Box<dyn SymResolver> = match cfg {
+	    match cfg {
 		SymbolFileCfg::Elf { file_name, loaded_address } => {
 		    let resolver = ElfResolver::new(file_name, *loaded_address)?;
-		    Box::new(resolver)
+		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 		SymbolFileCfg::LinuxKernel { kallsyms, kernel_image } => {
 		    let resolver = LinuxKernelResolver::new(kallsyms, kernel_image)?;
-		    Box::new(resolver)
+		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
+		SymbolFileCfg::Process { process_id } => {
+		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers)?;
+		}
 	    };
-	    resolvers.push((resolver.get_address_range(), resolver));
 	}
 	resolvers.sort_by_key(|x| (*x).0.0); // sorted by the loaded addresses
+
+	Ok(resolvers)
+    }
+
+    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
+	let resolvers = Self::build_resolvers(sym_files)?;
 
 	Ok(BlazeSymbolizer {
 	    sym_files: Vec::from(sym_files),
