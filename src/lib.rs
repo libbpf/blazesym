@@ -12,6 +12,8 @@ use std::os::raw::c_char;
 use std::alloc::{alloc, dealloc, Layout};
 use std::mem;
 
+use nix::sys::utsname;
+
 pub mod dwarf;
 mod elf;
 mod tools;
@@ -505,6 +507,7 @@ pub enum SymbolFileCfg {
     LinuxKernel { kallsyms: String, kernel_image: String },
     /// This one will be exapended into all ELF files loaded.
     Process { process_id: u32 },
+    KernelProcess { process_id: u32 },
 }
 
 /// The result of doing symbolization by BlazeSymbolizer.
@@ -554,7 +557,15 @@ impl ResolverMap {
 		},
 		SymbolFileCfg::Process { process_id } => {
 		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers)?;
-		}
+		},
+		SymbolFileCfg::KernelProcess { process_id } => {
+		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers)?;
+
+		    let release = utsname::uname().release().to_string();
+		    let kernel_image = format!("/boot/vmlinux-{}", release);
+		    let resolver = LinuxKernelResolver::new("/proc/kallsyms", &kernel_image)?;
+		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+		},
 	    };
 	}
 	resolvers.sort_by_key(|x| (*x).0.0); // sorted by the loaded addresses
@@ -948,5 +959,23 @@ mod tests {
 	assert!(signatures.iter().find(|x| x.find("/blazesym").is_some()).is_some());
 	// ElfResolver for libc.
 	assert!(signatures.iter().find(|x| x.find("/libc").is_some()).is_some());
+    }
+
+    #[test]
+    fn load_symbolfilecfg_kernelprocess() {
+	// Check if SymbolFileCfg::KernelProcess expands to
+	// ELFResolvers.and a LinuxKernelResolver.
+	let cfg = vec![SymbolFileCfg::KernelProcess { process_id: 0 }];
+	let symbolizer = BlazeSymbolizer::new(&cfg);
+	assert!(symbolizer.is_ok());
+	let symbolizer = symbolizer.unwrap();
+
+	let signatures: Vec<_> = symbolizer.resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+	// ElfResolver for the binary itself.
+	assert!(signatures.iter().find(|x| x.find("/blazesym").is_some()).is_some());
+	// ElfResolver for libc.
+	assert!(signatures.iter().find(|x| x.find("/libc").is_some()).is_some());
+	println!("{:?}", signatures);
+	assert!(signatures.iter().find(|x| x.find("LinuxKernelResolver").is_some()).is_some());
     }
 }
