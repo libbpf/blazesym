@@ -50,6 +50,8 @@ pub trait SymResolver {
     fn find_address(&self, name: &str) -> Option<u64>;
     /// Find the file name and the line number of an address.
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo>;
+
+    fn repr(&self) -> String;
 }
 
 pub const REG_RAX: usize = 0;
@@ -305,6 +307,10 @@ impl SymResolver for KSymResolver {
     fn find_line_info(&self, _addr: u64) -> Option<AddressLineInfo> {
 	None
     }
+
+    fn repr(&self) -> String {
+	String::from("KSymResolver")
+    }
 }
 
 /// Create a KSymResolver
@@ -369,6 +375,7 @@ struct ElfResolver {
     backend: ElfBackend,
     loaded_address: u64,
     size: u64,
+    file_name: String,
 }
 
 impl ElfResolver {
@@ -396,7 +403,7 @@ impl ElfResolver {
 	    }
 	}
 
-	Ok(ElfResolver { backend, loaded_address, size: max_addr })
+	Ok(ElfResolver { backend, loaded_address, size: max_addr, file_name: file_name.to_string() })
     }
 
     fn get_parser(&self) -> Option<&elf::Elf64Parser> {
@@ -439,11 +446,20 @@ impl SymResolver for ElfResolver {
 	    None
 	}
     }
+
+    fn repr(&self) -> String {
+	match self.backend {
+	    ElfBackend::Dwarf(_) => format!("DWARF {}", self.file_name),
+	    ElfBackend::Elf(_) => format!("ELF {}", self.file_name),
+	}
+    }
 }
 
 struct LinuxKernelResolver {
     ksymresolver: KSymResolver,
     kernelresolver: ElfResolver,
+    kallsyms: String,
+    kernel_image: String,
 }
 
 impl LinuxKernelResolver {
@@ -451,7 +467,12 @@ impl LinuxKernelResolver {
 	let mut ksymresolver = KSymResolver::new();
 	ksymresolver.load_file_name(kallsyms)?;
 	let kernelresolver = ElfResolver::new(kernel_image, 0)?;
-	Ok(LinuxKernelResolver { ksymresolver, kernelresolver})
+	Ok(LinuxKernelResolver {
+	    ksymresolver,
+	    kernelresolver,
+	    kallsyms: kallsyms.to_string(),
+	    kernel_image: kernel_image.to_string()
+	})
     }
 }
 
@@ -468,6 +489,10 @@ impl SymResolver for LinuxKernelResolver {
     }
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
 	self.kernelresolver.find_line_info(addr)
+    }
+
+    fn repr(&self) -> String {
+	format!("LinuxKernelResolver {} {}", self.kallsyms, self.kernel_image)
     }
 }
 
@@ -494,21 +519,11 @@ pub struct SymbolizedResult {
 
 type ResolverList = Vec<((u64, u64), Box<dyn SymResolver>)>;
 
-/// BlazeSymbolizer provides an interface to symbolize addresses with
-/// a list of symbol files.
-///
-/// Users should give BlazeSymbolizer a list of meta info of symbol
-/// files (`SymbolFileCfg`); for example, an ELF file and its loaded
-/// location (`SymbolFileCfg::Elf`), or Linux kernel image and a copy
-/// of its kallsyms (`SymbolFileCfg::LinuxKernel`).
-///
-pub struct BlazeSymbolizer {
-    #[allow(dead_code)]
-    sym_files: Vec<SymbolFileCfg>,
-    resolver_map: Vec<((u64, u64), Box<dyn SymResolver>)>,
+struct ResolverMap {
+    resolvers: ResolverList,
 }
 
-impl BlazeSymbolizer {
+impl ResolverMap {
     fn build_resolvers_proc_maps(process_id: u32, resolvers: &mut ResolverList) -> Result<(), Error> {
 	let entries = tools::parse_maps(process_id)?;
 	for entry in entries.iter() {
@@ -525,7 +540,7 @@ impl BlazeSymbolizer {
 	Ok(())
     }
 
-    fn build_resolvers(sym_files: &[SymbolFileCfg]) -> Result<ResolverList, Error> {
+    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<ResolverMap, Error> {
 	let mut resolvers = ResolverList::new();
 	for cfg in sym_files {
 	    match cfg {
@@ -544,24 +559,15 @@ impl BlazeSymbolizer {
 	}
 	resolvers.sort_by_key(|x| (*x).0.0); // sorted by the loaded addresses
 
-	Ok(resolvers)
+	Ok(ResolverMap { resolvers })
     }
 
-    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
-	let resolvers = Self::build_resolvers(sym_files)?;
-
-	Ok(BlazeSymbolizer {
-	    sym_files: Vec::from(sym_files),
-	    resolver_map: resolvers,
-	})
-    }
-
-    fn find_resolver(&self, address: u64) -> Option<&dyn SymResolver> {
+    pub fn find_resolver(&self, address: u64) -> Option<&dyn SymResolver> {
 	let idx =
-	    tools::search_address_key(&self.resolver_map,
+	    tools::search_address_key(&self.resolvers,
 				      address,
 				      &|map: &((u64, u64), Box<dyn SymResolver>)| -> u64 { map.0.0 })?;
-	let (loaded_begin, loaded_end) = self.resolver_map[idx].0;
+	let (loaded_begin, loaded_end) = self.resolvers[idx].0;
 	if loaded_begin != loaded_end && address >= loaded_end {
 	    // `begin == end` means this ELF file may have only
 	    // symbols and debug information.  For this case, we
@@ -569,12 +575,37 @@ impl BlazeSymbolizer {
 	    // above its loaded address.
 	    None
 	} else {
-	    Some(self.resolver_map[idx].1.as_ref())
+	    Some(self.resolvers[idx].1.as_ref())
 	}
+    }
+}
+
+/// BlazeSymbolizer provides an interface to symbolize addresses with
+/// a list of symbol files.
+///
+/// Users should give BlazeSymbolizer a list of meta info of symbol
+/// files (`SymbolFileCfg`); for example, an ELF file and its loaded
+/// location (`SymbolFileCfg::Elf`), or Linux kernel image and a copy
+/// of its kallsyms (`SymbolFileCfg::LinuxKernel`).
+///
+pub struct BlazeSymbolizer {
+    #[allow(dead_code)]
+    sym_files: Vec<SymbolFileCfg>,
+    resolver_map: ResolverMap,
+}
+
+impl BlazeSymbolizer {
+    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
+	let resolver_map = ResolverMap::new(sym_files)?;
+
+	Ok(BlazeSymbolizer {
+	    sym_files: Vec::from(sym_files),
+	    resolver_map,
+	})
     }
 
     pub fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
-	let resolver = self.find_resolver(addr)?;
+	let resolver = self.resolver_map.find_resolver(addr)?;
 	resolver.find_symbol(addr)
     }
 
@@ -583,7 +614,7 @@ impl BlazeSymbolizer {
     }
 
     pub fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
-	let resolver = self.find_resolver(addr)?;
+	let resolver = self.resolver_map.find_resolver(addr)?;
 	resolver.find_line_info(addr)
     }
 
@@ -902,5 +933,20 @@ mod tests {
 	assert_eq!(frame.get_ip(), expected_rips[1]);
 	let frame = session.next_frame().unwrap();
 	assert_eq!(frame.get_ip(), expected_rips[2]);
+    }
+
+    #[test]
+    fn load_symbolfilecfg_process() {
+	// Check if SymbolFileCfg::Process expands to ELFResolvers.
+	let cfg = vec![SymbolFileCfg::Process { process_id: 0 }];
+	let symbolizer = BlazeSymbolizer::new(&cfg);
+	assert!(symbolizer.is_ok());
+	let symbolizer = symbolizer.unwrap();
+
+	let signatures: Vec<_> = symbolizer.resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+	// ElfResolver for the binary itself.
+	assert!(signatures.iter().find(|x| x.find("/blazesym").is_some()).is_some());
+	// ElfResolver for libc.
+	assert!(signatures.iter().find(|x| x.find("/libc").is_some()).is_some());
     }
 }
