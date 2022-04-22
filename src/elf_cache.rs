@@ -1,11 +1,13 @@
 use super::elf::Elf64Parser;
 use super::dwarf::DwarfResolver;
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Error;
 use std::ptr;
 use std::rc::Rc;
+use std::thread_local;
 
 use std::os::unix::io::AsRawFd;
 use nix::sys::stat::{fstat, FileStat};
@@ -256,15 +258,18 @@ impl ElfCache {
     }
 }
 
-static mut CACHE: Option<ElfCache> = None;
+thread_local!(
+    static CACHE: RefCell<Option<ElfCache>> = RefCell::new(None);
+);
 
 pub fn get_cache() -> &'static mut ElfCache {
-    unsafe {
-	if CACHE.is_none() {
-	    CACHE = Some(ElfCache::new());
+    CACHE.with(|cache: &RefCell<Option<ElfCache>>| {
+	let mut me = cache.borrow_mut();
+	if me.is_none() {
+	    *me = Some(ElfCache::new());
 	}
-	CACHE.as_mut().unwrap()
-    }
+	unsafe { &mut *(me.as_mut().unwrap() as *mut ElfCache) }
+    })
 }
 
 
