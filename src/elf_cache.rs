@@ -172,7 +172,7 @@ impl ElfCacheLru {
 }
 
 pub struct ElfCache {
-    elfs: HashMap<ElfCacheEntryKey, ElfCacheEntry>,
+    elfs: HashMap<ElfCacheEntryKey, Box<ElfCacheEntry>>,
     lru: ElfCacheLru,
     max_elfs: usize,
 }
@@ -200,7 +200,7 @@ impl ElfCache {
 	let ent = self.elfs.get(&file_name.to_string())?;
 	self.lru.touch(ent);
 
-	Some(&*(ent as *const ElfCacheEntry))
+	Some(ent.as_ref())
     }
 
     /// # Safety
@@ -209,11 +209,11 @@ impl ElfCache {
     /// create_entry().
     ///
     unsafe fn create_entry(&mut self, file_name: &str, file: File) -> Result<&ElfCacheEntry, Error> {
-	let ent = ElfCacheEntry::new(file_name, file)?;
+	let ent = Box::new(ElfCacheEntry::new(file_name, file)?);
 	let key = ent.get_key();
 
 	self.elfs.insert(key.clone(), ent);
-	self.lru.push_back(self.elfs.get(&key).unwrap());
+	self.lru.push_back(self.elfs.get(&key).unwrap().as_ref());
 	self.ensure_size();
 
 	Ok(&*self.lru.tail)	// Get 'static lifetime
