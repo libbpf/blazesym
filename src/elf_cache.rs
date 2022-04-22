@@ -196,7 +196,7 @@ impl ElfCache {
     /// The returned reference is only valid before next time calling
     /// create_entry().
     ///
-    unsafe fn find_entry(&mut self, file_name: &str) -> Option<&'static ElfCacheEntry> {
+    unsafe fn find_entry(&mut self, file_name: &str) -> Option<&ElfCacheEntry> {
 	let ent = self.elfs.get(&file_name.to_string())?;
 	self.lru.touch(ent);
 
@@ -208,14 +208,15 @@ impl ElfCache {
     /// The returned reference is only valid before next time calling
     /// create_entry().
     ///
-    unsafe fn create_entry(&mut self, file_name: &str, file: File) -> Result<&'static ElfCacheEntry, Error> {
+    unsafe fn create_entry(&mut self, file_name: &str, file: File) -> Result<&ElfCacheEntry, Error> {
 	let ent = ElfCacheEntry::new(file_name, file)?;
+	let key = ent.get_key();
 
-	self.lru.push_back(&ent);
-	self.elfs.insert(ent.get_key(), ent);
+	self.elfs.insert(key.clone(), ent);
+	self.lru.push_back(self.elfs.get(&key).unwrap());
 	self.ensure_size();
 
-	Ok(&*self.lru.tail)
+	Ok(&*self.lru.tail)	// Get 'static lifetime
     }
 
     /// # Safety
@@ -239,7 +240,10 @@ impl ElfCache {
 	    }
 
 	    // Purge the entry and load it from the filesystem.
-	    unsafe { self.lru.remove(ent) };
+	    unsafe {
+		let ent = &*(ent as *const ElfCacheEntry); // static lifetime to decouple borrowing
+		self.lru.remove(ent)
+	    };
 	    self.elfs.remove(&file_name.to_string());
 	}
 
