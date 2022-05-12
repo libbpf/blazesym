@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::cell::RefCell;
-use std::io::{BufReader, BufRead};
+use std::io::{BufReader, BufRead, Error};
 use std::ffi::CString;
 use std::fs::File;
 use std::default::Default;
@@ -136,6 +136,33 @@ impl SymResolver for KSymResolver {
     }
 }
 
+/// Cache of KSymResolver.
+///
+/// It returns the same isntance if path is the same.
+pub struct KSymCache {
+    resolvers: RefCell<HashMap<String, Box<KSymResolver>>>,
+}
+
+impl KSymCache {
+    pub fn new() -> KSymCache {
+	KSymCache { resolvers: RefCell::new(HashMap::new()) }
+    }
+
+    /// Find an instance of KSymResolver from the cache or create a new one.
+    pub fn get_resolver(&self, path: &str) -> Result<&KSymResolver, Error> {
+	let mut resolvers = self.resolvers.borrow_mut();
+	if let Some(resolver_box) = resolvers.get(path) {
+	    return Ok(unsafe { &*(resolver_box.as_ref() as *const KSymResolver) });
+	}
+
+	let mut resolver_box = Box::new(KSymResolver::new());
+	let rawptr = resolver_box.as_ref() as *const KSymResolver;
+	resolver_box.load_file_name(path)?;
+	resolvers.insert(path.to_string(), resolver_box);
+	return Ok(unsafe { &*rawptr });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -181,5 +208,14 @@ mod tests {
 	let found = resolver.find_address(&name);
 	assert!(found.is_some());
 	assert_eq!(found.unwrap(), addr);
+    }
+
+    #[test]
+    fn ksym_cache() {
+	let cache = KSymCache::new();
+	let resolver = cache.get_resolver(KALLSYMS);
+	let resolver1 = cache.get_resolver(KALLSYMS);
+	assert!(resolver.is_ok());
+	assert!(resolver1.is_ok());
     }
 }
