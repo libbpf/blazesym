@@ -29,8 +29,8 @@ fn main() {
     let sym_files = [SymbolFileCfg::Elf { file_name: bin_name, loaded_address: 0 },
 		     SymbolFileCfg::Kernel { kallsyms: String::from("/proc/kallsyms"),
 						  kernel_image: kern_name }];
-    let resolver = BlazeSymbolizer::new(&sym_files).unwrap();
-    let symlist = resolver.symbolize(&[addr]);
+    let resolver = BlazeSymbolizer::new().unwrap();
+    let symlist = resolver.symbolize(&sym_files, &[addr]);
     if let Some(SymbolizedResult {symbol, start_address, path, line_no, column}) = &symlist[0] {
 	println!("0x{:x} {}@0x{:x} {}:{}:{}", addr, symbol, start_address, path, line_no, column);
     } else {

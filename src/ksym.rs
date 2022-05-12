@@ -159,7 +159,7 @@ impl KSymCache {
 	let mut resolver = Rc::new(KSymResolver::new());
 	Rc::get_mut(&mut resolver).unwrap().load_file_name(path)?;
 	resolvers.insert(path.to_string(), resolver.clone());
-	return Ok(resolver);
+	Ok(resolver)
     }
 }
 

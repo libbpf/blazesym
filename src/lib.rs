@@ -494,43 +494,52 @@ impl ResolverMap {
 /// of its kallsyms (`SymbolFileCfg::Kernel`).
 ///
 pub struct BlazeSymbolizer {
-    #[allow(dead_code)]
-    sym_files: Vec<SymbolFileCfg>,
-    resolver_map: ResolverMap,
     cache_holder: CacheHolder,
 }
 
 impl BlazeSymbolizer {
-    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
+    pub fn new() -> Result<BlazeSymbolizer, Error> {
 	let cache_holder = CacheHolder::new();
-	let resolver_map = ResolverMap::new(sym_files, &cache_holder)?;
 
 	Ok(BlazeSymbolizer {
-	    sym_files: Vec::from(sym_files),
-	    resolver_map,
 	    cache_holder,
 	})
     }
 
-    pub fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
-	let resolver = self.resolver_map.find_resolver(addr)?;
-	resolver.find_symbol(addr)
+    pub fn find_symbol(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<(String, u64)> {
+	let resolver_map = ResolverMap::new(cfg, &self.cache_holder).ok()?;
+	let resolver = resolver_map.find_resolver(addr)?;
+
+	if let Some((sym, addr)) = resolver.find_symbol(addr) {
+	    Some((sym.to_string(), addr))
+	} else {
+	    None
+	}
     }
 
-    pub fn find_address(&self, _name: &str) -> Option<u64> {
+    pub fn find_address(&self, _cfg: &[SymbolFileCfg], _name: &str) -> Option<u64> {
 	None
     }
 
-    pub fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
-	let resolver = self.resolver_map.find_resolver(addr)?;
+    pub fn find_line_info(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<AddressLineInfo> {
+	let resolver_map = ResolverMap::new(cfg, &self.cache_holder).ok()?;
+	let resolver = resolver_map.find_resolver(addr)?;
 	resolver.find_line_info(addr)
     }
 
-    pub fn symbolize(&self, addresses: &[u64]) -> Vec<Option<SymbolizedResult>> {
+    pub fn symbolize(&self, cfg: &[SymbolFileCfg], addresses: &[u64]) -> Vec<Option<SymbolizedResult>> {
+	let resolver_map = if let Ok(map) = ResolverMap::new(cfg, &self.cache_holder){
+	    map
+	} else {
+	    return vec![];
+	};
+
 	let info: Vec<Option<SymbolizedResult>> =
 	    addresses.iter().map(|addr| {
-		let sym = self.find_symbol(*addr);
-		let linfo = self.find_line_info(*addr);
+		let resolver = resolver_map.find_resolver(*addr)?;
+
+		let sym = resolver.find_symbol(*addr);
+		let linfo = resolver.find_line_info(*addr);
 		if sym.is_none() && linfo.is_none() {
 		    None
 		} else if sym.is_none() {
@@ -602,14 +611,7 @@ unsafe fn from_cstr(cstr: *const c_char) -> String {
     CStr::from_ptr(cstr).to_str().unwrap().to_owned()
 }
 
-/// Create an instance of BlazeSymbolizer for C code.
-///
-/// # Safety
-///
-/// Should free the pointer with blazesymbolizer_free.
-///
-#[no_mangle]
-pub unsafe extern "C" fn blazesymbolizer_new(cfg: *const SymbolFileCfgC, cfg_len: u32) -> *mut BlazeSymbolizerC {
+unsafe fn symbolfilecfg_to_rust(cfg: *const SymbolFileCfgC, cfg_len: u32) -> Option<Vec<SymbolFileCfg>> {
     let mut cfg_rs = Vec::<SymbolFileCfg>::with_capacity(cfg_len as usize);
 
     for i in 0..cfg_len {
@@ -628,12 +630,23 @@ pub unsafe extern "C" fn blazesymbolizer_new(cfg: *const SymbolFileCfgC, cfg_len
 		});
 	    },
 	    _ => {
-		return ptr::null_mut();
+		return None;
 	    }
 	}
     }
 
-    let symbolizer = match BlazeSymbolizer::new(&cfg_rs) {
+    Some(cfg_rs)
+}
+
+/// Create an instance of BlazeSymbolizer for C code.
+///
+/// # Safety
+///
+/// Should free the pointer with blazesymbolizer_free.
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesymbolizer_new() -> *mut BlazeSymbolizerC {
+    let symbolizer = match BlazeSymbolizer::new() {
 	Ok(s) => s,
 	Err(_) => {
 	    return ptr::null_mut();
@@ -745,12 +758,19 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>)
 #[no_mangle]
 pub unsafe extern "C"
 fn blazesymbolizer_symbolize(symbolizer: *mut BlazeSymbolizerC,
+			     cfg: *const SymbolFileCfgC, cfg_len: u32,
 			     addresses: *const u64,
 			     address_cnt: usize) -> *const SymbolizedResultC {
+    let cfg_rs = if let Some(cfg_rs) = symbolfilecfg_to_rust(cfg, cfg_len) {
+	cfg_rs
+    } else {
+	return ptr::null_mut();
+    };
+
     let symbolizer = &*(*symbolizer).symbolizer;
     let addresses = Vec::from_raw_parts(addresses as *mut u64, address_cnt, address_cnt);
 
-    let results = symbolizer.symbolize(&addresses);
+    let results = symbolizer.symbolize(&cfg_rs, &addresses);
 
     addresses.leak();
 
@@ -803,12 +823,13 @@ mod tests {
     #[test]
     fn load_symbolfilecfg_process() {
 	// Check if SymbolFileCfg::Process expands to ELFResolvers.
-	let cfg = vec![SymbolFileCfg::Process { process_id: 0 }];
-	let symbolizer = BlazeSymbolizer::new(&cfg);
-	assert!(symbolizer.is_ok());
-	let symbolizer = symbolizer.unwrap();
+	let cfg = vec![SymbolFileCfg::ProcessKernel { process_id: 0 }];
+	let cache_holder = CacheHolder::new();
+	let resolver_map = ResolverMap::new(&cfg, &cache_holder);
+	assert!(resolver_map.is_ok());
+	let resolver_map = resolver_map.unwrap();
 
-	let signatures: Vec<_> = symbolizer.resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+	let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
 	// ElfResolver for the binary itself.
 	assert!(signatures.iter().find(|x| x.find("/blazesym").is_some()).is_some());
 	// ElfResolver for libc.
@@ -818,13 +839,14 @@ mod tests {
     #[test]
     fn load_symbolfilecfg_processkernel() {
 	// Check if SymbolFileCfg::ProcessKernel expands to
-	// ELFResolvers.and a KernelResolver.
+	// ELFResolvers.
 	let cfg = vec![SymbolFileCfg::ProcessKernel { process_id: 0 }];
-	let symbolizer = BlazeSymbolizer::new(&cfg);
-	assert!(symbolizer.is_ok());
-	let symbolizer = symbolizer.unwrap();
+	let cache_holder = CacheHolder::new();
+	let resolver_map = ResolverMap::new(&cfg, &cache_holder);
+	assert!(resolver_map.is_ok());
+	let resolver_map = resolver_map.unwrap();
 
-	let signatures: Vec<_> = symbolizer.resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+	let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
 	// ElfResolver for the binary itself.
 	assert!(signatures.iter().find(|x| x.find("/blazesym").is_some()).is_some());
 	// ElfResolver for libc.
