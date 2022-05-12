@@ -118,7 +118,7 @@ struct ElfCacheLru {
 impl ElfCacheLru {
     /// # Safety
     ///
-    /// Make sure all entries are valid.
+    /// Make all entries are valid.
     unsafe fn touch(&mut self, ent: &ElfCacheEntry) {
 	self.remove(ent);
 	self.push_back(ent);
@@ -126,7 +126,7 @@ impl ElfCacheLru {
 
     /// # Safety
     ///
-    /// Make sure all entries are valid.
+    /// Make all entries are valid.
     unsafe fn remove(&mut self, ent: &ElfCacheEntry) {
 	let ent_ptr = ent as *const ElfCacheEntry as *mut ElfCacheEntry;
 	let prev = (*ent_ptr).prev;
@@ -145,7 +145,7 @@ impl ElfCacheLru {
 
     /// # Safety
     ///
-    /// Make sure all entries are valid.
+    /// Make all entries are valid.
     unsafe fn push_back(&mut self, ent: &ElfCacheEntry) {
 	let ent_ptr = ent as *const ElfCacheEntry as *mut ElfCacheEntry;
 	if self.head.is_null() {
@@ -163,7 +163,7 @@ impl ElfCacheLru {
 
     /// # Safety
     ///
-    /// Make sure all entries are valid.
+    /// Make all entries are valid.
     unsafe fn pop_head(&mut self) -> *mut ElfCacheEntry {
 	let ent = self.head;
 	if !ent.is_null() {
@@ -196,7 +196,7 @@ impl ElfCache {
     /// # Safety
     ///
     /// The returned reference is only valid before next time calling
-    /// ensure_size().
+    /// create_entry().
     ///
     unsafe fn find_entry(&mut self, file_name: &str) -> Option<&ElfCacheEntry> {
 	let ent = self.elfs.get(&file_name.to_string())?;
@@ -208,7 +208,7 @@ impl ElfCache {
     /// # Safety
     ///
     /// The returned reference is only valid before next time calling
-    /// ensure_size().
+    /// create_entry().
     ///
     unsafe fn create_entry(&mut self, file_name: &str, file: File) -> Result<&ElfCacheEntry, Error> {
 	let ent = Box::new(ElfCacheEntry::new(file_name, file)?);
@@ -216,6 +216,7 @@ impl ElfCache {
 
 	self.elfs.insert(key.clone(), ent);
 	self.lru.push_back(self.elfs.get(&key).unwrap().as_ref());
+	self.ensure_size();
 
 	Ok(&*self.lru.tail)	// Get 'static lifetime
     }
@@ -227,28 +228,6 @@ impl ElfCache {
     /// are holding.
     unsafe fn ensure_size(&mut self) {
 	if self.elfs.len() > self.max_elfs {
-	    let mut invalids = Vec::<String>::new();
-	    for (path, ent) in self.elfs.iter() {
-		if let Ok(file) = File::open(path) {
-		    let stat = fstat(file.as_raw_fd()).unwrap();
-		    if !ent.is_valid(&stat) {
-			invalids.push(path.to_string());
-		    }
-		} else {
-		    invalids.push(path.to_string());
-		}
-	    }
-	    for path in invalids {
-		let ent = self.find_entry(&path).unwrap();
-
-		// Purge the entry and load it from the filesystem.
-		let ent = &*(ent as *const ElfCacheEntry); // static lifetime to decouple borrowing
-		self.lru.remove(ent);
-		self.elfs.remove(&path);
-	    }
-	}
-
-	while self.elfs.len() > self.max_elfs {
 	    let to_remove = self.lru.pop_head();
 	    self.elfs.remove(&(*to_remove).get_key()).unwrap();
 	}
@@ -256,7 +235,18 @@ impl ElfCache {
 
     fn find_or_create_backend(&mut self, file_name: &str, file: File) -> Result<ElfBackend, Error> {
 	if let Some(ent) = unsafe { self.find_entry(file_name) } {
-	    return Ok(ent.get_backend());
+		let stat = fstat(file.as_raw_fd())?;
+
+	    if ent.is_valid(&stat) {
+		return Ok(ent.get_backend());
+	    }
+
+	    // Purge the entry and load it from the filesystem.
+	    unsafe {
+		let ent = &*(ent as *const ElfCacheEntry); // static lifetime to decouple borrowing
+		self.lru.remove(ent)
+	    };
+	    self.elfs.remove(&file_name.to_string());
 	}
 
 	Ok(unsafe { self.create_entry(file_name, file)? }.get_backend())
