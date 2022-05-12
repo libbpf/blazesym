@@ -576,23 +576,48 @@ impl BlazeSymbolizer {
 }
 
 const CFG_T_ELF: u16 = 1;
-const CFG_T_LINUX_KERNEL: u16 = 2;
+const CFG_T_KERNEL: u16 = 2;
+const CFG_T_PROCESS: u16 = 3;
+const CFG_T_PROCESS_KERNEL: u16 = 4;
 
 #[repr(C)]
-pub struct SymbolFileCfgC {
-    cfg_type: u16,
-    file_name_1: *const c_char,
-    file_name_2: *const c_char,
+pub struct sfc_elf {
+    file_name: *const c_char,
     loaded_address: u64,
 }
 
 #[repr(C)]
-pub struct BlazeSymbolizerC {
+pub struct sfc_kernel {
+    kallsyms: *const c_char,
+    kernel_image: *const c_char,
+}
+
+#[repr(C)]
+pub struct sfc_process {
+    process_id: u32,
+}
+
+#[repr(C)]
+pub union sfc_params {
+    elf: mem::ManuallyDrop<sfc_elf>,
+    kernel: mem::ManuallyDrop<sfc_kernel>,
+    process: mem::ManuallyDrop<sfc_process>,
+    process_kernel: mem::ManuallyDrop<sfc_process>,
+}
+
+#[repr(C)]
+pub struct sym_file_cfg {
+    cfg_type: u16,
+    params: sfc_params,
+}
+
+#[repr(C)]
+pub struct blazesym {
     symbolizer: *mut BlazeSymbolizer,
 }
 
 #[repr(C)]
-pub struct SymbolizedResultC {
+pub struct blazesym_result {
     pub valid: bool,
     pub symbol: *const c_char,
     pub start_address: u64,
@@ -611,7 +636,7 @@ unsafe fn from_cstr(cstr: *const c_char) -> String {
     CStr::from_ptr(cstr).to_str().unwrap().to_owned()
 }
 
-unsafe fn symbolfilecfg_to_rust(cfg: *const SymbolFileCfgC, cfg_len: u32) -> Option<Vec<SymbolFileCfg>> {
+unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Option<Vec<SymbolFileCfg>> {
     let mut cfg_rs = Vec::<SymbolFileCfg>::with_capacity(cfg_len as usize);
 
     for i in 0..cfg_len {
@@ -619,14 +644,24 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const SymbolFileCfgC, cfg_len: u32) -> Opt
 	match (*c).cfg_type {
 	    CFG_T_ELF => {
 		cfg_rs.push(SymbolFileCfg::Elf {
-		    file_name: from_cstr((*c).file_name_1),
-		    loaded_address: (*c).loaded_address,
+		    file_name: from_cstr((*c).params.elf.file_name),
+		    loaded_address: (*c).params.elf.loaded_address,
 		});
 	    },
-	    CFG_T_LINUX_KERNEL => {
+	    CFG_T_KERNEL => {
 		cfg_rs.push(SymbolFileCfg::Kernel {
-		    kallsyms: from_cstr((*c).file_name_1),
-		    kernel_image: from_cstr((*c).file_name_2),
+		    kallsyms: from_cstr((*c).params.kernel.kallsyms),
+		    kernel_image: from_cstr((*c).params.kernel.kernel_image),
+		});
+	    },
+	    CFG_T_PROCESS => {
+		cfg_rs.push(SymbolFileCfg::Process {
+		    process_id: (*c).params.process.process_id,
+		});
+	    },
+	    CFG_T_PROCESS_KERNEL => {
+		cfg_rs.push(SymbolFileCfg::ProcessKernel {
+		    process_id: (*c).params.process_kernel.process_id,
 		});
 	    },
 	    _ => {
@@ -642,10 +677,10 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const SymbolFileCfgC, cfg_len: u32) -> Opt
 ///
 /// # Safety
 ///
-/// Should free the pointer with blazesymbolizer_free.
+/// Should free the pointer with blazesym_free.
 ///
 #[no_mangle]
-pub unsafe extern "C" fn blazesymbolizer_new() -> *mut BlazeSymbolizerC {
+pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
     let symbolizer = match BlazeSymbolizer::new() {
 	Ok(s) => s,
 	Err(_) => {
@@ -653,7 +688,7 @@ pub unsafe extern "C" fn blazesymbolizer_new() -> *mut BlazeSymbolizerC {
 	}
     };
     let symbolizer_box = Box::new(symbolizer);
-    let c_box = Box::new(BlazeSymbolizerC { symbolizer: Box::into_raw(symbolizer_box) });
+    let c_box = Box::new(blazesym { symbolizer: Box::into_raw(symbolizer_box) });
     Box::into_raw(c_box)
 }
 
@@ -661,22 +696,22 @@ pub unsafe extern "C" fn blazesymbolizer_new() -> *mut BlazeSymbolizerC {
 ///
 /// # Safety
 ///
-/// The pointer must be returned by blazesymbolizer_new.
+/// The pointer must be returned by blazesym_new.
 ///
 #[no_mangle]
-pub unsafe extern "C" fn blazesymbolizer_free(symbolizer: *mut BlazeSymbolizerC) {
+pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
     Box::from_raw((*symbolizer).symbolizer);
     Box::from_raw(symbolizer);
 }
 
-/// Convert SymbolizedResults to SymbolizedResultCs.
+/// Convert SymbolizedResults to blazesym_results.
 ///
 /// # Safety
 ///
-/// The returned pointer should be freed by blazesymbolizer_symbolizedresult_free.
+/// The returned pointer should be freed by blazesym_result_free.
 ///
-unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>) -> *const SymbolizedResultC {
-    // Allocate a buffer to contain all SymbolizedResultC and C
+unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>) -> *const blazesym_result {
+    // Allocate a buffer to contain all blazesym_result and C
     // strings of symbol and path.
     let buf_sz = results.iter().fold(0, |acc, opt| {
 	match opt {
@@ -687,7 +722,7 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>)
 		acc
 	    },
 	}
-    }) + 1 /* empty string */ + mem::size_of::<SymbolizedResultC>() * results.len();
+    }) + 1 /* empty string */ + mem::size_of::<blazesym_result>() * results.len();
     let raw_buf_with_sz = alloc(Layout::from_size_align(buf_sz + mem::size_of::<u64>(), 8).unwrap());
 
     // prepend an u64 to keep the size of the buffer.
@@ -695,8 +730,8 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>)
 
     let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
 
-    let mut rc_last = raw_buf as *mut SymbolizedResultC;
-    let mut cstr_last = raw_buf.add(mem::size_of::<SymbolizedResultC>() * results.len()) as *mut c_char;
+    let mut rc_last = raw_buf as *mut blazesym_result;
+    let mut cstr_last = raw_buf.add(mem::size_of::<blazesym_result>() * results.len()) as *mut c_char;
 
     let mut make_cstr = |src: &str| {
 	let cstr = cstr_last;
@@ -710,7 +745,7 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>)
     // Make an empty C string to use later
     let empty_cstr = make_cstr("");
 
-    // Convert all SymbolizedResults to SymbolizedResultCs
+    // Convert all SymbolizedResults to blazesym_results
     for opt in results {
 	match opt {
 	    Some(r) => {
@@ -742,25 +777,25 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>)
 	}
     };
 
-    raw_buf as *const SymbolizedResultC
+    raw_buf as *const blazesym_result
 }
 
 /// Symbolize addresses with the debug info in symbol/debug files.
 ///
-/// Return an array of SymbolizedResultC with the same size as the
+/// Return an array of blazesym_result with the same size as the
 /// number of input addresses.  The caller should free the returned
-/// array by calling `blazesymbolizer_symbolizedresult_free()`.
+/// array by calling `blazesym_result_free()`.
 ///
 /// # Safety
 ///
-/// The returned pointer should be freed by blazesymbolizer_symbolizedresult_free.
+/// The returned pointer should be freed by blazesym_result_free.
 ///
 #[no_mangle]
 pub unsafe extern "C"
-fn blazesymbolizer_symbolize(symbolizer: *mut BlazeSymbolizerC,
-			     cfg: *const SymbolFileCfgC, cfg_len: u32,
+fn blazesym_symbolize(symbolizer: *mut blazesym,
+			     cfg: *const sym_file_cfg, cfg_len: u32,
 			     addresses: *const u64,
-			     address_cnt: usize) -> *const SymbolizedResultC {
+			     address_cnt: usize) -> *const blazesym_result {
     let cfg_rs = if let Some(cfg_rs) = symbolfilecfg_to_rust(cfg, cfg_len) {
 	cfg_rs
     } else {
@@ -777,15 +812,15 @@ fn blazesymbolizer_symbolize(symbolizer: *mut BlazeSymbolizerC,
     convert_symbolizedresults_to_c(results)
 }
 
-/// Free an array returned by blazesymbolizer_symbolize.
+/// Free an array returned by blazesym_symbolize.
 ///
 /// # Safety
 ///
-/// The pointer must be returned by blazesymbolizer_symbolize.
+/// The pointer must be returned by blazesym_symbolize.
 ///
 #[no_mangle]
 pub unsafe extern "C"
-fn blazesymbolizer_symbolizedresult_free(results: *const SymbolizedResultC) {
+fn blazesym_result_free(results: *const blazesym_result) {
     let raw_buf_with_sz = (results as *mut u8).offset(-(mem::size_of::<u64>() as isize));
     let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
     dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
