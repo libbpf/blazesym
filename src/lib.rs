@@ -328,19 +328,19 @@ impl SymResolver for ElfResolver {
     }
 }
 
-struct LinuxKernelResolver {
+struct KernelResolver {
     ksymresolver: KSymResolver,
     kernelresolver: ElfResolver,
     kallsyms: String,
     kernel_image: String,
 }
 
-impl LinuxKernelResolver {
-    fn new(kallsyms: &str, kernel_image: &str) -> Result<LinuxKernelResolver, Error> {
+impl KernelResolver {
+    fn new(kallsyms: &str, kernel_image: &str) -> Result<KernelResolver, Error> {
 	let mut ksymresolver = KSymResolver::new();
 	ksymresolver.load_file_name(kallsyms)?;
 	let kernelresolver = ElfResolver::new(kernel_image, 0)?;
-	Ok(LinuxKernelResolver {
+	Ok(KernelResolver {
 	    ksymresolver,
 	    kernelresolver,
 	    kallsyms: kallsyms.to_string(),
@@ -349,7 +349,7 @@ impl LinuxKernelResolver {
     }
 }
 
-impl SymResolver for LinuxKernelResolver {
+impl SymResolver for KernelResolver {
     fn get_address_range(&self) -> (u64, u64) {
 	(0xffffffff80000000, 0xffffffffffffffff)
     }
@@ -365,7 +365,7 @@ impl SymResolver for LinuxKernelResolver {
     }
 
     fn repr(&self) -> String {
-	format!("LinuxKernelResolver {} {}", self.kallsyms, self.kernel_image)
+	format!("KernelResolver {} {}", self.kallsyms, self.kernel_image)
     }
 }
 
@@ -375,10 +375,10 @@ pub enum SymbolFileCfg {
     /// A single ELF file
     Elf { file_name: String, loaded_address: u64 },
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
-    LinuxKernel { kallsyms: String, kernel_image: String },
+    Kernel { kallsyms: String, kernel_image: String },
     /// This one will be exapended into all ELF files loaded.
     Process { process_id: u32 },
-    KernelProcess { process_id: u32 },
+    ProcessKernel { process_id: u32 },
 }
 
 /// The result of doing symbolization by BlazeSymbolizer.
@@ -422,19 +422,19 @@ impl ResolverMap {
 		    let resolver = ElfResolver::new(file_name, *loaded_address)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
-		SymbolFileCfg::LinuxKernel { kallsyms, kernel_image } => {
-		    let resolver = LinuxKernelResolver::new(kallsyms, kernel_image)?;
+		SymbolFileCfg::Kernel { kallsyms, kernel_image } => {
+		    let resolver = KernelResolver::new(kallsyms, kernel_image)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 		SymbolFileCfg::Process { process_id } => {
 		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers)?;
 		},
-		SymbolFileCfg::KernelProcess { process_id } => {
+		SymbolFileCfg::ProcessKernel { process_id } => {
 		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers)?;
 
 		    let release = utsname::uname().release().to_string();
 		    let kernel_image = format!("/boot/vmlinux-{}", release);
-		    let resolver = LinuxKernelResolver::new("/proc/kallsyms", &kernel_image)?;
+		    let resolver = KernelResolver::new("/proc/kallsyms", &kernel_image)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 	    };
@@ -468,7 +468,7 @@ impl ResolverMap {
 /// Users should give BlazeSymbolizer a list of meta info of symbol
 /// files (`SymbolFileCfg`); for example, an ELF file and its loaded
 /// location (`SymbolFileCfg::Elf`), or Linux kernel image and a copy
-/// of its kallsyms (`SymbolFileCfg::LinuxKernel`).
+/// of its kallsyms (`SymbolFileCfg::Kernel`).
 ///
 pub struct BlazeSymbolizer {
     #[allow(dead_code)]
@@ -596,7 +596,7 @@ pub unsafe extern "C" fn blazesymbolizer_new(cfg: *const SymbolFileCfgC, cfg_len
 		});
 	    },
 	    CFG_T_LINUX_KERNEL => {
-		cfg_rs.push(SymbolFileCfg::LinuxKernel {
+		cfg_rs.push(SymbolFileCfg::Kernel {
 		    kallsyms: from_cstr((*c).file_name_1),
 		    kernel_image: from_cstr((*c).file_name_2),
 		});
@@ -790,10 +790,10 @@ mod tests {
     }
 
     #[test]
-    fn load_symbolfilecfg_kernelprocess() {
-	// Check if SymbolFileCfg::KernelProcess expands to
-	// ELFResolvers.and a LinuxKernelResolver.
-	let cfg = vec![SymbolFileCfg::KernelProcess { process_id: 0 }];
+    fn load_symbolfilecfg_processkernel() {
+	// Check if SymbolFileCfg::ProcessKernel expands to
+	// ELFResolvers.and a KernelResolver.
+	let cfg = vec![SymbolFileCfg::ProcessKernel { process_id: 0 }];
 	let symbolizer = BlazeSymbolizer::new(&cfg);
 	assert!(symbolizer.is_ok());
 	let symbolizer = symbolizer.unwrap();
@@ -804,6 +804,6 @@ mod tests {
 	// ElfResolver for libc.
 	assert!(signatures.iter().find(|x| x.find("/libc").is_some()).is_some());
 	println!("{:?}", signatures);
-	assert!(signatures.iter().find(|x| x.find("LinuxKernelResolver").is_some()).is_some());
+	assert!(signatures.iter().find(|x| x.find("KernelResolver").is_some()).is_some());
     }
 }

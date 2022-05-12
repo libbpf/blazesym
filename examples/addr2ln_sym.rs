@@ -27,7 +27,7 @@ fn main() {
     let addr = u64::from_str_radix(addr_str, 16).unwrap();
 
     let sym_files = [SymbolFileCfg::Elf { file_name: bin_name, loaded_address: 0 },
-		     SymbolFileCfg::LinuxKernel { kallsyms: String::from("/proc/kallsyms"),
+		     SymbolFileCfg::Kernel { kallsyms: String::from("/proc/kallsyms"),
 						  kernel_image: kern_name }];
     let resolver = BlazeSymbolizer::new(&sym_files).unwrap();
     let symlist = resolver.symbolize(&[addr]);
