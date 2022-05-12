@@ -15,3 +15,6 @@ regex = "*"
 
 [build-dependencies]
 cbindgen = "*"
+
+[features]
+cheader = []
