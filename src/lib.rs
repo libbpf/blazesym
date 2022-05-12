@@ -455,7 +455,7 @@ impl ResolverMap {
 		SymbolFileCfg::ProcessKernel { process_id } => {
 		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers, cache_holder)?;
 
-		    let release = utsname::uname().release().to_string();
+		    let release = utsname::uname()?.release().to_str().unwrap().to_string();
 		    let kernel_image = format!("/boot/vmlinux-{}", release);
 		    let resolver = KernelResolver::new("/proc/kallsyms", &kernel_image, cache_holder)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
