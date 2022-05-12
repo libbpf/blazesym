@@ -8,6 +8,7 @@ use std::ptr;
 use std::os::raw::c_char;
 use std::alloc::{alloc, dealloc, Layout};
 use std::mem;
+use std::rc::Rc;
 
 use nix::sys::utsname;
 
@@ -17,8 +18,30 @@ mod tools;
 mod elf_cache;
 mod ksym;
 
-use ksym::KSymResolver;
-use elf_cache::ElfBackend;
+use ksym::{KSymResolver, KSymCache};
+use elf_cache::{ElfBackend, ElfCache};
+
+struct CacheHolder {
+    ksym: KSymCache,
+    elf: ElfCache,
+}
+
+impl CacheHolder {
+    fn new() -> CacheHolder {
+	CacheHolder {
+	    ksym: ksym::KSymCache::new(),
+	    elf: elf_cache::ElfCache::new(),
+	}
+    }
+
+    fn get_ksym_cache(&self) -> &KSymCache {
+	&self.ksym
+    }
+
+    fn get_elf_cache(&self) -> &ElfCache {
+	&self.elf
+    }
+}
 
 pub trait StackFrame {
     fn get_ip(&self) -> u64;
@@ -252,8 +275,8 @@ struct ElfResolver {
 }
 
 impl ElfResolver {
-    fn new(file_name: &str, loaded_address: u64) -> Result<ElfResolver, Error> {
-	let backend = elf_cache::get_cache().find(file_name)?;
+    fn new(file_name: &str, loaded_address: u64, cache_holder: &CacheHolder) -> Result<ElfResolver, Error> {
+	let backend = cache_holder.get_elf_cache().find(file_name)?;
 	let parser = match &backend {
 	    ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
 	    ElfBackend::Elf(parser) => &*parser,
@@ -329,17 +352,16 @@ impl SymResolver for ElfResolver {
 }
 
 struct KernelResolver {
-    ksymresolver: KSymResolver,
+    ksymresolver: Rc<KSymResolver>,
     kernelresolver: ElfResolver,
     kallsyms: String,
     kernel_image: String,
 }
 
 impl KernelResolver {
-    fn new(kallsyms: &str, kernel_image: &str) -> Result<KernelResolver, Error> {
-	let mut ksymresolver = KSymResolver::new();
-	ksymresolver.load_file_name(kallsyms)?;
-	let kernelresolver = ElfResolver::new(kernel_image, 0)?;
+    fn new(kallsyms: &str, kernel_image: &str, cache_holder: &CacheHolder) -> Result<KernelResolver, Error> {
+	let ksymresolver = cache_holder.get_ksym_cache().get_resolver(kallsyms)?;
+	let kernelresolver = ElfResolver::new(kernel_image, 0, cache_holder)?;
 	Ok(KernelResolver {
 	    ksymresolver,
 	    kernelresolver,
@@ -398,7 +420,8 @@ struct ResolverMap {
 }
 
 impl ResolverMap {
-    fn build_resolvers_proc_maps(process_id: u32, resolvers: &mut ResolverList) -> Result<(), Error> {
+    fn build_resolvers_proc_maps(process_id: u32, resolvers: &mut ResolverList,
+				 cache_holder: &CacheHolder) -> Result<(), Error> {
 	let entries = tools::parse_maps(process_id)?;
 	for entry in entries.iter() {
 	    if entry.offset != 0 {
@@ -407,34 +430,34 @@ impl ResolverMap {
 	    if &entry.path[..1] != "/" {
 		continue;
 	    }
-	    let resolver = ElfResolver::new(&entry.path, entry.loaded_address)?;
+	    let resolver = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder)?;
 	    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 	}
 
 	Ok(())
     }
 
-    pub fn new(sym_files: &[SymbolFileCfg]) -> Result<ResolverMap, Error> {
+    pub fn new(sym_files: &[SymbolFileCfg], cache_holder: &CacheHolder) -> Result<ResolverMap, Error> {
 	let mut resolvers = ResolverList::new();
 	for cfg in sym_files {
 	    match cfg {
 		SymbolFileCfg::Elf { file_name, loaded_address } => {
-		    let resolver = ElfResolver::new(file_name, *loaded_address)?;
+		    let resolver = ElfResolver::new(file_name, *loaded_address, cache_holder)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 		SymbolFileCfg::Kernel { kallsyms, kernel_image } => {
-		    let resolver = KernelResolver::new(kallsyms, kernel_image)?;
+		    let resolver = KernelResolver::new(kallsyms, kernel_image, cache_holder)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 		SymbolFileCfg::Process { process_id } => {
-		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers)?;
+		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers, cache_holder)?;
 		},
 		SymbolFileCfg::ProcessKernel { process_id } => {
-		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers)?;
+		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers, cache_holder)?;
 
 		    let release = utsname::uname().release().to_string();
 		    let kernel_image = format!("/boot/vmlinux-{}", release);
-		    let resolver = KernelResolver::new("/proc/kallsyms", &kernel_image)?;
+		    let resolver = KernelResolver::new("/proc/kallsyms", &kernel_image, cache_holder)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 	    };
@@ -474,15 +497,18 @@ pub struct BlazeSymbolizer {
     #[allow(dead_code)]
     sym_files: Vec<SymbolFileCfg>,
     resolver_map: ResolverMap,
+    cache_holder: CacheHolder,
 }
 
 impl BlazeSymbolizer {
     pub fn new(sym_files: &[SymbolFileCfg]) -> Result<BlazeSymbolizer, Error> {
-	let resolver_map = ResolverMap::new(sym_files)?;
+	let cache_holder = CacheHolder::new();
+	let resolver_map = ResolverMap::new(sym_files, &cache_holder)?;
 
 	Ok(BlazeSymbolizer {
 	    sym_files: Vec::from(sym_files),
 	    resolver_map,
+	    cache_holder,
 	})
     }
 

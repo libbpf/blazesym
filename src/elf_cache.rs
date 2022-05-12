@@ -7,7 +7,6 @@ use std::fs::File;
 use std::io::Error;
 use std::ptr;
 use std::rc::Rc;
-use std::thread_local;
 
 use std::os::unix::io::AsRawFd;
 use nix::sys::stat::{fstat, FileStat};
@@ -173,20 +172,19 @@ impl ElfCacheLru {
     }
 }
 
-pub struct ElfCache {
+struct _ElfCache {
     elfs: HashMap<ElfCacheEntryKey, Box<ElfCacheEntry>>,
     lru: ElfCacheLru,
     max_elfs: usize,
 }
 
-impl ElfCache {
-    #[allow(dead_code)]
-    pub fn get_max_elfs(&self) -> usize {
+impl _ElfCache {
+    fn get_max_elfs(&self) -> usize {
 	self.max_elfs
     }
 
-    pub fn new() -> ElfCache {
-	ElfCache {
+    fn new() -> _ElfCache {
+	_ElfCache {
 	    elfs: HashMap::new(),
 	    lru: ElfCacheLru { head: ptr::null_mut(), tail: ptr::null_mut() },
 	    max_elfs: DFL_CACHE_MAX,
@@ -258,20 +256,28 @@ impl ElfCache {
     }
 }
 
-thread_local!(
-    static CACHE: RefCell<Option<ElfCache>> = RefCell::new(None);
-);
-
-pub fn get_cache() -> &'static mut ElfCache {
-    CACHE.with(|cache: &RefCell<Option<ElfCache>>| {
-	let mut me = cache.borrow_mut();
-	if me.is_none() {
-	    *me = Some(ElfCache::new());
-	}
-	unsafe { &mut *(me.as_mut().unwrap() as *mut ElfCache) }
-    })
+pub struct ElfCache {
+    cache: RefCell<_ElfCache>,
 }
 
+impl ElfCache {
+    pub fn new() -> ElfCache {
+	ElfCache {
+	    cache: RefCell::new(_ElfCache::new())
+	}
+    }
+
+    #[allow(dead_code)]
+    pub fn get_max_elfs(&self) -> usize {
+	let cache = self.cache.borrow();
+	cache.get_max_elfs()
+    }
+
+    pub fn find(&self, path: &str) -> Result<ElfBackend, Error>{
+	let mut cache = self.cache.borrow_mut();
+	cache.find(path)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -283,7 +289,7 @@ mod tests {
 	let args: Vec<String> = env::args().collect();
 	let bin_name = &args[0];
 
-	let mut cache = ElfCache::new();
+	let cache = ElfCache::new();
 	let backend_first = cache.find(bin_name);
 	let backend_second = cache.find(bin_name);
 	assert!(backend_first.is_ok());

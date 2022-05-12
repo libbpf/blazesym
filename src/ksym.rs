@@ -4,6 +4,7 @@ use std::io::{BufReader, BufRead, Error};
 use std::ffi::CString;
 use std::fs::File;
 use std::default::Default;
+use std::rc::Rc;
 use std::u64;
 
 use crate::SymResolver;
@@ -140,7 +141,7 @@ impl SymResolver for KSymResolver {
 ///
 /// It returns the same isntance if path is the same.
 pub struct KSymCache {
-    resolvers: RefCell<HashMap<String, Box<KSymResolver>>>,
+    resolvers: RefCell<HashMap<String, Rc<KSymResolver>>>,
 }
 
 impl KSymCache {
@@ -149,17 +150,16 @@ impl KSymCache {
     }
 
     /// Find an instance of KSymResolver from the cache or create a new one.
-    pub fn get_resolver(&self, path: &str) -> Result<&KSymResolver, Error> {
+    pub fn get_resolver(&self, path: &str) -> Result<Rc<KSymResolver>, Error> {
 	let mut resolvers = self.resolvers.borrow_mut();
-	if let Some(resolver_box) = resolvers.get(path) {
-	    return Ok(unsafe { &*(resolver_box.as_ref() as *const KSymResolver) });
+	if let Some(resolver) = resolvers.get(path) {
+	    return Ok(resolver.clone());
 	}
 
-	let mut resolver_box = Box::new(KSymResolver::new());
-	let rawptr = resolver_box.as_ref() as *const KSymResolver;
-	resolver_box.load_file_name(path)?;
-	resolvers.insert(path.to_string(), resolver_box);
-	return Ok(unsafe { &*rawptr });
+	let mut resolver = Rc::new(KSymResolver::new());
+	Rc::get_mut(&mut resolver).unwrap().load_file_name(path)?;
+	resolvers.insert(path.to_string(), resolver.clone());
+	return Ok(resolver);
     }
 }
 
