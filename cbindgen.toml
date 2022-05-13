@@ -1,6 +1,5 @@
 language = "C"
 include_guard = "__blazesym_h_"
-after_includes = "\n#define CFG_T_ELF 1\n#define CFG_T_KERNEL 2\n#define CFG_T_PROCESS 3\n#define CFG_T_PROCESS_KERNEL 4"
 
 [export]
 item_types = ["globals", "enums", "structs", "unions", "typedefs", "opaque", "functions"]

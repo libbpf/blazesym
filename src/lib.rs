@@ -397,10 +397,9 @@ pub enum SymbolFileCfg {
     /// A single ELF file
     Elf { file_name: String, loaded_address: u64 },
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
-    Kernel { kallsyms: String, kernel_image: String },
+    Kernel { kallsyms: Option<String>, kernel_image: Option<String> },
     /// This one will be exapended into all ELF files loaded.
-    Process { process_id: u32 },
-    ProcessKernel { process_id: u32 },
+    Process { pid: Option<u32> },
 }
 
 /// The result of doing symbolization by BlazeSymbolizer.
@@ -420,9 +419,9 @@ struct ResolverMap {
 }
 
 impl ResolverMap {
-    fn build_resolvers_proc_maps(process_id: u32, resolvers: &mut ResolverList,
+    fn build_resolvers_proc_maps(pid: u32, resolvers: &mut ResolverList,
 				 cache_holder: &CacheHolder) -> Result<(), Error> {
-	let entries = tools::parse_maps(process_id)?;
+	let entries = tools::parse_maps(pid)?;
 	for entry in entries.iter() {
 	    if entry.offset != 0 {
 		continue;
@@ -446,19 +445,25 @@ impl ResolverMap {
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 		SymbolFileCfg::Kernel { kallsyms, kernel_image } => {
-		    let resolver = KernelResolver::new(kallsyms, kernel_image, cache_holder)?;
+		    let kallsyms = if let Some(k) = kallsyms {
+			&k
+		    } else {
+			"/proc/kallsyms"
+		    };
+		    let kernel_image = if let Some(img) = kernel_image {
+			img.clone()
+		    } else {
+			let release = utsname::uname()?.release().to_str().unwrap().to_string();
+			let kernel_image = format!("/boot/vmlinux-{}", release);
+			kernel_image
+		    };
+		    let resolver = KernelResolver::new(kallsyms, &kernel_image, cache_holder)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
-		SymbolFileCfg::Process { process_id } => {
-		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers, cache_holder)?;
-		},
-		SymbolFileCfg::ProcessKernel { process_id } => {
-		    Self::build_resolvers_proc_maps(*process_id, &mut resolvers, cache_holder)?;
+		SymbolFileCfg::Process { pid } => {
+		    let pid = if let Some(p) = pid {*p} else { 0 };
 
-		    let release = utsname::uname()?.release().to_str().unwrap().to_string();
-		    let kernel_image = format!("/boot/vmlinux-{}", release);
-		    let resolver = KernelResolver::new("/proc/kallsyms", &kernel_image, cache_holder)?;
-		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+		    Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder)?;
 		},
 	    };
 	}
@@ -485,6 +490,11 @@ impl ResolverMap {
     }
 }
 
+pub struct Symbol {
+    pub name: String,
+    pub addr: u64,
+}
+
 /// BlazeSymbolizer provides an interface to symbolize addresses with
 /// a list of symbol files.
 ///
@@ -506,12 +516,12 @@ impl BlazeSymbolizer {
 	})
     }
 
-    pub fn find_symbol(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<(String, u64)> {
+    pub fn find_symbol(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<Symbol> {
 	let resolver_map = ResolverMap::new(cfg, &self.cache_holder).ok()?;
 	let resolver = resolver_map.find_resolver(addr)?;
 
 	if let Some((sym, addr)) = resolver.find_symbol(addr) {
-	    Some((sym.to_string(), addr))
+	    Some(Symbol { name: sym.to_string(), addr })
 	} else {
 	    None
 	}
@@ -575,10 +585,13 @@ impl BlazeSymbolizer {
     }
 }
 
-const CFG_T_ELF: u16 = 1;
-const CFG_T_KERNEL: u16 = 2;
-const CFG_T_PROCESS: u16 = 3;
-const CFG_T_PROCESS_KERNEL: u16 = 4;
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub enum blazesym_cfg_type {
+    CFG_T_ELF,
+    CFG_T_KERNEL,
+    CFG_T_PROCESS,
+}
 
 #[repr(C)]
 pub struct sfc_elf {
@@ -594,7 +607,7 @@ pub struct sfc_kernel {
 
 #[repr(C)]
 pub struct sfc_process {
-    process_id: u32,
+    pid: u32,
 }
 
 #[repr(C)]
@@ -602,12 +615,11 @@ pub union sfc_params {
     elf: mem::ManuallyDrop<sfc_elf>,
     kernel: mem::ManuallyDrop<sfc_kernel>,
     process: mem::ManuallyDrop<sfc_process>,
-    process_kernel: mem::ManuallyDrop<sfc_process>,
 }
 
 #[repr(C)]
 pub struct sym_file_cfg {
-    cfg_type: u16,
+    cfg_type: blazesym_cfg_type,
     params: sfc_params,
 }
 
@@ -642,31 +654,25 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Optio
     for i in 0..cfg_len {
 	let c = cfg.offset(i as isize);
 	match (*c).cfg_type {
-	    CFG_T_ELF => {
+	    blazesym_cfg_type::CFG_T_ELF => {
 		cfg_rs.push(SymbolFileCfg::Elf {
 		    file_name: from_cstr((*c).params.elf.file_name),
 		    loaded_address: (*c).params.elf.loaded_address,
 		});
 	    },
-	    CFG_T_KERNEL => {
+	    blazesym_cfg_type::CFG_T_KERNEL => {
+		let kallsyms = (*c).params.kernel.kallsyms;
+		let kernel_image = (*c).params.kernel.kernel_image;
 		cfg_rs.push(SymbolFileCfg::Kernel {
-		    kallsyms: from_cstr((*c).params.kernel.kallsyms),
-		    kernel_image: from_cstr((*c).params.kernel.kernel_image),
+		    kallsyms: if kallsyms != ptr::null() { Some(from_cstr(kallsyms)) } else { None },
+		    kernel_image: if kernel_image != ptr::null() { Some(from_cstr(kernel_image)) } else { None },
 		});
 	    },
-	    CFG_T_PROCESS => {
+	    blazesym_cfg_type::CFG_T_PROCESS => {
 		cfg_rs.push(SymbolFileCfg::Process {
-		    process_id: (*c).params.process.process_id,
+		    pid: if (*c).params.process.pid > 0 { Some((*c).params.process.pid) } else { None },
 		});
 	    },
-	    CFG_T_PROCESS_KERNEL => {
-		cfg_rs.push(SymbolFileCfg::ProcessKernel {
-		    process_id: (*c).params.process_kernel.process_id,
-		});
-	    },
-	    _ => {
-		return None;
-	    }
 	}
     }
 
@@ -794,8 +800,8 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>)
 pub unsafe extern "C"
 fn blazesym_symbolize(symbolizer: *mut blazesym,
 			     cfg: *const sym_file_cfg, cfg_len: u32,
-			     addresses: *const u64,
-			     address_cnt: usize) -> *const blazesym_result {
+			     addrs: *const u64,
+			     addr_cnt: usize) -> *const blazesym_result {
     let cfg_rs = if let Some(cfg_rs) = symbolfilecfg_to_rust(cfg, cfg_len) {
 	cfg_rs
     } else {
@@ -803,7 +809,7 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
     };
 
     let symbolizer = &*(*symbolizer).symbolizer;
-    let addresses = Vec::from_raw_parts(addresses as *mut u64, address_cnt, address_cnt);
+    let addresses = Vec::from_raw_parts(addrs as *mut u64, addr_cnt, addr_cnt);
 
     let results = symbolizer.symbolize(&cfg_rs, &addresses);
 
@@ -858,7 +864,7 @@ mod tests {
     #[test]
     fn load_symbolfilecfg_process() {
 	// Check if SymbolFileCfg::Process expands to ELFResolvers.
-	let cfg = vec![SymbolFileCfg::ProcessKernel { process_id: 0 }];
+	let cfg = vec![SymbolFileCfg::Process { pid: None }];
 	let cache_holder = CacheHolder::new();
 	let resolver_map = ResolverMap::new(&cfg, &cache_holder);
 	assert!(resolver_map.is_ok());
@@ -873,9 +879,9 @@ mod tests {
 
     #[test]
     fn load_symbolfilecfg_processkernel() {
-	// Check if SymbolFileCfg::ProcessKernel expands to
-	// ELFResolvers.
-	let cfg = vec![SymbolFileCfg::ProcessKernel { process_id: 0 }];
+	// Check if SymbolFileCfg::Process & SymbolFileCfg::Kernel expands to
+	// ELFResolvers and a KernelResolver.
+	let cfg = vec![SymbolFileCfg::Process { pid: None }, SymbolFileCfg::Kernel { kallsyms: None, kernel_image: None }];
 	let cache_holder = CacheHolder::new();
 	let resolver_map = ResolverMap::new(&cfg, &cache_holder);
 	assert!(resolver_map.is_ok());
@@ -886,7 +892,6 @@ mod tests {
 	assert!(signatures.iter().find(|x| x.find("/blazesym").is_some()).is_some());
 	// ElfResolver for libc.
 	assert!(signatures.iter().find(|x| x.find("/libc").is_some()).is_some());
-	println!("{:?}", signatures);
 	assert!(signatures.iter().find(|x| x.find("KernelResolver").is_some()).is_some());
     }
 }
