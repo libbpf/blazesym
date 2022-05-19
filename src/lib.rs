@@ -470,13 +470,20 @@ impl ResolverMap {
 			let kernel_image = format!("/boot/vmlinux-{}", release);
 			kernel_image
 		    };
-		    let resolver = KernelResolver::new(kallsyms, &kernel_image, cache_holder)?;
-		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+		    if let Ok(resolver) = KernelResolver::new(kallsyms, &kernel_image, cache_holder) {
+			resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+		    } else {
+			#[cfg(debug_assertions)]
+			eprintln!("fail to load the kernel image {}", kernel_image);
+		    }
 		},
 		SymbolFileCfg::Process { pid } => {
 		    let pid = if let Some(p) = pid {*p} else { 0 };
 
-		    Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder)?;
+		    if let Err(e) = Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder) {
+			#[cfg(debug_assertions)]
+			eprintln!("Fail to load symbols for the process {}: {:?}", pid, e);
+		    }
 		},
 	    };
 	}
@@ -554,6 +561,8 @@ impl BlazeSymbolizer {
 	let resolver_map = if let Ok(map) = ResolverMap::new(cfg, &self.cache_holder){
 	    map
 	} else {
+	    #[cfg(debug_assertions)]
+	    eprintln!("Fail to build ResolverMap");
 	    return vec![];
 	};
 
@@ -818,6 +827,8 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
     let cfg_rs = if let Some(cfg_rs) = symbolfilecfg_to_rust(cfg, cfg_len) {
 	cfg_rs
     } else {
+	#[cfg(debug_assertions)]
+	eprintln!("Fail to transform configurations of symbolizer from C to Rust");
 	return ptr::null_mut();
     };
 
@@ -829,6 +840,8 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
     addresses.leak();
 
     if results.is_empty() {
+	#[cfg(debug_assertions)]
+	eprintln!("Empty result while request for {}", addr_cnt);
 	return ptr::null();
     }
 
