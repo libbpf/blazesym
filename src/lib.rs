@@ -1,4 +1,4 @@
-use std::io::Error;
+use std::io::{Error, ErrorKind};
 use std::u64;
 
 use std::ffi::{CString, CStr};
@@ -287,6 +287,7 @@ impl ElfResolver {
 	// Find the size of the block where the ELF file is/was
 	// mapped.
 	let mut max_addr = 0;
+	let mut low_addr = 0xffffffffffffffff;
 	if e_type == elf::ET_DYN || e_type == elf::ET_EXEC {
 	    for phdr in phdrs {
 		if phdr.p_type != elf::PT_LOAD {
@@ -296,10 +297,18 @@ impl ElfResolver {
 		if max_addr < end_at {
 		    max_addr = end_at;
 		}
+		if phdr.p_vaddr < low_addr {
+		    low_addr = phdr.p_vaddr;
+		}
 	    }
+	} else {
+	    return Err(Error::new(ErrorKind::InvalidData, "unknown e_type"));
 	}
 
-	Ok(ElfResolver { backend, loaded_address, size: max_addr, file_name: file_name.to_string() })
+	let loaded_address = if e_type == elf::ET_EXEC { low_addr } else { loaded_address };
+	let size = if e_type == elf::ET_EXEC { max_addr - low_addr } else { max_addr };
+
+	Ok(ElfResolver { backend, loaded_address, size, file_name: file_name.to_string() })
     }
 
     fn get_parser(&self) -> Option<&elf::Elf64Parser> {
@@ -429,8 +438,12 @@ impl ResolverMap {
 	    if &entry.path[..1] != "/" {
 		continue;
 	    }
-	    let resolver = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder)?;
-	    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+	    if let Ok(resolver) = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder) {
+		resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+	    } else {
+		#[cfg(debug_assertions)]
+		eprintln!("Fail to ceate ElfResolver for {}", entry.path);
+	    }
 	}
 
 	Ok(())

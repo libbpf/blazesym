@@ -269,6 +269,7 @@ struct Elf64ParserBack {
 /// A parser against ELF64 format.
 ///
 pub struct Elf64Parser{
+    filename: String,
     file: RefCell<File>,
     backobj: RefCell<Elf64ParserBack>,
 }
@@ -276,6 +277,7 @@ pub struct Elf64Parser{
 impl Elf64Parser {
     pub fn open_file(file: File) -> Result<Elf64Parser, Error> {
 	let parser = Elf64Parser {
+	    filename: String::from(""),
 	    file: RefCell::new(file),
 	    backobj: RefCell::new(Elf64ParserBack {
 		ehdr: None,
@@ -292,7 +294,13 @@ impl Elf64Parser {
 
     pub fn open(filename: &str) -> Result<Elf64Parser, Error> {
 	let file = File::open(filename)?;
-	Self::open_file(file)
+	let parser = Self::open_file(file);
+	if let Ok(mut parser) = parser {
+	    parser.filename = filename.to_string();
+	    Ok(parser)
+	} else {
+	    parser
+	}
     }
 
     fn ensure_ehdr(&self) -> Result<(), Error> {
@@ -303,6 +311,11 @@ impl Elf64Parser {
 	}
 
 	let ehdr = read_elf_header(&mut *self.file.borrow_mut())?;
+	if !(ehdr.e_ident[0] == 0x7f && ehdr.e_ident[1] == 0x45 &&
+	     ehdr.e_ident[2] == 0x4c && ehdr.e_ident[3] == 0x46) {
+	    return Err(Error::new(ErrorKind::InvalidData, "e_ident is wrong"));
+	}
+
 	me.ehdr = Some(ehdr);
 
 	Ok(())
@@ -481,7 +494,7 @@ impl Elf64Parser {
     pub fn find_section(&self, name: &str) -> Result<usize, Error> {
 	let nsects = self.get_num_sections()?;
 	for i in 0..nsects {
-	    if self.get_section_name(i).unwrap() == name {
+	    if self.get_section_name(i)? == name {
 		return Ok(i);
 	    }
 	}
