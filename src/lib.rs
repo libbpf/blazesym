@@ -328,7 +328,7 @@ impl SymResolver for ElfResolver {
 	let off = addr - self.loaded_address;
 	let parser = self.get_parser()?;
 	match parser.find_symbol(off, elf::STT_FUNC) {
-	    Ok((name, start_addr)) => Some((name, start_addr)),
+	    Ok((name, start_addr)) => Some((name, start_addr + self.loaded_address)),
 	    Err(_) => None,
 	}
     }
@@ -480,9 +480,9 @@ impl ResolverMap {
 		SymbolFileCfg::Process { pid } => {
 		    let pid = if let Some(p) = pid {*p} else { 0 };
 
-		    if let Err(e) = Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder) {
+		    if let Err(_e) = Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder) {
 			#[cfg(debug_assertions)]
-			eprintln!("Fail to load symbols for the process {}: {:?}", pid, e);
+			eprintln!("Fail to load symbols for the process {}: {:?}", pid, _e);
 		    }
 		},
 	    };
