@@ -363,6 +363,7 @@ fn parse_debug_line_cu(parser: &Elf64Parser, addresses: &[u64], reused_buf: &mut
 
 	if v2.version != 0x2 && v2.version != 0x4 {
 	    let version = v2.version;
+	    Box::leak(v2);
 	    return Err(Error::new(ErrorKind::Unsupported, format!("Support DWARF version 2 & 4 (version: {})", version)));
 	}
 
