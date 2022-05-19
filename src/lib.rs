@@ -815,6 +815,10 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
 
     addresses.leak();
 
+    if results.is_empty() {
+	return ptr::null();
+    }
+
     convert_symbolizedresults_to_c(results)
 }
 
