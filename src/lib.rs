@@ -11,6 +11,7 @@ use std::mem;
 use std::rc::Rc;
 
 use nix::sys::utsname;
+use nix::sys::stat::stat;
 
 pub mod dwarf;
 mod elf;
@@ -436,6 +437,14 @@ impl ResolverMap {
 		continue;
 	    }
 	    if &entry.path[..1] != "/" {
+		continue;
+	    }
+	    if let Ok(filestat) = stat(&entry.path[..]) {
+		if (filestat.st_mode & 0o170000) != 0o100000 {
+		    // Not a regular file
+		    continue;
+		}
+	    } else {
 		continue;
 	    }
 	    if let Ok(resolver) = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder) {
