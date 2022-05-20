@@ -122,7 +122,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
     let file = fs::File::open(file_name)?;
     let mut reader = BufReader::new(file);
     let mut line = String::new();
-    let re_ptn = Regex::new(r"^([0-9a-f]+)-([0-9a-f]+) [^ ]+ ([0-9a-f]+) [0-9a-f]{2}:[0-9a-f]{2} [0-9]+ *((/[^/]+)+)$");
+    let re_ptn = Regex::new(r"^([0-9a-f]+)-([0-9a-f]+) [^ ]+ ([0-9a-f]+) [0-9a-f]+:[0-9a-f]+ [0-9]+ *((/[^/]+)+)$");
     if re_ptn.is_err() {
 	println!("{:?}", re_ptn);
 	return Err(Error::new(ErrorKind::InvalidData, "Failed to build regex"));
