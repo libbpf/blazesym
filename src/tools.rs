@@ -138,7 +138,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
 	    let end_address = u64::from_str_radix(end_address_str, 16).unwrap();
 
 	    let offset = u64::from_str_radix(caps.get(3).unwrap().as_str(), 16).unwrap();
-	    let mut path = caps.get(4).unwrap().as_str().strip_suffix("\n").unwrap();
+	    let mut path = caps.get(4).unwrap().as_str().strip_suffix('\n').unwrap();
 	    if let Some(pos) = path.rfind(" (deleted)") {
 		if pos == path.len() - " (deleted)".len() {
 		    path = &path[..pos];

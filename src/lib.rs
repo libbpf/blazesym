@@ -468,7 +468,7 @@ impl ResolverMap {
 		},
 		SymbolFileCfg::Kernel { kallsyms, kernel_image } => {
 		    let kallsyms = if let Some(k) = kallsyms {
-			&k
+			k
 		    } else {
 			"/proc/kallsyms"
 		    };
@@ -480,10 +480,10 @@ impl ResolverMap {
 			let mut i = 0;
 			let kernel_image = loop {
 			    let path = format!("{}{}", patterns[i], release);
-			    if let Ok(_) = stat(&path[..]) {
+			    if stat(&path[..]).is_ok() {
 				break path;
 			    }
-			    i = i + 1;
+			    i += 1;
 			    if i >= patterns.len() {
 				break path;
 			    }
@@ -706,8 +706,8 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Optio
 		let kallsyms = (*c).params.kernel.kallsyms;
 		let kernel_image = (*c).params.kernel.kernel_image;
 		cfg_rs.push(SymbolFileCfg::Kernel {
-		    kallsyms: if kallsyms != ptr::null() { Some(from_cstr(kallsyms)) } else { None },
-		    kernel_image: if kernel_image != ptr::null() { Some(from_cstr(kernel_image)) } else { None },
+		    kallsyms: if !kallsyms.is_null() { Some(from_cstr(kallsyms)) } else { None },
+		    kernel_image: if !kernel_image.is_null() { Some(from_cstr(kernel_image)) } else { None },
 		});
 	    },
 	    blazesym_cfg_type::CFG_T_PROCESS => {
