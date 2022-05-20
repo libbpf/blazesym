@@ -1,4 +1,5 @@
 use std::mem;
+use std::cmp::Ordering;
 use std::fs::{File};
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom};
 use std::borrow::BorrowMut;
@@ -261,9 +262,10 @@ struct Elf64ParserBack {
     shdrs: Option<Vec<Elf64_Shdr>>,
     shstrtab: Option<Vec<u8>>,
     phdrs: Option<Vec<Elf64_Phdr>>,
-    symtab: Option<Vec<Elf64_Sym>>, // Sorted symtab
+    symtab: Option<Vec<Elf64_Sym>>, // in address order
     symtab_origin: Option<Vec<Elf64_Sym>>, // The copy in the same order as the file
     strtab: Option<Vec<u8>>,
+    str2symtab: Option<Vec<(usize, usize)>>, // strtab offset to symtab in the dictionary order
 }
 
 /// A parser against ELF64 format.
@@ -287,6 +289,7 @@ impl Elf64Parser {
 		symtab: None,
 		symtab_origin: None,
 		strtab: None,
+		str2symtab: None,
 	    }),
 	};
 	Ok(parser)
@@ -417,6 +420,45 @@ impl Elf64Parser {
 	Ok(())
     }
 
+    fn ensure_str2symtab(&self) -> Result<(), Error> {
+	self.ensure_symtab()?;
+	self.ensure_strtab()?;
+
+	// strtab offsets to symtab indices
+	let mut me = self.backobj.borrow_mut();
+	let strtab = me.strtab.as_ref().unwrap();
+	let symtab = me.symtab.as_ref().unwrap();
+	let mut str2symtab = Vec::<(usize, usize)>::with_capacity(symtab.len());
+	for (sym_i, sym) in symtab.iter().enumerate() {
+	    let name_off = sym.st_name;
+	    str2symtab.push((name_off as usize, sym_i));
+	}
+
+	// Sort in the dictionary order
+	str2symtab.sort_by(|x, y| {
+	    let mut name_offx = x.0;
+	    let mut name_offy = y.0;
+	    loop {
+		if strtab[name_offx] < strtab[name_offy] {
+		    return Ordering::Less;
+		}
+		if strtab[name_offx] > strtab[name_offy] {
+		    return Ordering::Greater;
+		}
+		if strtab[name_offx] == 0 {
+		    break;
+		}
+		name_offx += 1;
+		name_offy += 1;
+	    };
+	    Ordering::Equal
+	});
+
+	me.str2symtab = Some(str2symtab);
+
+	Ok(())
+    }
+
     pub fn get_elf_file_type(&self) -> Result<u16, Error> {
 	self.ensure_ehdr()?;
 
@@ -526,6 +568,39 @@ impl Elf64Parser {
 	    }
 	};
 	Ok((sym_name, sym.st_value))
+    }
+
+    pub fn find_address(&self, name: &str) -> Result<u64, Error> {
+	self.ensure_str2symtab()?;
+
+	let me = self.backobj.borrow();
+	let str2symtab = me.str2symtab.as_ref().unwrap();
+	let strtab = me.strtab.as_ref().unwrap();
+	let bytes = name.as_bytes();
+	let r = str2symtab.binary_search_by(|(off, _sym_i)| {
+	    // Compare strtab[off] with name with the dictionary order
+	    for i in 0..bytes.len() {
+		if bytes[i] < strtab[off + i] {
+		    return Ordering::Greater;
+		}
+		if bytes[i] > strtab[off + i] {
+		    return Ordering::Less;
+		}
+	    }
+	    if strtab[off + bytes.len()] == 0 {
+		Ordering::Equal
+	    } else {
+		Ordering::Greater
+	    }
+	});
+
+	match r {
+	    Ok(str2sym_i) => {
+		let sym_i = str2symtab[str2sym_i].1;
+		Ok(me.symtab.as_ref().unwrap()[sym_i].st_value)
+	    },
+	    Err(_) => Err(Error::new(ErrorKind::NotFound, "an unknown symbol")),
+	}
     }
 
     pub fn get_num_symbols(&self) -> Result<usize, Error> {
@@ -675,5 +750,21 @@ mod tests {
 	let (sym_name_ret, addr_ret) = sym_r.unwrap();
 	assert_eq!(addr_ret, addr);
 	assert_eq!(sym_name_ret, sym_name);
+    }
+    #[test]
+    fn test_elf64_find_address() {
+	let args: Vec<String> = env::args().collect();
+	let bin_name = &args[0];
+
+	let parser = Elf64Parser::open(bin_name).unwrap();
+	assert!(parser.find_section(".shstrtab").is_ok());
+
+	let (sym_name, addr) = parser.pick_symtab_addr();
+
+	println!("{}", sym_name);
+	let addr_r = parser.find_address(sym_name);
+	//assert!(addr_r.is_ok());
+	let addr_ret = addr_r.unwrap();
+	assert_eq!(addr_ret, addr);
     }
 }
