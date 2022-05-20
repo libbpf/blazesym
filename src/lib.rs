@@ -476,7 +476,18 @@ impl ResolverMap {
 			img.clone()
 		    } else {
 			let release = utsname::uname()?.release().to_str().unwrap().to_string();
-			let kernel_image = format!("/boot/vmlinux-{}", release);
+			let patterns = vec!["/boot/vmlinux-", "/usr/lib/debug/boot/vmlinux-"];
+			let mut i = 0;
+			let kernel_image = loop {
+			    let path = format!("{}{}", patterns[i], release);
+			    if let Ok(_) = stat(&path[..]) {
+				break path;
+			    }
+			    i = i + 1;
+			    if i >= patterns.len() {
+				break path;
+			    }
+			};
 			kernel_image
 		    };
 		    if let Ok(resolver) = KernelResolver::new(kallsyms, &kernel_image, cache_holder) {
