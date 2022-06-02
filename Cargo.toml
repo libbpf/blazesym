@@ -10,7 +10,7 @@ name = "blazesym"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
-nix = "*"
+nix = "0.24.1"
 regex = "*"
 
 [build-dependencies]
