@@ -20,7 +20,7 @@ fn main() {
     let bin_name = args[2].clone();
     let mut addr_str = &args[3][..];
 
-    if &addr_str[0..2] == "0x" {
+    if addr_str.len() > 2 && &addr_str[0..2] == "0x" {
 	// Remove prefixed 0x
 	addr_str = &addr_str[2..];
     }
@@ -31,7 +31,8 @@ fn main() {
 					     kernel_image: Some(kern_name) }];
     let resolver = BlazeSymbolizer::new().unwrap();
     let symlist = resolver.symbolize(&sym_files, &[addr]);
-    if let Some(SymbolizedResult {symbol, start_address, path, line_no, column}) = &symlist[0] {
+    if symlist[0].len() > 0 {
+	let SymbolizedResult {symbol, start_address, path, line_no, column} = &symlist[0][0];
 	println!("0x{:x} {}@0x{:x} {}:{}:{}", addr, symbol, start_address, path, line_no, column);
     } else {
 	println!("0x{:x} is not found", addr);

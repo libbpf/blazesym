@@ -577,7 +577,7 @@ impl BlazeSymbolizer {
 	resolver.find_line_info(addr)
     }
 
-    pub fn symbolize(&self, cfg: &[SymbolFileCfg], addresses: &[u64]) -> Vec<Option<SymbolizedResult>> {
+    pub fn symbolize(&self, cfg: &[SymbolFileCfg], addresses: &[u64]) -> Vec<Vec<SymbolizedResult>> {
 	let resolver_map = if let Ok(map) = ResolverMap::new(cfg, &self.cache_holder){
 	    map
 	} else {
@@ -586,41 +586,45 @@ impl BlazeSymbolizer {
 	    return vec![];
 	};
 
-	let info: Vec<Option<SymbolizedResult>> =
+	let info: Vec<Vec<SymbolizedResult>> =
 	    addresses.iter().map(|addr| {
-		let resolver = resolver_map.find_resolver(*addr)?;
+		let resolver = if let Some(resolver) = resolver_map.find_resolver(*addr) {
+		    resolver
+		} else {
+		    return vec![];
+		};
 
 		let sym = resolver.find_symbol(*addr);
 		let linfo = resolver.find_line_info(*addr);
 		if sym.is_none() && linfo.is_none() {
-		    None
+		    vec![]
 		} else if sym.is_none() {
 		    let linfo = linfo.unwrap();
-		    Some(SymbolizedResult {
+		    vec![SymbolizedResult {
 			symbol: "".to_string(),
 			start_address: 0,
 			path: linfo.path,
 			line_no: linfo.line_no,
 			column: linfo.column,
-		    })
+		    }]
 		} else if let Some(linfo) = linfo {
 		    let (sym, start) = sym.unwrap();
-		    Some(SymbolizedResult {
+		    vec![SymbolizedResult {
 			symbol: String::from(sym),
 			start_address: start,
 			path: linfo.path,
 			line_no: linfo.line_no,
 			column: linfo.column,
-		    })
+		    }]
 		} else {
 		    let (sym, start) = sym.unwrap();
-		    Some(SymbolizedResult {
+		    vec![SymbolizedResult {
 			symbol: String::from(sym),
 			start_address: start,
 			path: "".to_string(),
 			line_no: 0,
 			column: 0,
-		    })
+		    }]
 		}
 	    }).collect();
 	info
@@ -671,13 +675,24 @@ pub struct blazesym {
 }
 
 #[repr(C)]
-pub struct blazesym_result {
-    pub valid: bool,
+pub struct blazesym_csym {
     pub symbol: *const c_char,
     pub start_address: u64,
     pub path: *const c_char,
     pub line_no: usize,
     pub column: usize,
+}
+
+#[repr(C)]
+pub struct blazesym_entry {
+    pub size: usize,
+    pub syms: *const blazesym_csym,
+}
+
+#[repr(C)]
+pub struct blazesym_result {
+    pub size: usize,
+    pub entries: [blazesym_entry; 0],
 }
 
 /// Create a String from a pointer of C string
@@ -758,28 +773,30 @@ pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
 ///
 /// The returned pointer should be freed by blazesym_result_free.
 ///
-unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>) -> *const blazesym_result {
+unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) -> *const blazesym_result {
     // Allocate a buffer to contain all blazesym_result and C
     // strings of symbol and path.
-    let buf_sz = results.iter().fold(0, |acc, opt| {
-	match opt {
-	    Some(result) => {
-		acc + result.symbol.len() + result.path.len() + 2
-	    },
-	    None => {
-		acc
-	    },
-	}
-    }) + 1 /* empty string */ + mem::size_of::<blazesym_result>() * results.len();
-    let raw_buf_with_sz = alloc(Layout::from_size_align(buf_sz + mem::size_of::<u64>(), 8).unwrap());
+    let strtab_size = results.iter().flatten().fold(0, |acc, result| {
+	    acc + result.symbol.len() + result.path.len() + 2
+    });
+    let symtab_size = results.iter().flatten().count();
+    let buf_size = strtab_size + mem::size_of::<blazesym_result>() +
+	mem::size_of::<blazesym_entry>() * results.len() +
+	mem::size_of::<blazesym_csym>() * symtab_size;
+    let raw_buf_with_sz = alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
 
     // prepend an u64 to keep the size of the buffer.
-    *(raw_buf_with_sz as *mut u64) = buf_sz as u64;
+    *(raw_buf_with_sz as *mut u64) = buf_size as u64;
 
     let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
 
-    let mut rc_last = raw_buf as *mut blazesym_result;
-    let mut cstr_last = raw_buf.add(mem::size_of::<blazesym_result>() * results.len()) as *mut c_char;
+    let result_ptr = raw_buf as *mut blazesym_result;
+    let mut entry_last = &mut (*result_ptr).entries as *mut blazesym_entry;
+    let mut symtab_last = raw_buf.add(mem::size_of::<blazesym_result>() +
+				      mem::size_of::<blazesym_entry>() * results.len()) as *mut blazesym_csym;
+    let mut cstr_last = raw_buf.add(mem::size_of::<blazesym_result>() +
+				    mem::size_of::<blazesym_entry>() * results.len() +
+				    mem::size_of::<blazesym_csym>() * symtab_size) as *mut c_char;
 
     let mut make_cstr = |src: &str| {
 	let cstr = cstr_last;
@@ -790,42 +807,30 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Option<SymbolizedResult>>)
 	cstr
     };
 
-    // Make an empty C string to use later
-    let empty_cstr = make_cstr("");
-
+    (*result_ptr).size = results.len();
     // Convert all SymbolizedResults to blazesym_results
-    for opt in results {
-	match opt {
-	    Some(r) => {
-		let symbol_ptr = make_cstr(&r.symbol);
+    for entry in results {
+	(*entry_last).size = entry.len();
+	(*entry_last).syms = symtab_last;
+	entry_last = entry_last.add(1);
 
-		let path_ptr = make_cstr(&r.path);
+	for r in entry {
+	    let symbol_ptr = make_cstr(&r.symbol);
 
-		let rc_ref = &mut *rc_last;
-		rc_ref.valid = true;
-		rc_ref.symbol = symbol_ptr;
-		rc_ref.start_address = r.start_address;
-		rc_ref.path = path_ptr;
-		rc_ref.line_no = r.line_no;
-		rc_ref.column = r.column;
+	    let path_ptr = make_cstr(&r.path);
 
-		rc_last = rc_last.add(1);
-	    },
-	    None => {
-		let rc_ref = &mut *rc_last;
-		rc_ref.valid = false;
-		rc_ref.symbol = empty_cstr;
-		rc_ref.start_address = 0;
-		rc_ref.path = empty_cstr;
-		rc_ref.line_no = 0;
-		rc_ref.column =0;
+	    let sym_ref = &mut *symtab_last;
+	    sym_ref.symbol = symbol_ptr;
+	    sym_ref.start_address = r.start_address;
+	    sym_ref.path = path_ptr;
+	    sym_ref.line_no = r.line_no;
+	    sym_ref.column = r.column;
 
-		rc_last = rc_last.add(1);
-	    },
+	    symtab_last = symtab_last.add(1);
 	}
     };
 
-    raw_buf as *const blazesym_result
+    result_ptr
 }
 
 /// Symbolize addresses with the debug info in symbol/debug files.
