@@ -882,6 +882,12 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
 #[no_mangle]
 pub unsafe extern "C"
 fn blazesym_result_free(results: *const blazesym_result) {
+    if results == ptr::null() {
+	#[cfg(debug_assertions)]
+	eprintln!("blazesym_result_free(null)");
+	return;
+    }
+
     let raw_buf_with_sz = (results as *mut u8).offset(-(mem::size_of::<u64>() as isize));
     let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
     dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
