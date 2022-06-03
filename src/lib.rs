@@ -763,8 +763,10 @@ pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
-    Box::from_raw((*symbolizer).symbolizer);
-    Box::from_raw(symbolizer);
+    if symbolizer != ptr::null_mut() {
+	Box::from_raw((*symbolizer).symbolizer);
+	Box::from_raw(symbolizer);
+    }
 }
 
 /// Convert SymbolizedResults to blazesym_results.
