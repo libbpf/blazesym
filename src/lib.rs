@@ -774,15 +774,15 @@ pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
 /// The returned pointer should be freed by blazesym_result_free.
 ///
 unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) -> *const blazesym_result {
-    // Allocate a buffer to contain all blazesym_result and C
-    // strings of symbol and path.
+    // Allocate a buffer to contain a blazesym_result, all
+    // blazesym_csym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
 	    acc + result.symbol.len() + result.path.len() + 2
     });
-    let symtab_size = results.iter().flatten().count();
+    let all_csym_size = results.iter().flatten().count();
     let buf_size = strtab_size + mem::size_of::<blazesym_result>() +
 	mem::size_of::<blazesym_entry>() * results.len() +
-	mem::size_of::<blazesym_csym>() * symtab_size;
+	mem::size_of::<blazesym_csym>() * all_csym_size;
     let raw_buf_with_sz = alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
 
     // prepend an u64 to keep the size of the buffer.
@@ -792,11 +792,11 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) ->
 
     let result_ptr = raw_buf as *mut blazesym_result;
     let mut entry_last = &mut (*result_ptr).entries as *mut blazesym_entry;
-    let mut symtab_last = raw_buf.add(mem::size_of::<blazesym_result>() +
-				      mem::size_of::<blazesym_entry>() * results.len()) as *mut blazesym_csym;
+    let mut csym_last = raw_buf.add(mem::size_of::<blazesym_result>() +
+				    mem::size_of::<blazesym_entry>() * results.len()) as *mut blazesym_csym;
     let mut cstr_last = raw_buf.add(mem::size_of::<blazesym_result>() +
 				    mem::size_of::<blazesym_entry>() * results.len() +
-				    mem::size_of::<blazesym_csym>() * symtab_size) as *mut c_char;
+				    mem::size_of::<blazesym_csym>() * all_csym_size) as *mut c_char;
 
     let mut make_cstr = |src: &str| {
 	let cstr = cstr_last;
@@ -808,10 +808,11 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) ->
     };
 
     (*result_ptr).size = results.len();
-    // Convert all SymbolizedResults to blazesym_results
+
+    // Convert all SymbolizedResults to blazesym_entrys and blazesym_csyms
     for entry in results {
 	(*entry_last).size = entry.len();
-	(*entry_last).syms = symtab_last;
+	(*entry_last).syms = csym_last;
 	entry_last = entry_last.add(1);
 
 	for r in entry {
@@ -819,14 +820,14 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) ->
 
 	    let path_ptr = make_cstr(&r.path);
 
-	    let sym_ref = &mut *symtab_last;
-	    sym_ref.symbol = symbol_ptr;
-	    sym_ref.start_address = r.start_address;
-	    sym_ref.path = path_ptr;
-	    sym_ref.line_no = r.line_no;
-	    sym_ref.column = r.column;
+	    let csym_ref = &mut *csym_last;
+	    csym_ref.symbol = symbol_ptr;
+	    csym_ref.start_address = r.start_address;
+	    csym_ref.path = path_ptr;
+	    csym_ref.line_no = r.line_no;
+	    csym_ref.column = r.column;
 
-	    symtab_last = symtab_last.add(1);
+	    csym_last = csym_last.add(1);
 	}
     };
 
