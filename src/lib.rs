@@ -451,7 +451,7 @@ impl ResolverMap {
 		resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 	    } else {
 		#[cfg(debug_assertions)]
-		eprintln!("Fail to ceate ElfResolver for {}", entry.path);
+		eprintln!("Fail to create ElfResolver for {}", entry.path);
 	    }
 	}
 
