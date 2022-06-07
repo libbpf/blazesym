@@ -138,18 +138,21 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
 	    let end_address = u64::from_str_radix(end_address_str, 16).unwrap();
 
 	    let offset = u64::from_str_radix(caps.get(3).unwrap().as_str(), 16).unwrap();
-	    let mut path = caps.get(4).unwrap().as_str().strip_suffix('\n').unwrap();
-	    if let Some(pos) = path.rfind(" (deleted)") {
-		if pos == path.len() - " (deleted)".len() {
-		    path = &path[..pos];
+	    let path = caps.get(4).unwrap().as_str().strip_suffix('\n').unwrap();
+	    let path_str = loop {
+		if let Some(pos) = path.rfind(" (deleted)") {
+		    if pos == path.len() - " (deleted)".len() {
+			break format!("/proc/{}/map_files/{:x}-{:x}", pid, loaded_address, end_address);
+		    }
 		}
-	    }
+		break path.to_string();
+	    };
 
 	    let entry = LinuxMapsEntry {
 		loaded_address,
 		end_address,
 		offset,
-		path: path.to_string(),
+		path: path_str,
 	    };
 	    entries.push(entry);
 	}
