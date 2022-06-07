@@ -271,6 +271,7 @@ pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver,
 struct ElfResolver {
     backend: ElfBackend,
     loaded_address: u64,
+    offset: u64,
     size: u64,
     file_name: String,
 }
@@ -306,10 +307,11 @@ impl ElfResolver {
 	    return Err(Error::new(ErrorKind::InvalidData, "unknown e_type"));
 	}
 
-	let loaded_address = if e_type == elf::ET_EXEC { low_addr } else { loaded_address };
+	let loaded_address = loaded_address;
+	let offset = low_addr;
 	let size = if e_type == elf::ET_EXEC { max_addr - low_addr } else { max_addr };
 
-	Ok(ElfResolver { backend, loaded_address, size, file_name: file_name.to_string() })
+	Ok(ElfResolver { backend, loaded_address, offset, size, file_name: file_name.to_string() })
     }
 
     fn get_parser(&self) -> Option<&elf::Elf64Parser> {
@@ -326,7 +328,7 @@ impl SymResolver for ElfResolver {
     }
 
     fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
-	let off = addr - self.loaded_address;
+	let off = addr - self.loaded_address + self.offset;
 	let parser = self.get_parser()?;
 	match parser.find_symbol(off, elf::STT_FUNC) {
 	    Ok((name, start_addr)) => Some((name, start_addr + self.loaded_address)),
@@ -339,7 +341,7 @@ impl SymResolver for ElfResolver {
     }
 
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
-	let off = addr - self.loaded_address;
+	let off = addr - self.loaded_address + self.offset;
 	if let ElfBackend::Dwarf(dwarf) = &self.backend {
 	    let (directory, file, line_no) = dwarf.find_line_as_ref(off)?;
 	    let mut path = String::from(directory);
@@ -432,6 +434,8 @@ impl ResolverMap {
     fn build_resolvers_proc_maps(pid: u32, resolvers: &mut ResolverList,
 				 cache_holder: &CacheHolder) -> Result<(), Error> {
 	let entries = tools::parse_maps(pid)?;
+	let mut last_path = String::from("");
+
 	for entry in entries.iter() {
 	    if entry.offset != 0 {
 		continue;
@@ -439,6 +443,11 @@ impl ResolverMap {
 	    if &entry.path[..1] != "/" {
 		continue;
 	    }
+	    if entry.path == last_path {
+		continue;
+	    }
+	    last_path = entry.path.clone();
+
 	    if let Ok(filestat) = stat(&entry.path[..]) {
 		if (filestat.st_mode & 0o170000) != 0o100000 {
 		    // Not a regular file
