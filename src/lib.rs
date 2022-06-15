@@ -1,3 +1,9 @@
+//! A library symbolizes addresses to symbols, filenames, and line numbers.
+//!
+//! BlazeSym is a library to symbolize addresses to get symbol names, file
+//! names of source files, and line numbers.  It can translate a stack
+//! trace to function names and their locations in the
+//! source code.
 use std::io::{Error, ErrorKind};
 use std::u64;
 
@@ -403,13 +409,56 @@ impl SymResolver for KernelResolver {
     }
 }
 
-/// The meta info of a symbol file.
+/// The description of a source of symbols and debug info.
+///
+/// A source of symbols and debug info can be an ELF file, a kernel
+/// image, or a process.
 #[derive(Clone)]
 pub enum SymbolFileCfg {
     /// A single ELF file
-    Elf { file_name: String, loaded_address: u64 },
+    ///
+    /// You should give a file name of an ELF file and its loaded address.
+    ///
+    Elf {
+	/// The file name of ELF files.
+	///
+	/// It can be a executable or a shared object.
+	/// For example, Giving "/bin/sh" it will load symbols and debug info from it.
+	/// Giving "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
+	file_name: String,
+	/// The address where the file loaded.
+	///
+	/// It should be the address
+	/// in the process mapping to the first byte of the file.
+	/// For example, in /proc/&lt;pid&gt;/maps
+	///
+	///     7fe1b2dc4000-7fe1b2f80000 r-xp 00000000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+	///     7fe1b2f80000-7fe1b3180000 ---p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+	///     7fe1b3180000-7fe1b3184000 r--p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+	///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+	///
+	/// It shows libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
+	/// address is used to translate an address in a process to the
+	/// address, a relative offset, in the ELF file.
+	loaded_address: u64,
+    },
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
-    Kernel { kallsyms: Option<String>, kernel_image: Option<String> },
+    Kernel {
+	/// A path of a copy of kallsyms.
+	///
+	/// It can be "/proc/kallsyms" for the running kernel on the
+	/// device.  However, you can make a copy for later uses.  For
+	/// that case, you should give the path of a copy.
+	/// Giving None, by default, it will be "/proc/kallsyms".
+	kallsyms: Option<String>,
+	/// The path of a kernel image.
+	///
+	/// This should be the path of a kernel image.  For example,
+	/// "/boot/vmlinux-xxxx".  For None, it will found the kernel
+	/// image of the running kernel in "/boot/" or
+	/// "/usr/lib/debug/boot/".
+	kernel_image: Option<String>,
+    },
     /// This one will be exapended into all ELF files loaded.
     Process { pid: Option<u32> },
 }
@@ -417,9 +466,17 @@ pub enum SymbolFileCfg {
 /// The result of doing symbolization by BlazeSymbolizer.
 #[derive(Clone)]
 pub struct SymbolizedResult {
+    /// The symbol name that an address may belong to.
     pub symbol: String,
+    /// The address where the symbol is located in the process.
     pub start_address: u64,
+    /// The path of the source that defines the symbol.
     pub path: String,
+    /// The line number of the symbolized instruction in the source code.
+    ///
+    /// This is the line number of the instruction of the address been
+    /// symbolized, not the line number that define the symbol
+    /// (function).
     pub line_no: usize,
     pub column: usize,
 }
@@ -565,17 +622,6 @@ impl BlazeSymbolizer {
 	})
     }
 
-    pub fn find_symbol(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<Symbol> {
-	let resolver_map = ResolverMap::new(cfg, &self.cache_holder).ok()?;
-	let resolver = resolver_map.find_resolver(addr)?;
-
-	if let Some((sym, addr)) = resolver.find_symbol(addr) {
-	    Some(Symbol { name: sym.to_string(), addr })
-	} else {
-	    None
-	}
-    }
-
     pub fn find_address(&self, _cfg: &[SymbolFileCfg], _name: &str) -> Option<u64> {
 	None
     }
@@ -586,6 +632,16 @@ impl BlazeSymbolizer {
 	resolver.find_line_info(addr)
     }
 
+    /// Symbolize a list of addresses.
+    ///
+    /// Symbolize a list of addresses with the information from the
+    /// sources of symbols and debug info described by the slice
+    /// (array) of SymbolFileCfg.
+    ///
+    /// # Arguments
+    ///
+    /// * `cfg` - A list of symbol and debug sources.
+    /// * `addresses` - A list of addresses been symbolized.
     pub fn symbolize(&self, cfg: &[SymbolFileCfg], addresses: &[u64]) -> Vec<Vec<SymbolizedResult>> {
 	let resolver_map = if let Ok(map) = ResolverMap::new(cfg, &self.cache_holder){
 	    map
@@ -640,67 +696,142 @@ impl BlazeSymbolizer {
     }
 }
 
+/// Types of symbol sources and debug info for C API.
 #[repr(C)]
 #[allow(non_camel_case_types)]
 pub enum blazesym_cfg_type {
+    /// Symbols and debug info from an ELF file
     CFG_T_ELF,
+    /// Symbols and debug info from a kernel image and it's kallsyms
     CFG_T_KERNEL,
+    /// Symbols and debug info from a process, including all object files loaded
     CFG_T_PROCESS,
 }
 
 #[repr(C)]
 pub struct sfc_elf {
-    file_name: *const c_char,
-    loaded_address: u64,
+    /// The file name of ELF files.
+    ///
+    /// It can be a executable or a shared object.
+    /// For example, Giving "/bin/sh" it will load symbols and debug info from it.
+    /// Giving "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
+    pub file_name: *const c_char,
+    /// The address where the file loaded.
+    ///
+    /// It should be the address
+    /// in the process mapping to the first byte of the file.
+    /// For example, in /proc/&lt;pid&gt;/maps
+    ///
+    ///     7fe1b2dc4000-7fe1b2f80000 r-xp 00000000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+    ///     7fe1b2f80000-7fe1b3180000 ---p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+    ///     7fe1b3180000-7fe1b3184000 r--p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+    ///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
+    ///
+    /// It shows libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
+    /// address is used to translate an address in a process to the
+    /// address, a relative offset, in the ELF file.
+    pub loaded_address: u64,
 }
 
 #[repr(C)]
 pub struct sfc_kernel {
-    kallsyms: *const c_char,
-    kernel_image: *const c_char,
+    /// A path of a copy of kallsyms.
+    ///
+    /// It can be "/proc/kallsyms" for the running kernel on the
+    /// device.  However, you can make a copy for later uses.  For
+    /// that case, you should give the path of a copy.
+    /// Giving a NULL, by default, it will be "/proc/kallsyms".
+    pub kallsyms: *const c_char,
+    /// The path of a kernel image.
+    ///
+    /// This should be the path of a kernel image.  For example,
+    /// "/boot/vmlinux-xxxx".  For a NULL value, it will found the
+    /// kernel image of the running kernel in "/boot/" or
+    /// "/usr/lib/debug/boot/".
+    pub kernel_image: *const c_char,
 }
 
 #[repr(C)]
 pub struct sfc_process {
-    pid: u32,
+    /// PID of the process to symbolize.
+    ///
+    /// BlazeSym will parse /proc/&lt;pid&gt;/maps and load all object
+    /// files in the process.
+    pub pid: u32,
 }
 
 #[repr(C)]
 pub union sfc_params {
-    elf: mem::ManuallyDrop<sfc_elf>,
-    kernel: mem::ManuallyDrop<sfc_kernel>,
-    process: mem::ManuallyDrop<sfc_process>,
+    /// The variant for CFG_T_ELF
+    pub elf: mem::ManuallyDrop<sfc_elf>,
+    /// The variant for CFG_T_KERNEL
+    pub kernel: mem::ManuallyDrop<sfc_kernel>,
+    /// The variant for CFG_T_PROCESS
+    pub process: mem::ManuallyDrop<sfc_process>,
 }
 
+/// A source of symbol information for C API.
 #[repr(C)]
 pub struct sym_file_cfg {
-    cfg_type: blazesym_cfg_type,
-    params: sfc_params,
+    /// The type of a source of symbols.
+    pub cfg_type: blazesym_cfg_type,
+    pub params: sfc_params,
 }
 
+/// A placeholder of symbolizer for C API.
+///
+/// It is returned from blazesym_new() and should be free by
+/// blazesym_free().
 #[repr(C)]
 pub struct blazesym {
     symbolizer: *mut BlazeSymbolizer,
 }
 
+/// A symbolization result of an address for C API.
 #[repr(C)]
 pub struct blazesym_csym {
+    /// The symbol name where the giving address may/should belong to.
     pub symbol: *const c_char,
+    /// The address (the first byte) where the symbol located.
+    ///
+    /// It is the address already relocated to the address space of
+    /// the process.
     pub start_address: u64,
+    /// The path of the source code that defines the symbol.
     pub path: *const c_char,
+    /// The line number in the source code where the instruction of the address is located.
+    ///
+    /// This is the line number of the instruction specified by the
+    /// address been symbolized.
     pub line_no: usize,
     pub column: usize,
 }
 
+/// The collection of symbolization results of an address for C API.
+///
+/// Everny address has an entry to collect all symbols found by
+/// BlazeSym.
 #[repr(C)]
 pub struct blazesym_entry {
+    /// The number of symbols found for an address.
     pub size: usize,
+    /// All symbols found.
     pub syms: *const blazesym_csym,
 }
 
+/// The collection of symbolization results of a list of addresses for C API.
+///
+/// The instances of blazesym_result are returned by
+/// blazesym_symbolize().  They should be free by calling
+/// blazesym_result_free().
 #[repr(C)]
 pub struct blazesym_result {
+    //// The number of addresses being symbolized.
     pub size: usize,
+    /// Symbolization results in the order of the list of
+    /// symbolization addresses.
+    ///
+    /// Every address should have an entry here.
     pub entries: [blazesym_entry; 0],
 }
 
@@ -745,7 +876,7 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Optio
     Some(cfg_rs)
 }
 
-/// Create an instance of BlazeSymbolizer for C code.
+/// Create an instance of blazesym (BlazeSymbolizer) for C API.
 ///
 /// # Safety
 ///
@@ -764,7 +895,7 @@ pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
     Box::into_raw(c_box)
 }
 
-/// Free an instance of BlazeSymbolizer.
+/// Free an instance of blazesym (BlazeSymbolizer) for C API.
 ///
 /// # Safety
 ///
@@ -772,7 +903,7 @@ pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
 ///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
-    if symbolizer != ptr::null_mut() {
+    if ! symbolizer.is_null() {
 	Box::from_raw((*symbolizer).symbolizer);
 	Box::from_raw(symbolizer);
     }
@@ -894,7 +1025,7 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
 #[no_mangle]
 pub unsafe extern "C"
 fn blazesym_result_free(results: *const blazesym_result) {
-    if results == ptr::null() {
+    if results.is_null() {
 	#[cfg(debug_assertions)]
 	eprintln!("blazesym_result_free(null)");
 	return;

@@ -154,8 +154,8 @@ and DWARF information from them to perform symbolization.
 
 ### Link C programs
 
-You should include “blazesym” to call BlazeSym from a C program. The
-“Build” section has explained how to generate it.
+You should include “blazesym.h” to call BlazeSym from a C
+program. Check the “Build” section to generate it.
 
 You also need the following arguments to link against BlazeSym.
 
