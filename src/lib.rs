@@ -614,6 +614,7 @@ pub struct BlazeSymbolizer {
 }
 
 impl BlazeSymbolizer {
+    /// Create and return an instance of BlazeSymbolizer.
     pub fn new() -> Result<BlazeSymbolizer, Error> {
 	let cache_holder = CacheHolder::new();
 
@@ -622,7 +623,11 @@ impl BlazeSymbolizer {
 	})
     }
 
-    pub fn find_address(&self, _cfg: &[SymbolFileCfg], _name: &str) -> Option<u64> {
+    /// Find the address of a symbol.
+    ///
+    /// Not implemented yet!
+    #[allow(dead_code)]
+    fn find_address(&self, _cfg: &[SymbolFileCfg], _name: &str) -> Option<u64> {
 	None
     }
 
