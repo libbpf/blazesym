@@ -431,12 +431,12 @@ pub enum SymbolFileCfg {
 	/// It should be the address
 	/// in the process mapping to the first byte of the file.
 	/// For example, in /proc/&lt;pid&gt;/maps
-	///
+	/// ```text
 	///     7fe1b2dc4000-7fe1b2f80000 r-xp 00000000 00:1d 71695032                   /usr/lib64/libc-2.28.so
 	///     7fe1b2f80000-7fe1b3180000 ---p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
 	///     7fe1b3180000-7fe1b3184000 r--p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
 	///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-	///
+	/// ```
 	/// It shows libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
 	/// address is used to translate an address in a process to the
 	/// address, a relative offset, in the ELF file.
@@ -726,12 +726,12 @@ pub struct sfc_elf {
     /// It should be the address
     /// in the process mapping to the first byte of the file.
     /// For example, in /proc/&lt;pid&gt;/maps
-    ///
+    /// ```text
     ///     7fe1b2dc4000-7fe1b2f80000 r-xp 00000000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     ///     7fe1b2f80000-7fe1b3180000 ---p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     ///     7fe1b3180000-7fe1b3184000 r--p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     ///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    ///
+    /// ```
     /// It shows libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
     /// address is used to translate an address in a process to the
     /// address, a relative offset, in the ELF file.
