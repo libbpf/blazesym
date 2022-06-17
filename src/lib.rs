@@ -61,7 +61,7 @@ pub trait StackSession {
     fn go_top(&mut self);
 }
 
-pub struct AddressLineInfo {
+struct AddressLineInfo {
     pub path: String,
     pub line_no: usize,
     pub column: usize,
@@ -71,7 +71,7 @@ pub struct AddressLineInfo {
 ///
 /// An symbol resolver usually provides information from one symbol
 /// source; e., a symbol file.
-pub trait SymResolver {
+trait SymResolver {
     /// Return the range that this resolver serve in an address space.
     fn get_address_range(&self) -> (u64, u64);
     /// Find the name and the start address of a symbol found for
@@ -596,7 +596,8 @@ impl ResolverMap {
     }
 }
 
-pub struct Symbol {
+#[allow(dead_code)]
+struct Symbol {
     pub name: String,
     pub addr: u64,
 }
@@ -631,7 +632,8 @@ impl BlazeSymbolizer {
 	None
     }
 
-    pub fn find_line_info(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<AddressLineInfo> {
+    #[allow(dead_code)]
+    fn find_line_info(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<AddressLineInfo> {
 	let resolver_map = ResolverMap::new(cfg, &self.cache_holder).ok()?;
 	let resolver = resolver_map.find_resolver(addr)?;
 	resolver.find_line_info(addr)
@@ -713,6 +715,10 @@ pub enum blazesym_cfg_type {
     CFG_T_PROCESS,
 }
 
+/// Symbol File Configuration of ELF.
+///
+/// Describe the path and loaded address of an ELF file loaded in a
+/// process.
 #[repr(C)]
 pub struct sfc_elf {
     /// The file name of ELF files.
@@ -738,6 +744,10 @@ pub struct sfc_elf {
     pub loaded_address: u64,
 }
 
+/// Symbol File Configuration of Kernel.
+///
+/// Use a kernel image and a snapshot of it's kallsyms as a source of
+/// symbol and debug info.
 #[repr(C)]
 pub struct sfc_kernel {
     /// A path of a copy of kallsyms.
@@ -756,6 +766,10 @@ pub struct sfc_kernel {
     pub kernel_image: *const c_char,
 }
 
+/// Symbol File Configuration of a process.
+///
+/// Load all ELF files in a prcoess as the sources of symbol and debug
+/// info.
 #[repr(C)]
 pub struct sfc_process {
     /// PID of the process to symbolize.
@@ -765,6 +779,7 @@ pub struct sfc_process {
     pub pid: u32,
 }
 
+/// Parameters of symbol file configuratoin.
 #[repr(C)]
 pub union sfc_params {
     /// The variant for CFG_T_ELF
