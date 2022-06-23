@@ -1,9 +1,11 @@
-//! A library symbolizes addresses to symbols, filenames, and line numbers.
-//!
-//! BlazeSym is a library to symbolize addresses to get symbol names, file
-//! names of source files, and line numbers.  It can translate a stack
-//! trace to function names and their locations in the
-//! source code.
+// A library symbolizes addresses to symbols, filenames, and line numbers.
+//
+// BlazeSym is a library to symbolize addresses to get symbol names, file
+// names of source files, and line numbers.  It can translate a stack
+// trace to function names and their locations in the
+// source code.
+#![doc = include_str!("../README.md")]
+
 use std::io::{Error, ErrorKind};
 use std::u64;
 
