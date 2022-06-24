@@ -11,12 +11,14 @@ You should install a Rust compiler and cargo to build BlazeSym.
 
  - cargo build
 
-You may want to build a C header to include in your C programs.
+You may want to build a C header (**blazesym.h**) to include in your C programs.
 
  - cargo build --features="cheader"
 
 You will find **libblazesym.a** in target/debug/ or target/release/ as
 well.  Your C programs, if there are, should link against it.
+
+**blazesym.h** is also in target/debug/ or target/release/.
 
 ## Rust APIs
 
@@ -28,7 +30,7 @@ sources, and line numbers of addresses in a process.
 	let process_id: u32 = <process id>;
     // load all symbols of loaded files of the given process.
 	let cfgs = [SymFileCfg::Process { pid: process_id }];
-	let smybolizer = BlazeSymbolizer::new().unwrap();
+	let symbolizer = BlazeSymbolizer::new().unwrap();
 
     let stack: [u64] = [0xff023, 0x17ff93b];			// Addresses of instructions
 	let symlist = symbolizer.symbolize(&cfgs,			// Pass this configuration everytime.
@@ -56,11 +58,18 @@ sources, and line numbers of addresses in a process.
 		}
 	}
 
-`cfgs` is a list of files loaded in the process.  However, it has only
+`cfgs` is a list of files loaded in a process.  However, it has only
 an instance of `SymFileCfg::Process {}` here.  `SymFileCfg::Process
 {}` is a convenient variant to load all objects, i.e., binaries and
-shared libraries, mapped in a process.  You don't have to
-specify every object and its loaded address.
+shared libraries, mapped in a process.  Developers do not have to
+specify every object and its loaded address with `SymFileCfg::Process {}`.
+
+`symlist` is a list of lists of `SymbolizedResult`.  The instruction
+at an address can result from several lines of code from several
+functions with inlining and optimization.  In other words, the result
+of an address is a list of `SymbolizedResult`.  Every entry in
+`symlist` results from the address at the respective position in the
+argument passed to [`BlazeSymbolizer::symbolize()`].
 
 ### With Linux Kernel
 
@@ -92,6 +101,25 @@ You can still give a list of ELF files and their loaded addresses if necessary.
 	            ......
 	];
 
+### Example of Rust APIs
+
+examples/addr2ln_pid.rs is an example doing symbolization for an
+address in a process.
+
+    $ ./target/debug/examples/addr2ln_pid 2627679 7f0c41ade000
+	PID: 2627679
+	0x7f0c41ade000 wcsxfrm_l@0x7f0c41addd10+752 src/foo.c:0
+	$
+
+The above command will show the symbol name, the file name of the
+source, and the line number of the address 0x7f0c41ade000 in the process
+2627679.
+
+Users should build examples with the following command at the root of the
+source.
+
+    $ cargo build --examples
+
 ## C APIs
 
 The Following code symbolizes a list of addresses of a process.  It
@@ -112,7 +140,7 @@ and line numbers.
 	int i, j;
 	
 	symbolizer = blazesym_new();
-	/* cfgs should be pass everytime doing symbolization */
+	/* cfgs should be passed every time doing symbolization */
 	result = blazesym_symbolize(symbolizer,
 	                            cfgs, 1,
 								stack, stack_sz);
@@ -189,11 +217,10 @@ and where they loaded.
 		                                  .loaded_address = 0x1ff329000 } } },
 	};
 
-## Examples
+### Example of C APIs
 
- ./target/{debug,release}/examples/addr2line_sym /boot/vmlinux-xxxx 0xffffffff81047cf0
-
-The first argument is the image of the running kernel.  The second
-argument is an address in kernel space.  You can find an address from
-/proc/kallsyms.  addr2line_sym shows the function name, file name, and
-line number of the given address.
+There is a C example in libbpf-bootstrap.  You can find it at
+https://github.com/libbpf/libbpf-bootstrap/blob/master/examples/c/profile.c
+.  This example samples the running process of every processor
+in a system periodically and prints their stack traces at the moment
+doing sampling.

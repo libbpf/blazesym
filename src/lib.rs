@@ -465,12 +465,22 @@ pub enum SymbolFileCfg {
     Process { pid: Option<u32> },
 }
 
-/// The result of doing symbolization by BlazeSymbolizer.
+/// The result of symbolization by BlazeSymbolizer.
+///
+/// [`BlazeSymbolizer::symbolize()`] returns a list of lists of `SymbolizedResult`.
+/// It looks like `[[SymbolizedResult {...}, SymbolizedResult {...}, ...], [SymbolizedResult {...}, ...], ...]`.
+/// Every entry at the first level is a list of `SymbolizedResult`.
+/// It can return multiple results for an address since it can result from
+/// several lines of code in different functions with inlining and
+/// optimization by the compiler.
 #[derive(Clone)]
 pub struct SymbolizedResult {
     /// The symbol name that an address may belong to.
     pub symbol: String,
     /// The address where the symbol is located in the process.
+    ///
+    /// The address is in the target process, not the offset from the
+    /// head of the shared object file.
     pub start_address: u64,
     /// The path of the source that defines the symbol.
     pub path: String,
@@ -605,12 +615,12 @@ struct Symbol {
 }
 
 /// BlazeSymbolizer provides an interface to symbolize addresses with
-/// a list of symbol files.
+/// a list of symbol sources.
 ///
 /// Users should give BlazeSymbolizer a list of meta info of symbol
-/// files (`SymbolFileCfg`); for example, an ELF file and its loaded
-/// location (`SymbolFileCfg::Elf`), or Linux kernel image and a copy
-/// of its kallsyms (`SymbolFileCfg::Kernel`).
+/// sources (`SymbolFileCfg`); for example, an ELF file and its loaded
+/// location (`SymbolFileCfg::Elf`), or a Linux kernel image and a
+/// copy of its kallsyms (`SymbolFileCfg::Kernel`).
 ///
 pub struct BlazeSymbolizer {
     cache_holder: CacheHolder,
@@ -725,8 +735,8 @@ pub enum blazesym_cfg_type {
 pub struct sfc_elf {
     /// The file name of ELF files.
     ///
-    /// It can be a executable or a shared object.
-    /// For example, Giving "/bin/sh" it will load symbols and debug info from it.
+    /// It can be an executable or a shared object.
+    /// For example, giving "/bin/sh" will load symbols and debug info from it.
     /// Giving "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
     pub file_name: *const c_char,
     /// The address where the file loaded.
@@ -748,8 +758,8 @@ pub struct sfc_elf {
 
 /// Symbol File Configuration of Kernel.
 ///
-/// Use a kernel image and a snapshot of it's kallsyms as a source of
-/// symbol and debug info.
+/// Use a kernel image and a snapshot of its kallsyms as a symbol and
+/// debug info source.
 #[repr(C)]
 pub struct sfc_kernel {
     /// A path of a copy of kallsyms.
@@ -762,7 +772,7 @@ pub struct sfc_kernel {
     /// The path of a kernel image.
     ///
     /// This should be the path of a kernel image.  For example,
-    /// "/boot/vmlinux-xxxx".  For a NULL value, it will found the
+    /// "/boot/vmlinux-xxxx".  For a NULL value, it will find the
     /// kernel image of the running kernel in "/boot/" or
     /// "/usr/lib/debug/boot/".
     pub kernel_image: *const c_char,
@@ -770,7 +780,7 @@ pub struct sfc_kernel {
 
 /// Symbol File Configuration of a process.
 ///
-/// Load all ELF files in a prcoess as the sources of symbol and debug
+/// Load all ELF files in a process as the sources of symbol and debug
 /// info.
 #[repr(C)]
 pub struct sfc_process {
