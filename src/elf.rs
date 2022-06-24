@@ -380,7 +380,12 @@ impl Elf64Parser {
 	    }
 	}
 
-	let sect_idx = self.find_section(".symtab")?;
+	let sect_idx =
+	    if let Ok(idx) = self.find_section(".symtab") {
+		idx
+	    } else {
+		self.find_section(".dynsym")?
+	    };
 	let symtab_raw = self.read_section_raw(sect_idx)?;
 
 	if symtab_raw.len() % mem::size_of::<Elf64_Sym>() != 0 {
@@ -411,7 +416,12 @@ impl Elf64Parser {
 	    }
 	}
 
-	let sect_idx = self.find_section(".strtab")?;
+	let sect_idx =
+	    if let Ok(idx) = self.find_section(".strtab") {
+		idx
+	    } else {
+		self.find_section(".dynstr")?
+	    };
 	let strtab = self.read_section_raw(sect_idx)?;
 
 	let mut me = self.backobj.borrow_mut();
