@@ -416,7 +416,7 @@ impl SymResolver for KernelResolver {
 /// A source of symbols and debug info can be an ELF file, a kernel
 /// image, or a process.
 #[derive(Clone)]
-pub enum SymbolFileCfg {
+pub enum SymbolSrcCfg {
     /// A single ELF file
     ///
     /// You should give a file name of an ELF file and its loaded address.
@@ -536,15 +536,15 @@ impl ResolverMap {
 	Ok(())
     }
 
-    pub fn new(sym_files: &[SymbolFileCfg], cache_holder: &CacheHolder) -> Result<ResolverMap, Error> {
+    pub fn new(sym_srcs: &[SymbolSrcCfg], cache_holder: &CacheHolder) -> Result<ResolverMap, Error> {
 	let mut resolvers = ResolverList::new();
-	for cfg in sym_files {
+	for cfg in sym_srcs {
 	    match cfg {
-		SymbolFileCfg::Elf { file_name, loaded_address } => {
+		SymbolSrcCfg::Elf { file_name, loaded_address } => {
 		    let resolver = ElfResolver::new(file_name, *loaded_address, cache_holder)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
-		SymbolFileCfg::Kernel { kallsyms, kernel_image } => {
+		SymbolSrcCfg::Kernel { kallsyms, kernel_image } => {
 		    let kallsyms = if let Some(k) = kallsyms {
 			k
 		    } else {
@@ -575,7 +575,7 @@ impl ResolverMap {
 			eprintln!("fail to load the kernel image {}", kernel_image);
 		    }
 		},
-		SymbolFileCfg::Process { pid } => {
+		SymbolSrcCfg::Process { pid } => {
 		    let pid = if let Some(p) = pid {*p} else { 0 };
 
 		    if let Err(_e) = Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder) {
@@ -618,9 +618,9 @@ struct Symbol {
 /// a list of symbol sources.
 ///
 /// Users should give BlazeSymbolizer a list of meta info of symbol
-/// sources (`SymbolFileCfg`); for example, an ELF file and its loaded
-/// location (`SymbolFileCfg::Elf`), or a Linux kernel image and a
-/// copy of its kallsyms (`SymbolFileCfg::Kernel`).
+/// sources (`SymbolSrcCfg`); for example, an ELF file and its loaded
+/// location (`SymbolSrcCfg::Elf`), or a Linux kernel image and a
+/// copy of its kallsyms (`SymbolSrcCfg::Kernel`).
 ///
 pub struct BlazeSymbolizer {
     cache_holder: CacheHolder,
@@ -640,12 +640,12 @@ impl BlazeSymbolizer {
     ///
     /// Not implemented yet!
     #[allow(dead_code)]
-    fn find_address(&self, _cfg: &[SymbolFileCfg], _name: &str) -> Option<u64> {
+    fn find_address(&self, _cfg: &[SymbolSrcCfg], _name: &str) -> Option<u64> {
 	None
     }
 
     #[allow(dead_code)]
-    fn find_line_info(&self, cfg: &[SymbolFileCfg], addr: u64) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, cfg: &[SymbolSrcCfg], addr: u64) -> Option<AddressLineInfo> {
 	let resolver_map = ResolverMap::new(cfg, &self.cache_holder).ok()?;
 	let resolver = resolver_map.find_resolver(addr)?;
 	resolver.find_line_info(addr)
@@ -655,13 +655,13 @@ impl BlazeSymbolizer {
     ///
     /// Symbolize a list of addresses with the information from the
     /// sources of symbols and debug info described by the slice
-    /// (array) of SymbolFileCfg.
+    /// (array) of SymbolSrcCfg.
     ///
     /// # Arguments
     ///
     /// * `cfg` - A list of symbol and debug sources.
     /// * `addresses` - A list of addresses been symbolized.
-    pub fn symbolize(&self, cfg: &[SymbolFileCfg], addresses: &[u64]) -> Vec<Vec<SymbolizedResult>> {
+    pub fn symbolize(&self, cfg: &[SymbolSrcCfg], addresses: &[u64]) -> Vec<Vec<SymbolizedResult>> {
 	let resolver_map = if let Ok(map) = ResolverMap::new(cfg, &self.cache_holder){
 	    map
 	} else {
@@ -877,14 +877,14 @@ unsafe fn from_cstr(cstr: *const c_char) -> String {
     CStr::from_ptr(cstr).to_str().unwrap().to_owned()
 }
 
-unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Option<Vec<SymbolFileCfg>> {
-    let mut cfg_rs = Vec::<SymbolFileCfg>::with_capacity(cfg_len as usize);
+unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
+    let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len as usize);
 
     for i in 0..cfg_len {
 	let c = cfg.offset(i as isize);
 	match (*c).cfg_type {
 	    blazesym_cfg_type::CFG_T_ELF => {
-		cfg_rs.push(SymbolFileCfg::Elf {
+		cfg_rs.push(SymbolSrcCfg::Elf {
 		    file_name: from_cstr((*c).params.elf.file_name),
 		    loaded_address: (*c).params.elf.loaded_address,
 		});
@@ -892,13 +892,13 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Optio
 	    blazesym_cfg_type::CFG_T_KERNEL => {
 		let kallsyms = (*c).params.kernel.kallsyms;
 		let kernel_image = (*c).params.kernel.kernel_image;
-		cfg_rs.push(SymbolFileCfg::Kernel {
+		cfg_rs.push(SymbolSrcCfg::Kernel {
 		    kallsyms: if !kallsyms.is_null() { Some(from_cstr(kallsyms)) } else { None },
 		    kernel_image: if !kernel_image.is_null() { Some(from_cstr(kernel_image)) } else { None },
 		});
 	    },
 	    blazesym_cfg_type::CFG_T_PROCESS => {
-		cfg_rs.push(SymbolFileCfg::Process {
+		cfg_rs.push(SymbolSrcCfg::Process {
 		    pid: if (*c).params.process.pid > 0 { Some((*c).params.process.pid) } else { None },
 		});
 	    },
@@ -1099,8 +1099,8 @@ mod tests {
 
     #[test]
     fn load_symbolfilecfg_process() {
-	// Check if SymbolFileCfg::Process expands to ELFResolvers.
-	let cfg = vec![SymbolFileCfg::Process { pid: None }];
+	// Check if SymbolSrcCfg::Process expands to ELFResolvers.
+	let cfg = vec![SymbolSrcCfg::Process { pid: None }];
 	let cache_holder = CacheHolder::new();
 	let resolver_map = ResolverMap::new(&cfg, &cache_holder);
 	assert!(resolver_map.is_ok());
@@ -1115,9 +1115,9 @@ mod tests {
 
     #[test]
     fn load_symbolfilecfg_processkernel() {
-	// Check if SymbolFileCfg::Process & SymbolFileCfg::Kernel expands to
+	// Check if SymbolSrcCfg::Process & SymbolSrcCfg::Kernel expands to
 	// ELFResolvers and a KernelResolver.
-	let cfg = vec![SymbolFileCfg::Process { pid: None }, SymbolFileCfg::Kernel { kallsyms: None, kernel_image: None }];
+	let cfg = vec![SymbolSrcCfg::Process { pid: None }, SymbolSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
 	let cache_holder = CacheHolder::new();
 	let resolver_map = ResolverMap::new(&cfg, &cache_holder);
 	assert!(resolver_map.is_ok());

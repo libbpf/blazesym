@@ -1,7 +1,7 @@
 extern crate blazesym;
 
 use std::env;
-use blazesym::{BlazeSymbolizer, SymbolFileCfg, SymbolizedResult};
+use blazesym::{BlazeSymbolizer, SymbolSrcCfg, SymbolizedResult};
 
 fn show_usage() {
     let args: Vec<String> = env::args().collect();
@@ -28,7 +28,7 @@ fn main() {
     }
     let addr = u64::from_str_radix(addr_str, 16).unwrap();
 
-    let sym_files = [SymbolFileCfg::Process { pid: Some(pid) }];
+    let sym_files = [SymbolSrcCfg::Process { pid: Some(pid) }];
     let resolver = BlazeSymbolizer::new().unwrap();
     let symlist = resolver.symbolize(&sym_files, &[addr]);
     if symlist[0].len() > 0 {
