@@ -270,8 +270,8 @@ pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver,
 /// The symbol resolver for a single ELF file.
 ///
 /// An ELF file may be loaded into an address space with a relocation.
-/// The callers should provide the path of an ELF file and where it is
-/// loaded.
+/// The callers should provide the path of an ELF file and where it's
+/// `.text` section is loaded.
 ///
 /// For some ELF files, they are located at a specific address
 /// determined during compile-time.  For these cases, just pass `0` as
@@ -445,7 +445,7 @@ pub enum SymbolSrcCfg {
 	/// It shows libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
 	/// address is used to translate an address in a process to the
 	/// address, a relative offset, in the ELF file.
-	loaded_address: u64,
+	base_address: u64,
     },
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
     Kernel {
@@ -538,8 +538,8 @@ impl ResolverMap {
 	let mut resolvers = ResolverList::new();
 	for cfg in sym_srcs {
 	    match cfg {
-		SymbolSrcCfg::Elf { file_name, loaded_address } => {
-		    let resolver = ElfResolver::new(file_name, *loaded_address, cache_holder)?;
+		SymbolSrcCfg::Elf { file_name, base_address } => {
+		    let resolver = ElfResolver::new(file_name, *base_address, cache_holder)?;
 		    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
 		},
 		SymbolSrcCfg::Kernel { kallsyms, kernel_image } => {
@@ -737,21 +737,26 @@ pub struct ssc_elf {
     /// For example, giving "/bin/sh" will load symbols and debug info from it.
     /// Giving "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
     pub file_name: *const c_char,
-    /// The address where the file loaded.
+    /// The address where the .text section loaded.
     ///
     /// It should be the address
-    /// in the process mapping to the first byte of the file.
+    /// in the process mapping to the first byte of the `.text` section.
     /// For example, in /proc/&lt;pid&gt;/maps
+    ///
     /// ```text
     ///     7fe1b2dc4000-7fe1b2f80000 r-xp 00000000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     ///     7fe1b2f80000-7fe1b3180000 ---p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     ///     7fe1b3180000-7fe1b3184000 r--p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     ///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     /// ```
-    /// It shows libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
+    ///
+    /// It shows the .text section of libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
     /// address is used to translate an address in a process to the
     /// address, a relative offset, in the ELF file.
-    pub loaded_address: u64,
+    ///
+    /// A loader would load a `.text` section with a permission of `x`.  For
+    /// example, the first block is with a permission of `r-xp`.
+    pub base_address: u64,
 }
 
 /// Symbol Source Configuration of Kernel.
@@ -884,7 +889,7 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option
 	    blazesym_cfg_type::CFG_T_ELF => {
 		cfg_rs.push(SymbolSrcCfg::Elf {
 		    file_name: from_cstr((*c).params.elf.file_name),
-		    loaded_address: (*c).params.elf.loaded_address,
+		    base_address: (*c).params.elf.base_address,
 		});
 	    },
 	    blazesym_cfg_type::CFG_T_KERNEL => {
