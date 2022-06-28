@@ -106,6 +106,13 @@ pub struct Elf64_Phdr {
     pub p_align: Elf64_Xword,	/* Segment alignment, file & memory */
 }
 
+#[allow(dead_code)]
+pub const PF_X: Elf64_Word = 1;
+#[allow(dead_code)]
+pub const PF_W: Elf64_Word = 2;
+#[allow(dead_code)]
+pub const PF_R: Elf64_Word = 4;
+
 #[repr(C)]
 struct Elf64_Shdr {
     sh_name: Elf64_Word,	/* Section name, index in string tbl */

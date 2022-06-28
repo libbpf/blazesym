@@ -303,6 +303,9 @@ impl ElfResolver {
 		if phdr.p_type != elf::PT_LOAD {
 		    continue;
 		}
+		if (phdr.p_flags & elf::PF_X) != elf::PF_X {
+		    continue;
+		}
 		let end_at = phdr.p_vaddr + phdr.p_memsz;
 		if max_addr < end_at {
 		    max_addr = end_at;
@@ -315,9 +318,9 @@ impl ElfResolver {
 	    return Err(Error::new(ErrorKind::InvalidData, "unknown e_type"));
 	}
 
-	let loaded_address = loaded_address;
-	let offset = low_addr;
-	let size = if e_type == elf::ET_EXEC { max_addr - low_addr } else { max_addr };
+	let loaded_address = if e_type == elf::ET_EXEC { low_addr } else { loaded_address };
+	let offset = if e_type == elf::ET_EXEC { low_addr } else { low_addr };
+	let size = max_addr - low_addr;
 
 	Ok(ElfResolver { backend, loaded_address, offset, size, file_name: file_name.to_string() })
     }
@@ -339,7 +342,7 @@ impl SymResolver for ElfResolver {
 	let off = addr - self.loaded_address + self.offset;
 	let parser = self.get_parser()?;
 	match parser.find_symbol(off, elf::STT_FUNC) {
-	    Ok((name, start_addr)) => Some((name, start_addr + self.loaded_address)),
+	    Ok((name, start_addr)) => Some((name, start_addr - self.offset + self.loaded_address)),
 	    Err(_) => None,
 	}
     }
@@ -503,19 +506,14 @@ impl ResolverMap {
     fn build_resolvers_proc_maps(pid: u32, resolvers: &mut ResolverList,
 				 cache_holder: &CacheHolder) -> Result<(), Error> {
 	let entries = tools::parse_maps(pid)?;
-	let mut last_path = String::from("");
 
 	for entry in entries.iter() {
-	    if entry.offset != 0 {
-		continue;
-	    }
 	    if &entry.path[..1] != "/" {
 		continue;
 	    }
-	    if entry.path == last_path {
+	    if (entry.mode & 0xa) != 0xa { // r-x-
 		continue;
 	    }
-	    last_path = entry.path.clone();
 
 	    if let Ok(filestat) = stat(&entry.path[..]) {
 		if (filestat.st_mode & 0o170000) != 0o100000 {
