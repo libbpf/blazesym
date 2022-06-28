@@ -727,12 +727,12 @@ pub enum blazesym_cfg_type {
     CFG_T_PROCESS,
 }
 
-/// Symbol File Configuration of ELF.
+/// Symbol Source Configuration of ELF.
 ///
 /// Describe the path and loaded address of an ELF file loaded in a
 /// process.
 #[repr(C)]
-pub struct sfc_elf {
+pub struct ssc_elf {
     /// The file name of ELF files.
     ///
     /// It can be an executable or a shared object.
@@ -756,12 +756,12 @@ pub struct sfc_elf {
     pub loaded_address: u64,
 }
 
-/// Symbol File Configuration of Kernel.
+/// Symbol Source Configuration of Kernel.
 ///
 /// Use a kernel image and a snapshot of its kallsyms as a symbol and
 /// debug info source.
 #[repr(C)]
-pub struct sfc_kernel {
+pub struct ssc_kernel {
     /// A path of a copy of kallsyms.
     ///
     /// It can be "/proc/kallsyms" for the running kernel on the
@@ -778,12 +778,12 @@ pub struct sfc_kernel {
     pub kernel_image: *const c_char,
 }
 
-/// Symbol File Configuration of a process.
+/// Symbol Source Configuration of a process.
 ///
 /// Load all ELF files in a process as the sources of symbol and debug
 /// info.
 #[repr(C)]
-pub struct sfc_process {
+pub struct ssc_process {
     /// PID of the process to symbolize.
     ///
     /// BlazeSym will parse /proc/&lt;pid&gt;/maps and load all object
@@ -793,21 +793,21 @@ pub struct sfc_process {
 
 /// Parameters of symbol file configuratoin.
 #[repr(C)]
-pub union sfc_params {
+pub union ssc_params {
     /// The variant for CFG_T_ELF
-    pub elf: mem::ManuallyDrop<sfc_elf>,
+    pub elf: mem::ManuallyDrop<ssc_elf>,
     /// The variant for CFG_T_KERNEL
-    pub kernel: mem::ManuallyDrop<sfc_kernel>,
+    pub kernel: mem::ManuallyDrop<ssc_kernel>,
     /// The variant for CFG_T_PROCESS
-    pub process: mem::ManuallyDrop<sfc_process>,
+    pub process: mem::ManuallyDrop<ssc_process>,
 }
 
 /// A source of symbol information for C API.
 #[repr(C)]
-pub struct sym_file_cfg {
+pub struct sym_src_cfg {
     /// The type of a source of symbols.
     pub cfg_type: blazesym_cfg_type,
-    pub params: sfc_params,
+    pub params: ssc_params,
 }
 
 /// A placeholder of symbolizer for C API.
@@ -877,7 +877,7 @@ unsafe fn from_cstr(cstr: *const c_char) -> String {
     CStr::from_ptr(cstr).to_str().unwrap().to_owned()
 }
 
-unsafe fn symbolfilecfg_to_rust(cfg: *const sym_file_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
+unsafe fn symbolfilecfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
     let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len as usize);
 
     for i in 0..cfg_len {
@@ -1021,7 +1021,7 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) ->
 #[no_mangle]
 pub unsafe extern "C"
 fn blazesym_symbolize(symbolizer: *mut blazesym,
-			     cfg: *const sym_file_cfg, cfg_len: u32,
+			     cfg: *const sym_src_cfg, cfg_len: u32,
 			     addrs: *const u64,
 			     addr_cnt: usize) -> *const blazesym_result {
     let cfg_rs = if let Some(cfg_rs) = symbolfilecfg_to_rust(cfg, cfg_len) {
