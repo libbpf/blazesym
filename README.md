@@ -27,11 +27,11 @@ sources, and line numbers of addresses in a process.
 
 
 ```ignore
-	use blazesym::{BlazeSymbolizer, SymFileCfg, SymbolizedResult};
+	use blazesym::{BlazeSymbolizer, SymSrcCfg, SymbolizedResult};
 	
 	let process_id: u32 = <process id>;
     // load all symbols of loaded files of the given process.
-	let cfgs = [SymFileCfg::Process { pid: process_id }];
+	let cfgs = [SymSrcCfg::Process { pid: process_id }];
 	let symbolizer = BlazeSymbolizer::new().unwrap();
 
     let stack: [u64] = [0xff023, 0x17ff93b];			// Addresses of instructions
@@ -62,10 +62,10 @@ sources, and line numbers of addresses in a process.
 ```
 
 `cfgs` is a list of files loaded in a process.  However, it has only
-an instance of `SymFileCfg::Process {}` here.  `SymFileCfg::Process
+an instance of `SymSrcCfg::Process {}` here.  `SymSrcCfg::Process
 {}` is a convenient variant to load all objects, i.e., binaries and
 shared libraries, mapped in a process.  Developers do not have to
-specify every object and its loaded address with `SymFileCfg::Process {}`.
+specify every object and its base address with `SymSrcCfg::Process {}`.
 
 `symlist` is a list of lists of `SymbolizedResult`.  The instruction
 at an address can result from several lines of code from several
@@ -76,10 +76,10 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 
 ### With Linux Kernel
 
-`SymFileCfg::Kernel {}` is a variant to load symbols of Linux kernel.
+`SymSrcCfg::Kernel {}` is a variant to load symbols of Linux kernel.
 
 ```ignore
-	let cfgs = [SymFileCfg::Kernel {
+	let cfgs = [SymSrcCfg::Kernel {
 		kallsyms: Some("/proc/kallsyms".to_string()),
 		kernel_image: Some("/boot/vmlinux-xxxxx".to_string()),
 	];
@@ -94,21 +94,23 @@ kallsyms, and find the kernel image of running kernel from several
 potential directories; ex, /boot/ and /usr/lib/debug/boot/.
 
 ```ignore
-	let cfgs = [SymFileCfg::Kernel { kallsyms: None, kernel_image: None }];
+	let cfgs = [SymSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
 ```
 
 ### A list of ELF files
 
-You can still give a list of ELF files and their loaded addresses if necessary.
+You can still give a list of ELF files and their base addresses if necessary.
 
 ```ignore
-	let cfgs = [SymFileCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
-	                              loaded_address: 0x1f005d },
-	            SymFileCfg::Elf { fie_name: String::from("/path/to/my/binary"),
-				                  loaded_address: 0x77777 },
+	let cfgs = [SymSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
+	                             base_address: 0x1f005d },
+	            SymSrcCfg::Elf { fie_name: String::from("/path/to/my/binary"),
+				                 base_address: 0x77777 },
 	            ......
 	];
 ```
+
+The base address of an ELF file is where its `.text` section is loaded.
 
 ### Example of Rust APIs
 
@@ -142,7 +144,7 @@ and line numbers.
 ```ignore
 	#include "blazesym.h"
 	
-	struct sym_file_cfg cfgs[] = {
+	struct sym_src_cfg cfgs[] = {
 		{ CFG_T_PROCESS, .params = { .process { <pid> } } },
 	};
 	const struct blazesym *symbolizer;
@@ -189,7 +191,7 @@ and line numbers.
 	blazesym_free(symbolizer);
 ```
 
-`struct sym_file_cfg` describes a binary, a symbol file, a shared
+`struct sym_src_cfg` describes a binary, a symbol file, a shared
 object, a kernel or a process.  In this example, it is with
 `CFG_T_PROCESS` type to describe a process that is alive.  BlazeSym
 will figure out all loaded ELF files of the process and load symbol
@@ -208,11 +210,11 @@ You also need the following arguments to link against BlazeSym.
 
 ### With Linux Kernel
 
-`CFG_T_KERNEL` variant of `struct sym_file_cfg` describes a kernel to
+`CFG_T_KERNEL` variant of `struct sym_src_cfg` describes a kernel to
 symbolize kernel addresses.
 
 ```ignore
-	struct sym_file_cfg cfgs[] = {
+	struct sym_src_cfg cfgs[] = {
 		{ CFG_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
 		                                        .kernel_image = "/boot/vmlinux-XXXXX" } } },
 	};
@@ -225,18 +227,21 @@ current kernel will be in /boot/ or /usr/lib/debug/boot/.
 
 ### A list of ELF files
 
-The `CFG_T_ELF` variant of `struct sym_file_cfg` gives the path of an
-ELF file and its loaded address.  You can specify a list of ELF files
+The `CFG_T_ELF` variant of `struct sym_src_cfg` gives the path of an
+ELF file and its base address.  You can specify a list of ELF files
 and where they loaded.
 
+
 ```ignore
-	struct sym_file_cfg cfgs[] = {
+	struct sym_src_cfg cfgs[] = {
 		{ CFG_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
-		                                  .loaded_address = 0x7fff31000 } } },
+		                                  .base_address = 0x7fff31000 } } },
 		{ CFG_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
-		                                  .loaded_address = 0x1ff329000 } } },
+		                                  .base_address = 0x1ff329000 } } },
 	};
 ```
+
+The base address of an ELF file is where its `.text` section is loaded.
 
 ### Example of C APIs
 
