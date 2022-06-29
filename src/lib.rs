@@ -619,6 +619,18 @@ struct Symbol {
     pub addr: u64,
 }
 
+/// Switches of Features of BlazeSymbolizer.
+///
+/// These are features of BlazeSymbolizer.  Passing these variants to
+/// [`BlazeSymbolizer::new_opt()`] can enable (true) or disable
+/// (false) the respective features.
+pub enum SymbolizerFeature {
+    /// Return file names and line numbers of addresses.  It is true
+    /// by default.  If it is false, the symbolizer will not return
+    /// line number information.
+    LineNumberInfo (bool),	// default is true.
+}
+
 /// BlazeSymbolizer provides an interface to symbolize addresses with
 /// a list of symbol sources.
 ///
@@ -629,6 +641,8 @@ struct Symbol {
 ///
 pub struct BlazeSymbolizer {
     cache_holder: CacheHolder,
+
+    line_number_info: bool,
 }
 
 impl BlazeSymbolizer {
@@ -638,6 +652,29 @@ impl BlazeSymbolizer {
 
 	Ok(BlazeSymbolizer {
 	    cache_holder,
+	    line_number_info: true,
+	})
+    }
+
+    /// Create and return an instance of BlazeSymbolizer.
+    ///
+    /// `new_opt()` works like [`BlazeSymbolizer::new()`] except it receives a list of
+    /// [`SymbolizerFeature`] to turn on or off some features.
+    pub fn new_opt(features: &[SymbolizerFeature]) -> Result<BlazeSymbolizer, Error> {
+	let cache_holder = CacheHolder::new();
+	let mut line_number_info = true;
+
+	for feature in features {
+	    match feature {
+		SymbolizerFeature::LineNumberInfo (enabled) => {
+		    line_number_info = *enabled;
+		},
+	    }
+	}
+
+	Ok(BlazeSymbolizer {
+	    cache_holder,
+	    line_number_info,
 	})
     }
 
@@ -684,7 +721,7 @@ impl BlazeSymbolizer {
 		};
 
 		let sym = resolver.find_symbol(*addr);
-		let linfo = resolver.find_line_info(*addr);
+		let linfo = if self.line_number_info { resolver.find_line_info(*addr) } else { None };
 		if sym.is_none() && linfo.is_none() {
 		    vec![]
 		} else if sym.is_none() {
