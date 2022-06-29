@@ -687,8 +687,8 @@ impl BlazeSymbolizer {
     }
 
     #[allow(dead_code)]
-    fn find_line_info(&self, cfg: &[SymbolSrcCfg], addr: u64) -> Option<AddressLineInfo> {
-	let resolver_map = ResolverMap::new(cfg, &self.cache_holder).ok()?;
+    fn find_line_info(&self, sym_srcs: &[SymbolSrcCfg], addr: u64) -> Option<AddressLineInfo> {
+	let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder).ok()?;
 	let resolver = resolver_map.find_resolver(addr)?;
 	resolver.find_line_info(addr)
     }
@@ -703,8 +703,8 @@ impl BlazeSymbolizer {
     ///
     /// * `cfg` - A list of symbol and debug sources.
     /// * `addresses` - A list of addresses been symbolized.
-    pub fn symbolize(&self, cfg: &[SymbolSrcCfg], addresses: &[u64]) -> Vec<Vec<SymbolizedResult>> {
-	let resolver_map = if let Ok(map) = ResolverMap::new(cfg, &self.cache_holder){
+    pub fn symbolize(&self, sym_srcs: &[SymbolSrcCfg], addresses: &[u64]) -> Vec<Vec<SymbolizedResult>> {
+	let resolver_map = if let Ok(map) = ResolverMap::new(sym_srcs, &self.cache_holder){
 	    map
 	} else {
 	    #[cfg(debug_assertions)]
@@ -1068,11 +1068,11 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) ->
 #[no_mangle]
 pub unsafe extern "C"
 fn blazesym_symbolize(symbolizer: *mut blazesym,
-			     cfg: *const sym_src_cfg, cfg_len: u32,
+			     sym_srcs: *const sym_src_cfg, sym_srcs_len: u32,
 			     addrs: *const u64,
 			     addr_cnt: usize) -> *const blazesym_result {
-    let cfg_rs = if let Some(cfg_rs) = symbolsrccfg_to_rust(cfg, cfg_len) {
-	cfg_rs
+    let sym_srcs_rs = if let Some(sym_srcs_rs) = symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) {
+	sym_srcs_rs
     } else {
 	#[cfg(debug_assertions)]
 	eprintln!("Fail to transform configurations of symbolizer from C to Rust");
@@ -1082,7 +1082,7 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
     let symbolizer = &*(*symbolizer).symbolizer;
     let addresses = Vec::from_raw_parts(addrs as *mut u64, addr_cnt, addr_cnt);
 
-    let results = symbolizer.symbolize(&cfg_rs, &addresses);
+    let results = symbolizer.symbolize(&sym_srcs_rs, &addresses);
 
     addresses.leak();
 
@@ -1164,9 +1164,9 @@ mod tests {
     fn load_symbolfilecfg_processkernel() {
 	// Check if SymbolSrcCfg::Process & SymbolSrcCfg::Kernel expands to
 	// ELFResolvers and a KernelResolver.
-	let cfg = vec![SymbolSrcCfg::Process { pid: None }, SymbolSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
+	let srcs = vec![SymbolSrcCfg::Process { pid: None }, SymbolSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
 	let cache_holder = CacheHolder::new();
-	let resolver_map = ResolverMap::new(&cfg, &cache_holder);
+	let resolver_map = ResolverMap::new(&srcs, &cache_holder);
 	assert!(resolver_map.is_ok());
 	let resolver_map = resolver_map.unwrap();
 

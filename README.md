@@ -31,11 +31,11 @@ sources, and line numbers of addresses in a process.
 	
 	let process_id: u32 = <process id>;
     // load all symbols of loaded files of the given process.
-	let cfgs = [SymSrcCfg::Process { pid: process_id }];
+	let sym_srcs = [SymSrcCfg::Process { pid: process_id }];
 	let symbolizer = BlazeSymbolizer::new().unwrap();
 
     let stack: [u64] = [0xff023, 0x17ff93b];			// Addresses of instructions
-	let symlist = symbolizer.symbolize(&cfgs,			// Pass this configuration everytime.
+	let symlist = symbolizer.symbolize(&sym_srcs,		// Pass this configuration everytime.
 	                                   &stack);
 	for i in 0..stack.len() {
 	    let address = stack[i];
@@ -61,7 +61,7 @@ sources, and line numbers of addresses in a process.
 	}
 ```
 
-`cfgs` is a list of files loaded in a process.  However, it has only
+`sym_srcs` is a list of files loaded in a process.  However, it has only
 an instance of `SymSrcCfg::Process {}` here.  `SymSrcCfg::Process
 {}` is a convenient variant to load all objects, i.e., binaries and
 shared libraries, mapped in a process.  Developers do not have to
@@ -79,7 +79,7 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 `SymSrcCfg::Kernel {}` is a variant to load symbols of Linux kernel.
 
 ```ignore
-	let cfgs = [SymSrcCfg::Kernel {
+	let sym_srcs = [SymSrcCfg::Kernel {
 		kallsyms: Some("/proc/kallsyms".to_string()),
 		kernel_image: Some("/boot/vmlinux-xxxxx".to_string()),
 	];
@@ -94,7 +94,7 @@ kallsyms, and find the kernel image of running kernel from several
 potential directories; ex, /boot/ and /usr/lib/debug/boot/.
 
 ```ignore
-	let cfgs = [SymSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
+	let sym_srcs = [SymSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
 ```
 
 ### A list of ELF files
@@ -102,11 +102,11 @@ potential directories; ex, /boot/ and /usr/lib/debug/boot/.
 You can still give a list of ELF files and their base addresses if necessary.
 
 ```ignore
-	let cfgs = [SymSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
-	                             base_address: 0x1f005d },
-	            SymSrcCfg::Elf { fie_name: String::from("/path/to/my/binary"),
-				                 base_address: 0x77777 },
-	            ......
+	let sym_srcs = [SymSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
+	                                 base_address: 0x1f005d },
+	                SymSrcCfg::Elf { fie_name: String::from("/path/to/my/binary"),
+				                     base_address: 0x77777 },
+	                ......
 	];
 ```
 
@@ -144,7 +144,7 @@ and line numbers.
 ```ignore
 	#include "blazesym.h"
 	
-	struct sym_src_cfg cfgs[] = {
+	struct sym_src_cfg sym_srcs[] = {
 		{ CFG_T_PROCESS, .params = { .process { <pid> } } },
 	};
 	const struct blazesym *symbolizer;
@@ -156,9 +156,9 @@ and line numbers.
 	int i, j;
 	
 	symbolizer = blazesym_new();
-	/* cfgs should be passed every time doing symbolization */
+	/* sym_srcs should be passed every time doing symbolization */
 	result = blazesym_symbolize(symbolizer,
-	                            cfgs, 1,
+	                            sym_srcs, 1,
 								stack, stack_sz);
 	
 	for (i = 0; i < stack_sz; i++) {
@@ -214,7 +214,7 @@ You also need the following arguments to link against BlazeSym.
 symbolize kernel addresses.
 
 ```ignore
-	struct sym_src_cfg cfgs[] = {
+	struct sym_src_cfg sym_srcs[] = {
 		{ CFG_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
 		                                        .kernel_image = "/boot/vmlinux-XXXXX" } } },
 	};
@@ -233,7 +233,7 @@ and where they loaded.
 
 
 ```ignore
-	struct sym_src_cfg cfgs[] = {
+	struct sym_src_cfg sym_srcs[] = {
 		{ CFG_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
 		                                  .base_address = 0x7fff31000 } } },
 		{ CFG_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
