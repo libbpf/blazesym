@@ -762,11 +762,11 @@ impl BlazeSymbolizer {
 #[allow(non_camel_case_types)]
 pub enum blazesym_src_type {
     /// Symbols and debug info from an ELF file
-    CFG_T_ELF,
+    SRC_T_ELF,
     /// Symbols and debug info from a kernel image and it's kallsyms
-    CFG_T_KERNEL,
+    SRC_T_KERNEL,
     /// Symbols and debug info from a process, including all object files loaded
-    CFG_T_PROCESS,
+    SRC_T_PROCESS,
 }
 
 /// Symbol Source Configuration of ELF.
@@ -841,11 +841,11 @@ pub struct ssc_process {
 /// Parameters of symbol file configuratoin.
 #[repr(C)]
 pub union ssc_params {
-    /// The variant for CFG_T_ELF
+    /// The variant for SRC_T_ELF
     pub elf: mem::ManuallyDrop<ssc_elf>,
-    /// The variant for CFG_T_KERNEL
+    /// The variant for SRC_T_KERNEL
     pub kernel: mem::ManuallyDrop<ssc_kernel>,
-    /// The variant for CFG_T_PROCESS
+    /// The variant for SRC_T_PROCESS
     pub process: mem::ManuallyDrop<ssc_process>,
 }
 
@@ -930,13 +930,13 @@ unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<
     for i in 0..cfg_len {
 	let c = cfg.offset(i as isize);
 	match (*c).src_type {
-	    blazesym_src_type::CFG_T_ELF => {
+	    blazesym_src_type::SRC_T_ELF => {
 		cfg_rs.push(SymbolSrcCfg::Elf {
 		    file_name: from_cstr((*c).params.elf.file_name),
 		    base_address: (*c).params.elf.base_address,
 		});
 	    },
-	    blazesym_src_type::CFG_T_KERNEL => {
+	    blazesym_src_type::SRC_T_KERNEL => {
 		let kallsyms = (*c).params.kernel.kallsyms;
 		let kernel_image = (*c).params.kernel.kernel_image;
 		cfg_rs.push(SymbolSrcCfg::Kernel {
@@ -944,7 +944,7 @@ unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<
 		    kernel_image: if !kernel_image.is_null() { Some(from_cstr(kernel_image)) } else { None },
 		});
 	    },
-	    blazesym_src_type::CFG_T_PROCESS => {
+	    blazesym_src_type::SRC_T_PROCESS => {
 		cfg_rs.push(SymbolSrcCfg::Process {
 		    pid: if (*c).params.process.pid > 0 { Some((*c).params.process.pid) } else { None },
 		});

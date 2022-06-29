@@ -145,7 +145,7 @@ and line numbers.
 	#include "blazesym.h"
 	
 	struct sym_src_cfg sym_srcs[] = {
-		{ CFG_T_PROCESS, .params = { .process { <pid> } } },
+		{ SRC_T_PROCESS, .params = { .process { <pid> } } },
 	};
 	const struct blazesym *symbolizer;
 	const struct blazesym_result * result;
@@ -193,7 +193,7 @@ and line numbers.
 
 `struct sym_src_cfg` describes a binary, a symbol file, a shared
 object, a kernel or a process.  In this example, it is with
-`CFG_T_PROCESS` type to describe a process that is alive.  BlazeSym
+`SRC_T_PROCESS` type to describe a process that is alive.  BlazeSym
 will figure out all loaded ELF files of the process and load symbol
 and DWARF information from them to perform symbolization.
 
@@ -210,12 +210,12 @@ You also need the following arguments to link against BlazeSym.
 
 ### With Linux Kernel
 
-`CFG_T_KERNEL` variant of `struct sym_src_cfg` describes a kernel to
+`SRC_T_KERNEL` variant of `struct sym_src_cfg` describes a kernel to
 symbolize kernel addresses.
 
 ```ignore
 	struct sym_src_cfg sym_srcs[] = {
-		{ CFG_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
+		{ SRC_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
 		                                        .kernel_image = "/boot/vmlinux-XXXXX" } } },
 	};
 ```
@@ -227,16 +227,16 @@ current kernel will be in /boot/ or /usr/lib/debug/boot/.
 
 ### A list of ELF files
 
-The `CFG_T_ELF` variant of `struct sym_src_cfg` gives the path of an
+The `SRC_T_ELF` variant of `struct sym_src_cfg` gives the path of an
 ELF file and its base address.  You can specify a list of ELF files
 and where they loaded.
 
 
 ```ignore
 	struct sym_src_cfg sym_srcs[] = {
-		{ CFG_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
+		{ SRC_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
 		                                  .base_address = 0x7fff31000 } } },
-		{ CFG_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
+		{ SRC_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
 		                                  .base_address = 0x1ff329000 } } },
 	};
 ```
