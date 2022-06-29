@@ -924,7 +924,7 @@ unsafe fn from_cstr(cstr: *const c_char) -> String {
     CStr::from_ptr(cstr).to_str().unwrap().to_owned()
 }
 
-unsafe fn symbolfilecfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
+unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
     let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len as usize);
 
     for i in 0..cfg_len {
@@ -1071,7 +1071,7 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
 			     cfg: *const sym_src_cfg, cfg_len: u32,
 			     addrs: *const u64,
 			     addr_cnt: usize) -> *const blazesym_result {
-    let cfg_rs = if let Some(cfg_rs) = symbolfilecfg_to_rust(cfg, cfg_len) {
+    let cfg_rs = if let Some(cfg_rs) = symbolsrccfg_to_rust(cfg, cfg_len) {
 	cfg_rs
     } else {
 	#[cfg(debug_assertions)]
