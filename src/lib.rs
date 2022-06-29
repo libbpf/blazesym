@@ -760,7 +760,7 @@ impl BlazeSymbolizer {
 /// Types of symbol sources and debug info for C API.
 #[repr(C)]
 #[allow(non_camel_case_types)]
-pub enum blazesym_cfg_type {
+pub enum blazesym_src_type {
     /// Symbols and debug info from an ELF file
     CFG_T_ELF,
     /// Symbols and debug info from a kernel image and it's kallsyms
@@ -853,7 +853,7 @@ pub union ssc_params {
 #[repr(C)]
 pub struct sym_src_cfg {
     /// The type of a source of symbols.
-    pub cfg_type: blazesym_cfg_type,
+    pub src_type: blazesym_src_type,
     pub params: ssc_params,
 }
 
@@ -929,14 +929,14 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option
 
     for i in 0..cfg_len {
 	let c = cfg.offset(i as isize);
-	match (*c).cfg_type {
-	    blazesym_cfg_type::CFG_T_ELF => {
+	match (*c).src_type {
+	    blazesym_src_type::CFG_T_ELF => {
 		cfg_rs.push(SymbolSrcCfg::Elf {
 		    file_name: from_cstr((*c).params.elf.file_name),
 		    base_address: (*c).params.elf.base_address,
 		});
 	    },
-	    blazesym_cfg_type::CFG_T_KERNEL => {
+	    blazesym_src_type::CFG_T_KERNEL => {
 		let kallsyms = (*c).params.kernel.kallsyms;
 		let kernel_image = (*c).params.kernel.kernel_image;
 		cfg_rs.push(SymbolSrcCfg::Kernel {
@@ -944,7 +944,7 @@ unsafe fn symbolfilecfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option
 		    kernel_image: if !kernel_image.is_null() { Some(from_cstr(kernel_image)) } else { None },
 		});
 	    },
-	    blazesym_cfg_type::CFG_T_PROCESS => {
+	    blazesym_src_type::CFG_T_PROCESS => {
 		cfg_rs.push(SymbolSrcCfg::Process {
 		    pid: if (*c).params.process.pid > 0 { Some((*c).params.process.pid) } else { None },
 		});
