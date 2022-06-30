@@ -21,6 +21,7 @@ use std::rc::Rc;
 use nix::sys::utsname;
 use nix::sys::stat::stat;
 
+#[doc(hidden)]
 pub mod dwarf;
 mod elf;
 mod tools;
@@ -52,11 +53,13 @@ impl CacheHolder {
     }
 }
 
+#[doc(hidden)]
 pub trait StackFrame {
     fn get_ip(&self) -> u64;
     fn get_frame_pointer(&self) -> u64;
 }
 
+#[doc(hidden)]
 pub trait StackSession {
     fn next_frame(&mut self) -> Option<&dyn StackFrame>;
     fn prev_frame(&mut self) -> Option<&dyn StackFrame>;
@@ -87,22 +90,39 @@ trait SymResolver {
     fn repr(&self) -> String;
 }
 
+#[doc(hidden)]
 pub const REG_RAX: usize = 0;
+#[doc(hidden)]
 pub const REG_RBX: usize = 1;
+#[doc(hidden)]
 pub const REG_RCX: usize = 2;
+#[doc(hidden)]
 pub const REG_RDX: usize = 3;
+#[doc(hidden)]
 pub const REG_RSI: usize = 4;
+#[doc(hidden)]
 pub const REG_RDI: usize = 5;
+#[doc(hidden)]
 pub const REG_RSP: usize = 6;
+#[doc(hidden)]
 pub const REG_RBP: usize = 7;
+#[doc(hidden)]
 pub const REG_R8: usize = 8;
+#[doc(hidden)]
 pub const REG_R9: usize = 9;
+#[doc(hidden)]
 pub const REG_R10: usize = 10;
+#[doc(hidden)]
 pub const REG_R11: usize = 11;
+#[doc(hidden)]
 pub const REG_R12: usize = 12;
+#[doc(hidden)]
 pub const REG_R13: usize = 13;
+#[doc(hidden)]
 pub const REG_R14: usize = 14;
+#[doc(hidden)]
 pub const REG_R15: usize = 15;
+#[doc(hidden)]
 pub const REG_RIP: usize = 16;
 
 struct X86_64StackFrame {
@@ -123,6 +143,7 @@ impl StackFrame for X86_64StackFrame {
 ///
 /// Parse a block of memory that is a copy of stack of thread to get frames.
 ///
+#[doc(hidden)]
 pub struct X86_64StackSession {
     frames: Vec<X86_64StackFrame>,
     stack: Vec<u8>,
@@ -226,6 +247,7 @@ impl StackSession for X86_64StackSession {
 /// returned should be free with `sym_resolver_free()`.
 ///
 #[no_mangle]
+#[doc(hidden)]
 pub unsafe extern "C" fn sym_resolver_create() -> *mut KSymResolver {
     let mut resolver = Box::new(KSymResolver::new());
     if resolver.load().is_err() {
@@ -243,6 +265,7 @@ pub unsafe extern "C" fn sym_resolver_create() -> *mut KSymResolver {
 /// `sym_resolver_create()`.
 ///
 #[no_mangle]
+#[doc(hidden)]
 pub unsafe extern "C" fn sym_resolver_free(resolver_ptr: *mut KSymResolver) {
     Box::from_raw(resolver_ptr);
 }
@@ -255,6 +278,7 @@ pub unsafe extern "C" fn sym_resolver_free(resolver_ptr: *mut KSymResolver) {
 /// free it.
 ///
 #[no_mangle]
+#[doc(hidden)]
 pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver, addr: u64) -> *const c_char {
     let resolver = &*resolver_ptr;
     if let Some(sym) = resolver.find_address_ksym(addr) {
