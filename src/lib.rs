@@ -271,7 +271,7 @@ pub unsafe extern "C" fn sym_resolver_find_addr(resolver_ptr: *mut KSymResolver,
 ///
 /// An ELF file may be loaded into an address space with a relocation.
 /// The callers should provide the path of an ELF file and where it's
-/// `.text` section is loaded.
+/// executable segment(s) is loaded.
 ///
 /// For some ELF files, they are located at a specific address
 /// determined during compile-time.  For these cases, just pass `0` as
@@ -444,34 +444,36 @@ pub enum SymbolSrcCfg {
 	///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
 	/// ```
 	///
-	/// It shows the `.text` section of libc-2.28.so was loaded at
+	/// It shows the executable segment of libc-2.28.so was loaded at
 	/// 0x7fe1b2dc4000.  This address is used to translate an
 	/// address in a process to the address, a relative offset, in
 	/// the ELF file.
 	///
-	/// A loader would load a `.text` section with a permission of
+	/// A loader would load an executable segment with a permission of
 	/// `x`.  For example, the first block is with a permission of
 	/// `r-xp`.
 	base_address: u64,
     },
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
     Kernel {
-	/// A path of a copy of kallsyms.
+	/// The path of a copy of kallsyms.
 	///
 	/// It can be "/proc/kallsyms" for the running kernel on the
 	/// device.  However, you can make a copy for later uses.  For
-	/// that case, you should give the path of a copy.
+	/// that case, you should give the path of the copy.
 	/// Giving None, by default, it will be "/proc/kallsyms".
 	kallsyms: Option<String>,
 	/// The path of a kernel image.
 	///
 	/// This should be the path of a kernel image.  For example,
-	/// "/boot/vmlinux-xxxx".  For None, it will found the kernel
-	/// image of the running kernel in "/boot/" or
+	/// "/boot/vmlinux-xxxx".  With a None value, it will find the
+	/// kernel image of the running kernel in "/boot/" or
 	/// "/usr/lib/debug/boot/".
 	kernel_image: Option<String>,
     },
-    /// This one will be exapended into all ELF files loaded.
+    /// This one will be exapended into all ELF files loaded in a process.
+    ///
+    /// With a None vlaue, it means the process calling BlazeSym.
     Process { pid: Option<u32> },
 }
 
@@ -479,7 +481,7 @@ pub enum SymbolSrcCfg {
 ///
 /// [`BlazeSymbolizer::symbolize()`] returns a list of lists of `SymbolizedResult`.
 /// It looks like `[[SymbolizedResult {...}, SymbolizedResult {...}, ...], [SymbolizedResult {...}, ...], ...]`.
-/// Every entry at the first level is a list of `SymbolizedResult`.
+/// Each entry at the first level is a list of `SymbolizedResult`.
 /// It can return multiple results for an address since it can result from
 /// several lines of code in different functions with inlining and
 /// optimization by the compiler.
@@ -497,7 +499,7 @@ pub struct SymbolizedResult {
     /// The line number of the symbolized instruction in the source code.
     ///
     /// This is the line number of the instruction of the address been
-    /// symbolized, not the line number that define the symbol
+    /// symbolized, not the line number where defines the symbol
     /// (function).
     pub line_no: usize,
     pub column: usize,
@@ -619,26 +621,27 @@ struct Symbol {
     pub addr: u64,
 }
 
-/// Switches of Features of BlazeSymbolizer.
+/// Switches of features of BlazeSymbolizer.
 ///
-/// These are features of BlazeSymbolizer.  Passing these variants to
-/// [`BlazeSymbolizer::new_opt()`] can enable (true) or disable
-/// (false) the respective features.
+/// Passing variants of this enum to [`BlazeSymbolizer::new_opt()`]
+/// will enable (true) or disable (false) the corresponding features
+/// of a symbolizer.
 pub enum SymbolizerFeature {
-    /// Return file names and line numbers of addresses.  It is true
-    /// by default.  If it is false, the symbolizer will not return
-    /// line number information.
+    /// Turn on of off the feature of returning file names and line numbers of addresses.
+    ///
+    /// It is true by default.  If it is false,
+    /// the symbolizer will not return line number information.
     LineNumberInfo (bool),	// default is true.
 }
 
 /// BlazeSymbolizer provides an interface to symbolize addresses with
 /// a list of symbol sources.
 ///
-/// Users should give BlazeSymbolizer a list of meta info of symbol
-/// sources (`SymbolSrcCfg`); for example, an ELF file and its loaded
-/// location (`SymbolSrcCfg::Elf`), or a Linux kernel image and a
-/// copy of its kallsyms (`SymbolSrcCfg::Kernel`).
-///
+/// Users should give BlazeSymbolizer a list of sources of symbols
+/// (`SymbolSrcCfg`); for example, an ELF file and its base address
+/// (`SymbolSrcCfg::Elf`), or a Linux kernel image and a copy of its
+/// kallsyms (`SymbolSrcCfg::Kernel`).  BlazeSymbolizer uses the
+/// information from these sources to symbolize addresses.
 pub struct BlazeSymbolizer {
     cache_holder: CacheHolder,
 
@@ -696,13 +699,12 @@ impl BlazeSymbolizer {
     /// Symbolize a list of addresses.
     ///
     /// Symbolize a list of addresses with the information from the
-    /// sources of symbols and debug info described by the slice
-    /// (array) of SymbolSrcCfg.
+    /// sources of symbols and debug info described by `sym_srcs`.
     ///
     /// # Arguments
     ///
-    /// * `cfg` - A list of symbol and debug sources.
-    /// * `addresses` - A list of addresses been symbolized.
+    /// * `sym_srcs` - A list of symbol and debug sources.
+    /// * `addresses` - A list of addresses to symbolize.
     pub fn symbolize(&self, sym_srcs: &[SymbolSrcCfg], addresses: &[u64]) -> Vec<Vec<SymbolizedResult>> {
 	let resolver_map = if let Ok(map) = ResolverMap::new(sym_srcs, &self.cache_holder){
 	    map
@@ -775,16 +777,16 @@ pub enum blazesym_src_type {
 /// process.
 #[repr(C)]
 pub struct ssc_elf {
-    /// The file name of ELF files.
+    /// The file name of an ELF file.
     ///
     /// It can be an executable or a shared object.
     /// For example, giving "/bin/sh" will load symbols and debug info from it.
     /// Giving "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
     pub file_name: *const c_char,
-    /// The address where the .text section loaded.
+    /// The base address where the executable segment(s) of the file is loaded.
     ///
     /// It should be the address
-    /// in the process mapping to the first byte of the `.text` section.
+    /// in the process mapping to the first byte of the executable segment.
     /// For example, in /proc/&lt;pid&gt;/maps
     ///
     /// ```text
@@ -794,26 +796,27 @@ pub struct ssc_elf {
     ///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
     /// ```
     ///
-    /// It shows the .text section of libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
+    /// It shows the executable segment of libc-2.28.so was loaded at 0x7fe1b2dc4000.  This
     /// address is used to translate an address in a process to the
     /// address, a relative offset, in the ELF file.
     ///
-    /// A loader would load a `.text` section with a permission of `x`.  For
-    /// example, the first block is with a permission of `r-xp`.
+    /// A loader would load an executable segment with a permission of `x`
+    /// (executable).  For example, the first block is with a
+    /// permission of `r-xp`.
     pub base_address: u64,
 }
 
 /// Symbol Source Configuration of Kernel.
 ///
-/// Use a kernel image and a snapshot of its kallsyms as a symbol and
-/// debug info source.
+/// Use a kernel image and a snapshot of its kallsyms as a source of symbols and
+/// debug info.
 #[repr(C)]
 pub struct ssc_kernel {
-    /// A path of a copy of kallsyms.
+    /// The path of a copy of kallsyms.
     ///
     /// It can be "/proc/kallsyms" for the running kernel on the
     /// device.  However, you can make a copy for later uses.  For
-    /// that case, you should give the path of a copy.
+    /// that case, you should give the path of the copy.
     /// Giving a NULL, by default, it will be "/proc/kallsyms".
     pub kallsyms: *const c_char,
     /// The path of a kernel image.
@@ -827,7 +830,7 @@ pub struct ssc_kernel {
 
 /// Symbol Source Configuration of a process.
 ///
-/// Load all ELF files in a process as the sources of symbol and debug
+/// Load all ELF files in a process as the sources of symbols and debug
 /// info.
 #[repr(C)]
 pub struct ssc_process {
@@ -838,7 +841,7 @@ pub struct ssc_process {
     pub pid: u32,
 }
 
-/// Parameters of symbol file configuratoin.
+/// Parameters of a symbol source.
 #[repr(C)]
 pub union ssc_params {
     /// The variant for SRC_T_ELF
@@ -849,7 +852,7 @@ pub union ssc_params {
     pub process: mem::ManuallyDrop<ssc_process>,
 }
 
-/// A source of symbol information for C API.
+/// Description of a source of symbols and debug information for C API.
 #[repr(C)]
 pub struct sym_src_cfg {
     /// The type of a source of symbols.
@@ -907,7 +910,7 @@ pub struct blazesym_entry {
 pub struct blazesym_result {
     //// The number of addresses being symbolized.
     pub size: usize,
-    /// Symbolization results in the order of the list of
+    /// The symbolization results in the order of the list of
     /// symbolization addresses.
     ///
     /// Every address should have an entry here.
@@ -955,11 +958,11 @@ unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<
     Some(cfg_rs)
 }
 
-/// Create an instance of blazesym (BlazeSymbolizer) for C API.
+/// Create an instance of blazesym a symbolizer for C API.
 ///
 /// # Safety
 ///
-/// Should free the pointer with blazesym_free.
+/// Should free the pointer with [`blazesym_free()`].
 ///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
@@ -974,11 +977,11 @@ pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
     Box::into_raw(c_box)
 }
 
-/// Free an instance of blazesym (BlazeSymbolizer) for C API.
+/// Free an instance of blazesym a symbolizer for C API.
 ///
 /// # Safety
 ///
-/// The pointer must be returned by blazesym_new.
+/// The pointer must be returned by [`blazesym_new()`].
 ///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
@@ -992,7 +995,7 @@ pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
 ///
 /// # Safety
 ///
-/// The returned pointer should be freed by blazesym_result_free.
+/// The returned pointer should be freed by [`blazesym_result_free()`].
 ///
 unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) -> *const blazesym_result {
     // Allocate a buffer to contain a blazesym_result, all
@@ -1055,15 +1058,15 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<SymbolizedResult>>) ->
     result_ptr
 }
 
-/// Symbolize addresses with the debug info in symbol/debug files.
+/// Symbolize addresses with the sources of symbols and debug info.
 ///
-/// Return an array of blazesym_result with the same size as the
+/// Return an array of [`blazesym_result`] with the same size as the
 /// number of input addresses.  The caller should free the returned
-/// array by calling `blazesym_result_free()`.
+/// array by calling [`blazesym_result_free()`].
 ///
 /// # Safety
 ///
-/// The returned pointer should be freed by blazesym_result_free.
+/// The returned pointer should be freed by [`blazesym_result_free()`].
 ///
 #[no_mangle]
 pub unsafe extern "C"
@@ -1099,7 +1102,7 @@ fn blazesym_symbolize(symbolizer: *mut blazesym,
 ///
 /// # Safety
 ///
-/// The pointer must be returned by blazesym_symbolize.
+/// The pointer must be returned by [`blazesym_symbolize()`].
 ///
 #[no_mangle]
 pub unsafe extern "C"
