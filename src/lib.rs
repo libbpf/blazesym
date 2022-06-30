@@ -428,8 +428,8 @@ pub enum SymbolSrcCfg {
 	/// The file name of ELF files.
 	///
 	/// It can be a executable or a shared object.
-	/// For example, Giving "/bin/sh" it will load symbols and debug info from it.
-	/// Giving "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
+	/// For example, Passing "/bin/sh" it will load symbols and debug info from it.
+	/// Passing "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
 	file_name: String,
 	/// The address where the file loaded.
 	///
@@ -461,7 +461,7 @@ pub enum SymbolSrcCfg {
 	/// It can be "/proc/kallsyms" for the running kernel on the
 	/// device.  However, you can make a copy for later uses.  For
 	/// that case, you should give the path of the copy.
-	/// Giving None, by default, it will be "/proc/kallsyms".
+	/// Passing None, by default, it will be "/proc/kallsyms".
 	kallsyms: Option<String>,
 	/// The path of a kernel image.
 	///
@@ -479,12 +479,13 @@ pub enum SymbolSrcCfg {
 
 /// The result of symbolization by BlazeSymbolizer.
 ///
-/// [`BlazeSymbolizer::symbolize()`] returns a list of lists of `SymbolizedResult`.
-/// It looks like `[[SymbolizedResult {...}, SymbolizedResult {...}, ...], [SymbolizedResult {...}, ...], ...]`.
-/// Each entry at the first level is a list of `SymbolizedResult`.
-/// It can return multiple results for an address since it can result from
-/// several lines of code in different functions with inlining and
-/// optimization by the compiler.
+/// [`BlazeSymbolizer::symbolize()`] returns a list of lists of
+/// `SymbolizedResult`.  It looks like `[[SymbolizedResult {...},
+/// SymbolizedResult {...}, ...], [SymbolizedResult {...}, ...],
+/// ...]`.  Each entry at the first level is a list of
+/// `SymbolizedResult`.  [`BlazeSymbolizer::symbolize()`] can return
+/// multiple results for an address due to function inlining or other
+/// compiler optimizations.
 #[derive(Clone)]
 pub struct SymbolizedResult {
     /// The symbol name that an address may belong to.
@@ -498,7 +499,7 @@ pub struct SymbolizedResult {
     pub path: String,
     /// The line number of the symbolized instruction in the source code.
     ///
-    /// This is the line number of the instruction of the address been
+    /// This is the line number of the instruction of the address being
     /// symbolized, not the line number where defines the symbol
     /// (function).
     pub line_no: usize,
@@ -780,8 +781,8 @@ pub struct ssc_elf {
     /// The file name of an ELF file.
     ///
     /// It can be an executable or a shared object.
-    /// For example, giving "/bin/sh" will load symbols and debug info from it.
-    /// Giving "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
+    /// For example, passing "/bin/sh" will load symbols and debug info from it.
+    /// Passing "/lib/libc.so.xxx", it will load symbols and debug info from the libc.
     pub file_name: *const c_char,
     /// The base address where the executable segment(s) of the file is loaded.
     ///
@@ -817,7 +818,7 @@ pub struct ssc_kernel {
     /// It can be "/proc/kallsyms" for the running kernel on the
     /// device.  However, you can make a copy for later uses.  For
     /// that case, you should give the path of the copy.
-    /// Giving a NULL, by default, it will be "/proc/kallsyms".
+    /// Passing a NULL, by default, it will be "/proc/kallsyms".
     pub kallsyms: *const c_char,
     /// The path of a kernel image.
     ///
