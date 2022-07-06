@@ -1,21 +1,21 @@
 # BlazeSym
 
-BlazeSym is a library to symbolize addresses to get symbol names, file
-names of source files, and line numbers.  It can translate a stack
-trace to function names and their locations in the
+BlazeSym is a library that symbolizes addresses where symbol names,
+source file names, and line numbers can be acquired.  It can translate stack
+traces to function names and their locations in the
 source code.
 
  - <https://github.com/ThinkerYzu1/blazesym>
 
 ## Build
 
-You should install a Rust environment to build BlazeSym.
+To build BlazeSym, you must install a Rust environment.
 
-Once you have installed Rust, you also need the source code of BlazeSym.
+Once successfully installed, you must obtain BlazeSym's source code.
 
  - `git clone https://github.com/ThinkerYzu1/blazesym.git`
 
-Now, you should go to the root directory of the BlazeSym source code
+Next, you would need to go to the root directory of the BlazeSym source code
 to build BlazeSym.
 
  - cargo build
@@ -25,14 +25,14 @@ You may want to build a C header (**blazesym.h**) to include in your C programs.
  - cargo build --features="cheader"
 
 You will see **blazesym.h** and **libblazesym.a** in target/debug/ or
-target/release/ directory.  Your C programs, if there are, should
-include **blazesym.h** and link against **libblazesysm.a** to access
-functions and types of BlazeSym.
+target/release/ directory.  Your C programs, if any, should
+include **blazesym.h** and link to **libblazesym.a** to access
+functions and various types of BlazeSym.
 
 ## Rust API
 
-The following code uses BlazeSym to get symbol names, filenames of
-sources, and line numbers of addresses in a process.
+The following code makes use of BlazeSym to access symbol names, filenames of
+sources, and line numbers of addresses involved in a process.
 
 
 ```ignore
@@ -70,23 +70,23 @@ sources, and line numbers of addresses in a process.
 	}
 ```
 
-`sym_srcs` is a list of sources of symbols loaded in a process.
+`sym_srcs` is a list of symbol sources in a process.
 However, there is only one `SymSrcCfg::Process {}` here.
-`SymSrcCfg::Process {}` is a convenient variant to load all objects,
-i.e., binaries and shared libraries, mapped in a process.  Developers
-do not have to specify every object and its base address with
+`SymSrcCfg::Process {}` is a convenient variant for loading all objects,
+i.e., binaries and shared libraries, mapped in a process.  Therefore, developers
+do not have to specify each object and its base address with
 `SymSrcCfg::Process {}`.
 
-`symlist` is a list of lists of `SymbolizedResult`.  The instruction
-at an address can result from several lines of code from several
-functions with inlining and optimization.  In other words, the result
+`symlist` is a list of lists of `SymbolizedResult`.  The instruction provided
+at an address can result from several lines of code from multiple
+functions with optimization.  In other words, the result
 of an address is a list of `SymbolizedResult`.  Each entry in
 `symlist` results from the address at the respective position in the
 argument passed to [`BlazeSymbolizer::symbolize()`].
 
 ### With Linux Kernel
 
-`SymSrcCfg::Kernel {}` is a variant to load symbols of the Linux kernel.
+`SymSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
 
 ```ignore
 	let sym_srcs = [SymSrcCfg::Kernel {
@@ -95,14 +95,14 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 	}];
 ```
 
-Here, you give the path of kallsyms and the path of a kernel image.
-The path of kallsyms can be the one in /proc/ or a copy of kallsym.
+In this case, you give the path of kallsyms and the path of a kernel image.
+The path of kallsyms can be that of `"/proc/"` or a copy of kallsym.
 
 If you are symbolizing against the current running kernel on the same
-device, give `None` for both paths.  It will find out the correct
-paths for you if possible. It will use `"/proc/kallsyms"` for
-kallsyms, and find the kernel image of the running kernel from several
-potential directories; ex, /boot/ and /usr/lib/debug/boot/.
+device, give `None` for both paths.  Doing so will find the correct
+paths for you, if possible. It will use `"/proc/kallsyms"` for
+kallsyms and find the kernel image of the running kernel from several
+potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
 ```ignore
 	let sym_srcs = [SymSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
@@ -110,7 +110,7 @@ potential directories; ex, /boot/ and /usr/lib/debug/boot/.
 
 ### A list of ELF files
 
-You can still give a list of ELF files and their base addresses if necessary.
+You can still provide a list of ELF files and their base addresses if necessary.
 
 ```ignore
 	let sym_srcs = [SymSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
@@ -121,12 +121,12 @@ You can still give a list of ELF files and their base addresses if necessary.
 	];
 ```
 
-The base address of an ELF file is where its executable segment(s) is
+At the base address of an ELF file, its executable segment(s) is
 loaded.
 
-### Example of Rust API
+### An example of Rust API
 
-examples/addr2ln_pid.rs is an example doing symbolization for an
+examples/addr2ln_pid.rs is an example performing symbolization for an
 address in a process.
 
 ```text
@@ -136,11 +136,10 @@ address in a process.
 	$
 ```
 
-The above command will show the symbol name, the file name of the
-source, and the line number of the address 0x7f0c41ade000 in the process
-1234.
+The above command will display the symbol names, sources' file names,
+and the line numbers of address 0x7f0c41ade000 in process 1234.
 
-Users should build examples with the following command at the root of the
+Users should build examples using the following command at the root of the
 source.
 
 ```text
@@ -150,8 +149,7 @@ source.
 ## C API
 
 The following code symbolizes a list of addresses of a process.  It
-shows the addresses, their symbol names, the filenames of source files,
-and the line numbers.
+shows the addresses, symbol names, source filenames and line numbers.
 
 ```ignore
 	#include "blazesym.h"
@@ -203,17 +201,17 @@ and the line numbers.
 	blazesym_free(symbolizer);
 ```
 
-`struct sym_src_cfg` describes a binary, a symbol file, a shared
-object, a kernel, or a process.  In this example, it uses a `struct sym_src_cfg`
+`struct sym_src_cfg` describes a binary, symbol file, shared
+object, kernel, or process.  This example uses a `struct sym_src_cfg`
 instance with [`blazesym_src_type::SRC_T_PROCESS`] type to
-describe a process.  BlazeSym will figure out all loaded
-ELF files of the process and load symbol and DWARF information from
+describe a process.  BlazeSym deciphers all the loaded
+ELF files of the process and loads symbols and DWARF information from
 them to perform symbolization.
 
 ### Link C programs
 
-You should include “blazesym.h” in a C program in order to call
-BlazeSym.  Check the “Build” section to generate "blazesym.h".
+You should include `“blazesym.h”` in a C program to call
+BlazeSym.  Refer to the “Build” section to generate `"blazesym.h"`.
 
 You also need the following arguments to link against BlazeSym.
 
@@ -221,12 +219,12 @@ You also need the following arguments to link against BlazeSym.
 	-lrt -ldl -lpthread -lm libblazesym.a
 ```
 
-You may want to link a shared library, `libblazesym.so`.
+You may want to link a shared library, i.e., `libblazesym.so`.
 
 ### With Linux Kernel
 
-[`blazesym_src_type::SRC_T_KERNEL`] is a variant of `struct sym_src_cfg` to
-describe a kernel as a source of symbolization.
+[`blazesym_src_type::SRC_T_KERNEL`] is a variant of `struct sym_src_cfg` highlighting
+the kernel as a source of symbolization.
 
 ```ignore
 	struct sym_src_cfg sym_srcs[] = {
@@ -236,13 +234,13 @@ describe a kernel as a source of symbolization.
 ```
 
 You can give `kallsyms` and `kernel_image` a `NULL`.  BlazeSym will
-figure out where they are for the running kernel.  For example, by
-default, `kallsyms` is at `"/proc/kallsyms"`.  The kernel image of the
-current kernel will be in /boot/ or /usr/lib/debug/boot/.
+locate them for the running kernel.  For example, by
+default, `kallsyms` is at `"/proc/kallsyms"`.  Accordingly, the kernel image of the
+current kernel will be in `"/boot/"` or `"/usr/lib/debug/boot/"`.
 
 ### A list of ELF files
 
-The [`blazesym_src_type::SRC_T_ELF`] variant of `struct sym_src_cfg` gives the path of an
+The [`blazesym_src_type::SRC_T_ELF`] variant of `struct sym_src_cfg` provides the path of an
 ELF file and its base address.  You can specify a list of ELF files
 and where they are loaded.
 
@@ -258,10 +256,9 @@ and where they are loaded.
 
 The base address of an ELF file is where its executable segment(s) is loaded.
 
-### Example of C API
+### An example of C API
 
-There is a C example in libbpf-bootstrap.  You can find it at
+There is an example of C API in libbpf-bootstrap.  You could view it at
 <https://github.com/libbpf/libbpf-bootstrap/blob/master/examples/c/profile.c>
-.  This example samples the running process of every processor
-in a system periodically and prints their stack traces at the moment
-doing sampling.
+.  This example periodically samples the running process of every processor
+in a system and prints their stack traces when sampling.
