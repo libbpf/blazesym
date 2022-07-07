@@ -37,23 +37,23 @@ sources, and line numbers of addresses involved in a process.
 
 ```ignore
 	use blazesym::{BlazeSymbolizer, SymSrcCfg, SymbolizedResult};
-	
+
 	let process_id: u32 = <process id>;
-    // load all symbols of loaded files of the given process.
+	// load all symbols of loaded files of the given process.
 	let sym_srcs = [SymSrcCfg::Process { pid: process_id }];
 	let symbolizer = BlazeSymbolizer::new().unwrap();
 
-    let stack: [u64] = [0xff023, 0x17ff93b];			// Addresses of instructions
+	let stack: [u64] = [0xff023, 0x17ff93b];			// Addresses of instructions
 	let symlist = symbolizer.symbolize(&sym_srcs,		// Pass this configuration every time
 	                                   &stack);
 	for i in 0..stack.len() {
-	    let address = stack[i];
-		
+		let address = stack[i];
+
 		if symlist.len() <= i or symlist[i].len() == 0 {	// Unknown address
 			println!("0x{:016x}", address);
 			continue;
 		}
-		
+
 		let sym_results = &symlist[i];
 		if sym_results.len() > 1 {
 			// One address may get several results (ex, inline code)
@@ -130,7 +130,7 @@ examples/addr2ln_pid.rs is an example performing symbolization for an
 address in a process.
 
 ```text
-    $ ./target/debug/examples/addr2ln_pid 1234 7f0c41ade000
+	$ ./target/debug/examples/addr2ln_pid 1234 7f0c41ade000
 	PID: 1234
 	0x7f0c41ade000 wcsxfrm_l@0x7f0c41addd10+752 src/foo.c:0
 	$
@@ -143,7 +143,7 @@ Users should build examples using the following command at the root of the
 source.
 
 ```text
-    $ cargo build --examples
+	$ cargo build --examples
 ```
 
 ## C API
