@@ -5,7 +5,7 @@ source file names, and line numbers can be acquired.  It can translate stack
 traces to function names and their locations in the
 source code.
 
- - <https://github.com/ThinkerYzu1/blazesym>
+ - <https://github.com/libbpf/blazesym>
 
 ## Build
 
@@ -13,7 +13,7 @@ To build BlazeSym, you must install a Rust environment.
 
 Once successfully installed, you must obtain BlazeSym's source code.
 
- - `git clone https://github.com/ThinkerYzu1/blazesym.git`
+ - `git clone https://github.com/libbpf/blazesym.git`
 
 Next, you would need to go to the root directory of the BlazeSym source code
 to build BlazeSym.
