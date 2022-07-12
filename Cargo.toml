@@ -1,7 +1,11 @@
 [package]
 name = "blazesym"
+description = "BlazeSym is a library that symbolizes addresses where symbol names, source file names, and line numbers can be acquired."
 version = "0.1.0"
-edition = "2018"
+authors = ["Kui-Feng <thinker.li@gmail.com>"]
+license-file = "LICENSE"
+repository = "https://github.com/libbpf/blazesym"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,11 +14,11 @@ name = "blazesym"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]
-nix = "0.24.1"
-regex = "*"
+nix = "0.24"
+regex = "1.6"
 
 [build-dependencies]
-cbindgen = "*"
+cbindgen = "0.24"
 
 [features]
 cheader = []
