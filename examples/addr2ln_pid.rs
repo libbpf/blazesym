@@ -1,7 +1,7 @@
 extern crate blazesym;
 
-use std::env;
 use blazesym::{BlazeSymbolizer, SymbolSrcCfg, SymbolizedResult};
+use std::env;
 
 fn show_usage() {
     let args: Vec<String> = env::args().collect();
@@ -14,8 +14,8 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() != 3 {
-	show_usage();
-	return;
+        show_usage();
+        return;
     }
 
     let pid = args[1].parse::<u32>().unwrap();
@@ -23,8 +23,8 @@ fn main() {
     println!("PID: {}", pid);
 
     if addr_str.len() > 2 && &addr_str[0..2] == "0x" {
-	// Remove prefixed 0x
-	addr_str = &addr_str[2..];
+        // Remove prefixed 0x
+        addr_str = &addr_str[2..];
     }
     let addr = u64::from_str_radix(addr_str, 16).unwrap();
 
@@ -32,9 +32,23 @@ fn main() {
     let resolver = BlazeSymbolizer::new().unwrap();
     let symlist = resolver.symbolize(&sym_files, &[addr]);
     if symlist[0].len() > 0 {
-	let SymbolizedResult {symbol, start_address, path, line_no, column: _} = &symlist[0][0];
-	println!("0x{:x} {}@0x{:x}+{} {}:{}", addr, symbol, start_address, addr - start_address, path, line_no);
+        let SymbolizedResult {
+            symbol,
+            start_address,
+            path,
+            line_no,
+            column: _,
+        } = &symlist[0][0];
+        println!(
+            "0x{:x} {}@0x{:x}+{} {}:{}",
+            addr,
+            symbol,
+            start_address,
+            addr - start_address,
+            path,
+            line_no
+        );
     } else {
-	println!("0x{:x} is not found", addr);
+        println!("0x{:x} is not found", addr);
     }
 }
