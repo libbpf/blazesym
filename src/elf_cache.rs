@@ -67,15 +67,20 @@ struct ElfCacheEntry {
 }
 
 impl ElfCacheEntry {
-    pub fn new(file_name: &str, file: File) -> Result<ElfCacheEntry, Error> {
+    pub fn new(
+        file_name: &str,
+        file: File,
+        line_number_info: bool,
+    ) -> Result<ElfCacheEntry, Error> {
         let stat = fstat(file.as_raw_fd())?;
         let parser = Rc::new(Elf64Parser::open_file(file)?);
-        let backend =
-            if let Ok(dwarf) = DwarfResolver::from_parser_for_addresses(Rc::clone(&parser), &[]) {
-                ElfBackend::Dwarf(Rc::new(dwarf))
-            } else {
-                ElfBackend::Elf(parser)
-            };
+        let backend = if let Ok(dwarf) =
+            DwarfResolver::from_parser_for_addresses(Rc::clone(&parser), &[], line_number_info)
+        {
+            ElfBackend::Dwarf(Rc::new(dwarf))
+        } else {
+            ElfBackend::Elf(parser)
+        };
 
         Ok(ElfCacheEntry {
             prev: ptr::null_mut(),
@@ -175,6 +180,7 @@ struct _ElfCache {
     elfs: HashMap<ElfCacheEntryKey, Box<ElfCacheEntry>>,
     lru: ElfCacheLru,
     max_elfs: usize,
+    line_number_info: bool,
 }
 
 impl _ElfCache {
@@ -182,7 +188,7 @@ impl _ElfCache {
         self.max_elfs
     }
 
-    fn new() -> _ElfCache {
+    fn new(line_number_info: bool) -> _ElfCache {
         _ElfCache {
             elfs: HashMap::new(),
             lru: ElfCacheLru {
@@ -190,6 +196,7 @@ impl _ElfCache {
                 tail: ptr::null_mut(),
             },
             max_elfs: DFL_CACHE_MAX,
+            line_number_info,
         }
     }
 
@@ -215,7 +222,7 @@ impl _ElfCache {
         file_name: &str,
         file: File,
     ) -> Result<&ElfCacheEntry, Error> {
-        let ent = Box::new(ElfCacheEntry::new(file_name, file)?);
+        let ent = Box::new(ElfCacheEntry::new(file_name, file, self.line_number_info)?);
         let key = ent.get_key();
 
         self.elfs.insert(key.clone(), ent);
@@ -267,9 +274,9 @@ pub struct ElfCache {
 }
 
 impl ElfCache {
-    pub fn new() -> ElfCache {
+    pub fn new(line_number_info: bool) -> ElfCache {
         ElfCache {
-            cache: RefCell::new(_ElfCache::new()),
+            cache: RefCell::new(_ElfCache::new(line_number_info)),
         }
     }
 
@@ -295,7 +302,7 @@ mod tests {
         let args: Vec<String> = env::args().collect();
         let bin_name = &args[0];
 
-        let cache = ElfCache::new();
+        let cache = ElfCache::new(true);
         let backend_first = cache.find(bin_name);
         let backend_second = cache.find(bin_name);
         assert!(backend_first.is_ok());

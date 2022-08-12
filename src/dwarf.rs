@@ -873,8 +873,13 @@ impl DwarfResolver {
     pub fn from_parser_for_addresses(
         parser: Rc<Elf64Parser>,
         addresses: &[u64],
+        line_number_info: bool,
     ) -> Result<DwarfResolver, Error> {
-        let debug_line_cus = parse_debug_line_elf_parser(&*parser, addresses)?;
+        let debug_line_cus: Vec<DebugLineCU> = if line_number_info {
+            parse_debug_line_elf_parser(&*parser, addresses)?
+        } else {
+            vec![]
+        };
 
         let mut addr_to_dlcu = Vec::with_capacity(debug_line_cus.len());
         for (idx, dlcu) in debug_line_cus.iter().enumerate() {
@@ -917,17 +922,21 @@ impl DwarfResolver {
     /// from the given file.  If the instance will be used for long
     /// running, you would want to load all data into memory to have
     /// the ability of handling all possible addresses.
-    pub fn open_for_addresses(filename: &str, addresses: &[u64]) -> Result<DwarfResolver, Error> {
+    pub fn open_for_addresses(
+        filename: &str,
+        addresses: &[u64],
+        line_number_info: bool,
+    ) -> Result<DwarfResolver, Error> {
         let parser = Elf64Parser::open(filename)?;
-        Self::from_parser_for_addresses(Rc::new(parser), addresses)
+        Self::from_parser_for_addresses(Rc::new(parser), addresses, line_number_info)
     }
 
     /// Open a binary to load and parse .debug_line for later uses.
     ///
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
-    pub fn open(filename: &str) -> Result<DwarfResolver, Error> {
-        Self::open_for_addresses(filename, &[])
+    pub fn open(filename: &str, debug_line_info: bool) -> Result<DwarfResolver, Error> {
+        Self::open_for_addresses(filename, &[], debug_line_info)
     }
 
     fn find_dlcu_index(&self, address: u64) -> Option<usize> {
@@ -1142,7 +1151,7 @@ mod tests {
     fn test_dwarf_resolver() {
         let args: Vec<String> = env::args().collect();
         let bin_name = &args[0];
-        let resolver_r = DwarfResolver::open(bin_name);
+        let resolver_r = DwarfResolver::open(bin_name, true);
         assert!(resolver_r.is_ok());
         let resolver = resolver_r.unwrap();
         let (addr, dir, file, line) = resolver.pick_address_for_test();

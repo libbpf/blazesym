@@ -36,11 +36,15 @@ struct CacheHolder {
     elf: ElfCache,
 }
 
+struct CacheHolderOpts {
+    line_number_info: bool,
+}
+
 impl CacheHolder {
-    fn new() -> CacheHolder {
+    fn new(opts: CacheHolderOpts) -> CacheHolder {
         CacheHolder {
             ksym: ksym::KSymCache::new(),
-            elf: elf_cache::ElfCache::new(),
+            elf: elf_cache::ElfCache::new(opts.line_number_info),
         }
     }
 
@@ -723,7 +727,10 @@ pub struct BlazeSymbolizer {
 impl BlazeSymbolizer {
     /// Create and return an instance of BlazeSymbolizer.
     pub fn new() -> Result<BlazeSymbolizer, Error> {
-        let cache_holder = CacheHolder::new();
+        let opts = CacheHolderOpts {
+            line_number_info: true,
+        };
+        let cache_holder = CacheHolder::new(opts);
 
         Ok(BlazeSymbolizer {
             cache_holder,
@@ -736,7 +743,6 @@ impl BlazeSymbolizer {
     /// `new_opt()` works like [`BlazeSymbolizer::new()`] except it receives a list of
     /// [`SymbolizerFeature`] to turn on or off some features.
     pub fn new_opt(features: &[SymbolizerFeature]) -> Result<BlazeSymbolizer, Error> {
-        let cache_holder = CacheHolder::new();
         let mut line_number_info = true;
 
         for feature in features {
@@ -746,6 +752,8 @@ impl BlazeSymbolizer {
                 }
             }
         }
+
+        let cache_holder = CacheHolder::new(CacheHolderOpts { line_number_info });
 
         Ok(BlazeSymbolizer {
             cache_holder,
@@ -943,6 +951,31 @@ pub struct sym_src_cfg {
     pub params: ssc_params,
 }
 
+/// Names of the BlazeSym features.
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub enum blazesym_feature_name {
+    /// Enable or disable returning line numbers of addresses.
+    ///
+    /// Users should set `blazesym_feature.params.enable` to enabe or
+    /// disable the feature,
+    LINE_NUMBER_INFO,
+}
+
+#[repr(C)]
+pub union blazesym_feature_params {
+    enable: bool,
+}
+
+/// Setting of the blazesym features.
+///
+/// Contain parameters to enable, disable, or customize a feature.
+#[repr(C)]
+pub struct blazesym_feature {
+    pub feature: blazesym_feature_name,
+    pub params: blazesym_feature_params,
+}
+
 /// A placeholder symbolizer for C API.
 ///
 /// It is returned by [`blazesym_new()`] and should be free by
@@ -1065,6 +1098,47 @@ unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
     let symbolizer = match BlazeSymbolizer::new() {
+        Ok(s) => s,
+        Err(_) => {
+            return ptr::null_mut();
+        }
+    };
+    let symbolizer_box = Box::new(symbolizer);
+    let c_box = Box::new(blazesym {
+        symbolizer: Box::into_raw(symbolizer_box),
+    });
+    Box::into_raw(c_box)
+}
+
+/// Create an instance of blazesym a symbolizer for C API.
+///
+/// # Safety
+///
+/// Free the pointer with [`blazesym_free()`].
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesym_new_opts(
+    features: *const blazesym_feature,
+    nfeatures: usize,
+) -> *mut blazesym {
+    let features_v = Vec::<blazesym_feature>::from_raw_parts(
+        features as *mut blazesym_feature,
+        nfeatures,
+        nfeatures,
+    );
+    let features_v = mem::ManuallyDrop::new(features_v);
+    let features_r: Vec<_> = features_v
+        .iter()
+        .map(|x| -> SymbolizerFeature {
+            match x.feature {
+                blazesym_feature_name::LINE_NUMBER_INFO => {
+                    SymbolizerFeature::LineNumberInfo(x.params.enable)
+                }
+            }
+        })
+        .collect();
+
+    let symbolizer = match BlazeSymbolizer::new_opt(&features_r) {
         Ok(s) => s,
         Err(_) => {
             return ptr::null_mut();
@@ -1257,7 +1331,9 @@ mod tests {
     fn load_symbolfilecfg_process() {
         // Check if SymbolSrcCfg::Process expands to ELFResolvers.
         let cfg = vec![SymbolSrcCfg::Process { pid: None }];
-        let cache_holder = CacheHolder::new();
+        let cache_holder = CacheHolder::new(CacheHolderOpts {
+            line_number_info: true,
+        });
         let resolver_map = ResolverMap::new(&cfg, &cache_holder);
         assert!(resolver_map.is_ok());
         let resolver_map = resolver_map.unwrap();
@@ -1286,7 +1362,9 @@ mod tests {
                 kernel_image: None,
             },
         ];
-        let cache_holder = CacheHolder::new();
+        let cache_holder = CacheHolder::new(CacheHolderOpts {
+            line_number_info: true,
+        });
         let resolver_map = ResolverMap::new(&srcs, &cache_holder);
         assert!(resolver_map.is_ok());
         let resolver_map = resolver_map.unwrap();
