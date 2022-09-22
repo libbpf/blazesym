@@ -891,19 +891,6 @@ impl DwarfResolver {
         }
         addr_to_dlcu.sort_by_key(|v| v.0);
 
-        #[cfg(debug_assertions)]
-        for i in 1..addr_to_dlcu.len() {
-            if addr_to_dlcu[i].0 <= addr_to_dlcu[i - 1].0 {
-                panic!(
-                    "CU's start address should be in strict order: [{}] 0x{:x} [{}] 0x{:x}",
-                    i - 1,
-                    addr_to_dlcu[i - 1].0,
-                    i,
-                    addr_to_dlcu[i].0
-                );
-            }
-        }
-
         Ok(DwarfResolver {
             parser,
             debug_line_cus,
