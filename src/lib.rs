@@ -428,8 +428,8 @@ impl SymResolver for ElfResolver {
 }
 
 struct KernelResolver {
-    ksymresolver: Rc<KSymResolver>,
-    kernelresolver: ElfResolver,
+    ksymresolver: Option<Rc<KSymResolver>>,
+    kernelresolver: Option<ElfResolver>,
     kallsyms: String,
     kernel_image: String,
 }
@@ -440,11 +440,19 @@ impl KernelResolver {
         kernel_image: &str,
         cache_holder: &CacheHolder,
     ) -> Result<KernelResolver, Error> {
-        let ksymresolver = cache_holder.get_ksym_cache().get_resolver(kallsyms)?;
-        let kernelresolver = ElfResolver::new(kernel_image, 0, cache_holder)?;
+        let ksymresolver = cache_holder.get_ksym_cache().get_resolver(kallsyms);
+        let kernelresolver = ElfResolver::new(kernel_image, 0, cache_holder);
+
+        if ksymresolver.is_err() && kernelresolver.is_err() {
+            return Err(Error::new(
+                ErrorKind::NotFound,
+                format!("can not load {} and {}", kallsyms, kernel_image),
+            ));
+        }
+
         Ok(KernelResolver {
-            ksymresolver,
-            kernelresolver,
+            ksymresolver: ksymresolver.ok(),
+            kernelresolver: kernelresolver.ok(),
             kallsyms: kallsyms.to_string(),
             kernel_image: kernel_image.to_string(),
         })
@@ -457,13 +465,20 @@ impl SymResolver for KernelResolver {
     }
 
     fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
-        self.ksymresolver.find_symbol(addr)
+        if self.ksymresolver.is_some() {
+            self.ksymresolver.as_ref().unwrap().find_symbol(addr)
+        } else {
+            self.kernelresolver.as_ref().unwrap().find_symbol(addr)
+        }
     }
     fn find_address(&self, _name: &str) -> Option<u64> {
         None
     }
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
-        self.kernelresolver.find_line_info(addr)
+        if self.kernelresolver.is_none() {
+            return None;
+        }
+        self.kernelresolver.as_ref().unwrap().find_line_info(addr)
     }
 
     fn repr(&self) -> String {
@@ -1384,5 +1399,31 @@ mod tests {
             .iter()
             .find(|x| x.find("KernelResolver").is_some())
             .is_some());
+    }
+
+    #[test]
+    fn load_symbolfilecfg_invalid_kernel() {
+        // Check if SymbolSrcCfg::Kernel expands to a KernelResolver
+        // even if kernel_image is invalid.
+        let srcs = vec![SymbolSrcCfg::Kernel {
+            kallsyms: None,
+            kernel_image: Some("/dev/null".to_string()),
+        }];
+        let cache_holder = CacheHolder::new(CacheHolderOpts {
+            line_number_info: true,
+        });
+        let resolver_map = ResolverMap::new(&srcs, &cache_holder);
+        assert!(resolver_map.is_ok());
+        let resolver_map = resolver_map.unwrap();
+
+        let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+        assert!(signatures
+            .iter()
+            .find(|x| x.find("KernelResolver").is_some())
+            .is_some());
+
+        let kresolver = KernelResolver::new("/proc/kallsyms", "/dev/null", &cache_holder).unwrap();
+        assert!(kresolver.ksymresolver.is_some());
+        assert!(kresolver.kernelresolver.is_none());
     }
 }
