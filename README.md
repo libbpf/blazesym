@@ -216,7 +216,7 @@ BlazeSym.  Refer to the “Build” section to generate `"blazesym.h"`.
 You also need the following arguments to link against BlazeSym.
 
 ```text
-	-lrt -ldl -lpthread -lm libblazesym.a
+	libblazesym.a -lrt -ldl -lpthread -lm
 ```
 
 You may want to link a shared library, i.e., `libblazesym.so`.
