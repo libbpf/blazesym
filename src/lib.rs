@@ -1201,6 +1201,9 @@ unsafe fn convert_symbolizedresults_to_c(
         + mem::size_of::<blazesym_csym>() * all_csym_size;
     let raw_buf_with_sz =
         alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
+    if raw_buf_with_sz.is_null() {
+        return ptr::null();
+    }
 
     // prepend an u64 to keep the size of the buffer.
     *(raw_buf_with_sz as *mut u64) = buf_size as u64;
