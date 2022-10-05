@@ -23,7 +23,7 @@ use nix::sys::stat::stat;
 use nix::sys::utsname;
 
 #[doc(hidden)]
-pub mod dwarf;
+mod dwarf;
 mod elf;
 mod elf_cache;
 mod ksym;
@@ -39,13 +39,14 @@ struct CacheHolder {
 
 struct CacheHolderOpts {
     line_number_info: bool,
+    debug_info_symbols: bool,
 }
 
 impl CacheHolder {
     fn new(opts: CacheHolderOpts) -> CacheHolder {
         CacheHolder {
             ksym: ksym::KSymCache::new(),
-            elf: elf_cache::ElfCache::new(opts.line_number_info),
+            elf: elf_cache::ElfCache::new(opts.line_number_info, opts.debug_info_symbols),
         }
     }
 
@@ -77,6 +78,57 @@ struct AddressLineInfo {
     pub column: usize,
 }
 
+/// Types of symbols..
+#[derive(Clone, Copy)]
+pub enum SymbolType {
+    Unknown,
+    Function,
+    Variable,
+}
+
+/// The context of an address finding request.
+///
+/// This type passes additionl parameters to resolvers.
+#[doc(hidden)]
+pub struct FindAddrOpts {
+    /// Return the offset of the symbol from the first byte of the
+    /// object file if it is true. (False by default)
+    offset_in_file: bool,
+    /// Return the name of the object file if it is true. (False by default)
+    obj_file_name: bool,
+    /// Return the symbol(s) matching a given type. Unknown, by default, meean all types.
+    sym_type: SymbolType,
+}
+
+/// Information of a symbol.
+pub struct SymbolInfo {
+    /// The name of the symbol; for example, a function name.
+    pub name: String,
+    /// Start address (the first byte) of the symbol
+    pub address: u64,
+    /// The size of the symbol. The size of a function for example.
+    pub size: u64,
+    /// A funciton or a variable.
+    pub sym_type: SymbolType,
+    /// The offset in the object file.
+    pub file_offset: u64,
+    /// The file name of the shared oject.
+    pub obj_file_name: Option<String>,
+}
+
+impl Default for SymbolInfo {
+    fn default() -> Self {
+        SymbolInfo {
+            name: "".to_string(),
+            address: 0,
+            size: 0,
+            sym_type: SymbolType::Unknown,
+            file_offset: 0,
+            obj_file_name: None,
+        }
+    }
+}
+
 /// The trait of symbol resolvers.
 ///
 /// An symbol resolver usually provides information from one symbol
@@ -87,10 +139,15 @@ trait SymResolver {
     /// Find the name and the start address of a symbol found for
     /// the given address.
     fn find_symbol(&self, addr: u64) -> Option<(&str, u64)>;
-    /// Find the address of a symbol anme.
-    fn find_address(&self, name: &str) -> Option<u64>;
+    /// Find the address and size of a symbol anme.
+    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<SymbolInfo>;
     /// Find the file name and the line number of an address.
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo>;
+    /// Translate an address (virtual) in a process to the file offset
+    /// in the object file.
+    fn addr_file_off(&self, addr: u64) -> Option<u64>;
+    /// Get the file name of the shared object.
+    fn get_obj_file_name(&self) -> String;
 
     fn repr(&self) -> String;
 }
@@ -272,7 +329,7 @@ pub unsafe extern "C" fn sym_resolver_create() -> *mut KSymResolver {
 #[no_mangle]
 #[doc(hidden)]
 pub unsafe extern "C" fn sym_resolver_free(resolver_ptr: *mut KSymResolver) {
-    Box::from_raw(resolver_ptr);
+    drop(Box::from_raw(resolver_ptr));
 }
 
 /// Find the symbols of a give address if there is.
@@ -311,7 +368,8 @@ pub unsafe extern "C" fn sym_resolver_find_addr(
 struct ElfResolver {
     backend: ElfBackend,
     loaded_address: u64,
-    offset: u64,
+    loaded_to_virt: u64,
+    foff_to_virt: u64,
     size: u64,
     file_name: String,
 }
@@ -334,6 +392,7 @@ impl ElfResolver {
         // mapped.
         let mut max_addr = 0;
         let mut low_addr = 0xffffffffffffffff;
+        let mut low_off = 0xffffffffffffffff;
         if e_type == elf::ET_DYN || e_type == elf::ET_EXEC {
             for phdr in phdrs {
                 if phdr.p_type != elf::PT_LOAD {
@@ -348,6 +407,7 @@ impl ElfResolver {
                 }
                 if phdr.p_vaddr < low_addr {
                     low_addr = phdr.p_vaddr;
+                    low_off = phdr.p_offset;
                 }
             }
         } else {
@@ -359,17 +419,15 @@ impl ElfResolver {
         } else {
             loaded_address
         };
-        let offset = if e_type == elf::ET_EXEC {
-            low_addr
-        } else {
-            low_addr
-        };
+        let loaded_to_virt = low_addr;
+        let foff_to_virt = low_addr - low_off;
         let size = max_addr - low_addr;
 
         Ok(ElfResolver {
             backend,
             loaded_address,
-            offset,
+            loaded_to_virt,
+            foff_to_virt,
             size,
             file_name: file_name.to_string(),
         })
@@ -389,20 +447,32 @@ impl SymResolver for ElfResolver {
     }
 
     fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
-        let off = addr - self.loaded_address + self.offset;
+        let off = addr - self.loaded_address + self.loaded_to_virt;
         let parser = self.get_parser()?;
         match parser.find_symbol(off, elf::STT_FUNC) {
-            Ok((name, start_addr)) => Some((name, start_addr - self.offset + self.loaded_address)),
+            Ok((name, start_addr)) => {
+                Some((name, start_addr - self.loaded_to_virt + self.loaded_address))
+            }
             Err(_) => None,
         }
     }
 
-    fn find_address(&self, _name: &str) -> Option<u64> {
-        None
+    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<SymbolInfo> {
+        let addr_res = match &self.backend {
+            ElfBackend::Dwarf(dwarf) => dwarf.find_address(name, opts),
+            ElfBackend::Elf(parser) => parser.find_address(name, opts),
+        };
+        match addr_res {
+            Ok(mut sym_info) => {
+                sym_info.address = sym_info.address - self.loaded_to_virt + self.loaded_address;
+                Some(sym_info)
+            }
+            _ => None,
+        }
     }
 
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
-        let off = addr - self.loaded_address + self.offset;
+        let off = addr - self.loaded_address + self.loaded_to_virt;
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             let (directory, file, line_no) = dwarf.find_line_as_ref(off)?;
             let mut path = String::from(directory);
@@ -418,6 +488,14 @@ impl SymResolver for ElfResolver {
         } else {
             None
         }
+    }
+
+    fn addr_file_off(&self, addr: u64) -> Option<u64> {
+        Some(addr - self.loaded_address + self.loaded_to_virt - self.foff_to_virt)
+    }
+
+    fn get_obj_file_name(&self) -> String {
+        self.file_name.clone()
     }
 
     fn repr(&self) -> String {
@@ -472,7 +550,7 @@ impl SymResolver for KernelResolver {
             self.kernelresolver.as_ref().unwrap().find_symbol(addr)
         }
     }
-    fn find_address(&self, _name: &str) -> Option<u64> {
+    fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<SymbolInfo> {
         None
     }
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
@@ -480,6 +558,14 @@ impl SymResolver for KernelResolver {
             return None;
         }
         self.kernelresolver.as_ref().unwrap().find_line_info(addr)
+    }
+
+    fn addr_file_off(&self, _addr: u64) -> Option<u64> {
+        None
+    }
+
+    fn get_obj_file_name(&self) -> String {
+        self.kernel_image.clone()
     }
 
     fn repr(&self) -> String {
@@ -724,6 +810,37 @@ pub enum SymbolizerFeature {
     /// By default, it is true.  However, if it is false,
     /// the symbolizer will not return the line number information.
     LineNumberInfo(bool), // default is true.
+    /// Switch on or off the feature of parsing symbols (subprogram) from DWARF.
+    ///
+    /// By default, it is false.  BlazeSym parses symbols from DWARF
+    /// only if the user of BlazeSym enables it.
+    DebugInfoSymbols(bool),
+}
+
+/// Switches and settings of features to modify the way looking up addresses of
+/// symbols or the returned information.
+pub enum FindAddrFeature {
+    /// Return the offset in the file.
+    ///
+    /// The offset will be returned as the value of `SymbolInfo::file_offset`.
+    /// (Off by default)
+    OffsetInFile(bool),
+    /// Return the file name of the shared object.
+    ///
+    /// The name of the executiable or object file will be returned as
+    /// the value of `SymbolInfo::obj_file_name`.
+    /// (Off by default)
+    ObjFileName(bool),
+    /// Return symbols having the given type.
+    ///
+    /// With `SymbolType::Function`, BlazeSym will return only the
+    /// symbols that are functions.  With `SymbolType::Variable`,
+    /// BlazeSym will return only the symbols that are variables.
+    /// With `SymbolType::Unknown`, BlazeSym will return symbols of
+    /// any type.
+    SymbolType(SymbolType),
+    /// Return symbols from the compile unit (source) of the given name.
+    CommpileUnit(String),
 }
 
 /// BlazeSymbolizer provides an interface to symbolize addresses with
@@ -745,6 +862,7 @@ impl BlazeSymbolizer {
     pub fn new() -> Result<BlazeSymbolizer, Error> {
         let opts = CacheHolderOpts {
             line_number_info: true,
+            debug_info_symbols: false,
         };
         let cache_holder = CacheHolder::new(opts);
 
@@ -760,16 +878,23 @@ impl BlazeSymbolizer {
     /// [`SymbolizerFeature`] to turn on or off some features.
     pub fn new_opt(features: &[SymbolizerFeature]) -> Result<BlazeSymbolizer, Error> {
         let mut line_number_info = true;
+        let mut debug_info_symbols = false;
 
         for feature in features {
             match feature {
                 SymbolizerFeature::LineNumberInfo(enabled) => {
                     line_number_info = *enabled;
                 }
+                SymbolizerFeature::DebugInfoSymbols(enabled) => {
+                    debug_info_symbols = *enabled;
+                }
             }
         }
 
-        let cache_holder = CacheHolder::new(CacheHolderOpts { line_number_info });
+        let cache_holder = CacheHolder::new(CacheHolderOpts {
+            line_number_info,
+            debug_info_symbols,
+        });
 
         Ok(BlazeSymbolizer {
             cache_holder,
@@ -777,11 +902,27 @@ impl BlazeSymbolizer {
         })
     }
 
-    /// Find the address of a symbol.
-    ///
-    /// Not implemented yet!
     #[allow(dead_code)]
-    fn find_address(&self, _cfg: &[SymbolSrcCfg], _name: &str) -> Option<u64> {
+    fn find_address(
+        &self,
+        sym_srcs: &[SymbolSrcCfg],
+        name: &str,
+        opts: &FindAddrOpts,
+    ) -> Option<SymbolInfo> {
+        let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder).ok()?;
+        for (_, resolver) in resolver_map.resolvers {
+            if let Some(mut sym) = resolver.find_address(name, opts) {
+                if opts.offset_in_file {
+                    if let Some(off) = resolver.addr_file_off(sym.address) {
+                        sym.file_offset = off;
+                    }
+                }
+                if opts.obj_file_name {
+                    sym.obj_file_name = Some(resolver.get_obj_file_name());
+                }
+                return Some(sym);
+            }
+        }
         None
     }
 
@@ -790,6 +931,90 @@ impl BlazeSymbolizer {
         let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder).ok()?;
         let resolver = resolver_map.find_resolver(addr)?;
         resolver.find_line_info(addr)
+    }
+
+    /// Find the addresses of a list of symbol names.
+    ///
+    /// Find the addresses of a list of symbol names from the sources
+    /// of symbols and debug info described by `sym_srcs`.
+    /// `find_addresses_opt()` works just like `find_addresses()` with
+    /// additional controls on features.
+    ///
+    /// # Arguments
+    ///
+    /// * `sym_srcs` - A list of symbol and debug sources.
+    /// * `names` - A list of symbol names.
+    /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
+    pub fn find_addresses_opt(
+        &self,
+        sym_srcs: &[SymbolSrcCfg],
+        names: &[&str],
+        features: Vec<FindAddrFeature>,
+    ) -> Vec<Vec<SymbolInfo>> {
+        let mut opts = FindAddrOpts {
+            offset_in_file: false,
+            obj_file_name: false,
+            sym_type: SymbolType::Unknown,
+        };
+        for f in features {
+            match f {
+                FindAddrFeature::OffsetInFile(enable) => {
+                    opts.offset_in_file = enable;
+                }
+                FindAddrFeature::ObjFileName(enable) => {
+                    opts.obj_file_name = enable;
+                }
+                FindAddrFeature::SymbolType(sym_type) => {
+                    opts.sym_type = sym_type;
+                }
+                _ => {
+                    todo!();
+                }
+            }
+        }
+
+        let resolver_map = match ResolverMap::new(sym_srcs, &self.cache_holder) {
+            Ok(map) => map,
+            _ => {
+                return vec![];
+            }
+        };
+        let mut syms_list = vec![];
+        for name in names {
+            let mut syms = vec![];
+            for (_, resolver) in &resolver_map.resolvers {
+                if let Some(mut sym) = resolver.find_address(name, &opts) {
+                    if opts.offset_in_file {
+                        if let Some(off) = resolver.addr_file_off(sym.address) {
+                            sym.file_offset = off;
+                        }
+                    }
+                    if opts.obj_file_name {
+                        sym.obj_file_name = Some(resolver.get_obj_file_name());
+                    }
+                    syms.push(sym);
+                }
+            }
+            syms_list.push(syms);
+        }
+        syms_list
+    }
+
+    /// Find the addresses of a list of symbol names.
+    ///
+    /// Find the addresses of a list of symbol names from the sources
+    /// of symbols and debug info described by `sym_srcs`.
+    ///
+    /// # Arguments
+    ///
+    /// * `sym_srcs` - A list of symbol and debug sources.
+    /// * `names` - A list of symbol names.
+    pub fn find_addresses(
+        &self,
+        sym_srcs: &[SymbolSrcCfg],
+        names: &[&str],
+    ) -> Vec<Vec<SymbolInfo>> {
+        self.find_addresses_opt(sym_srcs, names, vec![])
     }
 
     /// Symbolize a list of addresses.
@@ -976,6 +1201,11 @@ pub enum blazesym_feature_name {
     /// Users should set `blazesym_feature.params.enable` to enabe or
     /// disable the feature,
     LINE_NUMBER_INFO,
+    /// Enable or disable loading symbols from DWARF.
+    ///
+    /// Users should `blazesym_feature.params.enable` to enable or
+    /// disable the feature.  This feature is disabled by default.
+    DEBUG_INFO_SYMBOLS,
 }
 
 #[repr(C)]
@@ -1150,6 +1380,9 @@ pub unsafe extern "C" fn blazesym_new_opts(
                 blazesym_feature_name::LINE_NUMBER_INFO => {
                     SymbolizerFeature::LineNumberInfo(x.params.enable)
                 }
+                blazesym_feature_name::DEBUG_INFO_SYMBOLS => {
+                    SymbolizerFeature::DebugInfoSymbols(x.params.enable)
+                }
             }
         })
         .collect();
@@ -1176,8 +1409,8 @@ pub unsafe extern "C" fn blazesym_new_opts(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
     if !symbolizer.is_null() {
-        Box::from_raw((*symbolizer).symbolizer);
-        Box::from_raw(symbolizer);
+        drop(Box::from_raw((*symbolizer).symbolizer));
+        drop(Box::from_raw(symbolizer));
     }
 }
 
@@ -1319,6 +1552,292 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
     dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
 }
 
+#[repr(C)]
+pub struct blazesym_sym_info {
+    name: *const u8,
+    address: u64,
+    size: u64,
+    sym_type: blazesym_sym_type,
+    file_offset: u64,
+    obj_file_name: *const u8,
+}
+
+/// Convert SymbolInfos returned by BlazeSymbolizer::find_addresses() to a C array.
+unsafe fn convert_syms_list_to_c(
+    syms_list: Vec<Vec<SymbolInfo>>,
+) -> *const *const blazesym_sym_info {
+    let mut sym_cnt = 0;
+    let mut str_buf_sz = 0;
+
+    for syms in &syms_list {
+        sym_cnt += syms.len() + 1;
+        for sym in syms {
+            str_buf_sz += sym.name.len() + 1;
+            if let Some(fname) = sym.obj_file_name.as_ref() {
+                str_buf_sz += fname.len() + 1;
+            }
+        }
+    }
+
+    let array_sz = ((mem::size_of::<*const u64>() * syms_list.len() + mem::size_of::<u64>() - 1)
+        % mem::size_of::<u64>())
+        * mem::size_of::<u64>();
+    let sym_buf_sz = mem::size_of::<blazesym_sym_info>() * sym_cnt;
+    let buf_size = array_sz + sym_buf_sz + str_buf_sz;
+    let raw_buf_with_sz =
+        alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
+
+    *(raw_buf_with_sz as *mut u64) = buf_size as u64;
+
+    let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
+    let mut syms_ptr = raw_buf as *mut *mut blazesym_sym_info;
+    let mut sym_ptr = raw_buf.add(array_sz) as *mut blazesym_sym_info;
+    let mut str_ptr = raw_buf.add(array_sz + sym_buf_sz) as *mut u8;
+
+    for syms in syms_list {
+        *syms_ptr = sym_ptr;
+        for SymbolInfo {
+            name,
+            address,
+            size,
+            sym_type,
+            file_offset,
+            obj_file_name,
+        } in syms
+        {
+            let name_ptr = str_ptr as *const u8;
+            ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len());
+            str_ptr = str_ptr.add(name.len());
+            *str_ptr = 0;
+            str_ptr = str_ptr.add(1);
+            let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
+                let obj_fname_ptr = str_ptr;
+                ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len());
+                str_ptr = str_ptr.add(fname.len());
+                *str_ptr = 0;
+                str_ptr = str_ptr.add(1);
+                obj_fname_ptr
+            } else {
+                ptr::null()
+            };
+
+            (*sym_ptr) = blazesym_sym_info {
+                name: name_ptr,
+                address,
+                size,
+                sym_type: match sym_type {
+                    SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
+                    SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
+                    _ => blazesym_sym_type::SYM_T_UNKNOWN,
+                },
+                file_offset,
+                obj_file_name,
+            };
+            sym_ptr = sym_ptr.add(1);
+        }
+        (*sym_ptr) = blazesym_sym_info {
+            name: ptr::null(),
+            address: 0,
+            size: 0,
+            sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
+            file_offset: 0,
+            obj_file_name: ptr::null(),
+        };
+        sym_ptr = sym_ptr.add(1);
+
+        syms_ptr = syms_ptr.add(1);
+    }
+
+    raw_buf as *const *const blazesym_sym_info
+}
+
+/// The types of symbols.
+///
+/// This type is used to choice what type of symbols you like to find
+/// and indicate the types of symbols found.
+#[repr(C)]
+#[allow(non_camel_case_types)]
+#[derive(Copy, Clone)]
+pub enum blazesym_sym_type {
+    /// Invalid type
+    SYM_T_INVALID,
+    /// You want to find a symbol of any type.
+    SYM_T_UNKNOWN,
+    /// The returned symbol is a function, or you want to find a function.
+    SYM_T_FUNC,
+    /// The returned symbol is a variable, or you want to find a variable.
+    SYM_T_VAR,
+}
+
+/// Feature names of looking up addresses of symbols.
+#[repr(C)]
+#[allow(non_camel_case_types)]
+pub enum blazesym_faf_type {
+    /// Invalid type
+    FAF_T_INVALID,
+    /// Return the offset in the file. (enable)
+    FAF_T_OFFSET_IN_FILE,
+    /// Return the file name of the shared object. (enable)
+    FAF_T_OBJ_FILE_NAME,
+    /// Return symbols having the given type. (sym_type)
+    FAF_T_SYMBOL_TYPE,
+}
+
+/// The parameter parts of `blazesym_faddr_feature`.
+#[repr(C)]
+pub union blazesym_faf_param {
+    enable: bool,
+    sym_type: blazesym_sym_type,
+}
+
+/// Switches and settings of features of looking up addresses of
+/// symbols.
+///
+/// See [`FindAddrFeature`] for details.
+#[repr(C)]
+pub struct blazesym_faddr_feature {
+    ftype: blazesym_faf_type,
+    param: blazesym_faf_param,
+}
+
+unsafe fn convert_find_addr_features(
+    features: *const blazesym_faddr_feature,
+    num_features: usize,
+) -> Vec<FindAddrFeature> {
+    let mut feature = features;
+    let mut features_ret = vec![];
+    for _ in 0..num_features {
+        match (*feature).ftype {
+            blazesym_faf_type::FAF_T_SYMBOL_TYPE => {
+                features_ret.push(match (*feature).param.sym_type {
+                    blazesym_sym_type::SYM_T_UNKNOWN => {
+                        FindAddrFeature::SymbolType(SymbolType::Unknown)
+                    }
+                    blazesym_sym_type::SYM_T_FUNC => {
+                        FindAddrFeature::SymbolType(SymbolType::Function)
+                    }
+                    blazesym_sym_type::SYM_T_VAR => {
+                        FindAddrFeature::SymbolType(SymbolType::Variable)
+                    }
+                    _ => {
+                        panic!("Invalid symbol type");
+                    }
+                });
+            }
+            blazesym_faf_type::FAF_T_OFFSET_IN_FILE => {
+                features_ret.push(FindAddrFeature::OffsetInFile((*feature).param.enable));
+            }
+            blazesym_faf_type::FAF_T_OBJ_FILE_NAME => {
+                features_ret.push(FindAddrFeature::ObjFileName((*feature).param.enable));
+            }
+            _ => {
+                panic!("Unknown find_address feature type");
+            }
+        }
+        feature = feature.add(1);
+    }
+
+    features_ret
+}
+
+/// Find the addresses of a list of symbols.
+///
+/// Return an array of `*const u64` with the same size as the
+/// input names.  The caller should free the returned array by calling
+/// [`blazesym_syms_list_free()`].
+///
+/// Every name in the input name list may have more than one address.
+/// The respective entry in the returned array is an array containing
+/// all addresses and ended with a null (0x0).
+///
+/// # Safety
+///
+/// The returned pointer should be free by [`blazesym_syms_list_free()`].
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesym_find_addresses_opt(
+    symbolizer: *mut blazesym,
+    sym_srcs: *const sym_src_cfg,
+    sym_srcs_len: u32,
+    names: *const *const c_char,
+    name_cnt: usize,
+    features: *const blazesym_faddr_feature,
+    num_features: usize,
+) -> *const *const blazesym_sym_info {
+    let sym_srcs_rs = if let Some(sym_srcs_rs) = symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) {
+        sym_srcs_rs
+    } else {
+        #[cfg(debug_assertions)]
+        eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+        return ptr::null_mut();
+    };
+
+    let symbolizer = &*(*symbolizer).symbolizer;
+
+    let mut names_cstr = vec![];
+    for i in 0..name_cnt {
+        let name_c = *names.add(i);
+        let name_r = CStr::from_ptr(name_c);
+        names_cstr.push(name_r);
+    }
+    let features = convert_find_addr_features(features, num_features);
+    let syms = {
+        let mut names_r = vec![];
+        for i in 0..name_cnt {
+            names_r.push(names_cstr[i].to_str().unwrap());
+        }
+        symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, features)
+    };
+
+    convert_syms_list_to_c(syms)
+}
+
+/// Find addresses of a symbol name.
+///
+/// A symbol may have multiple addressses.
+///
+/// # Safety
+///
+/// The returned data should be free by [`blazesym_syms_list_free()`].
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesym_find_addresses(
+    symbolizer: *mut blazesym,
+    sym_srcs: *const sym_src_cfg,
+    sym_srcs_len: u32,
+    names: *const *const c_char,
+    name_cnt: usize,
+) -> *const *const blazesym_sym_info {
+    blazesym_find_addresses_opt(
+        symbolizer,
+        sym_srcs,
+        sym_srcs_len,
+        names,
+        name_cnt,
+        ptr::null(),
+        0,
+    )
+}
+
+/// Free an array returned by blazesym_find_addresses.
+///
+/// # Safety
+///
+/// The pointer must be returned by [`blazesym_find_addresses()`].
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazesym_sym_info) {
+    if syms_list.is_null() {
+        #[cfg(debug_assertions)]
+        eprintln!("blazesym_syms_list_free(null)");
+        return;
+    }
+
+    let raw_buf_with_sz = (syms_list as *mut u8).offset(-(mem::size_of::<u64>() as isize));
+    let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
+    dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1352,6 +1871,7 @@ mod tests {
         let cfg = vec![SymbolSrcCfg::Process { pid: None }];
         let cache_holder = CacheHolder::new(CacheHolderOpts {
             line_number_info: true,
+            debug_info_symbols: false,
         });
         let resolver_map = ResolverMap::new(&cfg, &cache_holder);
         assert!(resolver_map.is_ok());
@@ -1383,6 +1903,7 @@ mod tests {
         ];
         let cache_holder = CacheHolder::new(CacheHolderOpts {
             line_number_info: true,
+            debug_info_symbols: false,
         });
         let resolver_map = ResolverMap::new(&srcs, &cache_holder);
         assert!(resolver_map.is_ok());
@@ -1415,6 +1936,7 @@ mod tests {
         }];
         let cache_holder = CacheHolder::new(CacheHolderOpts {
             line_number_info: true,
+            debug_info_symbols: false,
         });
         let resolver_map = ResolverMap::new(&srcs, &cache_holder);
         assert!(resolver_map.is_ok());

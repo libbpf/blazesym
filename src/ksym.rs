@@ -1,3 +1,5 @@
+use super::{FindAddrOpts, SymbolInfo, SymbolType};
+
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::default::Default;
@@ -25,6 +27,7 @@ pub struct Ksym {
 pub struct KSymResolver {
     syms: Vec<Ksym>,
     sym_to_addr: RefCell<HashMap<&'static str, u64>>,
+    file_name: String,
 }
 
 impl KSymResolver {
@@ -59,6 +62,8 @@ impl KSymResolver {
         }
 
         self.syms.sort_by(|a, b| a.addr.cmp(&b.addr));
+
+        self.file_name = filename.to_string();
 
         Ok(())
     }
@@ -115,6 +120,7 @@ impl Default for KSymResolver {
         KSymResolver {
             syms: Vec::with_capacity(DFL_KSYM_CAP),
             sym_to_addr: RefCell::new(HashMap::new()),
+            file_name: "".to_string(),
         }
     }
 }
@@ -131,17 +137,34 @@ impl SymResolver for KSymResolver {
         None
     }
 
-    fn find_address(&self, name: &str) -> Option<u64> {
+    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<SymbolInfo> {
+        if let SymbolType::Variable = opts.sym_type {
+            return None;
+        }
         self.ensure_sym_to_addr();
 
         if let Some(addr) = self.sym_to_addr.borrow().get(name) {
-            return Some(*addr);
+            return Some(SymbolInfo {
+                name: name.to_string(),
+                address: *addr,
+                size: 0,
+                sym_type: SymbolType::Function,
+                ..Default::default()
+            });
         }
         None
     }
 
     fn find_line_info(&self, _addr: u64) -> Option<super::AddressLineInfo> {
         None
+    }
+
+    fn addr_file_off(&self, _addr: u64) -> Option<u64> {
+        None
+    }
+
+    fn get_obj_file_name(&self) -> String {
+        self.file_name.clone()
     }
 
     fn repr(&self) -> String {
@@ -219,9 +242,14 @@ mod tests {
         let sym = &resolver.syms[resolver.syms.len() / 3];
         let addr = sym.addr;
         let name = sym.name.clone();
-        let found = resolver.find_address(&name);
+        let opts = FindAddrOpts {
+            offset_in_file: false,
+            obj_file_name: false,
+            sym_type: SymbolType::Function,
+        };
+        let found = resolver.find_address(&name, &opts);
         assert!(found.is_some());
-        assert_eq!(found.unwrap(), addr);
+        assert_eq!(found.unwrap().address, addr);
     }
 
     #[test]
