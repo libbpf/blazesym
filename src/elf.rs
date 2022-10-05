@@ -1,5 +1,7 @@
+use super::{FindAddrOpts, SymbolInfo, SymbolType};
+
 use std::borrow::BorrowMut;
-use std::cmp::Ordering;
+use std::ffi::CStr;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom};
 use std::mem;
@@ -316,6 +318,10 @@ impl Elf64Parser {
         }
     }
 
+    pub fn get_filename(&self) -> &str {
+        &self.filename
+    }
+
     fn ensure_ehdr(&self) -> Result<(), Error> {
         let mut me = self.backobj.borrow_mut();
 
@@ -460,24 +466,8 @@ impl Elf64Parser {
         }
 
         // Sort in the dictionary order
-        str2symtab.sort_by(|x, y| {
-            let mut name_offx = x.0;
-            let mut name_offy = y.0;
-            loop {
-                if strtab[name_offx] < strtab[name_offy] {
-                    return Ordering::Less;
-                }
-                if strtab[name_offx] > strtab[name_offy] {
-                    return Ordering::Greater;
-                }
-                if strtab[name_offx] == 0 {
-                    break;
-                }
-                name_offx += 1;
-                name_offy += 1;
-            }
-            Ordering::Equal
-        });
+        str2symtab
+            .sort_by_key(|&x| unsafe { CStr::from_ptr(&strtab[x.0] as *const u8 as *const i8) });
 
         me.str2symtab = Some(str2symtab);
 
@@ -620,34 +610,39 @@ impl Elf64Parser {
         Ok((sym_name, sym.st_value))
     }
 
-    pub fn find_address(&self, name: &str) -> Result<u64, Error> {
+    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<SymbolInfo, Error> {
+        if let SymbolType::Variable = opts.sym_type {
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+        }
+
         self.ensure_str2symtab()?;
 
         let me = self.backobj.borrow();
         let str2symtab = me.str2symtab.as_ref().unwrap();
         let strtab = me.strtab.as_ref().unwrap();
-        let bytes = name.as_bytes();
-        let r = str2symtab.binary_search_by(|(off, _sym_i)| {
-            // Compare strtab[off] with name with the dictionary order
-            for i in 0..bytes.len() {
-                if bytes[i] < strtab[off + i] {
-                    return Ordering::Greater;
-                }
-                if bytes[i] > strtab[off + i] {
-                    return Ordering::Less;
-                }
-            }
-            if strtab[off + bytes.len()] == 0 {
-                Ordering::Equal
-            } else {
-                Ordering::Greater
-            }
+        let r = str2symtab.binary_search_by_key(&name.to_string(), |&x| {
+            String::from(
+                unsafe { CStr::from_ptr(&strtab[x.0] as *const u8 as *const i8) }
+                    .to_str()
+                    .unwrap(),
+            )
         });
 
         match r {
             Ok(str2sym_i) => {
                 let sym_i = str2symtab[str2sym_i].1;
-                Ok(me.symtab.as_ref().unwrap()[sym_i].st_value)
+                let sym_ref = &me.symtab.as_ref().unwrap()[sym_i];
+                if !sym_ref.is_undef() {
+                    Ok(SymbolInfo {
+                        name: name.to_string(),
+                        address: sym_ref.st_value,
+                        size: sym_ref.st_size,
+                        sym_type: SymbolType::Function,
+                        ..Default::default()
+                    })
+                } else {
+                    Err(Error::new(ErrorKind::NotFound, "an undefined symbol"))
+                }
             }
             Err(_) => Err(Error::new(ErrorKind::NotFound, "an unknown symbol")),
         }
@@ -823,9 +818,14 @@ mod tests {
         let (sym_name, addr) = parser.pick_symtab_addr();
 
         println!("{}", sym_name);
-        let addr_r = parser.find_address(sym_name);
+        let opts = FindAddrOpts {
+            offset_in_file: false,
+            obj_file_name: false,
+            sym_type: SymbolType::Unknown,
+        };
+        let addr_r = parser.find_address(sym_name, &opts);
         //assert!(addr_r.is_ok());
-        let addr_ret = addr_r.unwrap();
+        let addr_ret = addr_r.unwrap().address;
         assert_eq!(addr_ret, addr);
     }
 }

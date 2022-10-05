@@ -1,9 +1,16 @@
 use super::elf::Elf64Parser;
 use super::tools::{extract_string, search_address_key};
+use super::{FindAddrOpts, SymbolInfo, SymbolType};
+use crossbeam_channel::unbounded;
 
+use std::cell::RefCell;
 use std::io::{Error, ErrorKind};
+use std::iter::Iterator;
 use std::mem;
 use std::rc::Rc;
+
+#[cfg(feature = "dwarf_perf")]
+use std::time::Instant;
 
 #[cfg(test)]
 use std::env;
@@ -11,8 +18,6 @@ use std::env;
 use std::clone::Clone;
 use std::sync::mpsc;
 use std::thread;
-
-use regex::Regex;
 
 #[allow(non_upper_case_globals)]
 mod constants;
@@ -890,6 +895,8 @@ pub struct DwarfResolver {
     parser: Rc<Elf64Parser>,
     debug_line_cus: Vec<DebugLineCU>,
     addr_to_dlcu: Vec<(u64, u32)>,
+    enable_debug_info_syms: bool,
+    debug_info_syms: RefCell<Option<Vec<DWSymInfo>>>,
 }
 
 impl DwarfResolver {
@@ -901,9 +908,10 @@ impl DwarfResolver {
         parser: Rc<Elf64Parser>,
         addresses: &[u64],
         line_number_info: bool,
+        debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
         let debug_line_cus: Vec<DebugLineCU> = if line_number_info {
-            parse_debug_line_elf_parser(&*parser, addresses)?
+            parse_debug_line_elf_parser(&*parser, addresses).unwrap_or_default()
         } else {
             vec![]
         };
@@ -922,6 +930,8 @@ impl DwarfResolver {
             parser,
             debug_line_cus,
             addr_to_dlcu,
+            enable_debug_info_syms: debug_info_symbols,
+            debug_info_syms: RefCell::new(None),
         })
     }
 
@@ -940,17 +950,27 @@ impl DwarfResolver {
         filename: &str,
         addresses: &[u64],
         line_number_info: bool,
+        debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
         let parser = Elf64Parser::open(filename)?;
-        Self::from_parser_for_addresses(Rc::new(parser), addresses, line_number_info)
+        Self::from_parser_for_addresses(
+            Rc::new(parser),
+            addresses,
+            line_number_info,
+            debug_info_symbols,
+        )
     }
 
     /// Open a binary to load and parse .debug_line for later uses.
     ///
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
-    pub fn open(filename: &str, debug_line_info: bool) -> Result<DwarfResolver, Error> {
-        Self::open_for_addresses(filename, &[], debug_line_info)
+    pub fn open(
+        filename: &str,
+        debug_line_info: bool,
+        debug_info_symbols: bool,
+    ) -> Result<DwarfResolver, Error> {
+        Self::open_for_addresses(filename, &[], debug_line_info, debug_info_symbols)
     }
 
     fn find_dlcu_index(&self, address: u64) -> Option<usize> {
@@ -984,6 +1004,59 @@ impl DwarfResolver {
         Some((String::from(dir), String::from(file), line_no))
     }
 
+    /// Extract the symbol information from DWARf if having not did it
+    /// before.
+    fn ensure_debug_info_syms(&self) -> Result<(), Error> {
+        if self.enable_debug_info_syms {
+            let mut dis_ref = self.debug_info_syms.borrow_mut();
+            if dis_ref.is_some() {
+                return Ok(());
+            }
+            let mut debug_info_syms = debug_info_parse_symbols(&self.parser, None, 1)?;
+            debug_info_syms.sort_by_key(|v: &DWSymInfo| -> String { v.name.clone() });
+            *dis_ref = Some(unsafe { mem::transmute(debug_info_syms) });
+        }
+        Ok(())
+    }
+
+    /// Find the address of a symbol from DWARF.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - is the symbol name to find.
+    /// * `opts` - is the context giving additional parameters.
+    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<SymbolInfo, Error> {
+        if let SymbolType::Variable = opts.sym_type {
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+        }
+        let r = self.parser.find_address(name, opts);
+        if r.is_ok() {
+            return r;
+        }
+
+        self.ensure_debug_info_syms()?;
+        let dis_ref = self.debug_info_syms.borrow();
+        let debug_info_syms = dis_ref.as_ref().unwrap();
+        match debug_info_syms.binary_search_by_key(&name.to_string(), |v| v.name.clone()) {
+            Ok(idx) => {
+                let DWSymInfo {
+                    address,
+                    size,
+                    sym_type,
+                    ..
+                } = debug_info_syms[idx];
+                Ok(SymbolInfo {
+                    name: name.to_string(),
+                    address,
+                    size,
+                    sym_type,
+                    ..Default::default()
+                })
+            }
+            Err(_) => Err(Error::new(ErrorKind::NotFound, "symbol not found")),
+        }
+    }
+
     #[cfg(test)]
     fn pick_address_for_test(&self) -> (u64, &str, &str, usize) {
         let (addr, idx) = self.addr_to_dlcu[self.addr_to_dlcu.len() / 3];
@@ -991,6 +1064,298 @@ impl DwarfResolver {
         let (dir, file, line) = dlcu.stringify_row(0).unwrap();
         (addr, dir, file, line)
     }
+}
+
+/// The symbol information extracted out of DWARF.
+#[derive(Clone)]
+struct DWSymInfo {
+    name: String,
+    address: u64,
+    size: u64,
+    sym_type: SymbolType, // A function or a variable.
+}
+
+fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
+    for (name, _form, _opt, value) in die {
+        match name {
+            constants::DW_AT_sibling => {
+                if let debug_info::AttrValue::Unsigned(off) = value {
+                    return Some(off as usize);
+                }
+                return None;
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// Parse a DIE that declares a subprogram. (a function)
+///
+/// We already know the given DIE is a declaration of a subprogram.
+/// This function trys to extract the address of the subprogram and
+/// other information from the DIE.
+///
+/// # Arguments
+///
+/// * `die` - is a DIE.
+/// * `str_data` - is the content of the `.debug_str` section.
+///
+/// Return a [`DWSymInfo`] if it finds the address of the subprogram.
+fn parse_die_subprogram(
+    die: &mut debug_info::DIE<'_>,
+    str_data: &[u8],
+) -> Result<Option<DWSymInfo>, Error> {
+    let mut addr: Option<u64> = None;
+    let mut name_str: Option<&str> = None;
+    let mut size = 0;
+
+    for (name, _form, _opt, value) in die {
+        match name {
+            constants::DW_AT_linkage_name | constants::DW_AT_name => {
+                if name_str.is_some() {
+                    continue;
+                }
+                name_str = Some(match value {
+                    debug_info::AttrValue::Unsigned(str_off) => {
+                        extract_string(&str_data, str_off as usize).ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::InvalidData,
+                                "fail to extract the name of a subprogram",
+                            )
+                        })?
+                    }
+                    debug_info::AttrValue::String(s) => s,
+                    _ => {
+                        return Err(Error::new(
+                            ErrorKind::InvalidData,
+                            "fail to parse DW_AT_linkage_name {}",
+                        ));
+                    }
+                });
+            }
+            constants::DW_AT_lo_pc => match value {
+                debug_info::AttrValue::Unsigned(pc) => {
+                    addr = Some(pc);
+                }
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "fail to parse DW_AT_lo_pc",
+                    ));
+                }
+            },
+            constants::DW_AT_hi_pc => match value {
+                debug_info::AttrValue::Unsigned(sz) => {
+                    size = sz;
+                }
+                _ => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        "fail to parse DW_AT_lo_pc",
+                    ));
+                }
+            },
+            _ => {}
+        }
+    }
+
+    if addr.is_some() && name_str.is_some() {
+        Ok(Some(DWSymInfo {
+            name: name_str.unwrap().to_string(),
+            address: addr.unwrap(),
+            size,
+            sym_type: SymbolType::Function,
+        }))
+    } else {
+        Ok(None)
+    }
+}
+
+/// Walk through all DIEs of a compile unit to extract symbols.
+///
+/// # Arguments
+///
+/// * `dieiter` - is an iterator returned by the iterator that is
+///               returned by an [`UnitIter`].  [`UnitIter`] returns
+///               an [`UnitHeader`] and an [`DIEIter`].
+/// * `str_data` - is the content of the `.debug_str` section.
+/// * `found_syms` - the Vec to append the found symbols.
+fn debug_info_parse_symbols_cu<'a>(
+    mut dieiter: debug_info::DIEIter<'a>,
+    str_data: &[u8],
+    found_syms: &mut Vec<DWSymInfo>,
+) {
+    while let Some(mut die) = dieiter.next() {
+        if die.tag == 0 || die.tag == constants::DW_TAG_namespace {
+            continue;
+        }
+
+        assert!(die.abbrev.is_some());
+        if die.tag != constants::DW_TAG_subprogram {
+            if die.abbrev.unwrap().has_children {
+                if let Some(sibling_off) = find_die_sibling(&mut die) {
+                    dieiter.seek_to_sibling(sibling_off);
+                    continue;
+                }
+                // Skip this DIE quickly, or the iterator will
+                // recalculate the size of the DIE.
+                die.exhaust().unwrap();
+            }
+            continue;
+        }
+
+        if let Ok(syminfo) = parse_die_subprogram(&mut die, str_data) {
+            if syminfo.is_some() {
+                found_syms.push(syminfo.unwrap());
+            }
+        }
+    }
+}
+
+/// The parse result of the `.debug_info` section.
+///
+/// This type is used by the worker threads to pass results to the
+/// coordinator after finishing an Unit.  `Stop` is used to nofity the
+/// coordinator that a matching condition is met.  It could be that
+/// the given symbol is already found, so that the coordinator should
+/// stop producing more tasks.
+enum DIParseResult {
+    Symbols(Vec<DWSymInfo>),
+    Stop,
+}
+
+/// Parse the addresses of symbols from the `.debug_info` section.
+///
+/// # Arguments
+///
+/// * `parser` - is an ELF parser.
+/// * `cond` - is a function to check if we have found the information
+///            we need.  The function will stop earlier if the
+///            condition is met.
+/// * `nthreads` - is the number of worker threads to create. 0 or 1
+///                means single thread.
+fn debug_info_parse_symbols(
+    parser: &Elf64Parser,
+    cond: Option<&(dyn Fn(&DWSymInfo) -> bool + Send + Sync)>,
+    nthreads: usize,
+) -> Result<Vec<DWSymInfo>, Error> {
+    let info_sect_idx = parser.find_section(".debug_info")?;
+    let info_data = parser.read_section_raw(info_sect_idx)?;
+    let abbrev_sect_idx = parser.find_section(".debug_abbrev")?;
+    let abbrev_data = parser.read_section_raw(abbrev_sect_idx)?;
+    let units = debug_info::UnitIter::new(&info_data, &abbrev_data);
+    let str_sect_idx = parser.find_section(".debug_str")?;
+    let str_data = parser.read_section_raw(str_sect_idx)?;
+
+    #[cfg(feature = "dwarf_perf")]
+    let now = Instant::now();
+
+    let mut syms = Vec::<DWSymInfo>::new();
+
+    if nthreads > 1 {
+        thread::scope(|s| {
+            // Create worker threads to process tasks (Units) in a work
+            // queue.
+            let mut handles = vec![];
+            let (qsend, qrecv) = unbounded::<debug_info::DIEIter<'_>>();
+            let (result_tx, result_rx) = mpsc::channel::<DIParseResult>();
+
+            for _ in 0..nthreads {
+                let result_tx = result_tx.clone();
+                let qrecv = qrecv.clone();
+		let str_data = &str_data;
+
+                let handle = s.spawn(move || {
+                    let mut syms: Vec<DWSymInfo> = vec![];
+                    if let Some(cond) = cond {
+                        while let Ok(dieiterholder) = qrecv.recv() {
+                            let saved_sz = syms.len();
+                            debug_info_parse_symbols_cu(dieiterholder, str_data, &mut syms);
+                            for sym in &syms[saved_sz..] {
+                                if !cond(&sym) {
+                                    result_tx.send(DIParseResult::Stop).unwrap();
+                                }
+                            }
+                        }
+                    } else {
+                        while let Ok(dieiterholder) = qrecv.recv() {
+                            debug_info_parse_symbols_cu(dieiterholder, str_data, &mut syms);
+                        }
+                    }
+                    result_tx.send(DIParseResult::Symbols(syms)).unwrap();
+                });
+
+                handles.push(handle);
+            }
+
+            for (uhdr, dieiter) in units {
+                match uhdr {
+                    debug_info::UnitHeader::CompileV4(_) => {
+                        qsend.send(dieiter).unwrap();
+                    }
+                    _ => {}
+                }
+
+                if let Ok(result) = result_rx.try_recv() {
+                    if let DIParseResult::Stop = result {
+                        break;
+                    } else {
+                        return Err(Error::new(
+                            ErrorKind::UnexpectedEof,
+                            "Receive an unexpected result",
+                        ));
+                    }
+                }
+            }
+
+            drop(qsend);
+
+            drop(result_tx);
+            while let Ok(result) = result_rx.recv() {
+                if let DIParseResult::Symbols(mut thread_syms) = result {
+                    syms.append(&mut thread_syms);
+                }
+            }
+            for handle in handles {
+                handle.join().unwrap();
+            }
+            Ok(())
+        })?;
+    } else {
+        if let Some(cond) = cond {
+            'outer: for (uhdr, dieiter) in units {
+                match uhdr {
+                    debug_info::UnitHeader::CompileV4(_) => {
+                        let saved_sz = syms.len();
+                        debug_info_parse_symbols_cu(dieiter, str_data.as_slice(), &mut syms);
+                        for sym in &syms[saved_sz..] {
+                            if !cond(&sym) {
+                                break 'outer;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        } else {
+            for (uhdr, dieiter) in units {
+                match uhdr {
+                    debug_info::UnitHeader::CompileV4(_) => {
+                        debug_info_parse_symbols_cu(dieiter, str_data.as_slice(), &mut syms);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    #[cfg(feature = "dwarf_perf")]
+    println!(
+        "debug_info_parse_symbols elapse {} us",
+        now.elapsed().as_micros()
+    );
+
+    Ok(syms)
 }
 
 #[cfg(test)]
@@ -1165,7 +1530,7 @@ mod tests {
     fn test_dwarf_resolver() {
         let args: Vec<String> = env::args().collect();
         let bin_name = &args[0];
-        let resolver_r = DwarfResolver::open(bin_name, true);
+        let resolver_r = DwarfResolver::open(bin_name, true, false);
         assert!(resolver_r.is_ok());
         let resolver = resolver_r.unwrap();
         let (addr, dir, file, line) = resolver.pick_address_for_test();
@@ -1177,5 +1542,56 @@ mod tests {
         assert_eq!(dir, dir_ret);
         assert_eq!(file, file_ret);
         assert_eq!(line, line_ret);
+    }
+
+    #[test]
+    fn test_debug_info_parse_symbols() {
+        let args: Vec<String> = env::args().collect();
+        let bin_name = &args[0];
+        let parser_r = Elf64Parser::open(bin_name);
+        assert!(parser_r.is_ok());
+        let parser = parser_r.unwrap();
+
+        let result = debug_info_parse_symbols(&parser, None, 1);
+
+        assert!(result.is_ok());
+        let syms = result.unwrap();
+
+        let mut myself_found = false;
+        let mut myself_addr: u64 = 0;
+        let mut parse_symbols_found = false;
+        let mut parse_symbols_addr: u64 = 0;
+        for sym in syms {
+            if sym
+                .name
+                .starts_with("_ZN8blazesym5dwarf5tests29test_debug_info_parse_symbols17h")
+            {
+                myself_found = true;
+                myself_addr = sym.address;
+            } else if sym
+                .name
+                .starts_with("_ZN8blazesym5dwarf24debug_info_parse_symbols17h")
+            {
+                parse_symbols_found = true;
+                parse_symbols_addr = sym.address;
+            }
+        }
+        assert!(myself_found);
+        assert!(parse_symbols_found);
+        assert_eq!(
+            (test_debug_info_parse_symbols as fn() as *const fn() as i64)
+                - (debug_info_parse_symbols
+                    as fn(
+                        &Elf64Parser,
+                        Option<&(dyn Fn(&DWSymInfo) -> bool + Send + Sync)>,
+                        usize,
+                    ) -> Result<Vec<DWSymInfo>, Error>
+                    as *const fn(
+                        &Elf64Parser,
+                        Option<&(dyn Fn(&DWSymInfo) -> bool + Send + Sync)>,
+                        usize,
+                    ) as i64),
+            myself_addr as i64 - parse_symbols_addr as i64
+        );
     }
 }

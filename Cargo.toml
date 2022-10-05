@@ -16,9 +16,12 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 [dependencies]
 nix = "0.24"
 regex = "1.6"
+crossbeam-channel = "0.5"
 
 [build-dependencies]
 cbindgen = "0.24"
 
 [features]
 cheader = []
+# Show performance numbers of DWARF parser.
+dwarf_perf = []
