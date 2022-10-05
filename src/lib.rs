@@ -5,6 +5,7 @@
 // trace to function names and their locations in the
 // source code.
 #![doc = include_str!("../README.md")]
+#![allow(dead_code)]
 
 use std::io::{Error, ErrorKind};
 use std::u64;
