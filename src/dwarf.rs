@@ -1,5 +1,5 @@
 use super::elf::Elf64Parser;
-use super::tools::search_address_key;
+use super::tools::{extract_string, search_address_key};
 
 use std::io::{Error, ErrorKind};
 use std::mem;
@@ -8,11 +8,23 @@ use std::rc::Rc;
 #[cfg(test)]
 use std::env;
 
-fn decode_leb128(data: &[u8]) -> Option<(u64, u8)> {
+use std::clone::Clone;
+use std::sync::mpsc;
+use std::thread;
+
+use regex::Regex;
+
+#[allow(non_upper_case_globals)]
+mod constants;
+#[allow(non_upper_case_globals)]
+mod debug_info;
+
+#[inline]
+fn decode_leb128_128(data: &[u8]) -> Option<(u128, u8)> {
     let mut sz = 0;
-    let mut v: u64 = 0;
+    let mut v: u128 = 0;
     for c in data {
-        v |= ((c & 0x7f) as u64) << sz;
+        v |= ((c & 0x7f) as u128) << sz;
         sz += 7;
         if (c & 0x80) == 0 {
             return Some((v, sz / 7));
@@ -21,17 +33,32 @@ fn decode_leb128(data: &[u8]) -> Option<(u64, u8)> {
     None
 }
 
-fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
-    if let Some((v, s)) = decode_leb128(data) {
-        let s_mask: u64 = 1 << (s * 7 - 1);
+#[inline]
+fn decode_leb128(data: &[u8]) -> Option<(u64, u8)> {
+    match decode_leb128_128(data) {
+        Some((v, s)) => Some((v as u64, s)),
+        None => None,
+    }
+}
+
+fn decode_leb128_128_s(data: &[u8]) -> Option<(i128, u8)> {
+    if let Some((v, s)) = decode_leb128_128(data) {
+        let s_mask: u128 = 1 << (s * 7 - 1);
         return if (v & s_mask) != 0 {
             // negative
-            Some(((v as i64) - ((s_mask << 1) as i64), s))
+            Some(((v as i128) - ((s_mask << 1) as i128), s))
         } else {
-            Some((v as i64, s))
+            Some((v as i128, s))
         };
     }
     None
+}
+
+fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
+    match decode_leb128_128_s(data) {
+        Some((v, s)) => Some((v as i64, s)),
+        None => None,
+    }
 }
 
 #[inline(always)]
