@@ -455,8 +455,12 @@ impl Elf64Parser {
         self.ensure_symtab()?;
         self.ensure_strtab()?;
 
-        // strtab offsets to symtab indices
         let mut me = self.backobj.borrow_mut();
+        if me.str2symtab.is_some() {
+            return Ok(());
+        }
+
+        // Build strtab offsets to symtab indices
         let strtab = me.strtab.as_ref().unwrap();
         let symtab = me.symtab.as_ref().unwrap();
         let mut str2symtab = Vec::<(usize, usize)>::with_capacity(symtab.len());
