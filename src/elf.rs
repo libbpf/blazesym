@@ -10,6 +10,8 @@ use std::cell::RefCell;
 
 use crate::tools::{extract_string, search_address_opt_key};
 
+use regex::Regex;
+
 const EI_NIDENT: usize = 16;
 
 #[allow(non_camel_case_types)]
@@ -614,7 +616,7 @@ impl Elf64Parser {
         Ok((sym_name, sym.st_value))
     }
 
-    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<SymbolInfo, Error> {
+    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
         }
@@ -634,22 +636,76 @@ impl Elf64Parser {
 
         match r {
             Ok(str2sym_i) => {
-                let sym_i = str2symtab[str2sym_i].1;
-                let sym_ref = &me.symtab.as_ref().unwrap()[sym_i];
+                let mut idx = str2sym_i;
+                while idx > 0 {
+                    let name_seek = unsafe {
+                        CStr::from_ptr(&strtab[str2symtab[idx].0] as *const u8 as *const i8)
+                            .to_str()
+                            .unwrap()
+                    };
+                    if !name_seek.eq(name) {
+                        idx += 1;
+                        break;
+                    }
+                    idx -= 1;
+                }
+
+                let mut found = vec![];
+                for idx in idx..str2symtab.len() {
+                    let sym_i = str2symtab[idx].1;
+                    let sym_ref = &me.symtab.as_ref().unwrap()[sym_i];
+                    if !sym_ref.is_undef() {
+                        found.push(SymbolInfo {
+                            name: name.to_string(),
+                            address: sym_ref.st_value,
+                            size: sym_ref.st_size,
+                            sym_type: SymbolType::Function,
+                            ..Default::default()
+                        });
+                    }
+                }
+                Ok(found)
+            }
+            Err(_) => Ok(vec![]),
+        }
+    }
+
+    pub fn find_address_regex(
+        &self,
+        pattern: &str,
+        opts: &FindAddrOpts,
+    ) -> Result<Vec<SymbolInfo>, Error> {
+        if let SymbolType::Variable = opts.sym_type {
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+        }
+
+        self.ensure_str2symtab()?;
+
+        let me = self.backobj.borrow();
+        let str2symtab = me.str2symtab.as_ref().unwrap();
+        let strtab = me.strtab.as_ref().unwrap();
+        let re = Regex::new(pattern).unwrap();
+        let mut syms = vec![];
+        for (str_off, sym_i) in str2symtab {
+            let sname = unsafe {
+                CStr::from_ptr(&strtab[*str_off as usize] as *const u8 as *const i8)
+                    .to_str()
+                    .unwrap()
+            };
+            if re.is_match(sname) {
+                let sym_ref = &me.symtab.as_ref().unwrap()[*sym_i as usize];
                 if !sym_ref.is_undef() {
-                    Ok(SymbolInfo {
-                        name: name.to_string(),
+                    syms.push(SymbolInfo {
+                        name: sname.to_string(),
                         address: sym_ref.st_value,
                         size: sym_ref.st_size,
                         sym_type: SymbolType::Function,
                         ..Default::default()
-                    })
-                } else {
-                    Err(Error::new(ErrorKind::NotFound, "an undefined symbol"))
+                    });
                 }
             }
-            Err(_) => Err(Error::new(ErrorKind::NotFound, "an unknown symbol")),
         }
+        Ok(syms)
     }
 
     pub fn get_num_symbols(&self) -> Result<usize, Error> {
@@ -715,8 +771,7 @@ impl Elf64Parser {
         Ok(phdrs)
     }
 
-    #[allow(dead_code)]
-    #[cfg(debug_assertions)]
+    #[cfg(test)]
     fn pick_symtab_addr(&self) -> (&str, u64) {
         self.ensure_symtab().unwrap();
         self.ensure_strtab().unwrap();
@@ -828,8 +883,6 @@ mod tests {
             sym_type: SymbolType::Unknown,
         };
         let addr_r = parser.find_address(sym_name, &opts);
-        //assert!(addr_r.is_ok());
-        let addr_ret = addr_r.unwrap().address;
-        assert_eq!(addr_ret, addr);
+        assert!(addr_r.unwrap().iter().any(|x| x.address == addr));
     }
 }
