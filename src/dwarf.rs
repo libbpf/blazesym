@@ -19,6 +19,8 @@ use std::clone::Clone;
 use std::sync::mpsc;
 use std::thread;
 
+use regex::Regex;
+
 #[allow(non_upper_case_globals)]
 mod constants;
 #[allow(non_upper_case_globals)]
@@ -1025,7 +1027,7 @@ impl DwarfResolver {
     ///
     /// * `name` - is the symbol name to find.
     /// * `opts` - is the context giving additional parameters.
-    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<SymbolInfo, Error> {
+    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
         }
@@ -1037,24 +1039,88 @@ impl DwarfResolver {
         self.ensure_debug_info_syms()?;
         let dis_ref = self.debug_info_syms.borrow();
         let debug_info_syms = dis_ref.as_ref().unwrap();
-        match debug_info_syms.binary_search_by_key(&name.to_string(), |v| v.name.clone()) {
-            Ok(idx) => {
+        let mut idx =
+            match debug_info_syms.binary_search_by_key(&name.to_string(), |v| v.name.clone()) {
+                Ok(idx) => idx,
+                _ => {
+                    return Ok(vec![]);
+                }
+            };
+        while idx > 0 && debug_info_syms[idx].name.eq(name) {
+            idx -= 1;
+        }
+        if !debug_info_syms[idx].name.eq(name) {
+            idx += 1;
+        }
+        let mut found = vec![];
+        while debug_info_syms[idx].name.eq(name) {
+            let DWSymInfo {
+                address,
+                size,
+                sym_type,
+                ..
+            } = debug_info_syms[idx];
+            found.push(SymbolInfo {
+                name: name.to_string(),
+                address,
+                size,
+                sym_type,
+                ..Default::default()
+            });
+            idx += 1;
+        }
+        Ok(found)
+    }
+
+    /// Find the address of symbols matching a pattern from DWARF.
+    ///
+    /// #Arguments
+    ///
+    /// * `pattern` - is a regex pattern to match symbols.
+    /// * `opts` - is the context giving additional parameters.
+    ///
+    /// Return a list of symbols including addresses and other information.
+    pub fn find_address_regex(
+        &self,
+        pattern: &str,
+        opts: &FindAddrOpts,
+    ) -> Result<Vec<SymbolInfo>, Error> {
+        if let SymbolType::Variable = opts.sym_type {
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+        }
+        let r = self.parser.find_address_regex(pattern, opts)?;
+        if r.len() > 0 {
+            return Ok(r);
+        }
+
+        self.ensure_debug_info_syms()?;
+
+        let dis_ref = self.debug_info_syms.borrow();
+        if dis_ref.is_none() {
+            return Ok(vec![]);
+        }
+        let debug_info_syms = dis_ref.as_ref().unwrap();
+        let mut syms = vec![];
+        let re = Regex::new(pattern).unwrap();
+        for sym in debug_info_syms {
+            if re.is_match(&sym.name) {
                 let DWSymInfo {
                     address,
                     size,
                     sym_type,
                     ..
-                } = debug_info_syms[idx];
-                Ok(SymbolInfo {
-                    name: name.to_string(),
-                    address,
-                    size,
-                    sym_type,
+                } = sym;
+                syms.push(SymbolInfo {
+                    name: sym.name.to_string(),
+                    address: *address,
+                    size: *size,
+                    sym_type: *sym_type,
                     ..Default::default()
-                })
+                });
             }
-            Err(_) => Err(Error::new(ErrorKind::NotFound, "symbol not found")),
         }
+
+        Ok(syms)
     }
 
     #[cfg(test)]
@@ -1552,7 +1618,7 @@ mod tests {
         assert!(parser_r.is_ok());
         let parser = parser_r.unwrap();
 
-        let result = debug_info_parse_symbols(&parser, None, 1);
+        let result = debug_info_parse_symbols(&parser, None, 4);
 
         assert!(result.is_ok());
         let syms = result.unwrap();
@@ -1593,5 +1659,21 @@ mod tests {
                     ) as i64),
             myself_addr as i64 - parse_symbols_addr as i64
         );
+    }
+
+    #[test]
+    fn test_dwarf_find_addr_regex() {
+        let args: Vec<String> = env::args().collect();
+        let bin_name = &args[0];
+        let dwarf = DwarfResolver::open(bin_name, false, true).unwrap();
+        let opts = FindAddrOpts {
+            offset_in_file: false,
+            obj_file_name: false,
+            sym_type: SymbolType::Unknown,
+        };
+        let syms = dwarf
+            .find_address_regex("DwarfResolver.*find_address_regex.*", &opts)
+            .unwrap();
+        assert!(syms.len() > 0);
     }
 }

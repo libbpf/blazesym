@@ -140,7 +140,9 @@ trait SymResolver {
     /// the given address.
     fn find_symbol(&self, addr: u64) -> Option<(&str, u64)>;
     /// Find the address and size of a symbol anme.
-    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<SymbolInfo>;
+    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
+    /// Find the addresses and sizes of the symbols matching a given pattern.
+    fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the file name and the line number of an address.
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo>;
     /// Translate an address (virtual) in a process to the file offset
@@ -457,18 +459,31 @@ impl SymResolver for ElfResolver {
         }
     }
 
-    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<SymbolInfo> {
-        let addr_res = match &self.backend {
+    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+        let mut addr_res = match &self.backend {
             ElfBackend::Dwarf(dwarf) => dwarf.find_address(name, opts),
             ElfBackend::Elf(parser) => parser.find_address(name, opts),
-        };
-        match addr_res {
-            Ok(mut sym_info) => {
-                sym_info.address = sym_info.address - self.loaded_to_virt + self.loaded_address;
-                Some(sym_info)
-            }
-            _ => None,
         }
+        .ok()?;
+        for x in &mut addr_res {
+            x.address = x.address - self.loaded_to_virt + self.loaded_address;
+        }
+        Some(addr_res)
+    }
+
+    fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+        let syms = match &self.backend {
+            ElfBackend::Dwarf(dwarf) => dwarf.find_address_regex(pattern, opts),
+            ElfBackend::Elf(parser) => parser.find_address_regex(pattern, opts),
+        };
+        if syms.is_err() {
+            return None;
+        }
+        let mut syms = syms.unwrap();
+        for sym in &mut syms {
+            sym.address = sym.address - self.loaded_to_virt + self.loaded_address;
+        }
+        Some(syms)
     }
 
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
@@ -550,7 +565,10 @@ impl SymResolver for KernelResolver {
             self.kernelresolver.as_ref().unwrap().find_symbol(addr)
         }
     }
-    fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<SymbolInfo> {
+    fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+        None
+    }
+    fn find_address_regex(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         None
     }
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
@@ -908,22 +926,25 @@ impl BlazeSymbolizer {
         sym_srcs: &[SymbolSrcCfg],
         name: &str,
         opts: &FindAddrOpts,
-    ) -> Option<SymbolInfo> {
+    ) -> Option<Vec<SymbolInfo>> {
         let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder).ok()?;
+        let mut found = vec![];
         for (_, resolver) in resolver_map.resolvers {
-            if let Some(mut sym) = resolver.find_address(name, opts) {
-                if opts.offset_in_file {
-                    if let Some(off) = resolver.addr_file_off(sym.address) {
-                        sym.file_offset = off;
+            if let Some(mut syms) = resolver.find_address(name, opts) {
+                for sym in &mut syms {
+                    if opts.offset_in_file {
+                        if let Some(off) = resolver.addr_file_off(sym.address) {
+                            sym.file_offset = off;
+                        }
+                    }
+                    if opts.obj_file_name {
+                        sym.obj_file_name = Some(resolver.get_obj_file_name());
                     }
                 }
-                if opts.obj_file_name {
-                    sym.obj_file_name = Some(resolver.get_obj_file_name());
-                }
-                return Some(sym);
+                found.append(&mut syms);
             }
         }
-        None
+        Some(found)
     }
 
     #[allow(dead_code)]
@@ -933,24 +954,7 @@ impl BlazeSymbolizer {
         resolver.find_line_info(addr)
     }
 
-    /// Find the addresses of a list of symbol names.
-    ///
-    /// Find the addresses of a list of symbol names from the sources
-    /// of symbols and debug info described by `sym_srcs`.
-    /// `find_addresses_opt()` works just like `find_addresses()` with
-    /// additional controls on features.
-    ///
-    /// # Arguments
-    ///
-    /// * `sym_srcs` - A list of symbol and debug sources.
-    /// * `names` - A list of symbol names.
-    /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
-    pub fn find_addresses_opt(
-        &self,
-        sym_srcs: &[SymbolSrcCfg],
-        names: &[&str],
-        features: Vec<FindAddrFeature>,
-    ) -> Vec<Vec<SymbolInfo>> {
+    fn find_addr_features_context(features: Vec<FindAddrFeature>) -> FindAddrOpts {
         let mut opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
@@ -972,6 +976,91 @@ impl BlazeSymbolizer {
                 }
             }
         }
+        opts
+    }
+
+    /// Find the addresses of the symbols matching a pattern.
+    ///
+    /// Find the addresses of the symbols matching a pattern from the sources
+    /// of symbols and debug info described by `sym_srcs`.
+    /// `find_address_regex_opt()` works just like `find_address_regex()` with
+    /// additional controls on features.
+    ///
+    /// # Arguments
+    ///
+    /// * `sym_srcs` - A list of symbol and debug sources.
+    /// * `pattern` - A regex pattern.
+    /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
+    pub fn find_address_regex_opt(
+        &self,
+        sym_srcs: &[SymbolSrcCfg],
+        pattern: &str,
+        features: Vec<FindAddrFeature>,
+    ) -> Option<Vec<SymbolInfo>> {
+        let ctx = Self::find_addr_features_context(features);
+
+        let resolver_map = match ResolverMap::new(sym_srcs, &self.cache_holder) {
+            Ok(map) => map,
+            _ => {
+                return None;
+            }
+        };
+        let mut syms = vec![];
+        for (_, resolver) in &resolver_map.resolvers {
+            for mut sym in resolver
+                .find_address_regex(pattern, &ctx)
+                .unwrap_or_else(|| vec![])
+            {
+                if ctx.offset_in_file {
+                    if let Some(off) = resolver.addr_file_off(sym.address) {
+                        sym.file_offset = off;
+                    }
+                }
+                if ctx.obj_file_name {
+                    sym.obj_file_name = Some(resolver.get_obj_file_name());
+                }
+                syms.push(sym);
+            }
+        }
+        Some(syms)
+    }
+
+    /// Find the addresses of the symbols matching a pattern.
+    ///
+    /// Find the addresses of the symbols matching a pattern from the sources
+    /// of symbols and debug info described by `sym_srcs`.
+    ///
+    /// # Arguments
+    ///
+    /// * `sym_srcs` - A list of symbol and debug sources.
+    /// * `pattern` - A regex pattern.
+    pub fn find_address_regex(
+        &self,
+        sym_srcs: &[SymbolSrcCfg],
+        pattern: &str,
+    ) -> Option<Vec<SymbolInfo>> {
+        self.find_address_regex_opt(sym_srcs, pattern, vec![])
+    }
+
+    /// Find the addresses of a list of symbol names.
+    ///
+    /// Find the addresses of a list of symbol names from the sources
+    /// of symbols and debug info described by `sym_srcs`.
+    /// `find_addresses_opt()` works just like `find_addresses()` with
+    /// additional controls on features.
+    ///
+    /// # Arguments
+    ///
+    /// * `sym_srcs` - A list of symbol and debug sources.
+    /// * `names` - A list of symbol names.
+    /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
+    pub fn find_addresses_opt(
+        &self,
+        sym_srcs: &[SymbolSrcCfg],
+        names: &[&str],
+        features: Vec<FindAddrFeature>,
+    ) -> Vec<Vec<SymbolInfo>> {
+        let ctx = Self::find_addr_features_context(features);
 
         let resolver_map = match ResolverMap::new(sym_srcs, &self.cache_holder) {
             Ok(map) => map,
@@ -981,21 +1070,23 @@ impl BlazeSymbolizer {
         };
         let mut syms_list = vec![];
         for name in names {
-            let mut syms = vec![];
+            let mut found = vec![];
             for (_, resolver) in &resolver_map.resolvers {
-                if let Some(mut sym) = resolver.find_address(name, &opts) {
-                    if opts.offset_in_file {
-                        if let Some(off) = resolver.addr_file_off(sym.address) {
-                            sym.file_offset = off;
+                if let Some(mut syms) = resolver.find_address(name, &ctx) {
+                    for sym in &mut syms {
+                        if ctx.offset_in_file {
+                            if let Some(off) = resolver.addr_file_off(sym.address) {
+                                sym.file_offset = off;
+                            }
+                        }
+                        if ctx.obj_file_name {
+                            sym.obj_file_name = Some(resolver.get_obj_file_name());
                         }
                     }
-                    if opts.obj_file_name {
-                        sym.obj_file_name = Some(resolver.get_obj_file_name());
-                    }
-                    syms.push(sym);
+                    found.append(&mut syms);
                 }
             }
-            syms_list.push(syms);
+            syms_list.push(found);
         }
         syms_list
     }
@@ -1651,6 +1742,79 @@ unsafe fn convert_syms_list_to_c(
     raw_buf as *const *const blazesym_sym_info
 }
 
+/// Convert SymbolInfos returned by BlazeSymbolizer::find_address_regex() to a C array.
+unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
+    let mut str_buf_sz = 0;
+
+    for sym in &syms {
+        str_buf_sz += sym.name.len() + 1;
+        if let Some(fname) = sym.obj_file_name.as_ref() {
+            str_buf_sz += fname.len() + 1;
+        }
+    }
+
+    let sym_buf_sz = mem::size_of::<blazesym_sym_info>() * (syms.len() + 1);
+    let buf_size = sym_buf_sz + str_buf_sz;
+    let raw_buf_with_sz =
+        alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
+
+    *(raw_buf_with_sz as *mut u64) = buf_size as u64;
+
+    let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
+    let mut sym_ptr = raw_buf as *mut blazesym_sym_info;
+    let mut str_ptr = raw_buf.add(sym_buf_sz) as *mut u8;
+
+    for sym in syms {
+        let SymbolInfo {
+            name,
+            address,
+            size,
+            sym_type,
+            file_offset,
+            obj_file_name,
+        } = sym;
+        let name_ptr = str_ptr as *const u8;
+        ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len());
+        str_ptr = str_ptr.add(name.len());
+        *str_ptr = 0;
+        str_ptr = str_ptr.add(1);
+        let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
+            let obj_fname_ptr = str_ptr;
+            ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len());
+            str_ptr = str_ptr.add(fname.len());
+            *str_ptr = 0;
+            str_ptr = str_ptr.add(1);
+            obj_fname_ptr
+        } else {
+            ptr::null()
+        };
+
+        (*sym_ptr) = blazesym_sym_info {
+            name: name_ptr,
+            address,
+            size,
+            sym_type: match sym_type {
+                SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
+                SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
+                _ => blazesym_sym_type::SYM_T_UNKNOWN,
+            },
+            file_offset,
+            obj_file_name,
+        };
+        sym_ptr = sym_ptr.add(1);
+    }
+    (*sym_ptr) = blazesym_sym_info {
+        name: ptr::null(),
+        address: 0,
+        size: 0,
+        sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
+        file_offset: 0,
+        obj_file_name: ptr::null(),
+    };
+
+    raw_buf as *const blazesym_sym_info
+}
+
 /// The types of symbols.
 ///
 /// This type is used to choice what type of symbols you like to find
@@ -1738,6 +1902,85 @@ unsafe fn convert_find_addr_features(
     }
 
     features_ret
+}
+
+/// Find the addresses of symbols matching a pattern.
+///
+/// Return an array of `blazesym_sym_info` ending with an item having a null address.
+/// input names.  The caller should free the returned array by calling
+/// [`blazesym_syms_free()`].
+///
+/// It works the same as [`blazesym_find_address_regex()`] with
+/// additional controls on features.
+///
+/// # Safety
+///
+/// The returned pointer should be free by [`blazesym_syms_free()`].
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesym_find_address_regex_opt(
+    symbolizer: *mut blazesym,
+    sym_srcs: *const sym_src_cfg,
+    sym_srcs_len: u32,
+    pattern: *const c_char,
+    features: *const blazesym_faddr_feature,
+    num_features: usize,
+) -> *const blazesym_sym_info {
+    let sym_srcs_rs = if let Some(sym_srcs_rs) = symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) {
+        sym_srcs_rs
+    } else {
+        #[cfg(debug_assertions)]
+        eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+        return ptr::null_mut();
+    };
+
+    let symbolizer = &*(*symbolizer).symbolizer;
+
+    let pattern = CStr::from_ptr(pattern);
+    let features = convert_find_addr_features(features, num_features);
+    let syms =
+        { symbolizer.find_address_regex_opt(&sym_srcs_rs, pattern.to_str().unwrap(), features) };
+
+    if syms.is_none() {
+        return ptr::null_mut();
+    }
+
+    convert_syms_to_c(syms.unwrap())
+}
+
+/// Find the addresses of symbols matching a pattern.
+///
+/// Return an array of `blazesym_sym_info` ending with an item having a null address.
+/// input names.  The caller should free the returned array by calling
+/// [`blazesym_syms_free()`].
+///
+/// # Safety
+///
+/// The returned pointer should be free by [`blazesym_syms_free()`].
+///
+#[no_mangle]
+pub unsafe extern "C" fn blazesym_find_address_regex(
+    symbolizer: *mut blazesym,
+    sym_srcs: *const sym_src_cfg,
+    sym_srcs_len: u32,
+    pattern: *const c_char,
+) -> *const blazesym_sym_info {
+    blazesym_find_address_regex_opt(symbolizer, sym_srcs, sym_srcs_len, pattern, ptr::null(), 0)
+}
+
+/// Free an array returned by blazesym_find_addr_regex() or
+/// blazesym_find_addr_regex_opt().
+#[no_mangle]
+pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
+    if syms.is_null() {
+        #[cfg(debug_assertions)]
+        eprintln!("blazesym_sym_info_free(null)");
+        return;
+    }
+
+    let raw_buf_with_sz = (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize));
+    let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
+    dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
 }
 
 /// Find the addresses of a list of symbols.

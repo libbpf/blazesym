@@ -11,6 +11,8 @@ use std::u64;
 
 use crate::SymResolver;
 
+use regex::Regex;
+
 const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
 
@@ -137,22 +139,44 @@ impl SymResolver for KSymResolver {
         None
     }
 
-    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<SymbolInfo> {
+    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         if let SymbolType::Variable = opts.sym_type {
             return None;
         }
         self.ensure_sym_to_addr();
 
         if let Some(addr) = self.sym_to_addr.borrow().get(name) {
-            return Some(SymbolInfo {
+            return Some(vec![SymbolInfo {
                 name: name.to_string(),
                 address: *addr,
                 size: 0,
                 sym_type: SymbolType::Function,
                 ..Default::default()
-            });
+            }]);
         }
         None
+    }
+
+    fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+        if let SymbolType::Variable = opts.sym_type {
+            return None;
+        }
+        self.ensure_sym_to_addr();
+
+        let re = Regex::new(pattern).unwrap();
+        let mut syms = vec![];
+        for (name, addr) in self.sym_to_addr.borrow().iter() {
+            if re.is_match(name) {
+                syms.push(SymbolInfo {
+                    name: name.to_string(),
+                    address: *addr,
+                    size: 0,
+                    sym_type: SymbolType::Function,
+                    ..Default::default()
+                });
+            }
+        }
+        Some(syms)
     }
 
     fn find_line_info(&self, _addr: u64) -> Option<super::AddressLineInfo> {
@@ -249,7 +273,7 @@ mod tests {
         };
         let found = resolver.find_address(&name, &opts);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().address, addr);
+        assert!(found.unwrap().iter().any(|x| x.address == addr));
     }
 
     #[test]
