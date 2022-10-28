@@ -1,5 +1,5 @@
 use super::elf::Elf64Parser;
-use super::tools::{extract_string, search_address_key};
+use super::tools::search_address_key;
 use super::{FindAddrOpts, SymbolInfo, SymbolType};
 use crossbeam_channel::unbounded;
 
@@ -16,6 +16,7 @@ use std::time::Instant;
 use std::env;
 
 use std::clone::Clone;
+use std::ffi::CStr;
 use std::sync::mpsc;
 use std::thread;
 
@@ -898,7 +899,7 @@ pub struct DwarfResolver {
     debug_line_cus: Vec<DebugLineCU>,
     addr_to_dlcu: Vec<(u64, u32)>,
     enable_debug_info_syms: bool,
-    debug_info_syms: RefCell<Option<Vec<DWSymInfo>>>,
+    debug_info_syms: RefCell<Option<Vec<DWSymInfo<'static>>>>,
 }
 
 impl DwarfResolver {
@@ -1015,7 +1016,7 @@ impl DwarfResolver {
                 return Ok(());
             }
             let mut debug_info_syms = debug_info_parse_symbols(&self.parser, None, 1)?;
-            debug_info_syms.sort_by_key(|v: &DWSymInfo| -> String { v.name.clone() });
+            debug_info_syms.sort_by_key(|v: &DWSymInfo| -> &str { v.name });
             *dis_ref = Some(unsafe { mem::transmute(debug_info_syms) });
         }
         Ok(())
@@ -1040,7 +1041,7 @@ impl DwarfResolver {
         let dis_ref = self.debug_info_syms.borrow();
         let debug_info_syms = dis_ref.as_ref().unwrap();
         let mut idx =
-            match debug_info_syms.binary_search_by_key(&name.to_string(), |v| v.name.clone()) {
+            match debug_info_syms.binary_search_by_key(&name.to_string(), |v| v.name.to_string()) {
                 Ok(idx) => idx,
                 _ => {
                     return Ok(vec![]);
@@ -1134,8 +1135,8 @@ impl DwarfResolver {
 
 /// The symbol information extracted out of DWARF.
 #[derive(Clone)]
-struct DWSymInfo {
-    name: String,
+struct DWSymInfo<'a> {
+    name: &'a str,
     address: u64,
     size: u64,
     sym_type: SymbolType, // A function or a variable.
@@ -1168,10 +1169,10 @@ fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
 /// * `str_data` - is the content of the `.debug_str` section.
 ///
 /// Return a [`DWSymInfo`] if it finds the address of the subprogram.
-fn parse_die_subprogram(
-    die: &mut debug_info::DIE<'_>,
-    str_data: &[u8],
-) -> Result<Option<DWSymInfo>, Error> {
+fn parse_die_subprogram<'a>(
+    die: &mut debug_info::DIE<'a>,
+    str_data: &'a [u8],
+) -> Result<Option<DWSymInfo<'a>>, Error> {
     let mut addr: Option<u64> = None;
     let mut name_str: Option<&str> = None;
     let mut size = 0;
@@ -1183,14 +1184,16 @@ fn parse_die_subprogram(
                     continue;
                 }
                 name_str = Some(match value {
-                    debug_info::AttrValue::Unsigned(str_off) => {
-                        extract_string(&str_data, str_off as usize).ok_or_else(|| {
-                            Error::new(
-                                ErrorKind::InvalidData,
-                                "fail to extract the name of a subprogram",
-                            )
-                        })?
-                    }
+                    debug_info::AttrValue::Unsigned(str_off) => unsafe {
+                        CStr::from_ptr((&str_data[str_off as usize..]).as_ptr() as *const i8)
+                            .to_str()
+                            .or_else(|_e| {
+                                Err(Error::new(
+                                    ErrorKind::InvalidData,
+                                    "fail to extract the name of a subprogram",
+                                ))
+                            })?
+                    },
                     debug_info::AttrValue::String(s) => s,
                     _ => {
                         return Err(Error::new(
@@ -1228,7 +1231,7 @@ fn parse_die_subprogram(
 
     if addr.is_some() && name_str.is_some() {
         Ok(Some(DWSymInfo {
-            name: name_str.unwrap().to_string(),
+            name: name_str.unwrap(),
             address: addr.unwrap(),
             size,
             sym_type: SymbolType::Function,
@@ -1249,8 +1252,8 @@ fn parse_die_subprogram(
 /// * `found_syms` - the Vec to append the found symbols.
 fn debug_info_parse_symbols_cu<'a>(
     mut dieiter: debug_info::DIEIter<'a>,
-    str_data: &[u8],
-    found_syms: &mut Vec<DWSymInfo>,
+    str_data: &'a [u8],
+    found_syms: &mut Vec<DWSymInfo<'a>>,
 ) {
     while let Some(mut die) = dieiter.next() {
         if die.tag == 0 || die.tag == constants::DW_TAG_namespace {
@@ -1286,8 +1289,8 @@ fn debug_info_parse_symbols_cu<'a>(
 /// coordinator that a matching condition is met.  It could be that
 /// the given symbol is already found, so that the coordinator should
 /// stop producing more tasks.
-enum DIParseResult {
-    Symbols(Vec<DWSymInfo>),
+enum DIParseResult<'a> {
+    Symbols(Vec<DWSymInfo<'a>>),
     Stop,
 }
 
@@ -1301,18 +1304,18 @@ enum DIParseResult {
 ///            condition is met.
 /// * `nthreads` - is the number of worker threads to create. 0 or 1
 ///                means single thread.
-fn debug_info_parse_symbols(
-    parser: &Elf64Parser,
-    cond: Option<&(dyn Fn(&DWSymInfo) -> bool + Send + Sync)>,
+fn debug_info_parse_symbols<'a>(
+    parser: &'a Elf64Parser,
+    cond: Option<&(dyn Fn(&DWSymInfo<'a>) -> bool + Send + Sync)>,
     nthreads: usize,
-) -> Result<Vec<DWSymInfo>, Error> {
+) -> Result<Vec<DWSymInfo<'a>>, Error> {
     let info_sect_idx = parser.find_section(".debug_info")?;
-    let info_data = parser.read_section_raw(info_sect_idx)?;
+    let info_data = parser.read_section_raw_cache(info_sect_idx)?;
     let abbrev_sect_idx = parser.find_section(".debug_abbrev")?;
-    let abbrev_data = parser.read_section_raw(abbrev_sect_idx)?;
+    let abbrev_data = parser.read_section_raw_cache(abbrev_sect_idx)?;
     let units = debug_info::UnitIter::new(&info_data, &abbrev_data);
     let str_sect_idx = parser.find_section(".debug_str")?;
-    let str_data = parser.read_section_raw(str_sect_idx)?;
+    let str_data = parser.read_section_raw_cache(str_sect_idx)?;
 
     #[cfg(feature = "dwarf_perf")]
     let now = Instant::now();
@@ -1324,13 +1327,12 @@ fn debug_info_parse_symbols(
             // Create worker threads to process tasks (Units) in a work
             // queue.
             let mut handles = vec![];
-            let (qsend, qrecv) = unbounded::<debug_info::DIEIter<'_>>();
+            let (qsend, qrecv) = unbounded::<debug_info::DIEIter<'a>>();
             let (result_tx, result_rx) = mpsc::channel::<DIParseResult>();
 
             for _ in 0..nthreads {
                 let result_tx = result_tx.clone();
                 let qrecv = qrecv.clone();
-		let str_data = &str_data;
 
                 let handle = s.spawn(move || {
                     let mut syms: Vec<DWSymInfo> = vec![];
@@ -1394,7 +1396,7 @@ fn debug_info_parse_symbols(
                 match uhdr {
                     debug_info::UnitHeader::CompileV4(_) => {
                         let saved_sz = syms.len();
-                        debug_info_parse_symbols_cu(dieiter, str_data.as_slice(), &mut syms);
+                        debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
                         for sym in &syms[saved_sz..] {
                             if !cond(&sym) {
                                 break 'outer;
@@ -1408,7 +1410,7 @@ fn debug_info_parse_symbols(
             for (uhdr, dieiter) in units {
                 match uhdr {
                     debug_info::UnitHeader::CompileV4(_) => {
-                        debug_info_parse_symbols_cu(dieiter, str_data.as_slice(), &mut syms);
+                        debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
                     }
                     _ => {}
                 }
@@ -1647,14 +1649,14 @@ mod tests {
         assert_eq!(
             (test_debug_info_parse_symbols as fn() as *const fn() as i64)
                 - (debug_info_parse_symbols
-                    as fn(
-                        &Elf64Parser,
-                        Option<&(dyn Fn(&DWSymInfo) -> bool + Send + Sync)>,
+                    as for<'a> fn(
+                        &'a Elf64Parser,
+                        Option<&(dyn Fn(&DWSymInfo<'a>) -> bool + Send + Sync)>,
                         usize,
-                    ) -> Result<Vec<DWSymInfo>, Error>
-                    as *const fn(
-                        &Elf64Parser,
-                        Option<&(dyn Fn(&DWSymInfo) -> bool + Send + Sync)>,
+                    ) -> Result<Vec<DWSymInfo<'a>>, Error>
+                    as *const (
+                        &'_ Elf64Parser,
+                        Option<&(dyn Fn(&DWSymInfo<'_>) -> bool + Send + Sync)>,
                         usize,
                     ) as i64),
             myself_addr as i64 - parse_symbols_addr as i64
