@@ -280,6 +280,7 @@ struct Elf64ParserBack {
     symtab_origin: Option<Vec<Elf64_Sym>>, // The copy in the same order as the file
     strtab: Option<Vec<u8>>,
     str2symtab: Option<Vec<(usize, usize)>>, // strtab offset to symtab in the dictionary order
+    sect_cache: Vec<Option<Vec<u8>>>,
 }
 
 /// A parser against ELF64 format.
@@ -304,6 +305,7 @@ impl Elf64Parser {
                 symtab_origin: None,
                 strtab: None,
                 str2symtab: None,
+                sect_cache: vec![],
             }),
         };
         Ok(parser)
@@ -355,6 +357,7 @@ impl Elf64Parser {
         }
 
         let shdrs = read_elf_sections(&mut *self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
+        me.sect_cache.resize(shdrs.len(), None);
         me.shdrs = Some(shdrs);
 
         Ok(())
@@ -528,6 +531,23 @@ impl Elf64Parser {
             &mut *self.file.borrow_mut(),
             &me.shdrs.as_ref().unwrap()[sect_idx],
         )
+    }
+
+    /// Read the raw data of the section of a given index.
+    pub fn read_section_raw_cache(&self, sect_idx: usize) -> Result<&[u8], Error> {
+        self.check_section_index(sect_idx)?;
+        self.ensure_shdrs()?;
+
+        let mut me = self.backobj.borrow_mut();
+        if me.sect_cache[sect_idx].is_none() {
+            let buf = read_elf_section_raw(
+                &mut *self.file.borrow_mut(),
+                &me.shdrs.as_ref().unwrap()[sect_idx],
+            )?;
+            me.sect_cache[sect_idx] = Some(buf);
+        }
+
+        Ok(unsafe { mem::transmute(me.sect_cache[sect_idx].as_ref().unwrap().as_slice()) })
     }
 
     /// Get the name of the section of a given index.
