@@ -32,10 +32,12 @@ use nix::sys::utsname;
 mod dwarf;
 mod elf;
 mod elf_cache;
+mod gsym;
 mod ksym;
 mod tools;
 
 use elf_cache::{ElfBackend, ElfCache};
+use gsym::GsymResolver;
 use ksym::{KSymCache, KSymResolver};
 
 struct CacheHolder {
@@ -632,6 +634,10 @@ pub enum SymbolSrcCfg {
     ///
     /// With a `None` value, it would means a process calling BlazeSym.
     Process { pid: Option<u32> },
+    Gsym {
+        file_name: PathBuf,
+        base_address: u64,
+    },
 }
 
 /// The result of symbolization by BlazeSymbolizer.
@@ -762,6 +768,13 @@ impl ResolverMap {
                         #[cfg(debug_assertions)]
                         eprintln!("Fail to load symbols for the process {}: {:?}", pid, _e);
                     }
+                }
+                SymbolSrcCfg::Gsym {
+                    file_name,
+                    base_address,
+                } => {
+                    let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
+                    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
             };
         }
@@ -2071,6 +2084,8 @@ pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::path::Path;
 
     #[test]
     fn hello_world_stack() {
@@ -2165,5 +2180,39 @@ mod tests {
         let kresolver = KernelResolver::new(kallsyms, kernel_image, &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());
         assert!(kresolver.kernelresolver.is_none());
+    }
+
+    #[test]
+    fn load_gsym_resolver() {
+        let args: Vec<String> = env::args().collect();
+        let bin_name = &args[0];
+        let test_gsym = Path::new(bin_name)
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("data")
+            .join("test.gsym");
+        let base: u64 = 0x77a7000; // pickup randomly.
+        let features = vec![SymbolizerFeature::LineNumberInfo(true)];
+        let srcs = vec![SymbolSrcCfg::Gsym {
+            file_name: test_gsym,
+            base_address: base,
+        }];
+        let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
+        // Check gsym-example.c for this hard-coded addresses
+        let syms_lst = symbolizer.symbolize(&srcs, &[0x2020000 + base]);
+        let mut cnt = 0;
+        for syms in syms_lst {
+            for sym in syms {
+                assert_eq!(sym.symbol, "factorial");
+                cnt += 1;
+            }
+        }
+        assert_eq!(cnt, 1);
     }
 }
