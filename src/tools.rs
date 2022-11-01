@@ -185,3 +185,51 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
 
     Ok(entries)
 }
+
+#[inline(always)]
+pub fn decode_uhalf(data: &[u8]) -> u16 {
+    (data[0] as u16) | ((data[1] as u16) << 8)
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+pub fn decode_shalf(data: &[u8]) -> i16 {
+    let uh = decode_uhalf(data);
+    if uh >= 0x8000 {
+        ((uh as i32) - 0x10000) as i16
+    } else {
+        uh as i16
+    }
+}
+
+#[inline(always)]
+pub fn decode_uword(data: &[u8]) -> u32 {
+    (data[0] as u32) | ((data[1] as u32) << 8) | ((data[2] as u32) << 16) | ((data[3] as u32) << 24)
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+pub fn decode_sword(data: &[u8]) -> i32 {
+    let uw = decode_uword(data);
+    if uw >= 0x80000000 {
+        ((uw as i64) - 0x100000000) as i32
+    } else {
+        uw as i32
+    }
+}
+
+#[inline(always)]
+pub fn decode_udword(data: &[u8]) -> u64 {
+    decode_uword(data) as u64 | ((decode_uword(&data[4..]) as u64) << 32)
+}
+
+#[allow(dead_code)]
+#[inline(always)]
+pub fn decode_swdord(data: &[u8]) -> i64 {
+    let udw = decode_udword(data);
+    if udw >= 0x8000000000000000 {
+        ((udw as i128) - 0x10000000000000000) as i64
+    } else {
+        udw as i64
+    }
+}

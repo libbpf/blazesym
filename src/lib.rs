@@ -17,6 +17,7 @@ use std::ptr;
 use std::alloc::{alloc, dealloc, Layout};
 use std::mem;
 use std::os::raw::c_char;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use nix::sys::stat::stat;
@@ -26,10 +27,12 @@ use nix::sys::utsname;
 mod dwarf;
 mod elf;
 mod elf_cache;
+mod gsym;
 mod ksym;
 mod tools;
 
 use elf_cache::{ElfBackend, ElfCache};
+use gsym::GsymResolver;
 use ksym::{KSymCache, KSymResolver};
 
 struct CacheHolder {
@@ -652,6 +655,10 @@ pub enum SymbolSrcCfg {
     ///
     /// With a `None` value, it would means a process calling BlazeSym.
     Process { pid: Option<u32> },
+    Gsym {
+        file_name: PathBuf,
+        base_address: u64,
+    },
 }
 
 /// The result of symbolization by BlazeSymbolizer.
@@ -783,6 +790,13 @@ impl ResolverMap {
                         #[cfg(debug_assertions)]
                         eprintln!("Fail to load symbols for the process {}: {:?}", pid, _e);
                     }
+                }
+                SymbolSrcCfg::Gsym {
+                    file_name,
+                    base_address,
+                } => {
+                    let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
+                    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
             };
         }
