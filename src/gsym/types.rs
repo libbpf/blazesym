@@ -33,6 +33,25 @@ pub struct AddressData<'a> {
     pub data: &'a [u8],
 }
 
+#[derive(Clone)]
+pub struct LineTableRow {
+    pub address: u64,
+    pub file_idx: u32,
+    pub file_line: u32,
+}
+
+pub struct LineTableHeader {
+    /// `min_data` & `max_delta` together is used to set the range and
+    /// encoding of line delta in special operator.  Line delta is the
+    /// number of lines that a line table row is different from the
+    /// previous row.
+    ///
+    /// See `Special operators` in lintab.rs.
+    pub min_delta: i64,
+    pub max_delta: i64,
+    pub first_line: u32,
+}
+
 #[allow(non_upper_case_globals)]
 pub const InfoTypeEndOfList: u32 = 0;
 #[allow(non_upper_case_globals)]

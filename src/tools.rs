@@ -248,7 +248,6 @@ pub fn decode_uword(data: &[u8]) -> u32 {
     (data[0] as u32) | ((data[1] as u32) << 8) | ((data[2] as u32) << 16) | ((data[3] as u32) << 24)
 }
 
-#[allow(dead_code)]
 #[inline(always)]
 pub fn decode_sword(data: &[u8]) -> i32 {
     let uw = decode_uword(data);
@@ -264,7 +263,6 @@ pub fn decode_udword(data: &[u8]) -> u64 {
     decode_uword(data) as u64 | ((decode_uword(&data[4..]) as u64) << 32)
 }
 
-#[allow(dead_code)]
 #[inline(always)]
 pub fn decode_swdord(data: &[u8]) -> i64 {
     let udw = decode_udword(data);

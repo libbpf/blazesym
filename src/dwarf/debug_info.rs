@@ -21,8 +21,10 @@
 //! It will walk through the data in the `.debug_info` and
 //! `.debug_abbrev` section to return Units.
 use super::constants::*;
-use super::{decode_leb128_128, decode_leb128_128_s, decode_udword, decode_uhalf, decode_uword};
-use crate::tools::extract_string;
+use crate::tools::{
+    decode_leb128_128, decode_leb128_128_s, decode_udword, decode_uhalf, decode_uword,
+    extract_string,
+};
 use std::io::{Error, ErrorKind};
 use std::iter::Iterator;
 use std::mem;

@@ -1340,6 +1340,7 @@ fn debug_info_parse_symbols<'a>(
 
 #[cfg(test)]
 mod tests {
+    use super::super::tools::{decode_shalf, decode_sword};
     use super::*;
 
     #[test]
