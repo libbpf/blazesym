@@ -2131,6 +2131,8 @@ pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazes
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
+    use std::path::Path;
 
     #[test]
     fn hello_world_stack() {
@@ -2241,5 +2243,36 @@ mod tests {
         let kresolver = KernelResolver::new("/proc/kallsyms", "/dev/null", &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());
         assert!(kresolver.kernelresolver.is_none());
+    }
+
+    #[test]
+    fn load_gsym_resolver() {
+        let args: Vec<String> = env::args().collect();
+        let bin_name = &args[0];
+        let test_gsym = Path::new(bin_name)
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("data")
+            .join("test.gsym");
+        let base: u64 = 0x77a7000; // pickup randomly.
+        let features = vec![SymbolizerFeature::LineNumberInfo(true)];
+        let srcs = vec![SymbolSrcCfg::Gsym {
+            file_name: test_gsym.to_str().unwrap().to_string(),
+            base_address: base,
+        }];
+        let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
+        let syms_lst = symbolizer.symbolize(&srcs, &vec![0x29bdaa + base]);
+        for syms in syms_lst {
+            for sym in syms {
+                assert!(sym.symbol.starts_with("_ZN83_$LT$alloc..vec..set_len_on_drop..SetLenOnDrop$u20$as$u20$core..ops..drop..Drop$GT$4drop"));
+                assert!(sym.path.ends_with("set_len_on_drop.rs"));
+            }
+        }
     }
 }
