@@ -672,6 +672,14 @@ impl Elf64Parser {
 
                 let mut found = vec![];
                 for idx in idx..str2symtab.len() {
+                    let name_visit = unsafe {
+                        CStr::from_ptr(&strtab[str2symtab[idx].0] as *const u8 as *const i8)
+                            .to_str()
+                            .unwrap()
+                    };
+                    if !name_visit.eq(name) {
+                        break;
+                    }
                     let sym_i = str2symtab[idx].1;
                     let sym_ref = &me.symtab.as_ref().unwrap()[sym_i];
                     if !sym_ref.is_undef() {
@@ -902,7 +910,8 @@ mod tests {
             obj_file_name: false,
             sym_type: SymbolType::Unknown,
         };
-        let addr_r = parser.find_address(sym_name, &opts);
-        assert!(addr_r.unwrap().iter().any(|x| x.address == addr));
+        let addr_r = parser.find_address(sym_name, &opts).unwrap();
+        assert_eq!(addr_r.len(), 1);
+        assert!(addr_r.iter().any(|x| x.address == addr));
     }
 }

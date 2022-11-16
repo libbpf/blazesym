@@ -1032,9 +1032,11 @@ impl DwarfResolver {
         if let SymbolType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
         }
-        let r = self.parser.find_address(name, opts);
-        if r.is_ok() {
-            return r;
+        let elf_r = self.parser.find_address(name, opts)?;
+        if !elf_r.is_empty() {
+            // Since it is found from symtab, symtab should be
+            // complete and DWARF shouldn't provide more information.
+            return Ok(elf_r);
         }
 
         self.ensure_debug_info_syms()?;
