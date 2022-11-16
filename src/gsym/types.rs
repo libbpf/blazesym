@@ -58,3 +58,16 @@ pub const InfoTypeEndOfList: u32 = 0;
 pub const InfoTypeLineTableInfo: u32 = 1;
 #[allow(non_upper_case_globals)]
 pub const InfoTypeInlineInfo: u32 = 2;
+
+pub struct OffsetRange {
+    pub addr_offset: u64,
+    pub size: u64,
+}
+
+pub struct InlineInfo {
+    pub ranges: Vec<OffsetRange>,
+    pub name: u32,
+    pub has_children: bool,
+    pub call_file: u64,
+    pub call_line: u64,
+}

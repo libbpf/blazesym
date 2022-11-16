@@ -1,17 +1,19 @@
 use std::fs::File;
 use std::io::{Error, Read};
 use std::mem;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use super::{AddressLineInfo, FindAddrOpts, SymResolver, SymbolInfo};
+use super::{AddressLineInfo, FindAddrOpts, InlineFunc, SymResolver, SymbolInfo};
 
 mod linetab;
 mod parser;
 mod types;
 
 use linetab::{line_table_row_from, run_op, RunResult};
-use parser::{find_address, parse_address_data, parse_line_table_header, GsymContext};
-use types::InfoTypeLineTableInfo;
+use parser::{
+    find_address, parse_address_data, parse_line_table_header, GsymContext, InlineInfoContext,
+};
+use types::{InfoTypeInlineInfo, InfoTypeLineTableInfo};
 
 /// The symbol resolver for the GSYM format.
 pub struct GsymResolver {
@@ -152,6 +154,44 @@ impl SymResolver for GsymResolver {
         self.file_name.to_str().unwrap().to_string()
     }
 
+    fn find_inline_functions(&self, addr: u64) -> Option<Vec<InlineFunc>> {
+        let addr = addr - self.loaded_address;
+        let idx = find_address(&self.ctx, addr);
+        let symaddr = self.ctx.addr_at(idx);
+        if addr < symaddr {
+            return None;
+        }
+        let addrinfo = self.ctx.addr_info(idx);
+        if addr >= (symaddr + addrinfo.size as u64) {
+            return None;
+        }
+
+        let addrdatas = parse_address_data(addrinfo.data);
+        let addrdata = addrdatas
+            .iter()
+            .find(|addrdata| addrdata.typ == InfoTypeInlineInfo);
+        if addrdata.is_none() {
+            return Some(vec![]);
+        }
+        let addrdata = addrdata.unwrap();
+
+        let mut inline_ctx = InlineInfoContext::new(addrdata.data, symaddr);
+        inline_ctx.seek_address(addr).ok()?;
+
+        let stk = inline_ctx.get_inline_stack().iter().map(|info| {
+            let file_info = self.ctx.file_info(info.call_file as usize);
+            let dir = self.ctx.get_str(file_info.directory as usize);
+            let fname = self.ctx.get_str(file_info.filename as usize);
+            let full_path = Path::new(dir).join(fname).to_str().unwrap().to_string();
+            InlineFunc {
+                name: self.ctx.get_str(info.name as usize).to_string(),
+                file_name: full_path,
+                line_no: info.call_line as usize,
+            }
+        });
+        Some(stk.collect())
+    }
+
     fn repr(&self) -> String {
         format!("GSYM {:?}", self.file_name)
     }
@@ -161,7 +201,6 @@ impl SymResolver for GsymResolver {
 mod tests {
     use super::*;
     use std::env;
-    use std::path::Path;
 
     #[test]
     fn test_find_line_info() {

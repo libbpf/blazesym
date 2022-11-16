@@ -340,6 +340,229 @@ pub fn parse_line_table_header(data: &[u8]) -> Result<(LineTableHeader, usize), 
     ))
 }
 
+/// InlineInfoContext maintains the states to travel the tree of inline information.
+///
+/// The inline information of GSYM is represented as a tree of address
+/// ranges.  The range of a parent InlineInfo will cover every ranges
+/// of children.  This type tries to find the InlineInfo with the
+/// fittest range.  The InlineInfos along the path from the root to
+/// the fittest one are the functions inlined.
+pub struct InlineInfoContext<'a> {
+    data: &'a [u8],
+    offset: usize,
+    inline_stack: Vec<InlineInfo>,
+    address: u64,
+}
+
+impl<'a> InlineInfoContext<'a> {
+    pub fn new(data: &[u8], address: u64) -> InlineInfoContext {
+        InlineInfoContext {
+            data,
+            offset: 0,
+            inline_stack: vec![],
+            address,
+        }
+    }
+
+    /// Parse one InlineInfo.
+    fn parse_one(data: &[u8]) -> Result<(InlineInfo, usize), Error> {
+        let (num_ranges, bytes) = decode_leb128(data)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse num_ranges"))?;
+        let mut off = bytes as usize;
+
+        if num_ranges == 0 {
+            // Empty InlineInfo
+            return Ok((
+                InlineInfo {
+                    ranges: vec![],
+                    name: 0,
+                    has_children: false,
+                    call_file: 0,
+                    call_line: 0,
+                },
+                off,
+            ));
+        }
+
+        let mut ranges = vec![];
+        for _ in 0..num_ranges {
+            let (addr_offset, bytes) = decode_leb128(&data[off..])
+                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse addr_offset"))?;
+            off += bytes as usize;
+            let (size, bytes) = decode_leb128(&data[off..])
+                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse size"))?;
+            off += bytes as usize;
+            ranges.push(OffsetRange { addr_offset, size });
+        }
+
+        if off >= data.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "can not parse has_children",
+            ));
+        }
+        let has_children = data[off] > 0;
+        off += 1;
+
+        if (off + 4) > data.len() {
+            return Err(Error::new(ErrorKind::InvalidData, "can not parse name"));
+        }
+        let name = decode_uword(&data[off..]);
+        off += 4;
+
+        let (call_file, bytes) = decode_leb128(&data[off..])
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse call_file"))?;
+        off += bytes as usize;
+        let (call_line, bytes) = decode_leb128(&data[off..])
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse call_line"))?;
+        off += bytes as usize;
+
+        Ok((
+            InlineInfo {
+                ranges,
+                name,
+                has_children,
+                call_file,
+                call_line,
+            },
+            off,
+        ))
+    }
+
+    #[inline(always)]
+    fn is_done(&self) -> bool {
+        self.inline_stack.is_empty() && self.offset == self.data.len()
+    }
+
+    /// Parse one InlineInfo from the `data` and maintain the `inline_stack`.
+    ///
+    /// `inline_stack` stores `InlineInfo`s of all inline callers.
+    fn step(&mut self) -> Result<(), Error> {
+        if !self.inline_stack.is_empty() && self.top().ranges.is_empty() {
+            // If ranges is empty, it is an empty InlineInfo and the
+            // last one of its siblings.
+            self.inline_stack.pop().unwrap(); // pop empty one
+            self.inline_stack.pop().unwrap(); // pop parent
+        }
+
+        if self.is_done() {
+            // Complete the whole inline informatin.
+            return Ok(());
+        }
+
+        if self.inline_stack.is_empty() {
+            if self.offset > 0 {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "garbage data at the tail",
+                ));
+            }
+        }
+
+        let (info, bytes) = InlineInfoContext::parse_one(&self.data[self.offset..])?;
+        self.offset += bytes;
+        if self.inline_stack.is_empty() || self.top().has_children {
+            self.inline_stack.push(info);
+        } else {
+            let stk_len = self.inline_stack.len();
+            self.inline_stack[stk_len - 1] = info;
+        }
+        Ok(())
+    }
+
+    /// Skip all children until find the next sibling.
+    ///
+    /// It doesn't move if the current InlineInfo is the last one of
+    /// its siblings.
+    fn skip_to_sibling(&mut self) -> Result<(), Error> {
+        if self.inline_stack.is_empty() || self.top().ranges.is_empty() {
+            return Ok(());
+        }
+        let depth = self.inline_stack.len();
+        self.step()?;
+        while self.inline_stack.len() != depth {
+            self.step()?;
+        }
+        Ok(())
+    }
+
+    /// The start address of ranges are offsets from the first range
+    /// of the parent InlineInfo.  We need to recover its values by
+    /// adding offsets of InlineInfo on the inline stack together.
+    fn top_ranges(&self) -> Vec<(u64, u64)> {
+        let mut addr = self.address;
+        if self.inline_stack.len() > 1 {
+            for info in &self.inline_stack[0..self.inline_stack.len() - 1] {
+                addr += info.ranges[0].addr_offset;
+            }
+        }
+        self.inline_stack[self.inline_stack.len() - 1]
+            .ranges
+            .iter()
+            .map(|x| (x.addr_offset + addr, x.size))
+            .collect()
+    }
+
+    #[inline(always)]
+    fn top(&self) -> &InlineInfo {
+        &self.inline_stack[self.inline_stack.len() - 1]
+    }
+
+    /// Seek to the most inner InlineInfo.
+    ///
+    /// The context will stop at an address range that covers the
+    /// given `addr` if there is.  [`get_inline_stack()`] will returns
+    /// all inlined functions in the range.
+    pub fn seek_address(&mut self, addr: u64) -> Result<(), Error> {
+        self.step()?;
+        while !self.is_done() {
+            if !self.top().has_children {
+                // The last sibling.
+                break;
+            }
+
+            if self.top().ranges.is_empty() {
+                return Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "An empty InlineInfo should not have children",
+                ));
+            }
+
+            if !self
+                .top_ranges()
+                .iter()
+                .any(|(start, size)| addr >= *start && addr < (*start + *size))
+            {
+                self.skip_to_sibling()?;
+                continue;
+            }
+
+            self.step()?;
+        }
+
+        if self.inline_stack.is_empty()
+            || self.inline_stack.len() == 1 && self.top().ranges.is_empty()
+        {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "even most outer inline fucntion doesn't match",
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Get a list of inlined functions at the visiting range of addresses.
+    #[inline(always)]
+    pub fn get_inline_stack(&self) -> &[InlineInfo] {
+        if self.inline_stack.len() == 1 && self.top().ranges.is_empty() {
+            &self.inline_stack[0..self.inline_stack.len() - 1]
+        } else {
+            &self.inline_stack
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::linetab::{run_op, RunResult};
@@ -460,5 +683,83 @@ mod tests {
 
         let idx = find_address(&ctx, 0x29bda0);
         assert_eq!(idx, ctx.num_addresses() * 4 / 5);
+    }
+
+    #[test]
+    fn test_parse_inline() {
+        let args: Vec<String> = env::args().collect();
+        let bin_name = &args[0];
+        let test_gsym = Path::new(bin_name)
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("data")
+            .join("test.gsym");
+        let mut gsym_fo = File::open(test_gsym).unwrap();
+        let mut data = vec![];
+
+        gsym_fo.read_to_end(&mut data).unwrap();
+        let ctx = GsymContext::parse_header(&data).unwrap();
+
+        let tgt_addr = 0x000000000005748c;
+        let idx = find_address(&ctx, tgt_addr);
+        assert_eq!(ctx.addr_at(idx), 0x0000000000057450);
+        let addrinfo = ctx.addr_info(idx);
+        let name = ctx.get_str(addrinfo.name as usize);
+        assert_eq!(name, "_ZN5alloc7raw_vec19RawVec$LT$T$C$A$GT$7reserve21do_reserve_and_handle17h3ce596ce01cf1646E");
+
+        let addrdata_objs = parse_address_data(addrinfo.data);
+        assert_eq!(addrdata_objs.len(), 3);
+        let mut has_inline_info = false;
+        for o in addrdata_objs {
+            if o.typ == InfoTypeInlineInfo {
+                has_inline_info = true;
+                let mut inlinectx = InlineInfoContext::new(o.data, ctx.addr_at(idx));
+                inlinectx.seek_address(tgt_addr).unwrap();
+                let mut stk = inlinectx.get_inline_stack().iter();
+
+                let info = stk.next().unwrap();
+                let name = ctx.get_str(info.name as usize);
+                assert_eq!(name, "_ZN5alloc7raw_vec19RawVec$LT$T$C$A$GT$7reserve21do_reserve_and_handle17h3ce596ce01cf1646E");
+
+                let info = stk.next().unwrap();
+                let name = ctx.get_str(info.name as usize);
+                assert_eq!(
+                    name,
+                    "_ZN5alloc7raw_vec19RawVec$LT$T$C$A$GT$14grow_amortized17h32cc679ebe2fdabaE"
+                );
+
+                let info = stk.next().unwrap();
+                let name = ctx.get_str(info.name as usize);
+                assert_eq!(
+                    name,
+                    "_ZN4core5alloc6layout6Layout5array17hf88dd242b9f204beE"
+                );
+
+                let info = stk.next().unwrap();
+                let name = ctx.get_str(info.name as usize);
+                assert_eq!(
+                    name,
+                    "_ZN4core5alloc6layout6Layout5array5inner17he9a14bee5003983fE"
+                );
+                let file_info = ctx.file_info(info.call_file as usize);
+                let fname = format!(
+                    "{}/{}",
+                    ctx.get_str(file_info.directory as usize),
+                    ctx.get_str(file_info.filename as usize)
+                );
+                assert_eq!(
+                    fname,
+                    "/rustc/17cbdfd07178349d0a3cecb8e7dde8f915666ced/library/alloc/src/raw_vec.rs"
+                );
+                assert_eq!(info.call_line, 397);
+            }
+        }
+        assert!(has_inline_info);
     }
 }
