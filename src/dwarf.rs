@@ -1,5 +1,7 @@
 use super::elf::Elf64Parser;
-use super::tools::search_address_key;
+use super::tools::{
+    decode_leb128, decode_leb128_s, decode_udword, decode_uhalf, decode_uword, search_address_key,
+};
 use super::{FindAddrOpts, SymbolInfo, SymbolType};
 use crossbeam_channel::unbounded;
 
@@ -26,96 +28,6 @@ use regex::Regex;
 mod constants;
 #[allow(non_upper_case_globals)]
 mod debug_info;
-
-#[inline]
-fn decode_leb128_128(data: &[u8]) -> Option<(u128, u8)> {
-    let mut sz = 0;
-    let mut v: u128 = 0;
-    for c in data {
-        v |= ((c & 0x7f) as u128) << sz;
-        sz += 7;
-        if (c & 0x80) == 0 {
-            return Some((v, sz / 7));
-        }
-    }
-    None
-}
-
-#[inline]
-fn decode_leb128(data: &[u8]) -> Option<(u64, u8)> {
-    match decode_leb128_128(data) {
-        Some((v, s)) => Some((v as u64, s)),
-        None => None,
-    }
-}
-
-fn decode_leb128_128_s(data: &[u8]) -> Option<(i128, u8)> {
-    if let Some((v, s)) = decode_leb128_128(data) {
-        let s_mask: u128 = 1 << (s * 7 - 1);
-        return if (v & s_mask) != 0 {
-            // negative
-            Some(((v as i128) - ((s_mask << 1) as i128), s))
-        } else {
-            Some((v as i128, s))
-        };
-    }
-    None
-}
-
-fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
-    match decode_leb128_128_s(data) {
-        Some((v, s)) => Some((v as i64, s)),
-        None => None,
-    }
-}
-
-#[inline(always)]
-fn decode_uhalf(data: &[u8]) -> u16 {
-    (data[0] as u16) | ((data[1] as u16) << 8)
-}
-
-#[allow(dead_code)]
-#[inline(always)]
-fn decode_shalf(data: &[u8]) -> i16 {
-    let uh = decode_uhalf(data);
-    if uh >= 0x8000 {
-        ((uh as i32) - 0x10000) as i16
-    } else {
-        uh as i16
-    }
-}
-
-#[inline(always)]
-fn decode_uword(data: &[u8]) -> u32 {
-    (data[0] as u32) | ((data[1] as u32) << 8) | ((data[2] as u32) << 16) | ((data[3] as u32) << 24)
-}
-
-#[allow(dead_code)]
-#[inline(always)]
-fn decode_sword(data: &[u8]) -> i32 {
-    let uw = decode_uword(data);
-    if uw >= 0x80000000 {
-        ((uw as i64) - 0x100000000) as i32
-    } else {
-        uw as i32
-    }
-}
-
-#[inline(always)]
-fn decode_udword(data: &[u8]) -> u64 {
-    decode_uword(data) as u64 | ((decode_uword(&data[4..]) as u64) << 32)
-}
-
-#[allow(dead_code)]
-#[inline(always)]
-fn decode_swdord(data: &[u8]) -> i64 {
-    let udw = decode_udword(data);
-    if udw >= 0x8000000000000000 {
-        ((udw as i128) - 0x10000000000000000) as i64
-    } else {
-        udw as i64
-    }
-}
 
 pub struct ArangesCU {
     pub debug_line_off: usize,
