@@ -58,10 +58,10 @@ struct ElfCacheEntry {
 
     file_name: String,
 
-    dev: u64,
-    inode: u64,
-    size: i64,
-    mtime_sec: i64,
+    dev: libc::dev_t,
+    inode: libc::ino_t,
+    size: libc::off_t,
+    mtime_sec: libc::time_t,
     mtime_nsec: i64,
     backend: ElfBackend,
 }

@@ -17,6 +17,7 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 nix = "0.24"
 regex = "1.6"
 crossbeam-channel = "0.5"
+libc = "0.2.137"
 
 [build-dependencies]
 cbindgen = "0.24"
