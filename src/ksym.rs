@@ -91,7 +91,7 @@ impl KSymResolver {
         }
     }
 
-    pub fn find_address_ksym(&self, addr: u64) -> Option<&Ksym> {
+    pub fn find_addresses_ksym(&self, addr: u64) -> Option<&Ksym> {
         let mut l = 0;
         let mut r = self.syms.len();
 
@@ -132,11 +132,11 @@ impl SymResolver for KSymResolver {
         (0xffffffff80000000, 0xffffffffffffffff)
     }
 
-    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
-        if let Some(sym) = self.find_address_ksym(addr) {
-            return Some((&sym.name, sym.addr));
+    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
+        if let Some(sym) = self.find_addresses_ksym(addr) {
+            return vec![(&sym.name, sym.addr)];
         }
-        None
+        vec![]
     }
 
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
@@ -240,28 +240,28 @@ mod tests {
         let sym = &resolver.syms[resolver.syms.len() / 2];
         let addr = sym.addr;
         let name = sym.name.clone();
-        let found = resolver.find_symbol(addr);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
+        let found = resolver.find_symbols(addr);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
         let addr = addr + 1;
-        let found = resolver.find_symbol(addr);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
+        let found = resolver.find_symbols(addr);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
 
         // Find the address of the first symbol
-        let found = resolver.find_symbol(0);
-        assert!(found.is_some());
+        let found = resolver.find_symbols(0);
+        assert!(!found.is_empty());
 
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
         let addr = sym.addr;
         let name = sym.name.clone();
-        let found = resolver.find_symbol(addr);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
-        let found = resolver.find_symbol(addr + 1);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
+        let found = resolver.find_symbols(addr);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
+        let found = resolver.find_symbols(addr + 1);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
 
         // Find the symbol placed at the one third
         let sym = &resolver.syms[resolver.syms.len() / 3];
@@ -284,5 +284,75 @@ mod tests {
         let resolver1 = cache.get_resolver(KALLSYMS);
         assert!(resolver.is_ok());
         assert!(resolver1.is_ok());
+    }
+
+    #[test]
+    fn find_address_ksym() {
+        let mut resolver = KSymResolver::new();
+        resolver.syms = vec![
+            Ksym {
+                addr: 0x123,
+                name: "1".to_string(),
+                c_name: RefCell::new(None),
+            },
+            Ksym {
+                addr: 0x123,
+                name: "1.5".to_string(),
+                c_name: RefCell::new(None),
+            },
+            Ksym {
+                addr: 0x1234,
+                name: "2".to_string(),
+                c_name: RefCell::new(None),
+            },
+            Ksym {
+                addr: 0x12345,
+                name: "3".to_string(),
+                c_name: RefCell::new(None),
+            },
+        ];
+
+        // The address is less than the smallest address of all symbols.
+        assert!(resolver.find_addresses_ksym(1).is_empty());
+
+        // The address match symbols exactly (the first address.)
+        let syms = resolver.find_addresses_ksym(0x123);
+        assert_eq!(syms.len(), 2);
+        assert_eq!(syms[0].addr, 0x123);
+        assert_eq!(syms[0].name, "1.5");
+        assert_eq!(syms[1].addr, 0x123);
+        assert_eq!(syms[1].name, "1");
+
+        // The address is in between two symbols (the first address.)
+        let syms = resolver.find_addresses_ksym(0x124);
+        assert_eq!(syms.len(), 2);
+        assert_eq!(syms[0].addr, 0x123);
+        assert_eq!(syms[0].name, "1.5");
+        assert_eq!(syms[1].addr, 0x123);
+        assert_eq!(syms[1].name, "1");
+
+        // The address match symbols exactly.
+        let syms = resolver.find_addresses_ksym(0x1234);
+        assert_eq!(syms.len(), 1);
+        assert_eq!(syms[0].addr, 0x1234);
+        assert_eq!(syms[0].name, "2");
+
+        // The address is in between two symbols.
+        let syms = resolver.find_addresses_ksym(0x1235);
+        assert_eq!(syms.len(), 1);
+        assert_eq!(syms[0].addr, 0x1234);
+        assert_eq!(syms[0].name, "2");
+
+        // The address match symbols exactly (the biggest address.)
+        let syms = resolver.find_addresses_ksym(0x12345);
+        assert_eq!(syms.len(), 1);
+        assert_eq!(syms[0].addr, 0x12345);
+        assert_eq!(syms[0].name, "3");
+
+        // The address is bigger than the biggest address of all symbols.
+        let syms = resolver.find_addresses_ksym(0x1234568);
+        assert_eq!(syms.len(), 1);
+        assert_eq!(syms[0].addr, 0x12345);
+        assert_eq!(syms[0].name, "3");
     }
 }
