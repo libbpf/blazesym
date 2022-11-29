@@ -91,29 +91,37 @@ impl KSymResolver {
         }
     }
 
-    pub fn find_address_ksym(&self, addr: u64) -> Option<&Ksym> {
+    pub fn find_address_ksym(&self, addr: u64) -> Vec<&Ksym> {
         let mut l = 0;
         let mut r = self.syms.len();
 
         if !self.syms.is_empty() && self.syms[0].addr > addr {
-            return None;
+            return vec![];
         }
 
         while l < (r - 1) {
             let v = (l + r) / 2;
             let sym = &self.syms[v];
 
-            if sym.addr == addr {
-                return Some(sym);
-            }
-            if addr < sym.addr {
+            if addr <= sym.addr {
                 r = v;
             } else {
                 l = v;
             }
         }
 
-        Some(&self.syms[l])
+        if l < (self.syms.len() - 1) && addr > self.syms[l].addr && addr == self.syms[l + 1].addr {
+            l += 1;
+        }
+
+        let mut results = vec![];
+        for i in l..self.syms.len() {
+            if addr < self.syms[i].addr {
+                break;
+            }
+            results.push(&self.syms[i]);
+        }
+        results
     }
 }
 
@@ -133,10 +141,10 @@ impl SymResolver for KSymResolver {
     }
 
     fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
-        if let Some(sym) = self.find_address_ksym(addr) {
-            return vec![(&sym.name, sym.addr)];
-        }
-        vec![]
+        self.find_address_ksym(addr)
+            .iter()
+            .map(|sym| (sym.name.as_str(), sym.addr))
+            .collect()
     }
 
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
@@ -241,11 +249,11 @@ mod tests {
         let name = sym.name.clone();
         let found = resolver.find_symbols(addr);
         assert!(!found.is_empty());
-        assert_eq!(found[0].0, &name);
+        assert!(found.iter().find(|x| x.0 == &name).is_some());
         let addr = addr + 1;
         let found = resolver.find_symbols(addr);
         assert!(!found.is_empty());
-        assert_eq!(found[0].0, &name);
+        assert!(found.iter().find(|x| x.0 == &name).is_some());
 
         // Find the address of the first symbol
         let found = resolver.find_symbols(0);
@@ -257,10 +265,10 @@ mod tests {
         let name = sym.name.clone();
         let found = resolver.find_symbols(addr);
         assert!(!found.is_empty());
-        assert_eq!(found[0].0, &name);
+        assert!(found.iter().find(|x| x.0 == &name).is_some());
         let found = resolver.find_symbols(addr + 1);
         assert!(!found.is_empty());
-        assert_eq!(found[0].0, &name);
+        assert!(found.iter().find(|x| x.0 == &name).is_some());
 
         // Find the symbol placed at the one third
         let sym = &resolver.syms[resolver.syms.len() / 3];
