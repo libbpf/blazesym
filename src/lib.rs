@@ -10,7 +10,7 @@
 use std::io::{Error, ErrorKind};
 use std::u64;
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 
 use std::ptr;
 
@@ -319,43 +319,6 @@ pub unsafe extern "C" fn sym_resolver_create() -> *mut KSymResolver {
     } else {
         Box::leak(resolver)
     }
-}
-
-/// Free a KsymResolver
-///
-/// # Safety
-///
-/// The pointer passed in should be the one returned by
-/// `sym_resolver_create()`.
-///
-#[no_mangle]
-#[doc(hidden)]
-pub unsafe extern "C" fn sym_resolver_free(resolver_ptr: *mut KSymResolver) {
-    drop(Box::from_raw(resolver_ptr));
-}
-
-/// Find the symbols of a give address if there is.
-///
-/// # Safety
-///
-/// The returned string is managed by `resolver_ptr`.  Don't try to
-/// free it.
-///
-#[no_mangle]
-#[doc(hidden)]
-pub unsafe extern "C" fn sym_resolver_find_addr(
-    resolver_ptr: *mut KSymResolver,
-    addr: u64,
-) -> *const c_char {
-    let resolver = &*resolver_ptr;
-    if let Some(sym) = resolver.find_address_ksym(addr) {
-        let mut c_name = sym.c_name.borrow_mut();
-        if c_name.is_none() {
-            *c_name = Some(CString::new(&sym.name as &str).unwrap());
-        }
-        return c_name.as_ref().unwrap().as_c_str().as_ptr();
-    }
-    ptr::null()
 }
 
 /// The symbol resolver for a single ELF file.
