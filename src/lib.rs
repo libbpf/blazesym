@@ -2200,6 +2200,7 @@ mod tests {
         for syms in syms_lst {
             for sym in syms {
                 assert_eq!(sym.symbol, "factorial");
+                assert!(sym.path.ends_with("gsym-example.c"));
                 cnt += 1;
             }
         }

@@ -38,7 +38,7 @@ use super::types::*;
 
 use std::io::{Error, ErrorKind};
 
-use crate::tools::{decode_udword, decode_uhalf, decode_uword};
+use crate::tools::{decode_leb128, decode_leb128_s, decode_udword, decode_uhalf, decode_uword};
 use std::ffi::CStr;
 
 /// Hold the major parts of a standalone GSYM file.
@@ -46,10 +46,15 @@ use std::ffi::CStr;
 /// GsymContext provides functions to access major entities in GSYM.
 /// GsymContext can find respective AddressInfo for an address.  But,
 /// it doesn't parse AddressData to get line numbers.
+///
+/// The developers should use [`parse_address_data()`],
+/// [`parse_line_table_header()`], and [`linetab::run_op()`] to get
+/// line number information from [`AddressInfo`].
 pub struct GsymContext<'a> {
     header: Header,
     addr_tab: &'a [u8],
     addr_data_off_tab: &'a [u8],
+    file_tab: &'a [u8],
     str_tab: &'a [u8],
     raw_data: &'a [u8],
 }
@@ -111,8 +116,25 @@ impl<'a> GsymContext<'a> {
             ));
         }
         let addr_data_off_tab = &data[off..end_off];
-        let str_tab =
-            &data[strtab_offset as usize..(strtab_offset as usize + strtab_size as usize)];
+        off += num_addrs as usize * 4;
+        let file_num = decode_uword(&data[off..]);
+        off += 4;
+        let end_off = off + file_num as usize * 8;
+        if end_off > data.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "the size of the file is smaller than expectation (file table)",
+            ));
+        }
+        let file_tab = &data[off..end_off];
+        let end_off = strtab_offset as usize + strtab_size as usize;
+        if end_off > data.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "the size of the file is smaller than expectation (string table)",
+            ));
+        }
+        let str_tab = &data[strtab_offset as usize..end_off];
 
         Ok(GsymContext {
             header: Header {
@@ -128,6 +150,7 @@ impl<'a> GsymContext<'a> {
             },
             addr_tab,
             addr_data_off_tab,
+            file_tab,
             str_tab,
             raw_data: data,
         })
@@ -197,6 +220,18 @@ impl<'a> GsymContext<'a> {
             CStr::from_ptr(self.str_tab[off..].as_ptr() as *const i8)
                 .to_str()
                 .unwrap()
+        }
+    }
+
+    pub fn file_info(&self, idx: usize) -> FileInfo {
+        assert!(idx < (self.file_tab.len() / 8));
+        let mut off = idx * 8;
+        let directory = decode_uword(&self.file_tab[off..(off + 4)]);
+        off += 4;
+        let filename = decode_uword(&self.file_tab[off..(off + 4)]);
+        FileInfo {
+            directory,
+            filename,
         }
     }
 }
@@ -277,8 +312,46 @@ pub fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
     data_objs
 }
 
+/// Parse AddressData of InfoTypeLineTableInfo.
+///
+/// An `AddressData` of `InfoTypeLineTableInfo` type is a table of
+/// line numbers for a symbol.  AddressData is the payload of
+/// `AddressInfo`.  One AddressInfo may have several AddressData
+/// entries in its payload.  Each AddressData entry stores a type of
+/// data relates to the symbol the `AddressInfo` presents.
+///
+/// # Arguments
+///
+/// * `data` - is what [`AddressData::data`] is.
+///
+/// Return the `LineTableHeader` and the size of the header of a
+/// `AddressData` entry of InfoTypeLineTableInfo type in the payload
+/// of an `Addressinfo`.
+pub fn parse_line_table_header(data: &[u8]) -> Result<(LineTableHeader, usize), Error> {
+    let mut off = 0;
+    let (min_delta, bytes) = decode_leb128_s(&data[off..])
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse a leb128"))?;
+    off += bytes as usize;
+    let (max_delta, bytes) = decode_leb128_s(&data[off..])
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse a leb128"))?;
+    off += bytes as usize;
+    let (first_line, bytes) = decode_leb128(&data[off..])
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "can not parse an unsigned leb128"))?;
+    off += bytes as usize;
+    Ok((
+        LineTableHeader {
+            min_delta,
+            max_delta,
+            first_line: first_line as u32,
+        },
+        off,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
+    use super::super::linetab::{run_op, RunResult};
+    use super::super::types::*;
     use super::*;
     use std::env;
     use std::fs::File;
@@ -318,10 +391,64 @@ mod tests {
         assert_eq!(ctx.get_str(addrinfo.name as usize), "main");
 
         let addrdata_objs = parse_address_data(addrinfo.data);
-        println!("len = {}", addrdata_objs.len());
+        assert_eq!(addrdata_objs.len(), 3);
+        let mut line_info_cnt = 0;
         for o in addrdata_objs {
-            println!("{}", o.typ);
+            if o.typ == InfoTypeLineTableInfo {
+                let hdr = parse_line_table_header(o.data);
+                if let Ok((hdr, bytes)) = hdr {
+                    let mut ltctx = LineTableRow {
+                        address: 0x0000000002000000,
+                        file_idx: 1,
+                        file_line: hdr.first_line,
+                    };
+                    let ops = &o.data[bytes..];
+                    let mut pc = 0;
+                    let mut addrs = vec![];
+                    let mut lines = vec![];
+                    while pc < ops.len() {
+                        match run_op(&mut ltctx, &hdr, ops, pc) {
+                            RunResult::Ok(bytes) => {
+                                pc += bytes;
+                            }
+                            RunResult::NewRow(bytes) => {
+                                let finfo = ctx.file_info(ltctx.file_idx as usize);
+                                let filename = ctx.get_str(finfo.filename as usize);
+                                assert_eq!(filename, "gsym-example.c");
+                                addrs.push(ltctx.address);
+                                lines.push(ltctx.file_line);
+                                pc += bytes;
+                            }
+                            RunResult::Err => {
+                                break;
+                            }
+                            RunResult::End => {
+                                break;
+                            }
+                        }
+                    }
+
+                    assert_eq!(
+                        addrs,
+                        [
+                            0x0000000002000000,
+                            0x0000000002000001,
+                            0x0000000002000001,
+                            0x0000000002000001,
+                            0x0000000002000001,
+                            0x000000000200000b,
+                            0x0000000002000010,
+                            0x0000000002000017,
+                            0x000000000200001f,
+                            0x000000000200001f
+                        ]
+                    );
+                    assert_eq!(lines, [53, 54, 56, 48, 49, 57, 58, 57, 60, 61]);
+                    line_info_cnt += 1;
+                }
+            }
         }
+        assert_eq!(line_info_cnt, 1);
     }
 
     #[test]
