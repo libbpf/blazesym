@@ -132,11 +132,11 @@ impl SymResolver for KSymResolver {
         (0xffffffff80000000, 0xffffffffffffffff)
     }
 
-    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
+    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
         if let Some(sym) = self.find_address_ksym(addr) {
-            return Some((&sym.name, sym.addr));
+            return vec![(&sym.name, sym.addr)];
         }
-        None
+        vec![]
     }
 
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
@@ -239,28 +239,28 @@ mod tests {
         let sym = &resolver.syms[resolver.syms.len() / 2];
         let addr = sym.addr;
         let name = sym.name.clone();
-        let found = resolver.find_symbol(addr);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
+        let found = resolver.find_symbols(addr);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
         let addr = addr + 1;
-        let found = resolver.find_symbol(addr);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
+        let found = resolver.find_symbols(addr);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
 
         // Find the address of the first symbol
-        let found = resolver.find_symbol(0);
-        assert!(found.is_some());
+        let found = resolver.find_symbols(0);
+        assert!(!found.is_empty());
 
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
         let addr = sym.addr;
         let name = sym.name.clone();
-        let found = resolver.find_symbol(addr);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
-        let found = resolver.find_symbol(addr + 1);
-        assert!(found.is_some());
-        assert_eq!(found.unwrap().0, &name);
+        let found = resolver.find_symbols(addr);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
+        let found = resolver.find_symbols(addr + 1);
+        assert!(!found.is_empty());
+        assert_eq!(found[0].0, &name);
 
         // Find the symbol placed at the one third
         let sym = &resolver.syms[resolver.syms.len() / 3];

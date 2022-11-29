@@ -136,9 +136,9 @@ impl Default for SymbolInfo {
 trait SymResolver {
     /// Return the range that this resolver serve in an address space.
     fn get_address_range(&self) -> (u64, u64);
-    /// Find the name and the start address of a symbol found for
+    /// Find the names and the start addresses of a symbol found for
     /// the given address.
-    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)>;
+    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)>;
     /// Find the address and size of a symbol anme.
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the addresses and sizes of the symbols matching a given pattern.
@@ -448,14 +448,19 @@ impl SymResolver for ElfResolver {
         (self.loaded_address, self.loaded_address + self.size)
     }
 
-    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
+    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
         let off = addr - self.loaded_address + self.loaded_to_virt;
-        let parser = self.get_parser()?;
+        let parser = self.get_parser();
+        if parser.is_none() {
+            return vec![];
+        }
+        let parser = parser.unwrap();
+
         match parser.find_symbol(off, elf::STT_FUNC) {
             Ok((name, start_addr)) => {
-                Some((name, start_addr - self.loaded_to_virt + self.loaded_address))
+                vec![(name, start_addr - self.loaded_to_virt + self.loaded_address)]
             }
-            Err(_) => None,
+            Err(_) => vec![],
         }
     }
 
@@ -558,11 +563,11 @@ impl SymResolver for KernelResolver {
         (0xffffffff80000000, 0xffffffffffffffff)
     }
 
-    fn find_symbol(&self, addr: u64) -> Option<(&str, u64)> {
+    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
         if self.ksymresolver.is_some() {
-            self.ksymresolver.as_ref().unwrap().find_symbol(addr)
+            self.ksymresolver.as_ref().unwrap().find_symbols(addr)
         } else {
-            self.kernelresolver.as_ref().unwrap().find_symbol(addr)
+            self.kernelresolver.as_ref().unwrap().find_symbols(addr)
         }
     }
     fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
@@ -1139,41 +1144,49 @@ impl BlazeSymbolizer {
                     return vec![];
                 };
 
-                let sym = resolver.find_symbol(*addr);
+                let res_syms = resolver.find_symbols(*addr);
                 let linfo = if self.line_number_info {
                     resolver.find_line_info(*addr)
                 } else {
                     None
                 };
-                if sym.is_none() && linfo.is_none() {
-                    vec![]
-                } else if sym.is_none() {
-                    let linfo = linfo.unwrap();
-                    vec![SymbolizedResult {
-                        symbol: "".to_string(),
-                        start_address: 0,
-                        path: linfo.path,
-                        line_no: linfo.line_no,
-                        column: linfo.column,
-                    }]
-                } else if let Some(linfo) = linfo {
-                    let (sym, start) = sym.unwrap();
-                    vec![SymbolizedResult {
-                        symbol: String::from(sym),
-                        start_address: start,
-                        path: linfo.path,
-                        line_no: linfo.line_no,
-                        column: linfo.column,
-                    }]
+                if res_syms.is_empty() {
+                    if linfo.is_some() {
+                        let linfo = linfo.unwrap();
+                        vec![SymbolizedResult {
+                            symbol: "".to_string(),
+                            start_address: 0,
+                            path: linfo.path,
+                            line_no: linfo.line_no,
+                            column: linfo.column,
+                        }]
+                    } else {
+                        vec![]
+                    }
                 } else {
-                    let (sym, start) = sym.unwrap();
-                    vec![SymbolizedResult {
-                        symbol: String::from(sym),
-                        start_address: start,
-                        path: "".to_string(),
-                        line_no: 0,
-                        column: 0,
-                    }]
+                    let mut results = vec![];
+                    for sym in res_syms {
+                        if let Some(ref linfo) = linfo {
+                            let (sym, start) = sym;
+                            results.push(SymbolizedResult {
+                                symbol: String::from(sym),
+                                start_address: start,
+                                path: linfo.path.clone(),
+                                line_no: linfo.line_no,
+                                column: linfo.column,
+                            });
+                        } else {
+                            let (sym, start) = sym;
+                            results.push(SymbolizedResult {
+                                symbol: String::from(sym),
+                                start_address: start,
+                                path: "".to_string(),
+                                line_no: 0,
+                                column: 0,
+                            });
+                        }
+                    }
+                    results
                 }
             })
             .collect();
