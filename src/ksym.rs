@@ -229,6 +229,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore = "broken; see https://github.com/libbpf/blazesym/issues/15"]
     fn ksym_resolver_load_find() {
         let mut resolver = KSymResolver::new();
         assert!(resolver.load().is_ok());
