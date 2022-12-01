@@ -1006,7 +1006,8 @@ impl BlazeSymbolizer {
         let mut syms = vec![];
         for (_, resolver) in &resolver_map.resolvers {
             for mut sym in resolver
-                .find_address_regex(pattern, &ctx).unwrap_or_default()
+                .find_address_regex(pattern, &ctx)
+                .unwrap_or_default()
             {
                 if ctx.offset_in_file {
                     if let Some(off) = resolver.addr_file_off(sym.address) {
@@ -2124,13 +2125,9 @@ mod tests {
 
         let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
         // ElfResolver for the binary itself.
-        assert!(signatures
-            .iter()
-            .any(|x| x.contains("/blazesym")));
+        assert!(signatures.iter().any(|x| x.contains("/blazesym")));
         // ElfResolver for libc.
-        assert!(signatures
-            .iter()
-            .any(|x| x.contains("/libc")));
+        assert!(signatures.iter().any(|x| x.contains("/libc")));
     }
 
     #[test]
@@ -2154,16 +2151,10 @@ mod tests {
 
         let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
         // ElfResolver for the binary itself.
-        assert!(signatures
-            .iter()
-            .any(|x| x.contains("/blazesym")));
+        assert!(signatures.iter().any(|x| x.contains("/blazesym")));
         // ElfResolver for libc.
-        assert!(signatures
-            .iter()
-            .any(|x| x.contains("/libc")));
-        assert!(signatures
-            .iter()
-            .any(|x| x.contains("KernelResolver")));
+        assert!(signatures.iter().any(|x| x.contains("/libc")));
+        assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
     }
 
     #[test]
@@ -2183,9 +2174,7 @@ mod tests {
         let resolver_map = resolver_map.unwrap();
 
         let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
-        assert!(signatures
-            .iter()
-            .any(|x| x.contains("KernelResolver")));
+        assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
 
         let kresolver = KernelResolver::new("/proc/kallsyms", "/dev/null", &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());

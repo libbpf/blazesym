@@ -1094,10 +1094,13 @@ fn parse_die_subprogram<'a>(
                 name_str = Some(match value {
                     debug_info::AttrValue::Unsigned(str_off) => unsafe {
                         CStr::from_ptr(str_data[str_off as usize..].as_ptr() as *const i8)
-                            .to_str().map_err(|_e| Error::new(
+                            .to_str()
+                            .map_err(|_e| {
+                                Error::new(
                                     ErrorKind::InvalidData,
                                     "fail to extract the name of a subprogram",
-                                ))?
+                                )
+                            })?
                     },
                     debug_info::AttrValue::String(s) => s,
                     _ => {
@@ -1135,14 +1138,12 @@ fn parse_die_subprogram<'a>(
     }
 
     match (addr, name_str) {
-        (Some(address), Some(name)) => {
-            Ok(Some(DWSymInfo {
-                name,
-                address,
-                size,
-                sym_type: SymbolType::Function,
-            }))
-        },
+        (Some(address), Some(name)) => Ok(Some(DWSymInfo {
+            name,
+            address,
+            size,
+            sym_type: SymbolType::Function,
+        })),
         _ => Ok(None),
     }
 }
@@ -1293,15 +1294,15 @@ fn debug_info_parse_symbols<'a>(
         })?;
     } else if let Some(cond) = cond {
         'outer: for (uhdr, dieiter) in units {
-             if let debug_info::UnitHeader::CompileV4(_) = uhdr {
-                 let saved_sz = syms.len();
-                 debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
-                 for sym in &syms[saved_sz..] {
-                     if !cond(sym) {
-                         break 'outer;
-                     }
-                 }
-             }
+            if let debug_info::UnitHeader::CompileV4(_) = uhdr {
+                let saved_sz = syms.len();
+                debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
+                for sym in &syms[saved_sz..] {
+                    if !cond(sym) {
+                        break 'outer;
+                    }
+                }
+            }
         }
     } else {
         for (uhdr, dieiter) in units {
