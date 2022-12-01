@@ -1,6 +1,6 @@
 //! Parse the `.debug_info` section to get Debug Information Entries.
 //!
-//! It supports DWARFv4 now. (See https://dwarfstd.org/doc/DWARF4.pdf)
+//! It supports DWARFv4 now. (See <https://dwarfstd.org/doc/DWARF4.pdf>)
 //! It parse DIEs from the `.debug_info` section and Abbreviations
 //! from the `.debg_abbrev` section.
 //!
@@ -232,12 +232,10 @@ fn extract_attr_value(
                 } else {
                     None
                 }
+            } else if 8 <= data.len() {
+                Some((AttrValue::Unsigned(decode_udword(data)), 8))
             } else {
-                if 8 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_udword(data) as u64), 8))
-                } else {
-                    None
-                }
+                None
             }
         }
         DW_FORM_block2 => {
@@ -308,7 +306,7 @@ fn extract_attr_value(
             }
         }
         DW_FORM_block1 => {
-            if data.len() < 1 {
+            if data.is_empty() {
                 return None;
             }
             let sz = data[0];
@@ -320,14 +318,14 @@ fn extract_attr_value(
             }
         }
         DW_FORM_data1 => {
-            if 1 <= data.len() {
+            if !data.is_empty() {
                 Some((AttrValue::Unsigned(data[0] as u64), 1))
             } else {
                 None
             }
         }
         DW_FORM_flag => {
-            if 1 <= data.len() {
+            if !data.is_empty() {
                 Some((AttrValue::Unsigned(data[0] as u64), 1))
             } else {
                 None
@@ -344,12 +342,10 @@ fn extract_attr_value(
                 } else {
                     None
                 }
+            } else if 8 <= data.len() {
+                Some((AttrValue::Unsigned(decode_udword(data)), 8))
             } else {
-                if 8 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_udword(data) as u64), 8))
-                } else {
-                    None
-                }
+                None
             }
         }
         DW_FORM_udata => {
@@ -363,16 +359,14 @@ fn extract_attr_value(
                 } else {
                     None
                 }
+            } else if 8 <= data.len() {
+                Some((AttrValue::Unsigned(decode_udword(data)), 8))
             } else {
-                if 8 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_udword(data) as u64), 8))
-                } else {
-                    None
-                }
+                None
             }
         }
         DW_FORM_ref1 => {
-            if 1 <= data.len() {
+            if !data.is_empty() {
                 Some((AttrValue::Unsigned(data[0] as u64), 1))
             } else {
                 None
@@ -415,12 +409,10 @@ fn extract_attr_value(
                 } else {
                     None
                 }
+            } else if 8 <= data.len() {
+                Some((AttrValue::Unsigned(decode_udword(data)), 8))
             } else {
-                if 8 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_udword(data) as u64), 8))
-                } else {
-                    None
-                }
+                None
             }
         }
         DW_FORM_exprloc => {
@@ -452,12 +444,10 @@ fn extract_attr_value(
                 } else {
                     None
                 }
+            } else if 8 <= data.len() {
+                Some((AttrValue::Unsigned(decode_udword(data)), 8))
             } else {
-                if 8 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_udword(data) as u64), 8))
-                } else {
-                    None
-                }
+                None
             }
         }
         DW_FORM_data16 => {
@@ -474,12 +464,10 @@ fn extract_attr_value(
                 } else {
                     None
                 }
+            } else if 8 <= data.len() {
+                Some((AttrValue::Unsigned(decode_udword(data)), 8))
             } else {
-                if 8 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_udword(data) as u64), 8))
-                } else {
-                    None
-                }
+                None
             }
         }
         DW_FORM_ref_sig8 => {
@@ -506,7 +494,7 @@ fn extract_attr_value(
             }
         }
         DW_FORM_str1 => {
-            if 1 <= data.len() {
+            if !data.is_empty() {
                 Some((AttrValue::Unsigned(data[0] as u64), 1))
             } else {
                 None
@@ -534,7 +522,7 @@ fn extract_attr_value(
             }
         }
         DW_FORM_addrx1 => {
-            if 1 <= data.len() {
+            if !data.is_empty() {
                 Some((AttrValue::Unsigned(data[0] as u64), 1))
             } else {
                 None
@@ -739,7 +727,7 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
             version,
             debug_abbrev_offset,
             address_size,
-            hdr_size: pos as usize,
+            hdr_size: pos,
         }));
     }
 
@@ -779,7 +767,7 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
                 unit_type,
                 address_size,
                 debug_abbrev_offset,
-                hdr_size: pos as usize,
+                hdr_size: pos,
             }))
         }
         _ => Some(UnitHeader::Unknown(UnknownHeader {
@@ -787,7 +775,7 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
             bits64,
             version,
             unit_type,
-            hdr_size: pos as usize,
+            hdr_size: pos,
         })),
     }
 }
@@ -798,6 +786,7 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
 /// attribute values described by the abbreviation.  The code of an
 /// abbreviation is an index to the abbreviation table of the compile
 /// unit.
+#[allow(clippy::upper_case_acronyms)]
 pub struct DIE<'a> {
     pub tag: u8,
     pub offset: u64,
@@ -836,7 +825,7 @@ impl<'a> DIE<'a> {
             self.reading_offset += bytes;
         }
         self.dieiter
-            .die_finish_reading(self.reading_offset as usize);
+            .die_finish_reading(self.reading_offset);
         self.done = true;
         Ok(())
     }
@@ -851,9 +840,7 @@ impl<'a> Iterator for DIE<'a> {
         if self.done {
             return None;
         }
-        if self.abbrev.is_none() {
-            return None;
-        }
+        self.abbrev?;
 
         if self.abbrev_attrs_idx < self.abbrev_attrs.len() {
             let AbbrevAttr { name, form, opt } = self.abbrev_attrs[self.abbrev_attrs_idx];
@@ -865,7 +852,7 @@ impl<'a> Iterator for DIE<'a> {
             }
             if form == 0 {
                 self.dieiter
-                    .die_finish_reading(self.reading_offset as usize);
+                    .die_finish_reading(self.reading_offset);
                 self.done = true;
                 return None;
             }
@@ -876,11 +863,11 @@ impl<'a> Iterator for DIE<'a> {
                 self.dieiter.dwarf_sz,
                 self.dieiter.addr_sz,
             )?;
-            self.reading_offset += bytes as usize;
+            self.reading_offset += bytes;
             return Some((name, form, opt, value));
         } else {
             self.dieiter
-                .die_finish_reading(self.reading_offset as usize);
+                .die_finish_reading(self.reading_offset);
             self.done = true;
         }
         None
@@ -1079,7 +1066,7 @@ mod tests {
         assert_eq!(abbrev.abbrev_code, 0x1);
         assert_eq!(abbrev.tag, DW_TAG_compile_unit);
         assert!(abbrev.has_children);
-        let mut pos = bytes as usize;
+        let mut pos = bytes;
 
         let (abbrev, bytes) = parse_abbrev(&raw[pos..]).unwrap();
         assert_eq!(bytes, 7);
@@ -1105,7 +1092,6 @@ mod tests {
         assert_eq!(bytes, 12);
         assert_eq!(abbrev.abbrev_code, 0x5);
         assert!(abbrev.has_children);
-        pos += bytes;
     }
 
     #[test]

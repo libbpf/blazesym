@@ -191,7 +191,7 @@ impl DebugLineCU {
             return None;
         }
 
-        self.stringify_row(idx as usize)
+        self.stringify_row(idx)
     }
 
     fn stringify_row(&self, idx: usize) -> Option<(&str, &str, usize)> {
@@ -212,7 +212,7 @@ impl DebugLineCU {
             }
         };
 
-        Some((dir, file, states.line as usize))
+        Some((dir, file, states.line))
     }
 }
 
@@ -235,12 +235,9 @@ fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error>
             let mut str_vec = Vec::<u8>::with_capacity(end - pos);
             str_vec.extend_from_slice(&data_buf[pos..end]);
 
-            let str_r = String::from_utf8(str_vec);
-            if str_r.is_err() {
-                return Err(Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"));
-            }
-
-            strs.push(str_r.unwrap());
+            let str_r = String::from_utf8(str_vec)
+                .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"))?;
+            strs.push(str_r);
             end += 1;
         }
         pos = end;
@@ -699,7 +696,7 @@ fn run_debug_line_stmts(
                                     || (states_last.address != 0
                                         && !states_last.end_sequence
                                         && *addr < states_cur.address
-                                        && *addr > states_last.address as u64)
+                                        && *addr > states_last.address)
                                 {
                                     if !last_ip_pushed && *addr != states_cur.address {
                                         // The address falls between current and last emitted row.
@@ -816,7 +813,7 @@ pub struct DwarfResolver {
 
 impl DwarfResolver {
     pub fn get_parser(&self) -> &Elf64Parser {
-        &*self.parser
+        &self.parser
     }
 
     pub fn from_parser_for_addresses(
@@ -826,7 +823,7 @@ impl DwarfResolver {
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
         let debug_line_cus: Vec<DebugLineCU> = if line_number_info {
-            parse_debug_line_elf_parser(&*parser, addresses).unwrap_or_default()
+            parse_debug_line_elf_parser(&parser, addresses).unwrap_or_default()
         } else {
             vec![]
         };
@@ -890,7 +887,7 @@ impl DwarfResolver {
 
     fn find_dlcu_index(&self, address: u64) -> Option<usize> {
         let a2a = &self.addr_to_dlcu;
-        let a2a_idx = search_address_key(a2a, address, &|x: &(u64, u32)| -> u64 { x.0 as u64 })?;
+        let a2a_idx = search_address_key(a2a, address, &|x: &(u64, u32)| -> u64 { x.0 })?;
         let dlcu_idx = a2a[a2a_idx].1 as usize;
 
         Some(dlcu_idx)
@@ -902,7 +899,7 @@ impl DwarfResolver {
     /// shared object.  This function returns a tuple of `(dir_name, file_name, line_no)`.
     pub fn find_line_as_ref(&self, address: u64) -> Option<(&str, &str, usize)> {
         let idx = self.find_dlcu_index(address)?;
-        let dlcu = &self.debug_line_cus[idx as usize];
+        let dlcu = &self.debug_line_cus[idx];
 
         dlcu.find_line(address)
     }
@@ -1004,7 +1001,7 @@ impl DwarfResolver {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
         }
         let r = self.parser.find_address_regex(pattern, opts)?;
-        if r.len() > 0 {
+        if !r.is_empty() {
             return Ok(r);
         }
 
@@ -1018,7 +1015,7 @@ impl DwarfResolver {
         let mut syms = vec![];
         let re = Regex::new(pattern).unwrap();
         for sym in debug_info_syms {
-            if re.is_match(&sym.name) {
+            if re.is_match(sym.name) {
                 let DWSymInfo {
                     address,
                     size,
@@ -1058,14 +1055,11 @@ struct DWSymInfo<'a> {
 
 fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
     for (name, _form, _opt, value) in die {
-        match name {
-            constants::DW_AT_sibling => {
-                if let debug_info::AttrValue::Unsigned(off) = value {
-                    return Some(off as usize);
-                }
-                return None;
+        if name == constants::DW_AT_sibling {
+            if let debug_info::AttrValue::Unsigned(off) = value {
+                return Some(off as usize);
             }
-            _ => {}
+            return None;
         }
     }
     None
@@ -1099,14 +1093,11 @@ fn parse_die_subprogram<'a>(
                 }
                 name_str = Some(match value {
                     debug_info::AttrValue::Unsigned(str_off) => unsafe {
-                        CStr::from_ptr((&str_data[str_off as usize..]).as_ptr() as *const i8)
-                            .to_str()
-                            .or_else(|_e| {
-                                Err(Error::new(
+                        CStr::from_ptr(str_data[str_off as usize..].as_ptr() as *const i8)
+                            .to_str().map_err(|_e| Error::new(
                                     ErrorKind::InvalidData,
                                     "fail to extract the name of a subprogram",
-                                ))
-                            })?
+                                ))?
                     },
                     debug_info::AttrValue::String(s) => s,
                     _ => {
@@ -1143,15 +1134,16 @@ fn parse_die_subprogram<'a>(
         }
     }
 
-    if addr.is_some() && name_str.is_some() {
-        Ok(Some(DWSymInfo {
-            name: name_str.unwrap(),
-            address: addr.unwrap(),
-            size,
-            sym_type: SymbolType::Function,
-        }))
-    } else {
-        Ok(None)
+    match (addr, name_str) {
+        (Some(address), Some(name)) => {
+            Ok(Some(DWSymInfo {
+                name,
+                address,
+                size,
+                sym_type: SymbolType::Function,
+            }))
+        },
+        _ => Ok(None),
     }
 }
 
@@ -1188,10 +1180,8 @@ fn debug_info_parse_symbols_cu<'a>(
             continue;
         }
 
-        if let Ok(syminfo) = parse_die_subprogram(&mut die, str_data) {
-            if syminfo.is_some() {
-                found_syms.push(syminfo.unwrap());
-            }
+        if let Ok(Some(syminfo)) = parse_die_subprogram(&mut die, str_data) {
+            found_syms.push(syminfo);
         }
     }
 }
@@ -1227,7 +1217,7 @@ fn debug_info_parse_symbols<'a>(
     let info_data = parser.read_section_raw_cache(info_sect_idx)?;
     let abbrev_sect_idx = parser.find_section(".debug_abbrev")?;
     let abbrev_data = parser.read_section_raw_cache(abbrev_sect_idx)?;
-    let units = debug_info::UnitIter::new(&info_data, &abbrev_data);
+    let units = debug_info::UnitIter::new(info_data, abbrev_data);
     let str_sect_idx = parser.find_section(".debug_str")?;
     let str_data = parser.read_section_raw_cache(str_sect_idx)?;
 
@@ -1255,7 +1245,7 @@ fn debug_info_parse_symbols<'a>(
                             let saved_sz = syms.len();
                             debug_info_parse_symbols_cu(dieiterholder, str_data, &mut syms);
                             for sym in &syms[saved_sz..] {
-                                if !cond(&sym) {
+                                if !cond(sym) {
                                     result_tx.send(DIParseResult::Stop).unwrap();
                                 }
                             }
@@ -1272,11 +1262,8 @@ fn debug_info_parse_symbols<'a>(
             }
 
             for (uhdr, dieiter) in units {
-                match uhdr {
-                    debug_info::UnitHeader::CompileV4(_) => {
-                        qsend.send(dieiter).unwrap();
-                    }
-                    _ => {}
+                if let debug_info::UnitHeader::CompileV4(_) = uhdr {
+                    qsend.send(dieiter).unwrap();
                 }
 
                 if let Ok(result) = result_rx.try_recv() {
@@ -1304,30 +1291,22 @@ fn debug_info_parse_symbols<'a>(
             }
             Ok(())
         })?;
+    } else if let Some(cond) = cond {
+        'outer: for (uhdr, dieiter) in units {
+             if let debug_info::UnitHeader::CompileV4(_) = uhdr {
+                 let saved_sz = syms.len();
+                 debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
+                 for sym in &syms[saved_sz..] {
+                     if !cond(sym) {
+                         break 'outer;
+                     }
+                 }
+             }
+        }
     } else {
-        if let Some(cond) = cond {
-            'outer: for (uhdr, dieiter) in units {
-                match uhdr {
-                    debug_info::UnitHeader::CompileV4(_) => {
-                        let saved_sz = syms.len();
-                        debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
-                        for sym in &syms[saved_sz..] {
-                            if !cond(&sym) {
-                                break 'outer;
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        } else {
-            for (uhdr, dieiter) in units {
-                match uhdr {
-                    debug_info::UnitHeader::CompileV4(_) => {
-                        debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
-                    }
-                    _ => {}
-                }
+        for (uhdr, dieiter) in units {
+            if let debug_info::UnitHeader::CompileV4(_) = uhdr {
+                debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
             }
         }
     }
@@ -1473,27 +1452,27 @@ mod tests {
         assert_eq!(matrix.len(), 19);
         assert_eq!(matrix[0].line, 789);
         assert_eq!(matrix[0].address, 0x18c70);
-        assert_eq!(matrix[0].is_stmt, true);
+        assert!(matrix[0].is_stmt);
 
         assert_eq!(matrix[1].line, 791);
         assert_eq!(matrix[1].address, 0x18c7c);
-        assert_eq!(matrix[1].is_stmt, true);
+        assert!(matrix[1].is_stmt);
 
         assert_eq!(matrix[2].line, 791);
         assert_eq!(matrix[2].address, 0x18c81);
-        assert_eq!(matrix[2].is_stmt, false);
+        assert!(!matrix[2].is_stmt);
 
         assert_eq!(matrix[13].line, 792);
         assert_eq!(matrix[13].address, 0x18cba);
-        assert_eq!(matrix[13].is_stmt, false);
+        assert!(!matrix[13].is_stmt);
 
         assert_eq!(matrix[14].line, 0);
         assert_eq!(matrix[14].address, 0x18cc4);
-        assert_eq!(matrix[14].is_stmt, false);
+        assert!(!matrix[14].is_stmt);
 
         assert_eq!(matrix[18].line, 794);
         assert_eq!(matrix[18].address, 0x18cde);
-        assert_eq!(matrix[18].is_stmt, true);
+        assert!(matrix[18].is_stmt);
     }
 
     #[test]
@@ -1591,6 +1570,6 @@ mod tests {
         let syms = dwarf
             .find_address_regex("DwarfResolver.*find_address_regex.*", &opts)
             .unwrap();
-        assert!(syms.len() > 0);
+        assert!(!syms.is_empty());
     }
 }
