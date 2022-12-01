@@ -824,8 +824,7 @@ impl<'a> DIE<'a> {
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "fail to parse attribute values"))?;
             self.reading_offset += bytes;
         }
-        self.dieiter
-            .die_finish_reading(self.reading_offset);
+        self.dieiter.die_finish_reading(self.reading_offset);
         self.done = true;
         Ok(())
     }
@@ -851,8 +850,7 @@ impl<'a> Iterator for DIE<'a> {
                 assert_eq!(self.abbrev_off, abbrev.attrs.len());
             }
             if form == 0 {
-                self.dieiter
-                    .die_finish_reading(self.reading_offset);
+                self.dieiter.die_finish_reading(self.reading_offset);
                 self.done = true;
                 return None;
             }
@@ -866,8 +864,7 @@ impl<'a> Iterator for DIE<'a> {
             self.reading_offset += bytes;
             return Some((name, form, opt, value));
         } else {
-            self.dieiter
-                .die_finish_reading(self.reading_offset);
+            self.dieiter.die_finish_reading(self.reading_offset);
             self.done = true;
         }
         None
