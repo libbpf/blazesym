@@ -1323,6 +1323,10 @@ fn debug_info_parse_symbols<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
+
     use crate::tools::{decode_shalf, decode_sword};
 
     #[test]
@@ -1572,5 +1576,15 @@ mod tests {
             .find_address_regex("DwarfResolver.*find_address_regex.*", &opts)
             .unwrap();
         assert!(!syms.is_empty());
+    }
+
+    /// Benchmark the [`debug_info_parse_symbols`] function.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn debug_info_parse_single_threaded(b: &mut Bencher) {
+        let bin_name = env::args().next().unwrap();
+        let parser = Elf64Parser::open(&bin_name).unwrap();
+
+        let () = b.iter(|| debug_info_parse_symbols(&parser, None, 1).unwrap());
     }
 }

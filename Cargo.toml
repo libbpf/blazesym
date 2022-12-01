@@ -26,3 +26,7 @@ cbindgen = "0.24"
 cheader = []
 # Show performance numbers of DWARF parser.
 dwarf_perf = []
+# Enable code paths requiring a nightly toolchain. This feature is only meant to
+# be used for testing and benchmarking purposes, not for the core library, which
+# is expected to work on stable.
+nightly = []
