@@ -6,6 +6,10 @@
 // source code.
 #![doc = include_str!("../README.md")]
 #![allow(dead_code, clippy::let_and_return)]
+#![cfg_attr(feature = "nightly", feature(test))]
+
+#[cfg(feature = "nightly")]
+extern crate test;
 
 use std::io::{Error, ErrorKind};
 use std::u64;
