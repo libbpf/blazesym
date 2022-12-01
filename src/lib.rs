@@ -5,7 +5,7 @@
 // trace to function names and their locations in the
 // source code.
 #![doc = include_str!("../README.md")]
-#![allow(dead_code)]
+#![allow(dead_code, clippy::let_and_return)]
 
 use std::io::{Error, ErrorKind};
 use std::u64;
@@ -385,7 +385,7 @@ impl ElfResolver {
         let backend = cache_holder.get_elf_cache().find(file_name)?;
         let parser = match &backend {
             ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
-            ElfBackend::Elf(parser) => &*parser,
+            ElfBackend::Elf(parser) => parser,
         };
         let e_type = parser.get_elf_file_type()?;
         let phdrs = parser.get_all_program_headers()?;
@@ -438,7 +438,7 @@ impl ElfResolver {
     fn get_parser(&self) -> Option<&elf::Elf64Parser> {
         match &self.backend {
             ElfBackend::Dwarf(dwarf) => Some(dwarf.get_parser()),
-            ElfBackend::Elf(parser) => Some(&*parser),
+            ElfBackend::Elf(parser) => Some(parser),
         }
     }
 }
@@ -572,9 +572,7 @@ impl SymResolver for KernelResolver {
         None
     }
     fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
-        if self.kernelresolver.is_none() {
-            return None;
-        }
+        self.kernelresolver.as_ref()?;
         self.kernelresolver.as_ref().unwrap().find_line_info(addr)
     }
 
@@ -786,7 +784,7 @@ impl ResolverMap {
                 }
             };
         }
-        resolvers.sort_by_key(|x| (*x).0 .0); // sorted by the loaded addresses
+        resolvers.sort_by_key(|x| x.0 .0); // sorted by the loaded addresses
 
         Ok(ResolverMap { resolvers })
     }
@@ -1008,8 +1006,7 @@ impl BlazeSymbolizer {
         let mut syms = vec![];
         for (_, resolver) in &resolver_map.resolvers {
             for mut sym in resolver
-                .find_address_regex(pattern, &ctx)
-                .unwrap_or_else(|| vec![])
+                .find_address_regex(pattern, &ctx).unwrap_or_default()
             {
                 if ctx.offset_in_file {
                     if let Some(off) = resolver.addr_file_off(sym.address) {
@@ -1970,6 +1967,11 @@ pub unsafe extern "C" fn blazesym_find_address_regex(
 
 /// Free an array returned by blazesym_find_addr_regex() or
 /// blazesym_find_addr_regex_opt().
+///
+/// # Safety
+///
+/// The `syms` pointer should have been allocated by one of the
+/// `blazesym_find_address*` variants.
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
     if syms.is_null() {
@@ -2026,8 +2028,8 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
     let features = convert_find_addr_features(features, num_features);
     let syms = {
         let mut names_r = vec![];
-        for i in 0..name_cnt {
-            names_r.push(names_cstr[i].to_str().unwrap());
+        for name in names_cstr.iter().take(name_cnt) {
+            names_r.push(name.to_str().unwrap());
         }
         symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, features)
     };
@@ -2124,13 +2126,11 @@ mod tests {
         // ElfResolver for the binary itself.
         assert!(signatures
             .iter()
-            .find(|x| x.find("/blazesym").is_some())
-            .is_some());
+            .any(|x| x.contains("/blazesym")));
         // ElfResolver for libc.
         assert!(signatures
             .iter()
-            .find(|x| x.find("/libc").is_some())
-            .is_some());
+            .any(|x| x.contains("/libc")));
     }
 
     #[test]
@@ -2156,17 +2156,14 @@ mod tests {
         // ElfResolver for the binary itself.
         assert!(signatures
             .iter()
-            .find(|x| x.find("/blazesym").is_some())
-            .is_some());
+            .any(|x| x.contains("/blazesym")));
         // ElfResolver for libc.
         assert!(signatures
             .iter()
-            .find(|x| x.find("/libc").is_some())
-            .is_some());
+            .any(|x| x.contains("/libc")));
         assert!(signatures
             .iter()
-            .find(|x| x.find("KernelResolver").is_some())
-            .is_some());
+            .any(|x| x.contains("KernelResolver")));
     }
 
     #[test]
@@ -2188,8 +2185,7 @@ mod tests {
         let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
         assert!(signatures
             .iter()
-            .find(|x| x.find("KernelResolver").is_some())
-            .is_some());
+            .any(|x| x.contains("KernelResolver")));
 
         let kresolver = KernelResolver::new("/proc/kallsyms", "/dev/null", &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());

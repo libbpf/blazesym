@@ -150,13 +150,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
             let mode_str = caps.get(3).unwrap().as_str();
             let mut mode = 0;
             for c in mode_str.chars() {
-                mode = (mode << 1) | {
-                    if c == '-' {
-                        0
-                    } else {
-                        1
-                    }
-                };
+                mode = (mode << 1) | u8::from(c != '-');
             }
 
             let offset = u64::from_str_radix(caps.get(4).unwrap().as_str(), 16).unwrap();
@@ -202,10 +196,7 @@ pub fn decode_leb128_128(data: &[u8]) -> Option<(u128, u8)> {
 
 #[inline]
 pub fn decode_leb128(data: &[u8]) -> Option<(u64, u8)> {
-    match decode_leb128_128(data) {
-        Some((v, s)) => Some((v as u64, s)),
-        None => None,
-    }
+    decode_leb128_128(data).map(|(v, s)| (v as u64, s))
 }
 
 pub fn decode_leb128_128_s(data: &[u8]) -> Option<(i128, u8)> {
@@ -222,10 +213,7 @@ pub fn decode_leb128_128_s(data: &[u8]) -> Option<(i128, u8)> {
 }
 
 pub fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
-    match decode_leb128_128_s(data) {
-        Some((v, s)) => Some((v as i64, s)),
-        None => None,
-    }
+    decode_leb128_128_s(data).map(|(v, s)| (v as i64, s))
 }
 
 #[inline(always)]

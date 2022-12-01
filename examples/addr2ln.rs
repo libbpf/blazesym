@@ -31,7 +31,7 @@ fn main() {
     let addr = u64::from_str_radix(addr_str, 16).unwrap();
 
     let results = resolver.symbolize(&sym_srcs, &[addr]);
-    if results.len() == 1 && results[0].len() > 0 {
+    if results.len() == 1 && !results[0].is_empty() {
         let result = &results[0][0];
         println!(
             "0x{:x} @ {} {}:{}",

@@ -247,11 +247,11 @@ fn read_elf_program_headers(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<El
 }
 
 fn read_elf_section_raw(file: &mut File, section: &Elf64_Shdr) -> Result<Vec<u8>, Error> {
-    read_u8(file, section.sh_offset as u64, section.sh_size as usize)
+    read_u8(file, section.sh_offset, section.sh_size as usize)
 }
 
 fn read_elf_section_seek(file: &mut File, section: &Elf64_Shdr) -> Result<(), Error> {
-    file.seek(SeekFrom::Start(section.sh_offset as u64))?;
+    file.seek(SeekFrom::Start(section.sh_offset))?;
     Ok(())
 }
 
@@ -263,7 +263,7 @@ fn read_elf_section_offset_seek(
     if offset as u64 >= section.sh_size {
         return Err(Error::new(ErrorKind::InvalidInput, "the offset is too big"));
     }
-    file.seek(SeekFrom::Start(section.sh_offset as u64 + offset as u64))?;
+    file.seek(SeekFrom::Start(section.sh_offset + offset as u64))?;
     Ok(())
 }
 
@@ -333,7 +333,7 @@ impl Elf64Parser {
             return Ok(());
         }
 
-        let ehdr = read_elf_header(&mut *self.file.borrow_mut())?;
+        let ehdr = read_elf_header(&mut self.file.borrow_mut())?;
         if !(ehdr.e_ident[0] == 0x7f
             && ehdr.e_ident[1] == 0x45
             && ehdr.e_ident[2] == 0x4c
@@ -356,7 +356,7 @@ impl Elf64Parser {
             return Ok(());
         }
 
-        let shdrs = read_elf_sections(&mut *self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
+        let shdrs = read_elf_sections(&mut self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
         me.sect_cache.resize(shdrs.len(), None);
         me.shdrs = Some(shdrs);
 
@@ -373,7 +373,7 @@ impl Elf64Parser {
         }
 
         let phdrs =
-            read_elf_program_headers(&mut *self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
+            read_elf_program_headers(&mut self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
         me.phdrs = Some(phdrs);
 
         Ok(())
@@ -390,7 +390,7 @@ impl Elf64Parser {
 
         let shstrndx = me.ehdr.as_ref().unwrap().e_shstrndx;
         let shstrtab_sec = &me.shdrs.as_ref().unwrap()[shstrndx as usize];
-        let shstrtab = read_elf_section_raw(&mut *self.file.borrow_mut(), shstrtab_sec)?;
+        let shstrtab = read_elf_section_raw(&mut self.file.borrow_mut(), shstrtab_sec)?;
         me.shstrtab = Some(shstrtab);
 
         Ok(())
@@ -505,7 +505,7 @@ impl Elf64Parser {
         self.ensure_shdrs()?;
         let me = self.backobj.borrow();
         read_elf_section_seek(
-            &mut *self.file.borrow_mut(),
+            &mut self.file.borrow_mut(),
             &me.shdrs.as_ref().unwrap()[sect_idx],
         )
     }
@@ -515,7 +515,7 @@ impl Elf64Parser {
         self.ensure_shdrs()?;
         let me = self.backobj.borrow();
         read_elf_section_offset_seek(
-            &mut *self.file.borrow_mut(),
+            &mut self.file.borrow_mut(),
             &me.shdrs.as_ref().unwrap()[sect_idx],
             offset,
         )
@@ -528,7 +528,7 @@ impl Elf64Parser {
 
         let me = self.backobj.borrow();
         read_elf_section_raw(
-            &mut *self.file.borrow_mut(),
+            &mut self.file.borrow_mut(),
             &me.shdrs.as_ref().unwrap()[sect_idx],
         )
     }
@@ -541,7 +541,7 @@ impl Elf64Parser {
         let mut me = self.backobj.borrow_mut();
         if me.sect_cache[sect_idx].is_none() {
             let buf = read_elf_section_raw(
-                &mut *self.file.borrow_mut(),
+                &mut self.file.borrow_mut(),
                 &me.shdrs.as_ref().unwrap()[sect_idx],
             )?;
             me.sect_cache[sect_idx] = Some(buf);
@@ -716,12 +716,12 @@ impl Elf64Parser {
         let mut syms = vec![];
         for (str_off, sym_i) in str2symtab {
             let sname = unsafe {
-                CStr::from_ptr(&strtab[*str_off as usize] as *const u8 as *const i8)
+                CStr::from_ptr(&strtab[*str_off] as *const u8 as *const i8)
                     .to_str()
                     .unwrap()
             };
             if re.is_match(sname) {
-                let sym_ref = &me.symtab.as_ref().unwrap()[*sym_i as usize];
+                let sym_ref = &me.symtab.as_ref().unwrap()[*sym_i];
                 if !sym_ref.is_undef() {
                     syms.push(SymbolInfo {
                         name: sname.to_string(),
