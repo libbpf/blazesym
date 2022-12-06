@@ -230,8 +230,10 @@ impl KSymCache {
 mod tests {
     use super::*;
 
+    // This test case is skipped by default for /proc/kallsyms may
+    // not availble in some environment.
     #[test]
-    #[ignore = "broken; see https://github.com/libbpf/blazesym/issues/15"]
+    #[cfg(feature = "dont_skip_tests")]
     fn ksym_resolver_load_find() {
         let mut resolver = KSymResolver::new();
         assert!(resolver.load().is_ok());

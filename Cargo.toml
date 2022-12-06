@@ -30,3 +30,5 @@ dwarf_perf = []
 # be used for testing and benchmarking purposes, not for the core library, which
 # is expected to work on stable.
 nightly = []
+# We skip some tests by default.
+dont_skip_tests = []
