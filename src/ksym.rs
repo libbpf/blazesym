@@ -3,7 +3,6 @@ use super::{FindAddrOpts, SymbolInfo, SymbolType};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::default::Default;
-use std::ffi::CString;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error};
 use std::rc::Rc;
@@ -19,7 +18,6 @@ const DFL_KSYM_CAP: usize = 200000;
 pub struct Ksym {
     pub addr: u64,
     pub name: String,
-    pub c_name: RefCell<Option<CString>>,
 }
 
 /// The symbol resolver for /proc/kallsyms.
@@ -57,11 +55,7 @@ impl KSymResolver {
                     continue;
                 }
                 let name = String::from(func);
-                self.syms.push(Ksym {
-                    addr,
-                    name,
-                    c_name: RefCell::new(None),
-                });
+                self.syms.push(Ksym { addr, name });
             }
 
             line.truncate(0);
@@ -83,12 +77,7 @@ impl KSymResolver {
             return;
         }
         let mut sym_to_addr = self.sym_to_addr.borrow_mut();
-        for Ksym {
-            name,
-            addr,
-            c_name: _,
-        } in self.syms.iter()
-        {
+        for Ksym { name, addr } in self.syms.iter() {
             // Performance & lifetime hacking
             let name_static = unsafe { &*(name as *const String) };
             sym_to_addr.insert(name_static, *addr);
@@ -314,22 +303,18 @@ mod tests {
             Ksym {
                 addr: 0x123,
                 name: "1".to_string(),
-                c_name: RefCell::new(None),
             },
             Ksym {
                 addr: 0x123,
                 name: "1.5".to_string(),
-                c_name: RefCell::new(None),
             },
             Ksym {
                 addr: 0x1234,
                 name: "2".to_string(),
-                c_name: RefCell::new(None),
             },
             Ksym {
                 addr: 0x12345,
                 name: "3".to_string(),
-                c_name: RefCell::new(None),
             },
         ];
 
@@ -385,7 +370,6 @@ mod tests {
             .map(|x| Ksym {
                 addr: 1,
                 name: x.to_string(),
-                c_name: RefCell::new(None),
             })
             .collect();
         // A full-adder has a carry-out signal, right?
