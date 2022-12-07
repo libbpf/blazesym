@@ -118,6 +118,18 @@ impl KSymResolver {
             .rev()
             .take_while(move |sym| sym.addr == self.syms[l - 1].addr)
     }
+
+    #[cfg(test)]
+    pub fn find_addresses_ksym_simple(&self, addr: u64) -> impl Iterator<Item = &Ksym> {
+        let mut i = 0;
+        while i < self.syms.len() && addr >= self.syms[i].addr {
+            i += 1;
+        }
+        self.syms[..i]
+            .iter()
+            .rev()
+            .take_while(move |x| x.addr == self.syms[i - 1].addr)
+    }
 }
 
 impl Default for KSymResolver {
@@ -229,6 +241,7 @@ impl KSymCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::cmp::Ordering;
 
     // This test case is skipped by default for /proc/kallsyms may
     // not availble in some environment.
@@ -295,7 +308,7 @@ mod tests {
     }
 
     #[test]
-    fn find_address_ksym() {
+    fn find_addresses_ksym() {
         let mut resolver = KSymResolver::new();
         resolver.syms = vec![
             Ksym {
@@ -362,5 +375,54 @@ mod tests {
         assert_eq!(syms.len(), 1);
         assert_eq!(syms[0].addr, 0x12345);
         assert_eq!(syms[0].name, "3");
+    }
+
+    #[test]
+    fn find_addresses_ksym_exhaust() {
+        let syms_sz = 10;
+        let mut resolver = KSymResolver::new();
+        resolver.syms = (0..syms_sz)
+            .map(|x| Ksym {
+                addr: 1,
+                name: x.to_string(),
+                c_name: RefCell::new(None),
+            })
+            .collect();
+        // A full-adder has a carry-out signal, right?
+        // Yes! Here it is.
+        let raised_carry_out = |addr| addr > syms_sz as u64;
+
+        while !raised_carry_out(resolver.syms[0].addr) {
+            // Test find_addresses_ksym() against every address in the
+            // range [0..syms_sz+1].
+            for i in 0..=(syms_sz + 1) {
+                let result: Vec<_> = resolver.find_addresses_ksym(i as u64).collect();
+                let result_s: Vec<_> = resolver.find_addresses_ksym_simple(i as u64).collect();
+                assert_eq!(result.len(), result_s.len());
+                assert_eq!(
+                    result
+                        .iter()
+                        .map(|x| x.name.as_str())
+                        .cmp(result_s.iter().map(|x| x.name.as_str())),
+                    Ordering::Equal
+                );
+            }
+
+            let mut i = syms_sz - 1;
+            // Increase the address of the last symbol.
+            resolver.syms[i].addr += 1;
+            while i > 0 && raised_carry_out(resolver.syms[i].addr) {
+                // Bring the raised carry-out it to the left.
+                i -= 1;
+                resolver.syms[i].addr += 1;
+            }
+            // Every symbol on the right side have a raised carry-out.
+            // Reset their addresses.
+            let low_addr = resolver.syms[i].addr;
+            while i < (syms_sz - 1) {
+                i += 1;
+                resolver.syms[i].addr = low_addr;
+            }
+        }
     }
 }
