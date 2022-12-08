@@ -21,15 +21,10 @@ use std::thread;
 
 use regex::Regex;
 
-#[allow(non_upper_case_globals)]
+#[allow(non_upper_case_globals, unused)]
 mod constants;
 #[allow(non_upper_case_globals)]
 mod debug_info;
-
-pub struct ArangesCU {
-    pub debug_line_off: usize,
-    pub aranges: Vec<(u64, u64)>,
-}
 
 #[repr(C, packed)]
 struct DebugLinePrologueV2 {
@@ -749,7 +744,8 @@ impl DwarfResolver {
     /// from the given file.  If the instance will be used for long
     /// running, you would want to load all data into memory to have
     /// the ability of handling all possible addresses.
-    pub fn open_for_addresses(
+    #[cfg(test)]
+    fn open_for_addresses(
         filename: &str,
         addresses: &[u64],
         line_number_info: bool,
@@ -768,7 +764,8 @@ impl DwarfResolver {
     ///
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
-    pub fn open(
+    #[cfg(test)]
+    fn open(
         filename: &str,
         debug_line_info: bool,
         debug_info_symbols: bool,
@@ -802,7 +799,8 @@ impl DwarfResolver {
     ///
     /// This function is pretty much the same as `find_line_as_ref()`
     /// except returning a copies of `String` instead of `&str`.
-    pub fn find_line(&self, address: u64) -> Option<(String, String, usize)> {
+    #[cfg(test)]
+    fn find_line(&self, address: u64) -> Option<(String, String, usize)> {
         let (dir, file, line_no) = self.find_line_as_ref(address)?;
         Some((String::from(dir), String::from(file), line_no))
     }
@@ -1214,6 +1212,12 @@ mod tests {
     fn parse_debug_line_elf(filename: &str) -> Result<Vec<DebugLineCU>, Error> {
         let parser = Elf64Parser::open(filename)?;
         parse_debug_line_elf_parser(&parser, &[])
+    }
+
+    #[allow(unused)]
+    struct ArangesCU {
+        debug_line_off: usize,
+        aranges: Vec<(u64, u64)>,
     }
 
     fn parse_aranges_cu(data: &[u8]) -> Result<(ArangesCU, usize), Error> {
