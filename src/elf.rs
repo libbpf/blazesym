@@ -743,7 +743,8 @@ impl Elf64Parser {
         Ok(me.symtab.as_ref().unwrap().len())
     }
 
-    pub fn get_symbol(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
+    #[cfg(test)]
+    fn get_symbol(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
         self.ensure_symtab()?;
 
         let me = self.backobj.as_ptr();
@@ -757,7 +758,8 @@ impl Elf64Parser {
         Ok(unsafe { &(*me).symtab_origin.as_mut().unwrap()[idx] })
     }
 
-    pub fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
+    #[cfg(test)]
+    fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
         let sym = self.get_symbol(idx)?;
 
         let me = self.backobj.as_ptr();
