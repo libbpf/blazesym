@@ -11,9 +11,6 @@ use std::iter::Iterator;
 use std::mem;
 use std::rc::Rc;
 
-#[cfg(feature = "dwarf_perf")]
-use std::time::Instant;
-
 #[cfg(test)]
 use std::env;
 
@@ -1120,9 +1117,6 @@ fn debug_info_parse_symbols<'a>(
     let str_sect_idx = parser.find_section(".debug_str")?;
     let str_data = parser.read_section_raw_cache(str_sect_idx)?;
 
-    #[cfg(feature = "dwarf_perf")]
-    let now = Instant::now();
-
     let mut syms = Vec::<DWSymInfo>::new();
 
     if nthreads > 1 {
@@ -1209,12 +1203,6 @@ fn debug_info_parse_symbols<'a>(
             }
         }
     }
-    #[cfg(feature = "dwarf_perf")]
-    println!(
-        "debug_info_parse_symbols elapse {} us",
-        now.elapsed().as_micros()
-    );
-
     Ok(syms)
 }
 
