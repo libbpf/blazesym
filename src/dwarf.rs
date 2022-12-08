@@ -232,48 +232,46 @@ fn parse_debug_line_cu(
     let buf = reused_buf;
 
     buf.resize(prologue_sz, 0);
-    let prologue = unsafe {
-        parser.read_raw(buf.as_mut_slice())?;
-        let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologueV2;
-        let v2 = Box::<DebugLinePrologueV2>::from_raw(prologue_raw);
+    unsafe { parser.read_raw(buf.as_mut_slice()) }?;
+    let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologueV2;
+    let v2 = unsafe { Box::<DebugLinePrologueV2>::from_raw(prologue_raw) };
 
-        if v2.version != 0x2 && v2.version != 0x4 {
-            let version = v2.version;
-            Box::leak(v2);
-            return Err(Error::new(
-                ErrorKind::Unsupported,
-                format!("Support DWARF version 2 & 4 (version: {})", version),
-            ));
-        }
+    if v2.version != 0x2 && v2.version != 0x4 {
+        let version = v2.version;
+        Box::leak(v2);
+        return Err(Error::new(
+            ErrorKind::Unsupported,
+            format!("Support DWARF version 2 & 4 (version: {})", version),
+        ));
+    }
 
-        if v2.version == 0x4 {
-            // Upgrade to V4.
-            // V4 has more fields to read.
-            Box::leak(v2);
-            buf.resize(prologue_v4_sz, 0);
-            parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..])?;
-            let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
-            let v4 = Box::<DebugLinePrologue>::from_raw(prologue_raw);
-            prologue_sz = prologue_v4_sz;
-            let prologue_v4 = DebugLinePrologue { ..(*v4) };
-            Box::leak(v4);
-            prologue_v4
-        } else {
-            // Convert V2 to V4
-            let prologue_v4 = DebugLinePrologue {
-                total_length: v2.total_length,
-                version: v2.version,
-                prologue_length: v2.prologue_length,
-                minimum_instruction_length: v2.minimum_instruction_length,
-                maximum_ops_per_instruction: 0,
-                default_is_stmt: v2.default_is_stmt,
-                line_base: v2.line_base,
-                line_range: v2.line_range,
-                opcode_base: v2.opcode_base,
-            };
-            Box::leak(v2);
-            prologue_v4
-        }
+    let prologue = if v2.version == 0x4 {
+        // Upgrade to V4.
+        // V4 has more fields to read.
+        Box::leak(v2);
+        buf.resize(prologue_v4_sz, 0);
+        unsafe { parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..]) }?;
+        let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
+        let v4 = unsafe { Box::<DebugLinePrologue>::from_raw(prologue_raw) };
+        prologue_sz = prologue_v4_sz;
+        let prologue_v4 = DebugLinePrologue { ..(*v4) };
+        Box::leak(v4);
+        prologue_v4
+    } else {
+        // Convert V2 to V4
+        let prologue_v4 = DebugLinePrologue {
+            total_length: v2.total_length,
+            version: v2.version,
+            prologue_length: v2.prologue_length,
+            minimum_instruction_length: v2.minimum_instruction_length,
+            maximum_ops_per_instruction: 0,
+            default_is_stmt: v2.default_is_stmt,
+            line_base: v2.line_base,
+            line_range: v2.line_range,
+            opcode_base: v2.opcode_base,
+        };
+        Box::leak(v2);
+        prologue_v4
     };
 
     let to_read = prologue.total_length as usize + 4 - prologue_sz;
