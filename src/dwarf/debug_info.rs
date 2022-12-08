@@ -33,6 +33,7 @@ fn decode_3bytes_usigned(data: &[u8]) -> u32 {
     data[0] as u32 | ((data[1] as u32) << 8) | ((data[2] as u32) << 16)
 }
 
+#[allow(unused)]
 pub struct UnknownHeader {
     init_length: usize,
     bits64: bool,
@@ -41,6 +42,7 @@ pub struct UnknownHeader {
     hdr_size: usize,
 }
 
+#[allow(unused)]
 pub struct CUHeaderV5 {
     init_length: usize,
     bits64: bool,
@@ -51,6 +53,7 @@ pub struct CUHeaderV5 {
     hdr_size: usize,
 }
 
+#[allow(unused)]
 pub struct CUHeaderV4 {
     init_length: usize,
     bits64: bool,
@@ -194,7 +197,6 @@ fn parse_abbrev_attr(data: &[u8]) -> Option<(u8, u8, u128, usize)> {
 
 #[derive(Clone)]
 pub enum AttrValue<'a> {
-    Signed(i64),
     Signed128(i128),
     Unsigned(u64),
     Unsigned128(u128),

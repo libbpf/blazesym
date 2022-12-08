@@ -255,18 +255,6 @@ fn read_elf_section_seek(file: &mut File, section: &Elf64_Shdr) -> Result<(), Er
     Ok(())
 }
 
-fn read_elf_section_offset_seek(
-    file: &mut File,
-    section: &Elf64_Shdr,
-    offset: usize,
-) -> Result<(), Error> {
-    if offset as u64 >= section.sh_size {
-        return Err(Error::new(ErrorKind::InvalidInput, "the offset is too big"));
-    }
-    file.seek(SeekFrom::Start(section.sh_offset + offset as u64))?;
-    Ok(())
-}
-
 fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a str> {
     extract_string(strtab, sect.sh_name as usize)
 }
@@ -311,6 +299,7 @@ impl Elf64Parser {
         Ok(parser)
     }
 
+    #[cfg(test)]
     pub fn open(filename: &str) -> Result<Elf64Parser, Error> {
         let file = File::open(filename)?;
         let parser = Self::open_file(file);
@@ -320,10 +309,6 @@ impl Elf64Parser {
         } else {
             parser
         }
-    }
-
-    pub fn get_filename(&self) -> &str {
-        &self.filename
     }
 
     fn ensure_ehdr(&self) -> Result<(), Error> {
@@ -507,17 +492,6 @@ impl Elf64Parser {
         read_elf_section_seek(
             &mut self.file.borrow_mut(),
             &me.shdrs.as_ref().unwrap()[sect_idx],
-        )
-    }
-
-    pub fn section_offset_seek(&self, sect_idx: usize, offset: usize) -> Result<(), Error> {
-        self.check_section_index(sect_idx)?;
-        self.ensure_shdrs()?;
-        let me = self.backobj.borrow();
-        read_elf_section_offset_seek(
-            &mut self.file.borrow_mut(),
-            &me.shdrs.as_ref().unwrap()[sect_idx],
-            offset,
         )
     }
 
@@ -736,26 +710,12 @@ impl Elf64Parser {
         Ok(syms)
     }
 
-    pub fn get_num_symbols(&self) -> Result<usize, Error> {
-        self.ensure_symtab()?;
-
-        let me = self.backobj.borrow();
-        Ok(me.symtab.as_ref().unwrap().len())
-    }
-
     #[cfg(test)]
     fn get_symbol(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
         self.ensure_symtab()?;
 
         let me = self.backobj.as_ptr();
         Ok(unsafe { &(*me).symtab.as_mut().unwrap()[idx] })
-    }
-
-    pub fn get_symbol_origin(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
-        self.ensure_symtab()?;
-
-        let me = self.backobj.as_ptr();
-        Ok(unsafe { &(*me).symtab_origin.as_mut().unwrap()[idx] })
     }
 
     #[cfg(test)]
@@ -777,17 +737,6 @@ impl Elf64Parser {
         };
 
         Ok(sym_name)
-    }
-
-    pub fn get_all_symbols(&self) -> Result<&[Elf64_Sym], Error> {
-        self.ensure_symtab()?;
-
-        let symtab = unsafe {
-            let me = self.backobj.as_ptr();
-            let symtab_ref = (*me).symtab.as_mut().unwrap();
-            symtab_ref
-        };
-        Ok(symtab)
     }
 
     pub fn get_all_program_headers(&self) -> Result<&[Elf64_Phdr], Error> {

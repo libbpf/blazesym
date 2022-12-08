@@ -256,14 +256,3 @@ pub fn decode_sword(data: &[u8]) -> i32 {
 pub fn decode_udword(data: &[u8]) -> u64 {
     decode_uword(data) as u64 | ((decode_uword(&data[4..]) as u64) << 32)
 }
-
-#[allow(dead_code)]
-#[inline(always)]
-pub fn decode_swdord(data: &[u8]) -> i64 {
-    let udw = decode_udword(data);
-    if udw >= 0x8000000000000000 {
-        ((udw as i128) - 0x10000000000000000) as i64
-    } else {
-        udw as i64
-    }
-}

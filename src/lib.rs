@@ -893,40 +893,6 @@ impl BlazeSymbolizer {
         })
     }
 
-    #[allow(dead_code)]
-    fn find_address(
-        &self,
-        sym_srcs: &[SymbolSrcCfg],
-        name: &str,
-        opts: &FindAddrOpts,
-    ) -> Option<Vec<SymbolInfo>> {
-        let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder).ok()?;
-        let mut found = vec![];
-        for (_, resolver) in resolver_map.resolvers {
-            if let Some(mut syms) = resolver.find_address(name, opts) {
-                for sym in &mut syms {
-                    if opts.offset_in_file {
-                        if let Some(off) = resolver.addr_file_off(sym.address) {
-                            sym.file_offset = off;
-                        }
-                    }
-                    if opts.obj_file_name {
-                        sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
-                    }
-                }
-                found.append(&mut syms);
-            }
-        }
-        Some(found)
-    }
-
-    #[allow(dead_code)]
-    fn find_line_info(&self, sym_srcs: &[SymbolSrcCfg], addr: u64) -> Option<AddressLineInfo> {
-        let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder).ok()?;
-        let resolver = resolver_map.find_resolver(addr)?;
-        resolver.find_line_info(addr)
-    }
-
     fn find_addr_features_context(features: Vec<FindAddrFeature>) -> FindAddrOpts {
         let mut opts = FindAddrOpts {
             offset_in_file: false,
