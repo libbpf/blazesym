@@ -35,7 +35,7 @@ The following code makes use of BlazeSym to access symbol names, filenames of
 sources, and line numbers of addresses involved in a process.
 
 
-```ignore
+```ignore,compile_fail
 	use blazesym::{BlazeSymbolizer, SymSrcCfg, SymbolizedResult};
 
 	let process_id: u32 = <process id>;
@@ -88,7 +88,7 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 
 `SymSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
 
-```ignore
+```ignore,compile_fail
 	let sym_srcs = [SymSrcCfg::Kernel {
 		kallsyms: Some("/proc/kallsyms".to_string()),
 		kernel_image: Some("/boot/vmlinux-xxxxx".to_string()),
@@ -104,7 +104,7 @@ paths for you, if possible. It will use `"/proc/kallsyms"` for
 kallsyms and find the kernel image of the running kernel from several
 potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
-```ignore
+```ignore,compile_fail
 	let sym_srcs = [SymSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
 ```
 
@@ -112,7 +112,7 @@ potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
 You can still provide a list of ELF files and their base addresses if necessary.
 
-```ignore
+```ignore,compile_fail
 	let sym_srcs = [SymSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
 	                                 base_address: 0x1f005d },
 	                SymSrcCfg::Elf { fie_name: String::from("/path/to/my/binary"),
@@ -151,7 +151,7 @@ source.
 The following code symbolizes a list of addresses of a process.  It
 shows the addresses, symbol names, source filenames and line numbers.
 
-```ignore
+```c
 	#include "blazesym.h"
 	
 	struct sym_src_cfg sym_srcs[] = {
@@ -226,7 +226,7 @@ You may want to link a shared library, i.e., `libblazesym.so`.
 [`blazesym_src_type::SRC_T_KERNEL`] is a variant of `struct sym_src_cfg` highlighting
 the kernel as a source of symbolization.
 
-```ignore
+```c
 	struct sym_src_cfg sym_srcs[] = {
 		{ SRC_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
 		                                        .kernel_image = "/boot/vmlinux-XXXXX" } } },
@@ -245,7 +245,7 @@ ELF file and its base address.  You can specify a list of ELF files
 and where they are loaded.
 
 
-```ignore
+```c
 	struct sym_src_cfg sym_srcs[] = {
 		{ SRC_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
 		                                  .base_address = 0x7fff31000 } } },
