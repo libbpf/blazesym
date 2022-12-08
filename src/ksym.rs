@@ -233,9 +233,9 @@ mod tests {
     use std::cmp::Ordering;
 
     // This test case is skipped by default for /proc/kallsyms may
-    // not availble in some environment.
+    // not available in some environment.
     #[test]
-    #[cfg(feature = "dont_skip_tests")]
+    #[ignore = "system-dependent; may fail"]
     fn ksym_resolver_load_find() {
         let mut resolver = KSymResolver::new();
         assert!(resolver.load().is_ok());
