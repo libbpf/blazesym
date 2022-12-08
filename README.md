@@ -34,22 +34,21 @@ functions and various types of BlazeSym.
 The following code makes use of BlazeSym to access symbol names, filenames of
 sources, and line numbers of addresses involved in a process.
 
+```rust,no_run
+	use blazesym::{BlazeSymbolizer, SymbolSrcCfg, SymbolizedResult};
 
-```ignore,compile_fail
-	use blazesym::{BlazeSymbolizer, SymSrcCfg, SymbolizedResult};
-
-	let process_id: u32 = <process id>;
+	let process_id: u32 = std::process::id(); // <some process id>
 	// load all symbols of loaded files of the given process.
-	let sym_srcs = [SymSrcCfg::Process { pid: process_id }];
+	let sym_srcs = [SymbolSrcCfg::Process { pid: Some(process_id) }];
 	let symbolizer = BlazeSymbolizer::new().unwrap();
 
-	let stack: [u64] = [0xff023, 0x17ff93b];			// Addresses of instructions
+	let stack: [u64; 2] = [0xff023, 0x17ff93b];			// Addresses of instructions
 	let symlist = symbolizer.symbolize(&sym_srcs,		// Pass this configuration every time
 	                                   &stack);
 	for i in 0..stack.len() {
 		let address = stack[i];
 
-		if symlist.len() <= i or symlist[i].len() == 0 {	// Unknown address
+		if symlist.len() <= i || symlist[i].len() == 0 {	// Unknown address
 			println!("0x{:016x}", address);
 			continue;
 		}
@@ -71,11 +70,11 @@ sources, and line numbers of addresses involved in a process.
 ```
 
 `sym_srcs` is a list of symbol sources in a process.
-However, there is only one `SymSrcCfg::Process {}` here.
-`SymSrcCfg::Process {}` is a convenient variant for loading all objects,
+However, there is only one `SymbolSrcCfg::Process {}` here.
+`SymbolSrcCfg::Process {}` is a convenient variant for loading all objects,
 i.e., binaries and shared libraries, mapped in a process.  Therefore, developers
 do not have to specify each object and its base address with
-`SymSrcCfg::Process {}`.
+`SymbolSrcCfg::Process {}`.
 
 `symlist` is a list of lists of `SymbolizedResult`.  The instruction provided
 at an address can result from several lines of code from multiple
@@ -86,10 +85,10 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 
 ### With Linux Kernel
 
-`SymSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
+`SymbolSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
 
-```ignore,compile_fail
-	let sym_srcs = [SymSrcCfg::Kernel {
+```rust,ignore,compile_fail
+	let sym_srcs = [SymbolSrcCfg::Kernel {
 		kallsyms: Some("/proc/kallsyms".to_string()),
 		kernel_image: Some("/boot/vmlinux-xxxxx".to_string()),
 	}];
@@ -104,19 +103,19 @@ paths for you, if possible. It will use `"/proc/kallsyms"` for
 kallsyms and find the kernel image of the running kernel from several
 potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
-```ignore,compile_fail
-	let sym_srcs = [SymSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
+```rust,ignore,compile_fail
+	let sym_srcs = [SymbolSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
 ```
 
 ### A list of ELF files
 
 You can still provide a list of ELF files and their base addresses if necessary.
 
-```ignore,compile_fail
-	let sym_srcs = [SymSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
-	                                 base_address: 0x1f005d },
-	                SymSrcCfg::Elf { fie_name: String::from("/path/to/my/binary"),
-				                     base_address: 0x77777 },
+```rust,ignore,compile_fail
+	let sym_srcs = [SymbolSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
+	                                    base_address: 0x1f005d },
+	                SymbolSrcCfg::Elf { fie_name: String::from("/path/to/my/binary"),
+	                                    base_address: 0x77777 },
 	                ......
 	];
 ```
@@ -169,7 +168,7 @@ shows the addresses, symbol names, source filenames and line numbers.
 	/* sym_srcs should be passed every time doing symbolization */
 	result = blazesym_symbolize(symbolizer,
 	                            sym_srcs, 1,
-								stack, stack_sz);
+	                            stack, stack_sz);
 	
 	for (i = 0; i < stack_sz; i++) {
 		addr = stack[i];
