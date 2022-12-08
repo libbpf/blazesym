@@ -781,12 +781,6 @@ impl ResolverMap {
     }
 }
 
-#[allow(dead_code)]
-struct Symbol {
-    pub name: String,
-    pub addr: u64,
-}
-
 /// Switches in the features of BlazeSymbolizer.
 ///
 /// Passing variants of this `enum` to [`BlazeSymbolizer::new_opt()`]
