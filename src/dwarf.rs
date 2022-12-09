@@ -31,7 +31,7 @@ pub struct ArangesCU {
     pub aranges: Vec<(u64, u64)>,
 }
 
-#[repr(packed)]
+#[repr(C, packed)]
 struct DebugLinePrologueV2 {
     total_length: u32,
     version: u16,
@@ -46,8 +46,7 @@ struct DebugLinePrologueV2 {
 /// DebugLinePrologue is actually a V4.
 ///
 /// DebugLinePrologueV2 will be converted to this type.
-#[allow(dead_code)]
-#[repr(packed)]
+#[repr(C, packed)]
 struct DebugLinePrologue {
     total_length: u32,
     version: u16,
@@ -234,11 +233,12 @@ fn parse_debug_line_cu(
     buf.resize(prologue_sz, 0);
     unsafe { parser.read_raw(buf.as_mut_slice()) }?;
     let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologueV2;
-    let v2 = unsafe { Box::<DebugLinePrologueV2>::from_raw(prologue_raw) };
+    // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologueV2` is
+    //         comprised only of objects that are valid for any bit pattern.
+    let v2 = unsafe { prologue_raw.read_unaligned() };
 
     if v2.version != 0x2 && v2.version != 0x4 {
         let version = v2.version;
-        Box::leak(v2);
         return Err(Error::new(
             ErrorKind::Unsupported,
             format!("Support DWARF version 2 & 4 (version: {})", version),
@@ -248,14 +248,13 @@ fn parse_debug_line_cu(
     let prologue = if v2.version == 0x4 {
         // Upgrade to V4.
         // V4 has more fields to read.
-        Box::leak(v2);
         buf.resize(prologue_v4_sz, 0);
         unsafe { parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..]) }?;
         let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
-        let v4 = unsafe { Box::<DebugLinePrologue>::from_raw(prologue_raw) };
+        // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologue` is
+        //         comprised only of objects that are valid for any bit pattern.
+        let prologue_v4 = unsafe { prologue_raw.read_unaligned() };
         prologue_sz = prologue_v4_sz;
-        let prologue_v4 = DebugLinePrologue { ..(*v4) };
-        Box::leak(v4);
         prologue_v4
     } else {
         // Convert V2 to V4
@@ -270,7 +269,6 @@ fn parse_debug_line_cu(
             line_range: v2.line_range,
             opcode_base: v2.opcode_base,
         };
-        Box::leak(v2);
         prologue_v4
     };
 
