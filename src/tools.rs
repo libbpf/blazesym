@@ -1,3 +1,4 @@
+use std::ffi::CStr;
 use std::fs;
 use std::io::{BufRead, BufReader, Error, ErrorKind};
 
@@ -100,14 +101,16 @@ pub fn extract_string(raw: &[u8], off: usize) -> Option<&str> {
     if off >= raw.len() {
         return None;
     }
-    while raw[end] != 0 {
+    while end < raw.len() && raw[end] != 0 {
         end += 1;
     }
-    let blk = raw[off..end].as_ptr() as *mut u8;
-    let r = unsafe { String::from_raw_parts(blk, end - off, end - off) };
-    let ret = Some(unsafe { &*(r.as_str() as *const str) }); // eliminate lifetime
-    r.into_bytes().leak();
-    ret
+    if end >= raw.len() {
+        return None;
+    }
+    CStr::from_bytes_with_nul(&raw[off..=end])
+        .ok()?
+        .to_str()
+        .ok()
 }
 
 #[allow(dead_code)]
