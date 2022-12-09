@@ -5,13 +5,14 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Error;
+use std::path::{Path, PathBuf};
 use std::ptr;
 use std::rc::Rc;
 
 use nix::sys::stat::{fstat, FileStat};
 use std::os::unix::io::AsRawFd;
 
-type ElfCacheEntryKey = String;
+type ElfCacheEntryKey = PathBuf;
 
 const DFL_CACHE_MAX: usize = 1024;
 
@@ -56,7 +57,7 @@ struct ElfCacheEntry {
     prev: *mut ElfCacheEntry,
     next: *mut ElfCacheEntry,
 
-    file_name: String,
+    file_name: PathBuf,
 
     dev: libc::dev_t,
     inode: libc::ino_t,
@@ -68,7 +69,7 @@ struct ElfCacheEntry {
 
 impl ElfCacheEntry {
     pub fn new(
-        file_name: &str,
+        file_name: &Path,
         file: File,
         line_number_info: bool,
         debug_info_symbols: bool,
@@ -89,7 +90,7 @@ impl ElfCacheEntry {
         Ok(ElfCacheEntry {
             prev: ptr::null_mut(),
             next: ptr::null_mut(),
-            file_name: String::from(file_name),
+            file_name: file_name.to_path_buf(),
             dev: stat.st_dev,
             inode: stat.st_ino,
             size: stat.st_size,
@@ -99,8 +100,8 @@ impl ElfCacheEntry {
         })
     }
 
-    fn get_key(&self) -> String {
-        self.file_name.clone()
+    fn get_key(&self) -> &Path {
+        &self.file_name
     }
 
     fn is_valid(&self, stat: &FileStat) -> bool {
@@ -211,8 +212,8 @@ impl _ElfCache {
     /// The returned reference is only valid before next time calling
     /// create_entry().
     ///
-    unsafe fn find_entry(&mut self, file_name: &str) -> Option<&ElfCacheEntry> {
-        let ent = self.elfs.get(&file_name.to_string())?;
+    unsafe fn find_entry(&mut self, file_name: &Path) -> Option<&ElfCacheEntry> {
+        let ent = self.elfs.get(file_name)?;
         self.lru.touch(ent);
 
         Some(ent.as_ref())
@@ -225,7 +226,7 @@ impl _ElfCache {
     ///
     unsafe fn create_entry(
         &mut self,
-        file_name: &str,
+        file_name: &Path,
         file: File,
     ) -> Result<&ElfCacheEntry, Error> {
         let ent = Box::new(ElfCacheEntry::new(
@@ -234,7 +235,7 @@ impl _ElfCache {
             self.line_number_info,
             self.debug_info_symbols,
         )?);
-        let key = ent.get_key();
+        let key = ent.get_key().to_path_buf();
 
         self.elfs.insert(key.clone(), ent);
         self.lru.push_back(self.elfs.get(&key).unwrap().as_ref());
@@ -251,11 +252,15 @@ impl _ElfCache {
     unsafe fn ensure_size(&mut self) {
         if self.elfs.len() > self.max_elfs {
             let to_remove = self.lru.pop_head();
-            self.elfs.remove(&(*to_remove).get_key()).unwrap();
+            self.elfs.remove((*to_remove).get_key()).unwrap();
         }
     }
 
-    fn find_or_create_backend(&mut self, file_name: &str, file: File) -> Result<ElfBackend, Error> {
+    fn find_or_create_backend(
+        &mut self,
+        file_name: &Path,
+        file: File,
+    ) -> Result<ElfBackend, Error> {
         if let Some(ent) = unsafe { self.find_entry(file_name) } {
             let stat = fstat(file.as_raw_fd())?;
 
@@ -268,13 +273,13 @@ impl _ElfCache {
                 let ent = &*(ent as *const ElfCacheEntry); // static lifetime to decouple borrowing
                 self.lru.remove(ent)
             };
-            self.elfs.remove(&file_name.to_string());
+            self.elfs.remove(file_name);
         }
 
         Ok(unsafe { self.create_entry(file_name, file)? }.get_backend())
     }
 
-    pub fn find(&mut self, path: &str) -> Result<ElfBackend, Error> {
+    pub fn find(&mut self, path: &Path) -> Result<ElfBackend, Error> {
         let file = File::open(path)?;
         self.find_or_create_backend(path, file)
     }
@@ -297,7 +302,7 @@ impl ElfCache {
         cache.get_max_elfs()
     }
 
-    pub fn find(&self, path: &str) -> Result<ElfBackend, Error> {
+    pub fn find(&self, path: &Path) -> Result<ElfBackend, Error> {
         let mut cache = self.cache.borrow_mut();
         cache.find(path)
     }
@@ -310,12 +315,11 @@ mod tests {
 
     #[test]
     fn test_cache() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
+        let bin_name = env::args_os().next().unwrap();
 
         let cache = ElfCache::new(true, false);
-        let backend_first = cache.find(bin_name);
-        let backend_second = cache.find(bin_name);
+        let backend_first = cache.find(Path::new(&bin_name));
+        let backend_second = cache.find(Path::new(&bin_name));
         assert!(backend_first.is_ok());
         assert!(backend_second.is_ok());
         let backend_first = backend_first.unwrap();

@@ -89,8 +89,8 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 
 ```rust,ignore,compile_fail
 	let sym_srcs = [SymbolSrcCfg::Kernel {
-		kallsyms: Some("/proc/kallsyms".to_string()),
-		kernel_image: Some("/boot/vmlinux-xxxxx".to_string()),
+		kallsyms: Some(PathBuf::from("/proc/kallsyms")),
+		kernel_image: Some(PathBuf::from("/boot/vmlinux-xxxxx")),
 	}];
 ```
 
@@ -112,9 +112,9 @@ potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 You can still provide a list of ELF files and their base addresses if necessary.
 
 ```rust,ignore,compile_fail
-	let sym_srcs = [SymbolSrcCfg::Elf { file_name: String::from("/lib/libc.so.xxx"),
+	let sym_srcs = [SymbolSrcCfg::Elf { file_name: PathBuf::from("/lib/libc.so.xxx"),
 	                                    base_address: 0x1f005d },
-	                SymbolSrcCfg::Elf { fie_name: String::from("/path/to/my/binary"),
+	                SymbolSrcCfg::Elf { fie_name: PathBuf::from("/path/to/my/binary"),
 	                                    base_address: 0x77777 },
 	                ......
 	];

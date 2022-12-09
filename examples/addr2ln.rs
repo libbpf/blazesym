@@ -2,6 +2,7 @@ extern crate blazesym;
 
 use blazesym::{BlazeSymbolizer, SymbolSrcCfg};
 use std::env;
+use std::path;
 
 fn show_usage() {
     let args: Vec<String> = env::args().collect();
@@ -19,7 +20,7 @@ fn main() {
     let bin_name = &args[1];
     let mut addr_str = &args[2][..];
     let sym_srcs = [SymbolSrcCfg::Elf {
-        file_name: bin_name.clone(),
+        file_name: path::PathBuf::from(bin_name),
         base_address: 0x0,
     }];
     let resolver = BlazeSymbolizer::new().unwrap();

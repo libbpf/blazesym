@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::default::Default;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error};
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::u64;
 
@@ -27,7 +28,7 @@ pub struct Ksym {
 pub struct KSymResolver {
     syms: Vec<Ksym>,
     sym_to_addr: RefCell<HashMap<&'static str, u64>>,
-    file_name: String,
+    file_name: PathBuf,
 }
 
 impl KSymResolver {
@@ -35,8 +36,8 @@ impl KSymResolver {
         Default::default()
     }
 
-    pub fn load_file_name(&mut self, filename: &str) -> Result<(), std::io::Error> {
-        let f = File::open(filename)?;
+    pub fn load_file_name(&mut self, filename: PathBuf) -> Result<(), std::io::Error> {
+        let f = File::open(&filename)?;
         let mut reader = BufReader::new(f);
         let mut line = String::new();
 
@@ -63,13 +64,13 @@ impl KSymResolver {
 
         self.syms.sort_by(|a, b| a.addr.cmp(&b.addr));
 
-        self.file_name = filename.to_string();
+        self.file_name = filename;
 
         Ok(())
     }
 
     pub fn load(&mut self) -> Result<(), std::io::Error> {
-        self.load_file_name(KALLSYMS)
+        self.load_file_name(PathBuf::from(KALLSYMS))
     }
 
     fn ensure_sym_to_addr(&self) {
@@ -126,7 +127,7 @@ impl Default for KSymResolver {
         KSymResolver {
             syms: Vec::with_capacity(DFL_KSYM_CAP),
             sym_to_addr: RefCell::new(HashMap::new()),
-            file_name: "".to_string(),
+            file_name: PathBuf::from(""),
         }
     }
 }
@@ -190,8 +191,8 @@ impl SymResolver for KSymResolver {
         None
     }
 
-    fn get_obj_file_name(&self) -> String {
-        self.file_name.clone()
+    fn get_obj_file_name(&self) -> &Path {
+        &self.file_name
     }
 
     fn repr(&self) -> String {
@@ -203,7 +204,7 @@ impl SymResolver for KSymResolver {
 ///
 /// It returns the same isntance if path is the same.
 pub struct KSymCache {
-    resolvers: RefCell<HashMap<String, Rc<KSymResolver>>>,
+    resolvers: RefCell<HashMap<PathBuf, Rc<KSymResolver>>>,
 }
 
 impl KSymCache {
@@ -214,15 +215,17 @@ impl KSymCache {
     }
 
     /// Find an instance of KSymResolver from the cache or create a new one.
-    pub fn get_resolver(&self, path: &str) -> Result<Rc<KSymResolver>, Error> {
+    pub fn get_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>, Error> {
         let mut resolvers = self.resolvers.borrow_mut();
         if let Some(resolver) = resolvers.get(path) {
             return Ok(resolver.clone());
         }
 
         let mut resolver = Rc::new(KSymResolver::new());
-        Rc::get_mut(&mut resolver).unwrap().load_file_name(path)?;
-        resolvers.insert(path.to_string(), resolver.clone());
+        Rc::get_mut(&mut resolver)
+            .unwrap()
+            .load_file_name(path.to_path_buf())?;
+        resolvers.insert(path.to_path_buf(), resolver.clone());
         Ok(resolver)
     }
 }
@@ -290,8 +293,8 @@ mod tests {
     #[test]
     fn ksym_cache() {
         let cache = KSymCache::new();
-        let resolver = cache.get_resolver(KALLSYMS);
-        let resolver1 = cache.get_resolver(KALLSYMS);
+        let resolver = cache.get_resolver(Path::new(KALLSYMS));
+        let resolver1 = cache.get_resolver(Path::new(KALLSYMS));
         assert!(resolver.is_ok());
         assert!(resolver1.is_ok());
     }
