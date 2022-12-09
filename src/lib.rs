@@ -11,10 +11,12 @@
 #[cfg(feature = "nightly")]
 extern crate test;
 
-use std::io::{Error, ErrorKind};
-use std::u64;
-
 use std::ffi::CStr;
+use std::ffi::OsStr;
+use std::io::{Error, ErrorKind};
+use std::os::unix::ffi::OsStrExt as _;
+use std::path::{Component, Path, PathBuf};
+use std::u64;
 
 use std::ptr;
 
@@ -116,8 +118,8 @@ pub struct SymbolInfo {
     pub sym_type: SymbolType,
     /// The offset in the object file.
     pub file_offset: u64,
-    /// The file name of the shared oject.
-    pub obj_file_name: Option<String>,
+    /// The file name of the shared object.
+    pub obj_file_name: Option<PathBuf>,
 }
 
 impl Default for SymbolInfo {
@@ -153,7 +155,7 @@ trait SymResolver {
     /// in the object file.
     fn addr_file_off(&self, addr: u64) -> Option<u64>;
     /// Get the file name of the shared object.
-    fn get_obj_file_name(&self) -> String;
+    fn get_obj_file_name(&self) -> &Path;
 
     fn repr(&self) -> String;
 }
@@ -340,12 +342,12 @@ struct ElfResolver {
     loaded_to_virt: u64,
     foff_to_virt: u64,
     size: u64,
-    file_name: String,
+    file_name: PathBuf,
 }
 
 impl ElfResolver {
     fn new(
-        file_name: &str,
+        file_name: &Path,
         loaded_address: u64,
         cache_holder: &CacheHolder,
     ) -> Result<ElfResolver, Error> {
@@ -398,7 +400,7 @@ impl ElfResolver {
             loaded_to_virt,
             foff_to_virt,
             size,
-            file_name: file_name.to_string(),
+            file_name: file_name.to_path_buf(),
         })
     }
 
@@ -481,14 +483,14 @@ impl SymResolver for ElfResolver {
         Some(addr - self.loaded_address + self.loaded_to_virt - self.foff_to_virt)
     }
 
-    fn get_obj_file_name(&self) -> String {
-        self.file_name.clone()
+    fn get_obj_file_name(&self) -> &Path {
+        &self.file_name
     }
 
     fn repr(&self) -> String {
         match self.backend {
-            ElfBackend::Dwarf(_) => format!("DWARF {}", self.file_name),
-            ElfBackend::Elf(_) => format!("ELF {}", self.file_name),
+            ElfBackend::Dwarf(_) => format!("DWARF {}", self.file_name.display()),
+            ElfBackend::Elf(_) => format!("ELF {}", self.file_name.display()),
         }
     }
 }
@@ -496,14 +498,14 @@ impl SymResolver for ElfResolver {
 struct KernelResolver {
     ksymresolver: Option<Rc<KSymResolver>>,
     kernelresolver: Option<ElfResolver>,
-    kallsyms: String,
-    kernel_image: String,
+    kallsyms: PathBuf,
+    kernel_image: PathBuf,
 }
 
 impl KernelResolver {
     fn new(
-        kallsyms: &str,
-        kernel_image: &str,
+        kallsyms: &Path,
+        kernel_image: &Path,
         cache_holder: &CacheHolder,
     ) -> Result<KernelResolver, Error> {
         let ksymresolver = cache_holder.get_ksym_cache().get_resolver(kallsyms);
@@ -512,15 +514,19 @@ impl KernelResolver {
         if ksymresolver.is_err() && kernelresolver.is_err() {
             return Err(Error::new(
                 ErrorKind::NotFound,
-                format!("can not load {} and {}", kallsyms, kernel_image),
+                format!(
+                    "can not load {} and {}",
+                    kallsyms.display(),
+                    kernel_image.display()
+                ),
             ));
         }
 
         Ok(KernelResolver {
             ksymresolver: ksymresolver.ok(),
             kernelresolver: kernelresolver.ok(),
-            kallsyms: kallsyms.to_string(),
-            kernel_image: kernel_image.to_string(),
+            kallsyms: kallsyms.to_path_buf(),
+            kernel_image: kernel_image.to_path_buf(),
         })
     }
 }
@@ -552,12 +558,16 @@ impl SymResolver for KernelResolver {
         None
     }
 
-    fn get_obj_file_name(&self) -> String {
-        self.kernel_image.clone()
+    fn get_obj_file_name(&self) -> &Path {
+        &self.kernel_image
     }
 
     fn repr(&self) -> String {
-        format!("KernelResolver {} {}", self.kallsyms, self.kernel_image)
+        format!(
+            "KernelResolver {} {}",
+            self.kallsyms.display(),
+            self.kernel_image.display()
+        )
     }
 }
 
@@ -577,7 +587,7 @@ pub enum SymbolSrcCfg {
         /// It can be an executable or shared object.
         /// For example, passing `"/bin/sh"` will load symbols and debug information from `sh`.
         /// Whereas passing `"/lib/libc.so.xxx"` will load symbols and debug information from the libc.
-        file_name: String,
+        file_name: PathBuf,
         /// The address where the executable segment loaded.
         ///
         /// The address in the process should be the executable segment's
@@ -609,14 +619,14 @@ pub enum SymbolSrcCfg {
         /// In that situation, you should give the path of the
         /// copy.  Passing `None`, by default, will be
         /// `"/proc/kallsyms"`.
-        kallsyms: Option<String>,
+        kallsyms: Option<PathBuf>,
         /// The path of a kernel image.
         ///
         /// This should be the path of a kernel image.  For example,
         /// `"/boot/vmlinux-xxxx"`.  A `None` value will find the
         /// kernel image of the running kernel in `"/boot/"` or
         /// `"/usr/lib/debug/boot/"`.
-        kernel_image: Option<String>,
+        kernel_image: Option<PathBuf>,
     },
     /// This one will be expended into all ELF files in a process.
     ///
@@ -667,7 +677,7 @@ impl ResolverMap {
         let entries = tools::parse_maps(pid)?;
 
         for entry in entries.iter() {
-            if &entry.path[..1] != "/" {
+            if entry.path.as_path().components().next() != Some(Component::RootDir) {
                 continue;
             }
             if (entry.mode & 0xa) != 0xa {
@@ -675,7 +685,7 @@ impl ResolverMap {
                 continue;
             }
 
-            if let Ok(filestat) = stat(&entry.path[..]) {
+            if let Ok(filestat) = stat(&entry.path) {
                 if (filestat.st_mode & 0o170000) != 0o100000 {
                     // Not a regular file
                     continue;
@@ -688,7 +698,7 @@ impl ResolverMap {
                 resolvers.push((resolver.get_address_range(), Box::new(resolver)));
             } else {
                 #[cfg(debug_assertions)]
-                eprintln!("Fail to create ElfResolver for {}", entry.path);
+                eprintln!("Fail to create ElfResolver for {}", entry.path.display());
             }
         }
 
@@ -713,24 +723,23 @@ impl ResolverMap {
                     kallsyms,
                     kernel_image,
                 } => {
-                    let kallsyms = if let Some(k) = kallsyms {
-                        k
-                    } else {
-                        "/proc/kallsyms"
-                    };
+                    let kallsyms = kallsyms
+                        .as_deref()
+                        .unwrap_or_else(|| Path::new("/proc/kallsyms"));
                     let kernel_image = if let Some(img) = kernel_image {
                         img.clone()
                     } else {
                         let release = utsname::uname()?.release().to_str().unwrap().to_string();
-                        let patterns = vec!["/boot/vmlinux-", "/usr/lib/debug/boot/vmlinux-"];
+                        let basename = "vmlinux-";
+                        let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
                         let mut i = 0;
                         let kernel_image = loop {
-                            let path = format!("{}{}", patterns[i], release);
-                            if stat(&path[..]).is_ok() {
+                            let path = dirs[i].join(format!("{}{}", basename, release));
+                            if stat(&path).is_ok() {
                                 break path;
                             }
                             i += 1;
-                            if i >= patterns.len() {
+                            if i >= dirs.len() {
                                 break path;
                             }
                         };
@@ -741,7 +750,7 @@ impl ResolverMap {
                         resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                     } else {
                         #[cfg(debug_assertions)]
-                        eprintln!("fail to load the kernel image {}", kernel_image);
+                        eprintln!("fail to load the kernel image {}", kernel_image.display());
                     }
                 }
                 SymbolSrcCfg::Process { pid } => {
@@ -902,7 +911,7 @@ impl BlazeSymbolizer {
                         }
                     }
                     if opts.obj_file_name {
-                        sym.obj_file_name = Some(resolver.get_obj_file_name());
+                        sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
                     }
                 }
                 found.append(&mut syms);
@@ -981,7 +990,7 @@ impl BlazeSymbolizer {
                     }
                 }
                 if ctx.obj_file_name {
-                    sym.obj_file_name = Some(resolver.get_obj_file_name());
+                    sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
                 }
                 syms.push(sym);
             }
@@ -1044,7 +1053,7 @@ impl BlazeSymbolizer {
                             }
                         }
                         if ctx.obj_file_name {
-                            sym.obj_file_name = Some(resolver.get_obj_file_name());
+                            sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
                         }
                     }
                     found.append(&mut syms);
@@ -1344,14 +1353,14 @@ pub struct blazesym_result {
     pub entries: [blazesym_entry; 0],
 }
 
-/// Create a String from a pointer of C string
+/// Create a `PathBuf` from a pointer of C string
 ///
 /// # Safety
 ///
-/// Cstring should be terminated with a null byte.
+/// C string should be terminated with a null byte.
 ///
-unsafe fn from_cstr(cstr: *const c_char) -> String {
-    CStr::from_ptr(cstr).to_str().unwrap().to_owned()
+unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
+    PathBuf::from(CStr::from_ptr(cstr).to_str().unwrap())
 }
 
 unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
@@ -1636,7 +1645,7 @@ unsafe fn convert_syms_list_to_c(
         for sym in syms {
             str_buf_sz += sym.name.len() + 1;
             if let Some(fname) = sym.obj_file_name.as_ref() {
-                str_buf_sz += fname.len() + 1;
+                str_buf_sz += AsRef::<OsStr>::as_ref(fname).as_bytes().len() + 1;
             }
         }
     }
@@ -1673,6 +1682,7 @@ unsafe fn convert_syms_list_to_c(
             *str_ptr = 0;
             str_ptr = str_ptr.add(1);
             let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
+                let fname = AsRef::<OsStr>::as_ref(fname).as_bytes();
                 let obj_fname_ptr = str_ptr;
                 ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len());
                 str_ptr = str_ptr.add(fname.len());
@@ -1720,7 +1730,7 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
     for sym in &syms {
         str_buf_sz += sym.name.len() + 1;
         if let Some(fname) = sym.obj_file_name.as_ref() {
-            str_buf_sz += fname.len() + 1;
+            str_buf_sz += AsRef::<OsStr>::as_ref(fname).as_bytes().len() + 1;
         }
     }
 
@@ -1750,6 +1760,7 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
         *str_ptr = 0;
         str_ptr = str_ptr.add(1);
         let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
+            let fname = AsRef::<OsStr>::as_ref(fname).as_bytes();
             let obj_fname_ptr = str_ptr;
             ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len());
             str_ptr = str_ptr.add(fname.len());
@@ -2136,7 +2147,7 @@ mod tests {
         // even if kernel_image is invalid.
         let srcs = vec![SymbolSrcCfg::Kernel {
             kallsyms: None,
-            kernel_image: Some("/dev/null".to_string()),
+            kernel_image: Some(PathBuf::from("/dev/null")),
         }];
         let cache_holder = CacheHolder::new(CacheHolderOpts {
             line_number_info: true,
@@ -2149,7 +2160,9 @@ mod tests {
         let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
         assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
 
-        let kresolver = KernelResolver::new("/proc/kallsyms", "/dev/null", &cache_holder).unwrap();
+        let kallsyms = Path::new("/proc/kallsyms");
+        let kernel_image = Path::new("/dev/null");
+        let kresolver = KernelResolver::new(kallsyms, kernel_image, &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());
         assert!(kresolver.kernelresolver.is_none());
     }

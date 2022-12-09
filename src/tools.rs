@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 use std::fs;
 use std::io::{BufRead, BufReader, Error, ErrorKind};
+use std::path::PathBuf;
 
 use regex::Regex;
 
@@ -119,7 +120,7 @@ pub struct LinuxMapsEntry {
     pub end_address: u64,
     pub mode: u8,
     pub offset: u64,
-    pub path: String,
+    pub path: PathBuf,
 }
 
 #[allow(dead_code)]
@@ -173,7 +174,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
                 end_address,
                 mode,
                 offset,
-                path: path_str,
+                path: PathBuf::from(path_str),
             };
             entries.push(entry);
         }
