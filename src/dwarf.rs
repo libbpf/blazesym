@@ -1,6 +1,7 @@
 use super::elf::Elf64Parser;
 use super::tools::{
     decode_leb128, decode_leb128_s, decode_udword, decode_uhalf, decode_uword, search_address_key,
+    RawBufReader,
 };
 use super::{FindAddrOpts, SymbolInfo, SymbolType};
 use crossbeam_channel::unbounded;
@@ -114,107 +115,63 @@ impl DebugLineCU {
 }
 
 /// Parse the list of directory paths for a CU.
-fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error> {
+fn parse_debug_line_dirs(data: &mut RawBufReader) -> Result<Vec<String>, Error> {
     let mut strs = Vec::<String>::new();
-    let mut pos = 0;
 
-    while pos < data_buf.len() {
-        if data_buf[pos] == 0 {
-            return Ok((strs, pos + 1));
+    while !data.is_eos() {
+        if let Some(s) = data.extract_string() {
+            if s.is_empty() {
+                return Ok(strs);
+            }
+            strs.push(s.to_string());
         }
-
-        // Find NULL byte
-        let mut end = pos;
-        while end < data_buf.len() && data_buf[end] != 0 {
-            end += 1;
-        }
-        if end < data_buf.len() {
-            let mut str_vec = Vec::<u8>::with_capacity(end - pos);
-            str_vec.extend_from_slice(&data_buf[pos..end]);
-
-            let str_r = String::from_utf8(str_vec)
-                .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"))?;
-            strs.push(str_r);
-            end += 1;
-        }
-        pos = end;
     }
 
     Err(Error::new(
         ErrorKind::InvalidData,
-        "Do not found null string",
+        "Do not found null string (dirs)",
     ))
 }
 
 /// Parse the list of file information for a CU.
-fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, usize), Error> {
+fn parse_debug_line_files(data: &mut RawBufReader) -> Result<Vec<DebugLineFileInfo>, Error> {
     let mut strs = Vec::<DebugLineFileInfo>::new();
-    let mut pos = 0;
 
-    while pos < data_buf.len() {
-        if data_buf[pos] == 0 {
-            return Ok((strs, pos + 1));
-        }
-
-        // Find NULL byte
-        let mut end = pos;
-        while end < data_buf.len() && data_buf[end] != 0 {
-            end += 1;
-        }
-        if end < data_buf.len() {
-            // Null terminated file name string
-            let mut str_vec = Vec::<u8>::with_capacity(end - pos);
-            str_vec.extend_from_slice(&data_buf[pos..end]);
-
-            let str_r = String::from_utf8(str_vec);
-            if str_r.is_err() {
-                return Err(Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"));
+    while !data.is_eos() {
+        if let Some(s) = data.extract_string() {
+            if s.is_empty() {
+                return Ok(strs);
             }
-            end += 1;
+
+            let name = s.to_string();
 
             // LEB128 directory index
-            let dir_idx_r = decode_leb128(&data_buf[end..]);
-            if dir_idx_r.is_none() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "Invliad directory index",
-                ));
-            }
-            let (dir_idx, bytes) = dir_idx_r.unwrap();
-            end += bytes as usize;
-
+            let dir_idx = data
+                .decode_leb128()
+                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invliad directory index"))?;
             // LEB128 last modified time
-            let mod_tm_r = decode_leb128(&data_buf[end..]);
-            if mod_tm_r.is_none() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "Invalid last modified time",
-                ));
-            }
-            let (mod_tm, bytes) = mod_tm_r.unwrap();
-            end += bytes as usize;
-
+            let mod_tm = data
+                .decode_leb128()
+                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invliad file modified time"))?;
             // LEB128 file size
-            let flen_r = decode_leb128(&data_buf[end..]);
-            if flen_r.is_none() {
-                return Err(Error::new(ErrorKind::InvalidData, "Invalid file size"));
-            }
-            let (flen, bytes) = flen_r.unwrap();
-            end += bytes as usize;
+            let flen = data
+                .decode_leb128()
+                .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invliad file length"))?;
 
             strs.push(DebugLineFileInfo {
-                name: str_r.unwrap(),
+                name,
                 dir_idx: dir_idx as u32,
                 mod_tm,
                 size: flen as usize,
             });
+        } else {
+            return Err(Error::new(ErrorKind::InvalidData, "Invalid string"));
         }
-        pos = end;
     }
 
     Err(Error::new(
         ErrorKind::InvalidData,
-        "Do not found null string",
+        "Do not found null string (files)",
     ))
 }
 
@@ -270,29 +227,33 @@ fn parse_debug_line_cu(
     };
 
     let to_read = prologue.total_length as usize + 4 - prologue_sz;
-    let data_buf = buf;
-    if to_read <= data_buf.capacity() {
+    if to_read <= buf.capacity() {
         // Gain better performance by skipping initialization.
-        unsafe { data_buf.set_len(to_read) };
+        unsafe { buf.set_len(to_read) };
     } else {
-        data_buf.resize(to_read, 0);
+        buf.resize(to_read, 0);
     }
-    unsafe { parser.read_raw(data_buf.as_mut_slice())? };
+    unsafe { parser.read_raw(buf.as_mut_slice())? };
 
-    let mut pos = 0;
+    let mut data = RawBufReader::new(buf);
 
     let std_op_num = (prologue.opcode_base - 1) as usize;
     let mut std_op_lengths = Vec::<u8>::with_capacity(std_op_num);
-    std_op_lengths.extend_from_slice(&data_buf[pos..pos + std_op_num]);
-    pos += std_op_num;
+    std_op_lengths.extend_from_slice(
+        data.take_slice(std_op_num)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "the buffer is too short"))?,
+    );
 
-    let (inc_dirs, bytes) = parse_debug_line_dirs(&data_buf[pos..])?;
-    pos += bytes;
+    let inc_dirs = parse_debug_line_dirs(&mut data)?;
 
-    let (files, bytes) = parse_debug_line_files(&data_buf[pos..])?;
-    pos += bytes;
+    let files = parse_debug_line_files(&mut data)?;
 
-    let matrix = run_debug_line_stmts(&data_buf[pos..], &prologue, addresses)?;
+    let matrix = run_debug_line_stmts(
+        data.take_slice(data.len() - data.pos())
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "the buffer is too short"))?,
+        &prologue,
+        addresses,
+    )?;
 
     #[cfg(debug_assertions)]
     for i in 1..matrix.len() {
