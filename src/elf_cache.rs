@@ -128,8 +128,8 @@ impl ElfCacheLru {
     ///
     /// Make all entries are valid.
     unsafe fn touch(&mut self, ent: &ElfCacheEntry) {
-        self.remove(ent);
-        self.push_back(ent);
+        unsafe { self.remove(ent) };
+        unsafe { self.push_back(ent) };
     }
 
     /// # Safety
@@ -137,15 +137,15 @@ impl ElfCacheLru {
     /// Make all entries are valid.
     unsafe fn remove(&mut self, ent: &ElfCacheEntry) {
         let ent_ptr = ent as *const ElfCacheEntry as *mut ElfCacheEntry;
-        let prev = (*ent_ptr).prev;
-        let next = (*ent_ptr).next;
+        let prev = unsafe { (*ent_ptr).prev };
+        let next = unsafe { (*ent_ptr).next };
         if !prev.is_null() {
-            (*prev).next = next;
+            unsafe { (*prev).next = next };
         } else {
             self.head = next;
         }
         if !next.is_null() {
-            (*next).prev = prev;
+            unsafe { (*next).prev = prev };
         } else {
             self.tail = prev;
         }
@@ -157,14 +157,14 @@ impl ElfCacheLru {
     unsafe fn push_back(&mut self, ent: &ElfCacheEntry) {
         let ent_ptr = ent as *const ElfCacheEntry as *mut ElfCacheEntry;
         if self.head.is_null() {
-            (*ent_ptr).next = ptr::null_mut();
-            (*ent_ptr).prev = ptr::null_mut();
+            unsafe { (*ent_ptr).next = ptr::null_mut() };
+            unsafe { (*ent_ptr).prev = ptr::null_mut() };
             self.head = ent_ptr;
             self.tail = ent_ptr;
         } else {
-            (*ent_ptr).next = ptr::null_mut();
-            (*self.tail).next = ent_ptr;
-            (*ent_ptr).prev = self.tail;
+            unsafe { (*ent_ptr).next = ptr::null_mut() };
+            unsafe { (*self.tail).next = ent_ptr };
+            unsafe { (*ent_ptr).prev = self.tail };
             self.tail = ent_ptr;
         }
     }
@@ -175,7 +175,7 @@ impl ElfCacheLru {
     unsafe fn pop_head(&mut self) -> *mut ElfCacheEntry {
         let ent = self.head;
         if !ent.is_null() {
-            self.remove(&*ent);
+            unsafe { self.remove(&*ent) };
         }
         ent
     }
@@ -214,7 +214,7 @@ impl _ElfCache {
     ///
     unsafe fn find_entry(&mut self, file_name: &Path) -> Option<&ElfCacheEntry> {
         let ent = self.elfs.get(file_name)?;
-        self.lru.touch(ent);
+        unsafe { self.lru.touch(ent) };
 
         Some(ent.as_ref())
     }
@@ -238,10 +238,10 @@ impl _ElfCache {
         let key = ent.get_key().to_path_buf();
 
         self.elfs.insert(key.clone(), ent);
-        self.lru.push_back(self.elfs.get(&key).unwrap().as_ref());
-        self.ensure_size();
+        unsafe { self.lru.push_back(self.elfs.get(&key).unwrap().as_ref()) };
+        unsafe { self.ensure_size() };
 
-        Ok(&*self.lru.tail) // Get 'static lifetime
+        Ok(unsafe { &*self.lru.tail }) // Get 'static lifetime
     }
 
     /// # Safety
@@ -251,8 +251,8 @@ impl _ElfCache {
     /// are holding.
     unsafe fn ensure_size(&mut self) {
         if self.elfs.len() > self.max_elfs {
-            let to_remove = self.lru.pop_head();
-            self.elfs.remove((*to_remove).get_key()).unwrap();
+            let to_remove = unsafe { self.lru.pop_head() };
+            self.elfs.remove(unsafe { (*to_remove).get_key() }).unwrap();
         }
     }
 

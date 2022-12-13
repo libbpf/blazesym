@@ -6,6 +6,7 @@
 // source code.
 #![doc = include_str!("../README.md")]
 #![allow(dead_code, clippy::let_and_return)]
+#![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
 #[cfg(feature = "nightly")]
@@ -1360,44 +1361,41 @@ pub struct blazesym_result {
 /// C string should be terminated with a null byte.
 ///
 unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
-    PathBuf::from(CStr::from_ptr(cstr).to_str().unwrap())
+    PathBuf::from(unsafe { CStr::from_ptr(cstr) }.to_str().unwrap())
 }
 
 unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
     let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len as usize);
 
     for i in 0..cfg_len {
-        let c = cfg.offset(i as isize);
-        match (*c).src_type {
+        let c = unsafe { cfg.offset(i as isize) };
+        match unsafe { &(*c).src_type } {
             blazesym_src_type::SRC_T_ELF => {
                 cfg_rs.push(SymbolSrcCfg::Elf {
-                    file_name: from_cstr((*c).params.elf.file_name),
-                    base_address: (*c).params.elf.base_address,
+                    file_name: unsafe { from_cstr((*c).params.elf.file_name) },
+                    base_address: unsafe { (*c).params.elf.base_address },
                 });
             }
             blazesym_src_type::SRC_T_KERNEL => {
-                let kallsyms = (*c).params.kernel.kallsyms;
-                let kernel_image = (*c).params.kernel.kernel_image;
+                let kallsyms = unsafe { (*c).params.kernel.kallsyms };
+                let kernel_image = unsafe { (*c).params.kernel.kernel_image };
                 cfg_rs.push(SymbolSrcCfg::Kernel {
                     kallsyms: if !kallsyms.is_null() {
-                        Some(from_cstr(kallsyms))
+                        Some(unsafe { from_cstr(kallsyms) })
                     } else {
                         None
                     },
                     kernel_image: if !kernel_image.is_null() {
-                        Some(from_cstr(kernel_image))
+                        Some(unsafe { from_cstr(kernel_image) })
                     } else {
                         None
                     },
                 });
             }
             blazesym_src_type::SRC_T_PROCESS => {
+                let pid = unsafe { (*c).params.process.pid };
                 cfg_rs.push(SymbolSrcCfg::Process {
-                    pid: if (*c).params.process.pid > 0 {
-                        Some((*c).params.process.pid)
-                    } else {
-                        None
-                    },
+                    pid: if pid > 0 { Some(pid) } else { None },
                 });
             }
         }
@@ -1438,21 +1436,23 @@ pub unsafe extern "C" fn blazesym_new_opts(
     features: *const blazesym_feature,
     nfeatures: usize,
 ) -> *mut blazesym {
-    let features_v = Vec::<blazesym_feature>::from_raw_parts(
-        features as *mut blazesym_feature,
-        nfeatures,
-        nfeatures,
-    );
+    let features_v = unsafe {
+        Vec::<blazesym_feature>::from_raw_parts(
+            features as *mut blazesym_feature,
+            nfeatures,
+            nfeatures,
+        )
+    };
     let features_v = mem::ManuallyDrop::new(features_v);
     let features_r: Vec<_> = features_v
         .iter()
         .map(|x| -> SymbolizerFeature {
             match x.feature {
                 blazesym_feature_name::LINE_NUMBER_INFO => {
-                    SymbolizerFeature::LineNumberInfo(x.params.enable)
+                    SymbolizerFeature::LineNumberInfo(unsafe { x.params.enable })
                 }
                 blazesym_feature_name::DEBUG_INFO_SYMBOLS => {
-                    SymbolizerFeature::DebugInfoSymbols(x.params.enable)
+                    SymbolizerFeature::DebugInfoSymbols(unsafe { x.params.enable })
                 }
             }
         })
@@ -1480,8 +1480,8 @@ pub unsafe extern "C" fn blazesym_new_opts(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
     if !symbolizer.is_null() {
-        drop(Box::from_raw((*symbolizer).symbolizer));
-        drop(Box::from_raw(symbolizer));
+        drop(unsafe { Box::from_raw((*symbolizer).symbolizer) });
+        drop(unsafe { Box::from_raw(symbolizer) });
     }
 }
 
@@ -1505,57 +1505,61 @@ unsafe fn convert_symbolizedresults_to_c(
         + mem::size_of::<blazesym_entry>() * results.len()
         + mem::size_of::<blazesym_csym>() * all_csym_size;
     let raw_buf_with_sz =
-        alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
+        unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
     if raw_buf_with_sz.is_null() {
         return ptr::null();
     }
 
     // prepend an u64 to keep the size of the buffer.
-    *(raw_buf_with_sz as *mut u64) = buf_size as u64;
+    unsafe { *(raw_buf_with_sz as *mut u64) = buf_size as u64 };
 
-    let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
+    let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
 
     let result_ptr = raw_buf as *mut blazesym_result;
-    let mut entry_last = &mut (*result_ptr).entries as *mut blazesym_entry;
-    let mut csym_last = raw_buf
-        .add(mem::size_of::<blazesym_result>() + mem::size_of::<blazesym_entry>() * results.len())
-        as *mut blazesym_csym;
-    let mut cstr_last = raw_buf.add(
-        mem::size_of::<blazesym_result>()
-            + mem::size_of::<blazesym_entry>() * results.len()
-            + mem::size_of::<blazesym_csym>() * all_csym_size,
-    ) as *mut c_char;
+    let mut entry_last = unsafe { &mut (*result_ptr).entries as *mut blazesym_entry };
+    let mut csym_last = unsafe {
+        raw_buf.add(
+            mem::size_of::<blazesym_result>() + mem::size_of::<blazesym_entry>() * results.len(),
+        )
+    } as *mut blazesym_csym;
+    let mut cstr_last = unsafe {
+        raw_buf.add(
+            mem::size_of::<blazesym_result>()
+                + mem::size_of::<blazesym_entry>() * results.len()
+                + mem::size_of::<blazesym_csym>() * all_csym_size,
+        )
+    } as *mut c_char;
 
     let mut make_cstr = |src: &str| {
         let cstr = cstr_last;
-        ptr::copy(src.as_ptr(), cstr as *mut u8, src.len());
-        *cstr.add(src.len()) = 0;
-        cstr_last = cstr_last.add(src.len() + 1);
+        unsafe { ptr::copy(src.as_ptr(), cstr as *mut u8, src.len()) };
+        unsafe { *cstr.add(src.len()) = 0 };
+        cstr_last = unsafe { cstr_last.add(src.len() + 1) };
 
         cstr
     };
 
-    (*result_ptr).size = results.len();
+    unsafe { (*result_ptr).size = results.len() };
 
     // Convert all SymbolizedResults to blazesym_entrys and blazesym_csyms
     for entry in results {
-        (*entry_last).size = entry.len();
-        (*entry_last).syms = csym_last;
-        entry_last = entry_last.add(1);
+        unsafe { (*entry_last).size = entry.len() };
+        unsafe { (*entry_last).syms = csym_last };
+        entry_last = unsafe { entry_last.add(1) };
 
         for r in entry {
             let symbol_ptr = make_cstr(&r.symbol);
 
             let path_ptr = make_cstr(&r.path);
 
-            let csym_ref = &mut *csym_last;
+            let csym_ref = unsafe { &mut *csym_last };
             csym_ref.symbol = symbol_ptr;
             csym_ref.start_address = r.start_address;
             csym_ref.path = path_ptr;
             csym_ref.line_no = r.line_no;
             csym_ref.column = r.column;
 
-            csym_last = csym_last.add(1);
+            csym_last = unsafe { csym_last.add(1) };
         }
     }
 
@@ -1580,16 +1584,17 @@ pub unsafe extern "C" fn blazesym_symbolize(
     addrs: *const u64,
     addr_cnt: usize,
 ) -> *const blazesym_result {
-    let sym_srcs_rs = if let Some(sym_srcs_rs) = symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) {
-        sym_srcs_rs
-    } else {
-        #[cfg(debug_assertions)]
-        eprintln!("Fail to transform configurations of symbolizer from C to Rust");
-        return ptr::null_mut();
-    };
+    let sym_srcs_rs =
+        if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
+            sym_srcs_rs
+        } else {
+            #[cfg(debug_assertions)]
+            eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+            return ptr::null_mut();
+        };
 
-    let symbolizer = &*(*symbolizer).symbolizer;
-    let addresses = Vec::from_raw_parts(addrs as *mut u64, addr_cnt, addr_cnt);
+    let symbolizer = unsafe { &*(*symbolizer).symbolizer };
+    let addresses = unsafe { Vec::from_raw_parts(addrs as *mut u64, addr_cnt, addr_cnt) };
 
     let results = symbolizer.symbolize(&sym_srcs_rs, &addresses);
 
@@ -1601,7 +1606,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
         return ptr::null();
     }
 
-    convert_symbolizedresults_to_c(results)
+    unsafe { convert_symbolizedresults_to_c(results) }
 }
 
 /// Free an array returned by blazesym_symbolize.
@@ -1618,9 +1623,9 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
         return;
     }
 
-    let raw_buf_with_sz = (results as *mut u8).offset(-(mem::size_of::<u64>() as isize));
-    let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
-    dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
+    let raw_buf_with_sz = unsafe { (results as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
+    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
+    unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
 }
 
 #[repr(C)]
@@ -1656,17 +1661,17 @@ unsafe fn convert_syms_list_to_c(
     let sym_buf_sz = mem::size_of::<blazesym_sym_info>() * sym_cnt;
     let buf_size = array_sz + sym_buf_sz + str_buf_sz;
     let raw_buf_with_sz =
-        alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
+        unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
 
-    *(raw_buf_with_sz as *mut u64) = buf_size as u64;
+    unsafe { *(raw_buf_with_sz as *mut u64) = buf_size as u64 };
 
-    let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
+    let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
     let mut syms_ptr = raw_buf as *mut *mut blazesym_sym_info;
-    let mut sym_ptr = raw_buf.add(array_sz) as *mut blazesym_sym_info;
-    let mut str_ptr = raw_buf.add(array_sz + sym_buf_sz) as *mut u8;
+    let mut sym_ptr = unsafe { raw_buf.add(array_sz) } as *mut blazesym_sym_info;
+    let mut str_ptr = unsafe { raw_buf.add(array_sz + sym_buf_sz) } as *mut u8;
 
     for syms in syms_list {
-        *syms_ptr = sym_ptr;
+        unsafe { *syms_ptr = sym_ptr };
         for SymbolInfo {
             name,
             address,
@@ -1677,47 +1682,51 @@ unsafe fn convert_syms_list_to_c(
         } in syms
         {
             let name_ptr = str_ptr as *const u8;
-            ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len());
-            str_ptr = str_ptr.add(name.len());
-            *str_ptr = 0;
-            str_ptr = str_ptr.add(1);
+            unsafe { ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len()) };
+            str_ptr = unsafe { str_ptr.add(name.len()) };
+            unsafe { *str_ptr = 0 };
+            str_ptr = unsafe { str_ptr.add(1) };
             let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
                 let fname = AsRef::<OsStr>::as_ref(fname).as_bytes();
                 let obj_fname_ptr = str_ptr;
-                ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len());
-                str_ptr = str_ptr.add(fname.len());
-                *str_ptr = 0;
-                str_ptr = str_ptr.add(1);
+                unsafe { ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len()) };
+                str_ptr = unsafe { str_ptr.add(fname.len()) };
+                unsafe { *str_ptr = 0 };
+                str_ptr = unsafe { str_ptr.add(1) };
                 obj_fname_ptr
             } else {
                 ptr::null()
             };
 
-            (*sym_ptr) = blazesym_sym_info {
-                name: name_ptr,
-                address,
-                size,
-                sym_type: match sym_type {
-                    SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
-                    SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
-                    _ => blazesym_sym_type::SYM_T_UNKNOWN,
-                },
-                file_offset,
-                obj_file_name,
+            unsafe {
+                (*sym_ptr) = blazesym_sym_info {
+                    name: name_ptr,
+                    address,
+                    size,
+                    sym_type: match sym_type {
+                        SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
+                        SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
+                        _ => blazesym_sym_type::SYM_T_UNKNOWN,
+                    },
+                    file_offset,
+                    obj_file_name,
+                }
             };
-            sym_ptr = sym_ptr.add(1);
+            sym_ptr = unsafe { sym_ptr.add(1) };
         }
-        (*sym_ptr) = blazesym_sym_info {
-            name: ptr::null(),
-            address: 0,
-            size: 0,
-            sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
-            file_offset: 0,
-            obj_file_name: ptr::null(),
+        unsafe {
+            (*sym_ptr) = blazesym_sym_info {
+                name: ptr::null(),
+                address: 0,
+                size: 0,
+                sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
+                file_offset: 0,
+                obj_file_name: ptr::null(),
+            }
         };
-        sym_ptr = sym_ptr.add(1);
+        sym_ptr = unsafe { sym_ptr.add(1) };
 
-        syms_ptr = syms_ptr.add(1);
+        syms_ptr = unsafe { syms_ptr.add(1) };
     }
 
     raw_buf as *const *const blazesym_sym_info
@@ -1737,13 +1746,13 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
     let sym_buf_sz = mem::size_of::<blazesym_sym_info>() * (syms.len() + 1);
     let buf_size = sym_buf_sz + str_buf_sz;
     let raw_buf_with_sz =
-        alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap());
+        unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
 
-    *(raw_buf_with_sz as *mut u64) = buf_size as u64;
+    unsafe { *(raw_buf_with_sz as *mut u64) = buf_size as u64 };
 
-    let raw_buf = raw_buf_with_sz.add(mem::size_of::<u64>());
+    let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
     let mut sym_ptr = raw_buf as *mut blazesym_sym_info;
-    let mut str_ptr = raw_buf.add(sym_buf_sz) as *mut u8;
+    let mut str_ptr = unsafe { raw_buf.add(sym_buf_sz) } as *mut u8;
 
     for sym in syms {
         let SymbolInfo {
@@ -1755,43 +1764,47 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
             obj_file_name,
         } = sym;
         let name_ptr = str_ptr as *const u8;
-        ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len());
-        str_ptr = str_ptr.add(name.len());
-        *str_ptr = 0;
-        str_ptr = str_ptr.add(1);
+        unsafe { ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len()) };
+        str_ptr = unsafe { str_ptr.add(name.len()) };
+        unsafe { *str_ptr = 0 };
+        str_ptr = unsafe { str_ptr.add(1) };
         let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
             let fname = AsRef::<OsStr>::as_ref(fname).as_bytes();
             let obj_fname_ptr = str_ptr;
-            ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len());
-            str_ptr = str_ptr.add(fname.len());
-            *str_ptr = 0;
-            str_ptr = str_ptr.add(1);
+            unsafe { ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len()) };
+            str_ptr = unsafe { str_ptr.add(fname.len()) };
+            unsafe { *str_ptr = 0 };
+            str_ptr = unsafe { str_ptr.add(1) };
             obj_fname_ptr
         } else {
             ptr::null()
         };
 
-        (*sym_ptr) = blazesym_sym_info {
-            name: name_ptr,
-            address,
-            size,
-            sym_type: match sym_type {
-                SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
-                SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
-                _ => blazesym_sym_type::SYM_T_UNKNOWN,
-            },
-            file_offset,
-            obj_file_name,
+        unsafe {
+            (*sym_ptr) = blazesym_sym_info {
+                name: name_ptr,
+                address,
+                size,
+                sym_type: match sym_type {
+                    SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
+                    SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
+                    _ => blazesym_sym_type::SYM_T_UNKNOWN,
+                },
+                file_offset,
+                obj_file_name,
+            }
         };
-        sym_ptr = sym_ptr.add(1);
+        sym_ptr = unsafe { sym_ptr.add(1) };
     }
-    (*sym_ptr) = blazesym_sym_info {
-        name: ptr::null(),
-        address: 0,
-        size: 0,
-        sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
-        file_offset: 0,
-        obj_file_name: ptr::null(),
+    unsafe {
+        (*sym_ptr) = blazesym_sym_info {
+            name: ptr::null(),
+            address: 0,
+            size: 0,
+            sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
+            file_offset: 0,
+            obj_file_name: ptr::null(),
+        }
     };
 
     raw_buf as *const blazesym_sym_info
@@ -1853,9 +1866,9 @@ unsafe fn convert_find_addr_features(
     let mut feature = features;
     let mut features_ret = vec![];
     for _ in 0..num_features {
-        match (*feature).ftype {
+        match unsafe { &(*feature).ftype } {
             blazesym_faf_type::FAF_T_SYMBOL_TYPE => {
-                features_ret.push(match (*feature).param.sym_type {
+                features_ret.push(match unsafe { (*feature).param.sym_type } {
                     blazesym_sym_type::SYM_T_UNKNOWN => {
                         FindAddrFeature::SymbolType(SymbolType::Unknown)
                     }
@@ -1871,16 +1884,20 @@ unsafe fn convert_find_addr_features(
                 });
             }
             blazesym_faf_type::FAF_T_OFFSET_IN_FILE => {
-                features_ret.push(FindAddrFeature::OffsetInFile((*feature).param.enable));
+                features_ret.push(FindAddrFeature::OffsetInFile(unsafe {
+                    (*feature).param.enable
+                }));
             }
             blazesym_faf_type::FAF_T_OBJ_FILE_NAME => {
-                features_ret.push(FindAddrFeature::ObjFileName((*feature).param.enable));
+                features_ret.push(FindAddrFeature::ObjFileName(unsafe {
+                    (*feature).param.enable
+                }));
             }
             _ => {
                 panic!("Unknown find_address feature type");
             }
         }
-        feature = feature.add(1);
+        feature = unsafe { feature.add(1) };
     }
 
     features_ret
@@ -1908,18 +1925,19 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     features: *const blazesym_faddr_feature,
     num_features: usize,
 ) -> *const blazesym_sym_info {
-    let sym_srcs_rs = if let Some(sym_srcs_rs) = symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) {
-        sym_srcs_rs
-    } else {
-        #[cfg(debug_assertions)]
-        eprintln!("Fail to transform configurations of symbolizer from C to Rust");
-        return ptr::null_mut();
-    };
+    let sym_srcs_rs =
+        if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
+            sym_srcs_rs
+        } else {
+            #[cfg(debug_assertions)]
+            eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+            return ptr::null_mut();
+        };
 
-    let symbolizer = &*(*symbolizer).symbolizer;
+    let symbolizer = unsafe { &*(*symbolizer).symbolizer };
 
-    let pattern = CStr::from_ptr(pattern);
-    let features = convert_find_addr_features(features, num_features);
+    let pattern = unsafe { CStr::from_ptr(pattern) };
+    let features = unsafe { convert_find_addr_features(features, num_features) };
     let syms =
         { symbolizer.find_address_regex_opt(&sym_srcs_rs, pattern.to_str().unwrap(), features) };
 
@@ -1927,7 +1945,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
         return ptr::null_mut();
     }
 
-    convert_syms_to_c(syms.unwrap())
+    unsafe { convert_syms_to_c(syms.unwrap()) }
 }
 
 /// Find the addresses of symbols matching a pattern.
@@ -1947,7 +1965,9 @@ pub unsafe extern "C" fn blazesym_find_address_regex(
     sym_srcs_len: u32,
     pattern: *const c_char,
 ) -> *const blazesym_sym_info {
-    blazesym_find_address_regex_opt(symbolizer, sym_srcs, sym_srcs_len, pattern, ptr::null(), 0)
+    unsafe {
+        blazesym_find_address_regex_opt(symbolizer, sym_srcs, sym_srcs_len, pattern, ptr::null(), 0)
+    }
 }
 
 /// Free an array returned by blazesym_find_addr_regex() or
@@ -1965,9 +1985,9 @@ pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
         return;
     }
 
-    let raw_buf_with_sz = (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize));
-    let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
-    dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
+    let raw_buf_with_sz = unsafe { (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
+    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
+    unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
 }
 
 /// Find the addresses of a list of symbols.
@@ -1994,23 +2014,24 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
     features: *const blazesym_faddr_feature,
     num_features: usize,
 ) -> *const *const blazesym_sym_info {
-    let sym_srcs_rs = if let Some(sym_srcs_rs) = symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) {
-        sym_srcs_rs
-    } else {
-        #[cfg(debug_assertions)]
-        eprintln!("Fail to transform configurations of symbolizer from C to Rust");
-        return ptr::null_mut();
-    };
+    let sym_srcs_rs =
+        if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
+            sym_srcs_rs
+        } else {
+            #[cfg(debug_assertions)]
+            eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+            return ptr::null_mut();
+        };
 
-    let symbolizer = &*(*symbolizer).symbolizer;
+    let symbolizer = unsafe { &*(*symbolizer).symbolizer };
 
     let mut names_cstr = vec![];
     for i in 0..name_cnt {
-        let name_c = *names.add(i);
-        let name_r = CStr::from_ptr(name_c);
+        let name_c = unsafe { *names.add(i) };
+        let name_r = unsafe { CStr::from_ptr(name_c) };
         names_cstr.push(name_r);
     }
-    let features = convert_find_addr_features(features, num_features);
+    let features = unsafe { convert_find_addr_features(features, num_features) };
     let syms = {
         let mut names_r = vec![];
         for name in names_cstr.iter().take(name_cnt) {
@@ -2019,7 +2040,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, features)
     };
 
-    convert_syms_list_to_c(syms)
+    unsafe { convert_syms_list_to_c(syms) }
 }
 
 /// Find addresses of a symbol name.
@@ -2038,15 +2059,17 @@ pub unsafe extern "C" fn blazesym_find_addresses(
     names: *const *const c_char,
     name_cnt: usize,
 ) -> *const *const blazesym_sym_info {
-    blazesym_find_addresses_opt(
-        symbolizer,
-        sym_srcs,
-        sym_srcs_len,
-        names,
-        name_cnt,
-        ptr::null(),
-        0,
-    )
+    unsafe {
+        blazesym_find_addresses_opt(
+            symbolizer,
+            sym_srcs,
+            sym_srcs_len,
+            names,
+            name_cnt,
+            ptr::null(),
+            0,
+        )
+    }
 }
 
 /// Free an array returned by blazesym_find_addresses.
@@ -2063,9 +2086,10 @@ pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazes
         return;
     }
 
-    let raw_buf_with_sz = (syms_list as *mut u8).offset(-(mem::size_of::<u64>() as isize));
-    let sz = *(raw_buf_with_sz as *mut u64) as usize + mem::size_of::<u64>();
-    dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap());
+    let raw_buf_with_sz =
+        unsafe { (syms_list as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
+    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
+    unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
 }
 
 #[cfg(test)]
