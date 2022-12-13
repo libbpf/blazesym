@@ -9,6 +9,8 @@ use std::cell::RefCell;
 use std::io::{Error, ErrorKind};
 use std::iter::Iterator;
 use std::mem;
+#[cfg(test)]
+use std::path::Path;
 use std::rc::Rc;
 
 #[cfg(test)]
@@ -746,7 +748,7 @@ impl DwarfResolver {
     /// the ability of handling all possible addresses.
     #[cfg(test)]
     fn open_for_addresses(
-        filename: &str,
+        filename: &Path,
         addresses: &[u64],
         line_number_info: bool,
         debug_info_symbols: bool,
@@ -765,8 +767,8 @@ impl DwarfResolver {
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
     #[cfg(test)]
-    fn open(
-        filename: &str,
+    pub fn open(
+        filename: &Path,
         debug_line_info: bool,
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
@@ -1209,7 +1211,7 @@ mod tests {
 
     use crate::tools::{decode_shalf, decode_sword};
 
-    fn parse_debug_line_elf(filename: &str) -> Result<Vec<DebugLineCU>, Error> {
+    fn parse_debug_line_elf(filename: &Path) -> Result<Vec<DebugLineCU>, Error> {
         let parser = Elf64Parser::open(filename)?;
         parse_debug_line_elf_parser(&parser, &[])
     }
@@ -1311,7 +1313,7 @@ mod tests {
         Ok(acus)
     }
 
-    fn parse_aranges_elf(filename: &str) -> Result<Vec<ArangesCU>, Error> {
+    fn parse_aranges_elf(filename: &Path) -> Result<Vec<ArangesCU>, Error> {
         let parser = Elf64Parser::open(filename)?;
         parse_aranges_elf_parser(&parser)
     }
@@ -1348,7 +1350,7 @@ mod tests {
         let args: Vec<String> = env::args().collect();
         let bin_name = &args[0];
 
-        let r = parse_debug_line_elf(bin_name);
+        let r = parse_debug_line_elf(bin_name.as_ref());
         if r.is_err() {
             println!("{:?}", r.as_ref().err().unwrap());
         }
@@ -1469,10 +1471,9 @@ mod tests {
 
     #[test]
     fn test_parse_aranges_elf() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
+        let bin_name = env::args_os().next().unwrap();
 
-        let r = parse_aranges_elf(bin_name);
+        let r = parse_aranges_elf(bin_name.as_ref());
         if r.is_err() {
             println!("{:?}", r.as_ref().err().unwrap());
         }
@@ -1482,9 +1483,8 @@ mod tests {
 
     #[test]
     fn test_dwarf_resolver() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
-        let resolver_r = DwarfResolver::open(bin_name, true, false);
+        let bin_name = env::args().next().unwrap();
+        let resolver_r = DwarfResolver::open(bin_name.as_ref(), true, false);
         assert!(resolver_r.is_ok());
         let resolver = resolver_r.unwrap();
         let (addr, dir, file, line) = resolver.pick_address_for_test();
@@ -1500,9 +1500,8 @@ mod tests {
 
     #[test]
     fn test_debug_info_parse_symbols() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
-        let parser_r = Elf64Parser::open(bin_name);
+        let bin_name = env::args().next().unwrap();
+        let parser_r = Elf64Parser::open(bin_name.as_ref());
         assert!(parser_r.is_ok());
         let parser = parser_r.unwrap();
 
@@ -1551,9 +1550,8 @@ mod tests {
 
     #[test]
     fn test_dwarf_find_addr_regex() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
-        let dwarf = DwarfResolver::open(bin_name, false, true).unwrap();
+        let bin_name = env::args().next().unwrap();
+        let dwarf = DwarfResolver::open(bin_name.as_ref(), false, true).unwrap();
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
@@ -1570,7 +1568,7 @@ mod tests {
     #[bench]
     fn debug_info_parse_single_threaded(b: &mut Bencher) {
         let bin_name = env::args().next().unwrap();
-        let parser = Elf64Parser::open(&bin_name).unwrap();
+        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
 
         let () = b.iter(|| debug_info_parse_symbols(&parser, None, 1).unwrap());
     }

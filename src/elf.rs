@@ -5,6 +5,9 @@ use std::ffi::CStr;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom};
 use std::mem;
+#[cfg(test)]
+use std::path::Path;
+use std::path::PathBuf;
 
 use std::cell::RefCell;
 
@@ -274,7 +277,7 @@ struct Elf64ParserBack {
 /// A parser against ELF64 format.
 ///
 pub struct Elf64Parser {
-    filename: String,
+    filename: PathBuf,
     file: RefCell<File>,
     backobj: RefCell<Elf64ParserBack>,
 }
@@ -282,7 +285,7 @@ pub struct Elf64Parser {
 impl Elf64Parser {
     pub fn open_file(file: File) -> Result<Elf64Parser, Error> {
         let parser = Elf64Parser {
-            filename: String::from(""),
+            filename: PathBuf::new(),
             file: RefCell::new(file),
             backobj: RefCell::new(Elf64ParserBack {
                 ehdr: None,
@@ -300,11 +303,11 @@ impl Elf64Parser {
     }
 
     #[cfg(test)]
-    pub fn open(filename: &str) -> Result<Elf64Parser, Error> {
+    pub fn open(filename: &Path) -> Result<Elf64Parser, Error> {
         let file = File::open(filename)?;
         let parser = Self::open_file(file);
         if let Ok(mut parser) = parser {
-            parser.filename = filename.to_string();
+            parser.filename = filename.to_path_buf();
             Ok(parser)
         } else {
             parser
@@ -788,8 +791,7 @@ mod tests {
 
     #[test]
     fn test_elf_header_sections() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
+        let bin_name = env::args_os().next().unwrap();
 
         let mut bin_file = File::open(bin_name).unwrap();
         let ehdr = read_elf_header(&mut bin_file);
@@ -822,19 +824,17 @@ mod tests {
 
     #[test]
     fn test_elf64_parser() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
+        let bin_name = env::args_os().next().unwrap();
 
-        let parser = Elf64Parser::open(bin_name).unwrap();
+        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
     }
 
     #[test]
     fn test_elf64_symtab() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
+        let bin_name = env::args_os().next().unwrap();
 
-        let parser = Elf64Parser::open(bin_name).unwrap();
+        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
         let (sym_name, addr) = parser.pick_symtab_addr();
@@ -847,10 +847,9 @@ mod tests {
     }
     #[test]
     fn test_elf64_find_address() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
+        let bin_name = env::args_os().next().unwrap();
 
-        let parser = Elf64Parser::open(bin_name).unwrap();
+        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
         let (sym_name, addr) = parser.pick_symtab_addr();
