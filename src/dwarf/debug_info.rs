@@ -1109,9 +1109,8 @@ mod tests {
 
     #[test]
     fn test_unititer() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
-        let example_path = Path::new(bin_name)
+        let bin_name = env::args_os().next().unwrap();
+        let example_path = Path::new(&bin_name)
             .parent()
             .unwrap()
             .parent()
@@ -1122,8 +1121,7 @@ mod tests {
             .unwrap()
             .join("data")
             .join("dwarf-example");
-        let example_s = example_path.as_path().to_str().unwrap();
-        let elfparser = Elf64Parser::open(example_s).unwrap();
+        let elfparser = Elf64Parser::open(&example_path).unwrap();
         let abbrev_idx = elfparser.find_section(".debug_abbrev").unwrap();
         let abbrev = elfparser.read_section_raw(abbrev_idx).unwrap();
         let info_idx = elfparser.find_section(".debug_info").unwrap();
