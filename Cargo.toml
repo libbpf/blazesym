@@ -20,6 +20,7 @@ crossbeam-channel = "0.5"
 libc = "0.2.137"
 
 [build-dependencies]
+anyhow = "1.0.68"
 cbindgen = {version = "0.24", optional = true}
 
 [features]
