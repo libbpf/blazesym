@@ -1493,52 +1493,13 @@ mod tests {
 
     #[test]
     fn test_debug_info_parse_symbols() {
-        let bin_name = env::args().next().unwrap();
-        let parser_r = Elf64Parser::open(bin_name.as_ref());
-        assert!(parser_r.is_ok());
-        let parser = parser_r.unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.bin");
 
-        let result = debug_info_parse_symbols(&parser, None, 4);
-
-        assert!(result.is_ok());
-        let syms = result.unwrap();
-
-        let mut myself_found = false;
-        let mut myself_addr: u64 = 0;
-        let mut parse_symbols_found = false;
-        let mut parse_symbols_addr: u64 = 0;
-        for sym in syms {
-            if sym
-                .name
-                .starts_with("_ZN8blazesym5dwarf5tests29test_debug_info_parse_symbols17h")
-            {
-                myself_found = true;
-                myself_addr = sym.address;
-            } else if sym
-                .name
-                .starts_with("_ZN8blazesym5dwarf24debug_info_parse_symbols17h")
-            {
-                parse_symbols_found = true;
-                parse_symbols_addr = sym.address;
-            }
-        }
-        assert!(myself_found);
-        assert!(parse_symbols_found);
-        assert_eq!(
-            (test_debug_info_parse_symbols as fn() as *const fn() as i64)
-                - (debug_info_parse_symbols
-                    as for<'a> fn(
-                        &'a Elf64Parser,
-                        Option<&(dyn Fn(&DWSymInfo<'a>) -> bool + Send + Sync)>,
-                        usize,
-                    ) -> Result<Vec<DWSymInfo<'a>>, Error>
-                    as *const (
-                        &'_ Elf64Parser,
-                        Option<&(dyn Fn(&DWSymInfo<'_>) -> bool + Send + Sync)>,
-                        usize,
-                    ) as i64),
-            myself_addr as i64 - parse_symbols_addr as i64
-        );
+        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
+        let syms = debug_info_parse_symbols(&parser, None, 4).unwrap();
+        assert!(syms.iter().any(|sym| sym.name == "fibonacci"))
     }
 
     #[test]
