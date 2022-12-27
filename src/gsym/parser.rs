@@ -287,17 +287,7 @@ mod tests {
 
     #[test]
     fn test_parse_context() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
-        let test_gsym = Path::new(bin_name)
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.gsym");
         let mut gsym_fo = File::open(test_gsym).unwrap();
@@ -326,17 +316,7 @@ mod tests {
 
     #[test]
     fn test_find_address() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
-        let test_gsym = Path::new(bin_name)
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.gsym");
         let mut gsym_fo = File::open(test_gsym).unwrap();
