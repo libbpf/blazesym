@@ -1340,14 +1340,11 @@ mod tests {
 
     #[test]
     fn test_parse_debug_line_elf() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.bin");
 
-        let r = parse_debug_line_elf(bin_name.as_ref());
-        if r.is_err() {
-            println!("{:?}", r.as_ref().err().unwrap());
-        }
-        assert!(r.is_ok());
+        let _ = parse_debug_line_elf(bin_name.as_ref()).unwrap();
     }
 
     #[test]
