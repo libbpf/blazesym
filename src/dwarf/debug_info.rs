@@ -1109,19 +1109,10 @@ mod tests {
 
     #[test]
     fn test_unititer() {
-        let bin_name = env::args_os().next().unwrap();
-        let example_path = Path::new(&bin_name)
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("dwarf-example");
-        let elfparser = Elf64Parser::open(&example_path).unwrap();
+        let elfparser = Elf64Parser::open(&bin_name).unwrap();
         let abbrev_idx = elfparser.find_section(".debug_abbrev").unwrap();
         let abbrev = elfparser.read_section_raw(abbrev_idx).unwrap();
         let info_idx = elfparser.find_section(".debug_info").unwrap();

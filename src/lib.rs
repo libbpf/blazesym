@@ -2174,17 +2174,7 @@ mod tests {
 
     #[test]
     fn load_gsym_resolver() {
-        let args: Vec<String> = env::args().collect();
-        let bin_name = &args[0];
-        let test_gsym = Path::new(bin_name)
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
-            .parent()
-            .unwrap()
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.gsym");
         let base: u64 = 0x77a7000; // pickup randomly.
