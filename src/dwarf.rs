@@ -1476,16 +1476,13 @@ mod tests {
 
     #[test]
     fn test_dwarf_resolver() {
-        let bin_name = env::args().next().unwrap();
-        let resolver_r = DwarfResolver::open(bin_name.as_ref(), true, false);
-        assert!(resolver_r.is_ok());
-        let resolver = resolver_r.unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.bin");
+        let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
         let (addr, dir, file, line) = resolver.pick_address_for_test();
 
-        let line_info = resolver.find_line(addr);
-        assert!(line_info.is_some());
-        let (dir_ret, file_ret, line_ret) = line_info.unwrap();
-        println!("{dir_ret}/{file_ret} {line_ret}");
+        let (dir_ret, file_ret, line_ret) = resolver.find_line(addr).unwrap();
         assert_eq!(dir, dir_ret);
         assert_eq!(file, file_ret);
         assert_eq!(line, line_ret);
