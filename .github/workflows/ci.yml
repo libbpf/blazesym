@@ -32,15 +32,18 @@ jobs:
       run: |
         cargo build --profile=${{ matrix.profile }} --features=${{ matrix.features }} --lib --tests --examples
   test:
-    name: Test
+    name: Test and coverage
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
+    - name: Install cargo-llvm-cov
+      uses: taiki-e/install-action@cargo-llvm-cov
+    - name: Test and gather coverage
+      run: cargo llvm-cov --lcov --output-path lcov.info
+    - name: Upload code coverage results
+      uses: codecov/codecov-action@v3
       with:
-        toolchain: stable
-        override: true
-    - run: cargo test
+        files: lcov.info
   bench:
     name: Benchmark
     runs-on: ubuntu-latest
