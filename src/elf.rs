@@ -1,6 +1,5 @@
 use super::{FindAddrOpts, SymbolInfo, SymbolType};
 
-use std::borrow::BorrowMut;
 use std::ffi::CStr;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom};
@@ -204,19 +203,16 @@ fn read_u8(file: &mut File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
 }
 
 fn read_elf_header(file: &mut File) -> Result<Elf64_Ehdr, Error> {
-    const DSZ: usize = mem::size_of::<Elf64_Ehdr>();
-    let mut buf = Box::new([0_u8; DSZ]);
+    let mut buffer = [0u8; mem::size_of::<Elf64_Ehdr>()];
+    let () = file.read_exact(&mut buffer)?;
 
-    let buf_m: &mut [u8; DSZ] = buf.borrow_mut();
-    file.read_exact(buf_m)?;
+    let pointer = buffer.as_ptr() as *const Elf64_Ehdr;
+    // SAFETY: `buffer` is valid for reads and the `Elf64_Ehdr` object that we
+    //         read is comprised only of members that are valid for any bit
+    //         pattern.
+    let elf_header = unsafe { pointer.read_unaligned() };
 
-    let ehdr: Box<Elf64_Ehdr> = unsafe {
-        // A complicated type casting hacking!!
-        let ehdr_raw_ptr = (Box::leak(buf) as *mut u8) as *mut Elf64_Ehdr;
-        Box::from_raw(ehdr_raw_ptr)
-    };
-
-    Ok(*ehdr)
+    Ok(elf_header)
 }
 
 fn read_elf_sections(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shdr>, Error> {
