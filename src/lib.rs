@@ -97,7 +97,7 @@ pub enum SymbolType {
 
 /// The context of an address finding request.
 ///
-/// This type passes additionl parameters to resolvers.
+/// This type passes additional parameters to resolvers.
 #[doc(hidden)]
 pub struct FindAddrOpts {
     /// Return the offset of the symbol from the first byte of the
@@ -105,7 +105,7 @@ pub struct FindAddrOpts {
     offset_in_file: bool,
     /// Return the name of the object file if it is true. (False by default)
     obj_file_name: bool,
-    /// Return the symbol(s) matching a given type. Unknown, by default, meean all types.
+    /// Return the symbol(s) matching a given type. Unknown, by default, mean all types.
     sym_type: SymbolType,
 }
 
@@ -117,7 +117,7 @@ pub struct SymbolInfo {
     pub address: u64,
     /// The size of the symbol. The size of a function for example.
     pub size: u64,
-    /// A funciton or a variable.
+    /// A function or a variable.
     pub sym_type: SymbolType,
     /// The offset in the object file.
     pub file_offset: u64,
@@ -148,7 +148,7 @@ trait SymResolver {
     /// Find the names and the start addresses of a symbol found for
     /// the given address.
     fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)>;
-    /// Find the address and size of a symbol anme.
+    /// Find the address and size of a symbol name.
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the addresses and sizes of the symbols matching a given pattern.
     fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
@@ -1153,7 +1153,7 @@ pub enum blazesym_src_type {
     SRC_T_PROCESS,
 }
 
-/// The paramters to load symbols and dbug information from an ELF.
+/// The parameters to load symbols and debug information from an ELF.
 ///
 /// Describes the path and address of an ELF file loaded in a
 /// process.
@@ -1323,7 +1323,7 @@ pub struct blazesym_entry {
 /// [`blazesym_result_free()`].
 #[repr(C)]
 pub struct blazesym_result {
-    //// The number of addresses being symbolized.
+    /// The number of addresses being symbolized.
     pub size: usize,
     /// The entries for addresses.
     ///
