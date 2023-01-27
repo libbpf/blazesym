@@ -741,7 +741,7 @@ impl ResolverMap {
                         let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
                         let mut i = 0;
                         let kernel_image = loop {
-                            let path = dirs[i].join(format!("{}{}", basename, release));
+                            let path = dirs[i].join(format!("{basename}{release}"));
                             if stat(&path).is_ok() {
                                 break path;
                             }
@@ -767,7 +767,7 @@ impl ResolverMap {
                         Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder)
                     {
                         #[cfg(debug_assertions)]
-                        eprintln!("Fail to load symbols for the process {}: {:?}", pid, _e);
+                        eprintln!("Fail to load symbols for the process {pid}: {_e:?}");
                     }
                 }
                 SymbolSrcCfg::Gsym {
@@ -1581,7 +1581,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
 
     if results.is_empty() {
         #[cfg(debug_assertions)]
-        eprintln!("Empty result while request for {}", addr_cnt);
+        eprintln!("Empty result while request for {addr_cnt}");
         return ptr::null();
     }
 

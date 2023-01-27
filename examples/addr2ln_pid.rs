@@ -20,7 +20,7 @@ fn main() {
 
     let pid = args[1].parse::<u32>().unwrap();
     let mut addr_str = &args[2][..];
-    println!("PID: {}", pid);
+    println!("PID: {pid}");
 
     if addr_str.len() > 2 && &addr_str[0..2] == "0x" {
         // Remove prefixed 0x
@@ -49,6 +49,6 @@ fn main() {
             line_no
         );
     } else {
-        println!("0x{:x} is not found", addr);
+        println!("0x{addr:x} is not found");
     }
 }

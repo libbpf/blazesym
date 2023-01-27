@@ -349,7 +349,7 @@ mod tests {
         let mut addr_tab = Vec::<u8>::new();
         addr_tab.resize(TEST_SIZE * 4, 0);
 
-        let mut values: Vec<u32> = (0_u32..(TEST_SIZE as u32)).into_iter().collect();
+        let mut values: Vec<u32> = (0_u32..(TEST_SIZE as u32)).collect();
 
         let copy_to_addr_tab = |values: &[u32], addr_tab: &mut Vec<u8>| {
             addr_tab.clear();
@@ -362,7 +362,7 @@ mod tests {
         // ascending order and `< TEST_SIZE * 2`.
         let gen_values = |values: &mut [u32]| {
             let mut carry_out = TEST_SIZE as u32 * 2;
-            for i in (0..values.len()).into_iter().rev() {
+            for i in (0..values.len()).rev() {
                 values[i] += 1;
                 if values[i] >= carry_out {
                     carry_out -= 1;

@@ -39,6 +39,6 @@ fn main() {
             addr, result.symbol, result.path, result.line_no
         );
     } else {
-        println!("0x{:x} is not found", addr);
+        println!("0x{addr:x} is not found");
     }
 }

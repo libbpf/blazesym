@@ -129,7 +129,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
     let file_name = if pid == 0 {
         String::from("/proc/self/maps")
     } else {
-        format!("/proc/{}/maps", pid)
+        format!("/proc/{pid}/maps")
     };
     let file = fs::File::open(file_name)?;
     let mut reader = BufReader::new(file);
@@ -138,7 +138,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
         r"^([0-9a-f]+)-([0-9a-f]+) ([rwxp\\-]+) ([0-9a-f]+) [0-9a-f]+:[0-9a-f]+ [0-9]+ *((/[^/]+)+)$",
     );
     if re_ptn.is_err() {
-        println!("{:?}", re_ptn);
+        println!("{re_ptn:?}");
         return Err(Error::new(ErrorKind::InvalidData, "Failed to build regex"));
     }
     let re_ptn = re_ptn.unwrap();
@@ -162,10 +162,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
             let mut path_str = path.to_string();
             if let Some(pos) = path.rfind(" (deleted)") {
                 if pos == path.len() - " (deleted)".len() {
-                    path_str = format!(
-                        "/proc/{}/map_files/{:x}-{:x}",
-                        pid, loaded_address, end_address
-                    );
+                    path_str = format!("/proc/{pid}/map_files/{loaded_address:x}-{end_address:x}");
                 }
             }
 

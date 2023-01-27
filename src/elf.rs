@@ -572,7 +572,7 @@ impl Elf64Parser {
         }
         Err(Error::new(
             ErrorKind::NotFound,
-            format!("Does not found the give section: {}", name),
+            format!("Does not found the give section: {name}"),
         ))
     }
 
@@ -854,7 +854,7 @@ mod tests {
 
         let (sym_name, addr) = parser.pick_symtab_addr();
 
-        println!("{}", sym_name);
+        println!("{sym_name}");
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,

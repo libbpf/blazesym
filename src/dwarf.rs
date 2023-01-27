@@ -238,7 +238,7 @@ fn parse_debug_line_cu(
         let version = v2.version;
         return Err(Error::new(
             ErrorKind::Unsupported,
-            format!("Support DWARF version 2 & 4 (version: {})", version),
+            format!("Support DWARF version 2 & 4 (version: {version})"),
         ));
     }
 
@@ -401,10 +401,7 @@ fn run_debug_line_stmt(
                 if insn_size < 1 {
                     return Err(Error::new(
                         ErrorKind::InvalidData,
-                        format!(
-                            "invalid extended opcode (ip=0x{:x}, insn_size=0x{:x}",
-                            ip, insn_size
-                        ),
+                        format!("invalid extended opcode (ip=0x{ip:x}, insn_size=0x{insn_size:x}"),
                     ));
                 }
                 let ext_opcode = stmts[ip + 1 + bytes as usize];
@@ -427,7 +424,7 @@ fn run_debug_line_stmt(
                         }
                         _ => Err(Error::new(
                             ErrorKind::Unsupported,
-                            format!("unsupported address size ({})", insn_size),
+                            format!("unsupported address size ({insn_size})"),
                         )),
                     },
                     DW_LINE_DEFINE_FILE => Err(Error::new(
@@ -457,15 +454,14 @@ fn run_debug_line_stmt(
                     _ => Err(Error::new(
                         ErrorKind::Unsupported,
                         format!(
-                            "invalid extended opcode (ip=0x{:x}, ext_opcode=0x{:x})",
-                            ip, ext_opcode
+                            "invalid extended opcode (ip=0x{ip:x}, ext_opcode=0x{ext_opcode:x})"
                         ),
                     )),
                 }
             } else {
                 Err(Error::new(
                     ErrorKind::InvalidData,
-                    format!("invalid extended opcode (ip=0x{:x})", ip),
+                    format!("invalid extended opcode (ip=0x{ip:x})"),
                 ))
             }
         }
@@ -1280,10 +1276,7 @@ mod tests {
             _ => {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
-                    format!(
-                        "unsupported address size {} ver {} off 0x{:x}",
-                        addr_sz, version, offset
-                    ),
+                    format!("unsupported address size {addr_sz} ver {version} off 0x{offset:x}"),
                 ));
             }
         }
@@ -1378,7 +1371,7 @@ mod tests {
         let result = run_debug_line_stmts(&stmts, &prologue, &[]);
         if result.is_err() {
             let e = result.as_ref().err().unwrap();
-            println!("result {:?}", e);
+            println!("result {e:?}");
         }
         assert!(result.is_ok());
         let matrix = result.unwrap();
@@ -1438,7 +1431,7 @@ mod tests {
         let result = run_debug_line_stmts(&stmts, &prologue, &[]);
         if result.is_err() {
             let e = result.as_ref().err().unwrap();
-            println!("result {:?}", e);
+            println!("result {e:?}");
         }
         assert!(result.is_ok());
         let matrix = result.unwrap();
@@ -1492,7 +1485,7 @@ mod tests {
         let line_info = resolver.find_line(addr);
         assert!(line_info.is_some());
         let (dir_ret, file_ret, line_ret) = line_info.unwrap();
-        println!("{}/{} {}", dir_ret, file_ret, line_ret);
+        println!("{dir_ret}/{file_ret} {line_ret}");
         assert_eq!(dir, dir_ret);
         assert_eq!(file, file_ret);
         assert_eq!(line, line_ret);
