@@ -13,6 +13,7 @@ use regex::Regex;
 
 use crate::elf::ElfParser;
 use crate::util::search_address_key;
+use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
 use crate::SymbolType;
@@ -28,7 +29,7 @@ use super::parser::DebugLineCU;
 pub struct DwarfResolver {
     parser: Rc<ElfParser>,
     debug_line_cus: Vec<DebugLineCU>,
-    addr_to_dlcu: Vec<(u64, u32)>,
+    addr_to_dlcu: Vec<(Addr, u32)>,
     enable_debug_info_syms: bool,
     debug_info_syms: RefCell<Option<Vec<DWSymInfo<'static>>>>,
 }
@@ -40,7 +41,7 @@ impl DwarfResolver {
 
     pub fn from_parser_for_addresses(
         parser: Rc<ElfParser>,
-        addresses: &[u64],
+        addresses: &[Addr],
         line_number_info: bool,
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
@@ -83,7 +84,7 @@ impl DwarfResolver {
     #[cfg(test)]
     fn open_for_addresses(
         filename: &Path,
-        addresses: &[u64],
+        addresses: &[Addr],
         line_number_info: bool,
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
@@ -109,9 +110,9 @@ impl DwarfResolver {
         Self::open_for_addresses(filename, &[], debug_line_info, debug_info_symbols)
     }
 
-    fn find_dlcu_index(&self, address: u64) -> Option<usize> {
+    fn find_dlcu_index(&self, address: Addr) -> Option<usize> {
         let a2a = &self.addr_to_dlcu;
-        let a2a_idx = search_address_key(a2a, address, &|x: &(u64, u32)| -> u64 { x.0 })?;
+        let a2a_idx = search_address_key(a2a, address, &|x: &(Addr, u32)| -> Addr { x.0 })?;
         let dlcu_idx = a2a[a2a_idx].1 as usize;
 
         Some(dlcu_idx)
@@ -121,7 +122,7 @@ impl DwarfResolver {
     ///
     /// `address` is an offset from the head of the loaded binary/or
     /// shared object.  This function returns a tuple of `(dir_name, file_name, line_no)`.
-    pub fn find_line_as_ref(&self, address: u64) -> Option<(&str, &str, usize)> {
+    pub fn find_line_as_ref(&self, address: Addr) -> Option<(&str, &str, usize)> {
         let idx = self.find_dlcu_index(address)?;
         let dlcu = &self.debug_line_cus[idx];
 
@@ -136,7 +137,7 @@ impl DwarfResolver {
     /// This function is pretty much the same as `find_line_as_ref()`
     /// except returning a copies of `String` instead of `&str`.
     #[cfg(test)]
-    fn find_line(&self, address: u64) -> Option<(String, String, usize)> {
+    fn find_line(&self, address: Addr) -> Option<(String, String, usize)> {
         let (dir, file, line_no) = self.find_line_as_ref(address)?;
         Some((String::from(dir), String::from(file), line_no))
     }
@@ -197,7 +198,7 @@ impl DwarfResolver {
             } = debug_info_syms[idx];
             found.push(SymbolInfo {
                 name: name.to_string(),
-                address,
+                address: address as Addr,
                 size,
                 sym_type,
                 file_offset: 0,
@@ -248,7 +249,7 @@ impl DwarfResolver {
                 } = sym;
                 syms.push(SymbolInfo {
                     name: sym.name.to_string(),
-                    address: *address,
+                    address: *address as Addr,
                     size: *size,
                     sym_type: *sym_type,
                     file_offset: 0,
@@ -261,7 +262,7 @@ impl DwarfResolver {
     }
 
     #[cfg(test)]
-    fn pick_address_for_test(&self) -> (u64, &str, &str, usize) {
+    fn pick_address_for_test(&self) -> (Addr, &str, &str, usize) {
         let (addr, idx) = self.addr_to_dlcu[self.addr_to_dlcu.len() / 3];
         let dlcu = &self.debug_line_cus[idx as usize];
         let (dir, file, line) = dlcu.stringify_row(0).unwrap();

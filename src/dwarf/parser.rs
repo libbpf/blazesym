@@ -19,6 +19,7 @@ use crate::util::decode_uword;
 use crate::util::search_address_key;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
+use crate::Addr;
 use crate::SymbolType;
 
 use super::constants;
@@ -93,8 +94,8 @@ pub(crate) struct DebugLineCU {
 }
 
 impl DebugLineCU {
-    pub(crate) fn find_line(&self, address: u64) -> Option<(&str, &str, usize)> {
-        let idx = search_address_key(&self.matrix, address, &|x: &DebugLineStates| -> u64 {
+    pub(crate) fn find_line(&self, address: Addr) -> Option<(&str, &str, usize)> {
+        let idx = search_address_key(&self.matrix, address, &|x: &DebugLineStates| -> Addr {
             x.address
         })?;
 
@@ -195,7 +196,7 @@ fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>, Er
     }
 }
 
-fn parse_debug_line_cu(data: &mut &[u8], addresses: &[u64]) -> Result<DebugLineCU, Error> {
+fn parse_debug_line_cu(data: &mut &[u8], addresses: &[Addr]) -> Result<DebugLineCU, Error> {
     let prologue_v2_size: usize = mem::size_of::<DebugLinePrologueV2>();
     let prologue_v4_size: usize = mem::size_of::<DebugLinePrologue>();
 
@@ -279,7 +280,7 @@ fn parse_debug_line_cu(data: &mut &[u8], addresses: &[u64]) -> Result<DebugLineC
 
 #[derive(Clone, Debug)]
 pub(crate) struct DebugLineStates {
-    pub address: u64,
+    pub address: Addr,
     file: usize,
     line: usize,
     column: usize,
@@ -375,12 +376,12 @@ fn run_debug_line_stmt(
                     DW_LINE_SET_ADDRESS => match insn_size - 1 {
                         4 => {
                             let address = decode_uword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-                            states.address = address as u64;
+                            states.address = address as Addr;
                             Ok((1 + bytes as usize + insn_size as usize, false))
                         }
                         8 => {
                             let address = decode_udword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-                            states.address = address;
+                            states.address = address as Addr;
                             Ok((1 + bytes as usize + insn_size as usize, false))
                         }
                         _ => Err(Error::new(
@@ -429,7 +430,7 @@ fn run_debug_line_stmt(
         DW_LNS_COPY => Ok((1, true)),
         DW_LNS_ADVANCE_PC => {
             if let Some((adv, bytes)) = decode_leb128(&stmts[(ip + 1)..]) {
-                states.address += adv * prologue.minimum_instruction_length as u64;
+                states.address += (adv * u64::from(prologue.minimum_instruction_length)) as Addr;
                 Ok((1 + bytes as usize, false))
             } else {
                 Err(Error::new(
@@ -481,13 +482,14 @@ fn run_debug_line_stmt(
         }
         DW_LNS_CONST_ADD_PC => {
             let addr_adv = (255 - opcode_base) / prologue.line_range;
-            states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
+            states.address += Addr::from(addr_adv * prologue.minimum_instruction_length);
             Ok((1, false))
         }
         DW_LNS_FIXED_ADVANCE_PC => {
             if (ip + 3) < stmts.len() {
                 let addr_adv = decode_uhalf(&stmts[(ip + 1)..]);
-                states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
+                states.address +=
+                    Addr::from(addr_adv * u16::from(prologue.minimum_instruction_length));
                 Ok((1, false))
             } else {
                 Err(Error::new(
@@ -504,7 +506,7 @@ fn run_debug_line_stmt(
             // Special opcodes
             let desired_line_incr = (opcode - opcode_base) % prologue.line_range;
             let addr_adv = (opcode - opcode_base) / prologue.line_range;
-            states.address += addr_adv as u64 * prologue.minimum_instruction_length as u64;
+            states.address += Addr::from(addr_adv * prologue.minimum_instruction_length);
             states.line = (states.line as i64
                 + (desired_line_incr as i16 + prologue.line_base as i16) as i64
                     * prologue.minimum_instruction_length as i64)
@@ -517,7 +519,7 @@ fn run_debug_line_stmt(
 fn run_debug_line_stmts(
     stmts: &[u8],
     prologue: &DebugLinePrologue,
-    addresses: &[u64],
+    addresses: &[Addr],
 ) -> Result<Vec<DebugLineStates>, Error> {
     let mut ip = 0;
     let mut matrix = Vec::<DebugLineStates>::new();
@@ -588,7 +590,7 @@ fn run_debug_line_stmts(
 /// If addresses is not empty, return only data needed to resolve given addresses .
 pub(crate) fn parse_debug_line_elf_parser(
     parser: &ElfParser,
-    addresses: &[u64],
+    addresses: &[Addr],
 ) -> Result<Vec<DebugLineCU>, Error> {
     let debug_line_idx = parser.find_section(".debug_line")?;
     let debug_line_sz = parser.get_section_size(debug_line_idx)?;
@@ -649,7 +651,7 @@ pub(crate) fn parse_debug_line_elf_parser(
 #[derive(Clone, Debug)]
 pub(crate) struct DWSymInfo<'a> {
     pub name: &'a str,
-    pub address: u64,
+    pub address: Addr,
     pub size: u64,
     pub sym_type: SymbolType, // A function or a variable.
 }
@@ -682,7 +684,7 @@ fn parse_die_subprogram<'a>(
     die: &mut debug_info::DIE<'a>,
     str_data: &'a [u8],
 ) -> Result<Option<DWSymInfo<'a>>, Error> {
-    let mut addr: Option<u64> = None;
+    let mut addr: Option<Addr> = None;
     let mut name_str: Option<&str> = None;
     let mut size = 0;
 
@@ -714,7 +716,7 @@ fn parse_die_subprogram<'a>(
             }
             constants::DW_AT_lo_pc => match value {
                 debug_info::AttrValue::Unsigned(pc) => {
-                    addr = Some(pc);
+                    addr = Some(pc as Addr);
                 }
                 _ => {
                     return Err(Error::new(

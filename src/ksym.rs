@@ -11,7 +11,6 @@ use std::io::Error;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::u64;
 
 use regex::Regex;
 
@@ -19,6 +18,7 @@ use super::FindAddrOpts;
 use super::SymbolInfo;
 use super::SymbolType;
 
+use crate::Addr;
 use crate::SymResolver;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
@@ -26,7 +26,7 @@ const DFL_KSYM_CAP: usize = 200000;
 
 #[derive(Debug)]
 pub struct Ksym {
-    pub addr: u64,
+    pub addr: Addr,
     pub name: String,
 }
 
@@ -36,7 +36,7 @@ pub struct Ksym {
 /// a copy from other devices.
 pub struct KSymResolver {
     syms: Vec<Ksym>,
-    sym_to_addr: RefCell<HashMap<&'static str, u64>>,
+    sym_to_addr: RefCell<HashMap<&'static str, Addr>>,
     file_name: PathBuf,
 }
 
@@ -59,7 +59,7 @@ impl KSymResolver {
                 break
             }
             let (addr, _symbol, func) = (tokens[0], tokens[1], tokens[2]);
-            if let Ok(addr) = u64::from_str_radix(addr, 16) {
+            if let Ok(addr) = Addr::from_str_radix(addr, 16) {
                 if addr == 0 {
                     line.truncate(0);
                     continue
@@ -90,7 +90,7 @@ impl KSymResolver {
         }
     }
 
-    pub fn find_addresses_ksym(&self, addr: u64) -> impl Iterator<Item = &Ksym> {
+    pub fn find_addresses_ksym(&self, addr: Addr) -> impl Iterator<Item = &Ksym> {
         let mut l = 0;
         let mut r = self.syms.len();
 
@@ -115,7 +115,7 @@ impl KSymResolver {
     }
 
     #[cfg(test)]
-    pub fn find_addresses_ksym_simple(&self, addr: u64) -> impl Iterator<Item = &Ksym> {
+    pub fn find_addresses_ksym_simple(&self, addr: Addr) -> impl Iterator<Item = &Ksym> {
         let mut i = 0;
         while i < self.syms.len() && addr >= self.syms[i].addr {
             i += 1;
@@ -138,11 +138,11 @@ impl Default for KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn get_address_range(&self) -> (u64, u64) {
+    fn get_address_range(&self) -> (Addr, Addr) {
         (0xffffffff80000000, 0xffffffffffffffff)
     }
 
-    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
+    fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         self.find_addresses_ksym(addr)
             .map(|sym| (sym.name.as_str(), sym.addr))
             .collect()
@@ -190,11 +190,11 @@ impl SymResolver for KSymResolver {
         Some(syms)
     }
 
-    fn find_line_info(&self, _addr: u64) -> Option<super::AddressLineInfo> {
+    fn find_line_info(&self, _addr: Addr) -> Option<super::AddressLineInfo> {
         None
     }
 
-    fn addr_file_off(&self, _addr: u64) -> Option<u64> {
+    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
         None
     }
 
@@ -391,14 +391,14 @@ mod tests {
             .collect();
         // A full-adder has a carry-out signal, right?
         // Yes! Here it is.
-        let raised_carry_out = |addr| addr > syms_sz as u64;
+        let raised_carry_out = |addr| addr > syms_sz;
 
         while !raised_carry_out(resolver.syms[0].addr) {
             // Test find_addresses_ksym() against every address in the
             // range [0..syms_sz+1].
             for i in 0..=(syms_sz + 1) {
-                let result: Vec<_> = resolver.find_addresses_ksym(i as u64).collect();
-                let result_s: Vec<_> = resolver.find_addresses_ksym_simple(i as u64).collect();
+                let result: Vec<_> = resolver.find_addresses_ksym(i).collect();
+                let result_s: Vec<_> = resolver.find_addresses_ksym_simple(i).collect();
                 assert_eq!(result.len(), result_s.len());
                 assert_eq!(
                     result

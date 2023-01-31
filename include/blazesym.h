@@ -136,7 +136,7 @@ typedef struct blazesym_csym {
    * The address is already relocated to the address space of
    * the process.
    */
-  uint64_t start_address;
+  uintptr_t start_address;
   /**
    * The path of the source code defines the symbol.
    */
@@ -227,7 +227,7 @@ typedef struct blazesym_ssc_elf {
    * (executable).  For example, the first block is with the
    * permission of `r-xp`.
    */
-  uint64_t base_address;
+  uintptr_t base_address;
 } blazesym_ssc_elf;
 
 /**
@@ -304,7 +304,7 @@ typedef struct blazesym_sym_src_cfg {
 
 typedef struct blazesym_sym_info {
   const uint8_t *name;
-  uint64_t address;
+  uintptr_t address;
   uint64_t size;
   enum blazesym_sym_type sym_type;
   uint64_t file_offset;
@@ -376,7 +376,7 @@ void blazesym_free(struct blazesym *aSymbolizer);
 const struct blazesym_result *blazesym_symbolize(struct blazesym *aSymbolizer,
                                                  const struct blazesym_sym_src_cfg *aSymSrcs,
                                                  uint32_t aSymSrcsLen,
-                                                 const uint64_t *aAddrs,
+                                                 const uintptr_t *aAddrs,
                                                  uintptr_t aAddrCnt);
 
 /**

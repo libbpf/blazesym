@@ -1,6 +1,7 @@
 //! Opcode runner of GSYM line table.
 
 use crate::util::ReadRaw as _;
+use crate::Addr;
 
 /// End of the line table
 const END_SEQUENCE: u8 = 0x00;
@@ -36,7 +37,7 @@ pub struct LineTableHeader {
 
 #[derive(Clone, Debug)]
 pub struct LineTableRow {
-    pub address: u64,
+    pub address: Addr,
     pub file_idx: u32,
     pub file_line: u32,
 }
@@ -51,7 +52,7 @@ impl LineTableRow {
     ///
     /// * `header` - is a [`LineTableHeader`] returned by [`parse_line_table_header()`].
     /// * `symaddr` - the address of the symbol that `header` belongs to.
-    pub fn line_table_row_from(header: &LineTableHeader, symaddr: u64) -> LineTableRow {
+    pub fn line_table_row_from(header: &LineTableHeader, symaddr: Addr) -> LineTableRow {
         Self {
             address: symaddr,
             file_idx: 1,
@@ -86,7 +87,7 @@ pub fn run_op(
         }
         ADVANCE_PC => {
             let (adv, _bytes) = ops.read_u128_leb128()?;
-            ctx.address += adv as u64;
+            ctx.address += adv as Addr;
             Some(RunResult::NewRow)
         }
         ADVANCE_LINE => {
@@ -117,7 +118,7 @@ pub fn run_op(
             }
 
             ctx.file_line = file_line as u32;
-            ctx.address = (ctx.address as i64 + addr_delta) as u64;
+            ctx.address += addr_delta as Addr;
             Some(RunResult::NewRow)
         }
     }
