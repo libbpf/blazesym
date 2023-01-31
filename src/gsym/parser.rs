@@ -40,6 +40,7 @@ use std::io::ErrorKind;
 use std::mem::align_of;
 
 use crate::util::ReadRaw as _;
+use crate::Addr;
 
 use super::linetab::LineTableHeader;
 use super::types::AddressData;
@@ -152,17 +153,17 @@ impl<'a> GsymContext<'a> {
     }
 
     /// Get the address of an entry in the Address Table.
-    pub fn addr_at(&self, idx: usize) -> Option<u64> {
+    pub fn addr_at(&self, idx: usize) -> Option<Addr> {
         let addr_off_size = self.header.addr_off_size as usize;
         let mut data = self.addr_tab.get(idx * addr_off_size..)?;
         let address = match addr_off_size {
             1 => data.read_u8()?.into(),
             2 => data.read_u16()?.into(),
-            4 => data.read_u32()?.into(),
-            8 => data.read_u64()?,
+            4 => data.read_u32()? as Addr,
+            8 => data.read_u64()? as Addr,
             _ => return None,
         };
-        Some(self.header.base_address + address)
+        Some(self.header.base_address as Addr + address)
     }
 
     /// Get the AddressInfo of an address given by an index.
@@ -177,14 +178,14 @@ impl<'a> GsymContext<'a> {
     }
 
     /// Retrieve the [start, end] address range
-    pub fn address_range(&self) -> Option<(u64, u64)> {
+    pub fn address_range(&self) -> Option<(Addr, Addr)> {
         let len = self.num_addresses();
         if len == 0 {
             return Some((0, 0))
         }
 
         let start = self.addr_at(0)?;
-        let end = self.addr_at(len - 1)? + u64::from(self.addr_info(len - 1)?.size);
+        let end = self.addr_at(len - 1)? + self.addr_info(len - 1)?.size as Addr;
         Some((start, end))
     }
 
@@ -205,7 +206,7 @@ impl<'a> GsymContext<'a> {
 ///
 /// The callers should check the respective `AddressInfo` to make sure
 /// it is what they request for.
-pub fn find_address(ctx: &GsymContext, addr: u64) -> Option<usize> {
+pub fn find_address(ctx: &GsymContext, addr: Addr) -> Option<usize> {
     let mut left = 0;
     let mut right = ctx.num_addresses();
 
@@ -381,7 +382,7 @@ mod tests {
                 ctx.header.base_address = 0;
                 ctx.addr_tab = addr_tab.as_slice();
 
-                let idx = find_address(&ctx, addr as u64).unwrap_or(0);
+                let idx = find_address(&ctx, addr).unwrap_or(0);
                 let addr_u32 = addr as u32;
                 let idx1 = match values.binary_search(&addr_u32) {
                     Ok(idx) => idx,

@@ -8,8 +8,8 @@ use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 use std::ptr;
-use std::u64;
 
+use crate::Addr;
 use crate::BlazeSymbolizer;
 use crate::FindAddrFeature;
 use crate::SymbolInfo;
@@ -64,7 +64,7 @@ pub struct blazesym_ssc_elf {
     /// A loader would load an executable segment with the permission of `x`
     /// (executable).  For example, the first block is with the
     /// permission of `r-xp`.
-    pub base_address: u64,
+    pub base_address: Addr,
 }
 
 /// The parameters to load symbols and debug information from a kernel.
@@ -172,7 +172,7 @@ pub struct blazesym_csym {
     ///
     /// The address is already relocated to the address space of
     /// the process.
-    pub start_address: u64,
+    pub start_address: Addr,
     /// The path of the source code defines the symbol.
     pub path: *const c_char,
     /// The instruction of the address is in the line number of the source code.
@@ -437,7 +437,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
     symbolizer: *mut blazesym,
     sym_srcs: *const blazesym_sym_src_cfg,
     sym_srcs_len: u32,
-    addrs: *const u64,
+    addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
     let sym_srcs_rs =
@@ -450,7 +450,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
         };
 
     let symbolizer = unsafe { &*(*symbolizer).symbolizer };
-    let addresses = unsafe { Vec::from_raw_parts(addrs as *mut u64, addr_cnt, addr_cnt) };
+    let addresses = unsafe { Vec::from_raw_parts(addrs as *mut _, addr_cnt, addr_cnt) };
 
     let results = symbolizer.symbolize(&sym_srcs_rs, &addresses);
 
@@ -487,7 +487,7 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
 #[repr(C)]
 pub struct blazesym_sym_info {
     name: *const u8,
-    address: u64,
+    address: Addr,
     size: u64,
     sym_type: blazesym_sym_type,
     file_offset: u64,

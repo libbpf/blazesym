@@ -22,7 +22,6 @@ use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::u64;
 
 mod c_api;
 mod dwarf;
@@ -43,6 +42,9 @@ use util::uname_release;
 
 #[cfg(doc)]
 pub use c_api::*;
+
+pub type Addr = usize;
+
 
 #[derive(Debug)]
 struct CacheHolder {
@@ -107,7 +109,7 @@ pub struct SymbolInfo {
     /// The name of the symbol; for example, a function name.
     pub name: String,
     /// Start address (the first byte) of the symbol
-    pub address: u64,
+    pub address: Addr,
     /// The size of the symbol. The size of a function for example.
     pub size: u64,
     /// A function or a variable.
@@ -128,19 +130,19 @@ where
     Self: Debug,
 {
     /// Return the range that this resolver serves in an address space.
-    fn get_address_range(&self) -> (u64, u64);
+    fn get_address_range(&self) -> (Addr, Addr);
     /// Find the names and the start addresses of a symbol found for
     /// the given address.
-    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)>;
+    fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)>;
     /// Find the address and size of a symbol name.
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the addresses and sizes of the symbols matching a given pattern.
     fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the file name and the line number of an address.
-    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo>;
+    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo>;
     /// Translate an address (virtual) in a process to the file offset
     /// in the object file.
-    fn addr_file_off(&self, addr: u64) -> Option<u64>;
+    fn addr_file_off(&self, addr: Addr) -> Option<u64>;
     /// Get the file name of the shared object.
     fn get_obj_file_name(&self) -> &Path;
 }
@@ -182,11 +184,11 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn get_address_range(&self) -> (u64, u64) {
+    fn get_address_range(&self) -> (Addr, Addr) {
         (0xffffffff80000000, 0xffffffffffffffff)
     }
 
-    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
+    fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         if self.ksymresolver.is_some() {
             self.ksymresolver.as_ref().unwrap().find_symbols(addr)
         } else {
@@ -199,12 +201,12 @@ impl SymResolver for KernelResolver {
     fn find_address_regex(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         None
     }
-    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
         self.kernelresolver.as_ref()?;
         self.kernelresolver.as_ref().unwrap().find_line_info(addr)
     }
 
-    fn addr_file_off(&self, _addr: u64) -> Option<u64> {
+    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
         None
     }
 
@@ -262,7 +264,7 @@ pub enum SymbolSrcCfg {
         /// A loader would load an executable segment with the permission of
         /// `x`.  For example, the first block is with the permission of
         /// `r-xp`.
-        base_address: u64,
+        base_address: Addr,
     },
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
     Kernel {
@@ -288,7 +290,7 @@ pub enum SymbolSrcCfg {
     Process { pid: Option<u32> },
     Gsym {
         file_name: PathBuf,
-        base_address: u64,
+        base_address: Addr,
     },
 }
 
@@ -308,7 +310,7 @@ pub struct SymbolizedResult {
     ///
     /// The address is in the target process, not the offset from the
     /// shared object file.
-    pub start_address: u64,
+    pub start_address: Addr,
     /// The source path that defines the symbol.
     pub path: String,
     /// The line number of the symbolized instruction in the source code.
@@ -320,7 +322,7 @@ pub struct SymbolizedResult {
     pub column: usize,
 }
 
-type ResolverList = Vec<((u64, u64), Box<dyn SymResolver>)>;
+type ResolverList = Vec<((Addr, Addr), Box<dyn SymResolver>)>;
 
 struct ResolverMap {
     resolvers: ResolverList,
@@ -436,13 +438,13 @@ impl ResolverMap {
         Ok(ResolverMap { resolvers })
     }
 
-    pub fn find_resolver(&self, address: u64) -> Option<&dyn SymResolver> {
+    pub fn find_resolver(&self, address: Addr) -> Option<&dyn SymResolver> {
         let idx =
             util::search_address_key(&self.resolvers, address, &|map: &(
-                (u64, u64),
+                (Addr, Addr),
                 Box<dyn SymResolver>,
             )|
-             -> u64 { map.0 .0 })?;
+             -> Addr { map.0 .0 })?;
         let (loaded_begin, loaded_end) = self.resolvers[idx].0;
         if loaded_begin != loaded_end && address >= loaded_end {
             // `begin == end` means this ELF file may have only
@@ -724,7 +726,7 @@ impl BlazeSymbolizer {
     pub fn symbolize(
         &self,
         sym_srcs: &[SymbolSrcCfg],
-        addresses: &[u64],
+        addresses: &[Addr],
     ) -> Vec<Vec<SymbolizedResult>> {
         let resolver_map = if let Ok(map) = ResolverMap::new(sym_srcs, &self.cache_holder) {
             map

@@ -9,6 +9,7 @@ use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::Addr;
 use crate::AddressLineInfo;
 use crate::FindAddrOpts;
 use crate::SymResolver;
@@ -28,12 +29,12 @@ pub struct GsymResolver {
     file_name: PathBuf,
     ctx: GsymContext<'static>,
     _data: Vec<u8>,
-    loaded_address: u64,
-    range: (u64, u64),
+    loaded_address: Addr,
+    range: (Addr, Addr),
 }
 
 impl GsymResolver {
-    pub fn new(file_name: PathBuf, loaded_address: u64) -> Result<GsymResolver, Error> {
+    pub fn new(file_name: PathBuf, loaded_address: Addr) -> Result<GsymResolver, Error> {
         let mut fo = File::open(&file_name)?;
         let mut data = vec![];
         fo.read_to_end(&mut data)?;
@@ -59,15 +60,15 @@ impl GsymResolver {
 }
 
 impl SymResolver for GsymResolver {
-    fn get_address_range(&self) -> (u64, u64) {
+    fn get_address_range(&self) -> (Addr, Addr) {
         (
             self.loaded_address + self.range.0,
             self.loaded_address + self.range.1,
         )
     }
 
-    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
-        fn find_address_impl(gsym: &GsymResolver, addr: u64) -> Option<Vec<(&str, u64)>> {
+    fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
+        fn find_address_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
             let addr = addr.checked_sub(gsym.loaded_address)?;
             let idx = find_address(&gsym.ctx, addr)?;
 
@@ -109,7 +110,7 @@ impl SymResolver for GsymResolver {
     /// # Returns
     ///
     /// The `AddressLineInfo` corresponding to the address or `None`.
-    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
         let addr = addr.checked_sub(self.loaded_address)?;
         let idx = find_address(&self.ctx, addr)?;
         let symaddr = self.ctx.addr_at(idx)?;
@@ -117,7 +118,7 @@ impl SymResolver for GsymResolver {
             return None
         }
         let addrinfo = self.ctx.addr_info(idx)?;
-        if addr >= (symaddr + addrinfo.size as u64) {
+        if addr >= (symaddr + addrinfo.size as Addr) {
             return None
         }
 
@@ -171,7 +172,7 @@ impl SymResolver for GsymResolver {
         None
     }
 
-    fn addr_file_off(&self, _addr: u64) -> Option<u64> {
+    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
         // Unavailable
         None
     }

@@ -5,6 +5,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::Addr;
 use crate::AddressLineInfo;
 use crate::CacheHolder;
 use crate::Error;
@@ -31,17 +32,17 @@ use super::ElfParser;
 /// it's loaded address.
 pub struct ElfResolver {
     backend: ElfBackend,
-    loaded_address: u64,
-    loaded_to_virt: u64,
-    foff_to_virt: u64,
-    size: u64,
+    loaded_address: Addr,
+    loaded_to_virt: Addr,
+    foff_to_virt: usize,
+    size: usize,
     file_name: PathBuf,
 }
 
 impl ElfResolver {
     pub(crate) fn new(
         file_name: &Path,
-        loaded_address: u64,
+        loaded_address: Addr,
         cache_holder: &CacheHolder,
     ) -> Result<ElfResolver, Error> {
         let backend = cache_holder.get_elf_cache().find(file_name)?;
@@ -79,7 +80,7 @@ impl ElfResolver {
         }
 
         let loaded_address = if e_type == ET_EXEC {
-            low_addr
+            low_addr as Addr
         } else {
             loaded_address
         };
@@ -90,9 +91,9 @@ impl ElfResolver {
         Ok(ElfResolver {
             backend,
             loaded_address,
-            loaded_to_virt,
-            foff_to_virt,
-            size,
+            loaded_to_virt: loaded_to_virt as Addr,
+            foff_to_virt: foff_to_virt as usize,
+            size: size as usize,
             file_name: file_name.to_path_buf(),
         })
     }
@@ -106,11 +107,11 @@ impl ElfResolver {
 }
 
 impl SymResolver for ElfResolver {
-    fn get_address_range(&self) -> (u64, u64) {
+    fn get_address_range(&self) -> (Addr, Addr) {
         (self.loaded_address, self.loaded_address + self.size)
     }
 
-    fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
+    fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         let off = addr - self.loaded_address + self.loaded_to_virt;
         let parser = if let Some(parser) = self.get_parser() {
             parser
@@ -153,7 +154,7 @@ impl SymResolver for ElfResolver {
         Some(syms)
     }
 
-    fn find_line_info(&self, addr: u64) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
         let off = addr - self.loaded_address + self.loaded_to_virt;
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             let (directory, file, line_no) = dwarf.find_line_as_ref(off)?;
@@ -172,8 +173,9 @@ impl SymResolver for ElfResolver {
         }
     }
 
-    fn addr_file_off(&self, addr: u64) -> Option<u64> {
-        Some(addr - self.loaded_address + self.loaded_to_virt - self.foff_to_virt)
+    fn addr_file_off(&self, addr: Addr) -> Option<u64> {
+        let offset = addr - self.loaded_address + self.loaded_to_virt - self.foff_to_virt;
+        Some(offset as u64)
     }
 
     fn get_obj_file_name(&self) -> &Path {

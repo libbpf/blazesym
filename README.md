@@ -32,14 +32,14 @@ The following code makes use of BlazeSym to access symbol names, filenames of
 sources, and line numbers of addresses involved in a process.
 
 ```rust,no_run
-	use blazesym::{BlazeSymbolizer, SymbolSrcCfg, SymbolizedResult};
+	use blazesym::{Addr, BlazeSymbolizer, SymbolSrcCfg, SymbolizedResult};
 
 	let process_id: u32 = std::process::id(); // <some process id>
 	// load all symbols of loaded files of the given process.
 	let sym_srcs = [SymbolSrcCfg::Process { pid: Some(process_id) }];
 	let symbolizer = BlazeSymbolizer::new().unwrap();
 
-	let stack: [u64; 2] = [0xff023, 0x17ff93b];			// Addresses of instructions
+	let stack: [Addr; 2] = [0xff023, 0x17ff93b];		// Addresses of instructions
 	let symlist = symbolizer.symbolize(&sym_srcs,		// Pass this configuration every time
 	                                   &stack);
 	for i in 0..stack.len() {

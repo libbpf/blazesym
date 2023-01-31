@@ -3,6 +3,10 @@ include_guard = "__blazesym_h_"
 
 [export]
 item_types = ["globals", "enums", "structs", "unions", "typedefs", "opaque", "functions"]
+exclude = ["Addr"]
+
+[export.rename]
+"Addr" = "uintptr_t"
 
 [fn]
 args = "Vertical"

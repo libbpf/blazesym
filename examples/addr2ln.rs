@@ -1,5 +1,6 @@
 extern crate blazesym;
 
+use blazesym::Addr;
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
 use std::env;
@@ -30,7 +31,7 @@ fn main() {
         // Remove prefixed 0x
         addr_str = &addr_str[2..];
     }
-    let addr = u64::from_str_radix(addr_str, 16).unwrap();
+    let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
     let results = resolver.symbolize(&sym_srcs, &[addr]);
     if results.len() == 1 && !results[0].is_empty() {

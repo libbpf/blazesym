@@ -15,6 +15,7 @@ use regex::Regex;
 use crate::mmap::Mmap;
 use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
+use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
 use crate::SymbolType;
@@ -408,7 +409,7 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_symbol(&self, address: u64, st_type: u8) -> Result<(&str, u64), Error> {
+    pub fn find_symbol(&self, address: Addr, st_type: u8) -> Result<(&str, Addr), Error> {
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
@@ -419,7 +420,7 @@ impl ElfParser {
             if sym.st_info & 0xf != st_type || sym.st_shndx == SHN_UNDEF {
                 None
             } else {
-                Some(sym.st_value)
+                Some(sym.st_value as Addr)
             }
         });
         if idx_r.is_none() {
@@ -432,7 +433,7 @@ impl ElfParser {
 
         let sym = cache.symbol(idx)?;
         let name = cache.symbol_name(sym)?;
-        Ok((name, sym.st_value))
+        Ok((name, sym.st_value as Addr))
     }
 
     pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
@@ -473,7 +474,7 @@ impl ElfParser {
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymbolInfo {
                             name: name.to_string(),
-                            address: sym_ref.st_value,
+                            address: sym_ref.st_value as Addr,
                             size: sym_ref.st_size,
                             sym_type: SymbolType::Function,
                             file_offset: 0,
@@ -520,7 +521,7 @@ impl ElfParser {
                 if sym_ref.st_shndx != SHN_UNDEF {
                     syms.push(SymbolInfo {
                         name: sname.to_string(),
-                        address: sym_ref.st_value,
+                        address: sym_ref.st_value as Addr,
                         size: sym_ref.st_size,
                         sym_type: SymbolType::Function,
                         file_offset: 0,
@@ -547,7 +548,7 @@ impl ElfParser {
     }
 
     #[cfg(test)]
-    fn pick_symtab_addr(&self) -> (&str, u64) {
+    fn pick_symtab_addr(&self) -> (&str, Addr) {
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab().unwrap();
         let symtab = cache.symtab.as_ref().unwrap();
@@ -561,7 +562,7 @@ impl ElfParser {
         drop(cache);
 
         let sym_name = self.get_symbol_name(idx).unwrap();
-        (sym_name, addr)
+        (sym_name, addr as Addr)
     }
 }
 

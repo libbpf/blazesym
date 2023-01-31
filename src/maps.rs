@@ -9,6 +9,8 @@ use std::io::ErrorKind;
 use std::io::Read;
 use std::path::PathBuf;
 
+use crate::Addr;
+
 
 /// An enumeration identifying a process.
 #[derive(Clone, Copy, Debug)]
@@ -28,8 +30,8 @@ impl Display for Pid {
 
 
 pub(crate) struct LinuxMapsEntry {
-    pub loaded_address: u64,
-    pub _end_address: u64,
+    pub loaded_address: Addr,
+    pub _end_address: Addr,
     pub mode: u8,
     pub _offset: u64,
     pub path: PathBuf,
@@ -62,13 +64,13 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<LinuxMapsEntry, 
             format!("encountered malformed address range in proc maps line: {full_line}"),
         )
     })?;
-    let loaded_address = u64::from_str_radix(loaded_str, 16).map_err(|err| {
+    let loaded_address = Addr::from_str_radix(loaded_str, 16).map_err(|err| {
         Error::new(
             ErrorKind::InvalidData,
             format!("encountered malformed start address in proc maps line: {full_line}: {err}"),
         )
     })?;
-    let end_address = u64::from_str_radix(end_str, 16).map_err(|err| {
+    let end_address = Addr::from_str_radix(end_str, 16).map_err(|err| {
         Error::new(
             ErrorKind::InvalidData,
             format!("encountered malformed end address in proc maps line: {full_line}: {err}"),
