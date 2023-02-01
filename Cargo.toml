@@ -20,10 +20,10 @@ crossbeam-channel = "0.5"
 libc = "0.2.137"
 
 [build-dependencies]
-cbindgen = "0.24"
+cbindgen = {version = "0.24", optional = true}
 
 [features]
-cheader = []
+cheader = ["cbindgen"]
 # Enable code paths requiring a nightly toolchain. This feature is only meant to
 # be used for testing and benchmarking purposes, not for the core library, which
 # is expected to work on stable.

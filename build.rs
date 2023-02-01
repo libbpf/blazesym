@@ -1,5 +1,3 @@
-extern crate cbindgen;
-
 #[cfg(feature = "cheader")]
 use std::env;
 #[cfg(feature = "cheader")]

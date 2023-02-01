@@ -5,7 +5,7 @@
 // trace to function names and their locations in the
 // source code.
 #![doc = include_str!("../README.md")]
-#![allow(dead_code, clippy::let_and_return)]
+#![allow(dead_code, clippy::let_and_return, clippy::let_unit_value)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
