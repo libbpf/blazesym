@@ -137,9 +137,9 @@ impl<'a> GsymContext<'a> {
         self.header.num_addrs as usize
     }
 
-    /// Get the address of the an entry in the Address Table.
+    /// Get the address of an entry in the Address Table.
     ///
-    /// # Saftety
+    /// # Safety
     ///
     /// The code will crash with an invalid index.
     pub fn addr_at(&self, idx: usize) -> u64 {
@@ -157,7 +157,7 @@ impl<'a> GsymContext<'a> {
 
     /// Get the AddressInfo of an address given by an index.
     ///
-    /// # Saftety
+    /// # Safety
     ///
     /// The code will crash with an invalid index.
     pub fn addr_info(&self, idx: usize) -> AddressInfo {
@@ -175,7 +175,7 @@ impl<'a> GsymContext<'a> {
 
     /// Get the string at the given offset from the String Table.
     ///
-    /// # Saftety
+    /// # Safety
     ///
     /// The code will crash with an invalid offset.
     pub fn get_str(&self, off: usize) -> &str {

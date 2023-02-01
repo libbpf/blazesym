@@ -117,7 +117,7 @@ impl ElfCacheEntry {
     }
 }
 
-/// Maintain a LRU linked list of entires
+/// Maintain a LRU linked list of entries
 struct ElfCacheLru {
     head: *mut ElfCacheEntry,
     tail: *mut ElfCacheEntry,
