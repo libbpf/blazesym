@@ -123,7 +123,7 @@ fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error>
             return Ok((strs, pos + 1));
         }
 
-        // Find NULL byte
+        // Find NUL byte
         let mut end = pos;
         while end < data_buf.len() && data_buf[end] != 0 {
             end += 1;
@@ -142,7 +142,7 @@ fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error>
 
     Err(Error::new(
         ErrorKind::InvalidData,
-        "Do not found null string",
+        "Did not find NULL terminated string",
     ))
 }
 
@@ -298,7 +298,7 @@ fn parse_debug_line_cu(
     for i in 1..matrix.len() {
         if matrix[i].address < matrix[i - 1].address && !matrix[i - 1].end_sequence {
             panic!(
-                "Not in ascent order @ [{}] {:?} [{}] {:?}",
+                "Not in ascending order @ [{}] {:?} [{}] {:?}",
                 i - 1,
                 matrix[i - 1],
                 i,
@@ -572,7 +572,7 @@ fn run_debug_line_stmts(
                 ip += sz;
                 if emit {
                     if states_cur.address == 0 {
-                        // This is a speical case. Somehow, rust
+                        // This is a special case. Somehow, rust
                         // compiler generate debug_line for some
                         // builtin code starting from 0.  And, it
                         // causes incorrect behavior.
@@ -625,7 +625,7 @@ fn run_debug_line_stmts(
     Ok(matrix)
 }
 
-/// If addresses is empty, it return a full version of debug_line matrics.
+/// If addresses is empty, it returns a full version of debug_line matrix.
 /// If addresses is not empty, return only data needed to resolve given addresses .
 fn parse_debug_line_elf_parser(
     parser: &Elf64Parser,
@@ -679,14 +679,14 @@ fn parse_debug_line_elf_parser(
     if remain_sz != 0 {
         return Err(Error::new(
             ErrorKind::InvalidData,
-            "remain garbage data at the end",
+            "encountered remaining garbage data at the end",
         ));
     }
 
     Ok(all_cus)
 }
 
-/// DwarfResolver provide abilities to query DWARF information of binaries.
+/// DwarfResolver provides abilities to query DWARF information of binaries.
 pub struct DwarfResolver {
     parser: Rc<Elf64Parser>,
     debug_line_cus: Vec<DebugLineCU>,

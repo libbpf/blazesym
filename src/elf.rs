@@ -568,7 +568,7 @@ impl Elf64Parser {
         }
         Err(Error::new(
             ErrorKind::NotFound,
-            format!("Does not found the give section: {name}"),
+            format!("unable to find ELF section: {name}"),
         ))
     }
 
