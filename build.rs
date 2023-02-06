@@ -48,7 +48,7 @@ where
 
     if !instance.status.success() {
         let code = if let Some(code) = instance.status.code() {
-            format!(" ({})", code)
+            format!(" ({code})")
         } else {
             " (terminated by signal)".to_string()
         };
@@ -107,8 +107,8 @@ fn main() {
         let target_path = Path::new(&crate_dir).join("target").join(build_type);
 
         cbindgen::Builder::new()
-            .with_crate(&crate_dir)
-            .with_config(cbindgen::Config::from_root_or_default(&crate_dir))
+            .with_crate(crate_dir)
+            .with_config(cbindgen::Config::from_root_or_default(crate_dir))
             .generate()
             .expect("Unable to generate bindings")
             .write_to_file(target_path.join("blazesym.h"));
