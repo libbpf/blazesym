@@ -1461,14 +1461,11 @@ mod tests {
 
     #[test]
     fn test_parse_aranges_elf() {
-        let bin_name = env::args_os().next().unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-dwarf-v4.bin");
 
-        let r = parse_aranges_elf(bin_name.as_ref());
-        if r.is_err() {
-            println!("{:?}", r.as_ref().err().unwrap());
-        }
-        assert!(r.is_ok());
-        let _acus = r.unwrap();
+        let _aranges = parse_aranges_elf(bin_name.as_ref()).unwrap();
     }
 
     #[test]
