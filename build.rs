@@ -70,30 +70,27 @@ where
     Ok(())
 }
 
-/// Build `data/test.bin`
-fn build_dwarf_v4_test_bin(test_bin: &Path) {
-    let mut output = test_bin.to_path_buf();
-    assert!(output.set_extension("bin"));
+/// Compile `src` into `dst` using `cc`.
+fn cc(src: &Path, dst: &str, options: &[&str]) {
+    println!("cargo:rerun-if-changed={}", src.display());
 
     // Ideally we'd use the `cc` crate here, but it seemingly can't be convinced
     // to create binaries.
     run(
         "cc",
-        [
-            "-gdwarf-4".as_ref(),
-            test_bin.as_os_str(),
+        options.iter().map(OsStr::new).chain([
+            src.as_os_str(),
             "-o".as_ref(),
-            output.as_os_str(),
-        ],
+            src.with_file_name(dst).as_os_str(),
+        ]),
     )
     .expect("failed to run `cc`")
 }
 
 /// Build the various test binaries.
 fn build_test_bins(crate_root: &Path) {
-    let path = crate_root.join("data").join("test.c");
-    println!("cargo:rerun-if-changed={}", path.display());
-    build_dwarf_v4_test_bin(&path);
+    let src = crate_root.join("data").join("test.c");
+    cc(&src, "test.bin", &["-gdwarf-4"]);
 }
 
 fn main() {
