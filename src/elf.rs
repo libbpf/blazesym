@@ -787,7 +787,9 @@ mod tests {
 
     #[test]
     fn test_elf_header_sections() {
-        let bin_name = env::args_os().next().unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-debug.bin");
 
         let mut bin_file = File::open(bin_name).unwrap();
         let ehdr = read_elf_header(&mut bin_file);
@@ -820,7 +822,9 @@ mod tests {
 
     #[test]
     fn test_elf64_parser() {
-        let bin_name = env::args_os().next().unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-debug.bin");
 
         let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
@@ -828,7 +832,9 @@ mod tests {
 
     #[test]
     fn test_elf64_symtab() {
-        let bin_name = env::args_os().next().unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-debug.bin");
 
         let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
@@ -841,9 +847,12 @@ mod tests {
         assert_eq!(addr_ret, addr);
         assert_eq!(sym_name_ret, sym_name);
     }
+
     #[test]
     fn test_elf64_find_address() {
-        let bin_name = env::args_os().next().unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-debug.bin");
 
         let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());

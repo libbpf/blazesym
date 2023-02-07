@@ -315,7 +315,9 @@ mod tests {
 
     #[test]
     fn test_cache() {
-        let bin_name = env::args_os().next().unwrap();
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-debug.bin");
 
         let cache = ElfCache::new(true, false);
         let backend_first = cache.find(Path::new(&bin_name));
