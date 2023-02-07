@@ -1342,7 +1342,7 @@ mod tests {
     fn test_parse_debug_line_elf() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.bin");
+            .join("test-dwarf-v4.bin");
 
         let _ = parse_debug_line_elf(bin_name.as_ref()).unwrap();
     }
@@ -1475,7 +1475,7 @@ mod tests {
     fn test_dwarf_resolver() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.bin");
+            .join("test-dwarf-v4.bin");
         let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
         let (addr, dir, file, line) = resolver.pick_address_for_test();
 
@@ -1489,7 +1489,7 @@ mod tests {
     fn test_debug_info_parse_symbols() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.bin");
+            .join("test-dwarf-v4.bin");
 
         let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
         let syms = debug_info_parse_symbols(&parser, None, 4).unwrap();
