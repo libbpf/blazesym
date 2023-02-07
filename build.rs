@@ -90,7 +90,7 @@ fn cc(src: &Path, dst: &str, options: &[&str]) {
 /// Build the various test binaries.
 fn build_test_bins(crate_root: &Path) {
     let src = crate_root.join("data").join("test.c");
-    cc(&src, "test.bin", &["-gdwarf-4"]);
+    cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
 }
 
 fn main() {
