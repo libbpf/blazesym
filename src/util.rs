@@ -114,7 +114,6 @@ pub fn extract_string(raw: &[u8], off: usize) -> Option<&str> {
         .ok()
 }
 
-#[allow(dead_code)]
 pub struct LinuxMapsEntry {
     pub loaded_address: u64,
     pub end_address: u64,
@@ -123,7 +122,6 @@ pub struct LinuxMapsEntry {
     pub path: PathBuf,
 }
 
-#[allow(dead_code)]
 pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
     let mut entries = Vec::<LinuxMapsEntry>::new();
     let file_name = if pid == 0 {

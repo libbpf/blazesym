@@ -11,8 +11,7 @@ use super::parser::{find_address, GsymContext};
 pub struct GsymResolver {
     file_name: PathBuf,
     ctx: GsymContext<'static>,
-    #[allow(dead_code)]
-    data: Vec<u8>,
+    _data: Vec<u8>,
     loaded_address: u64,
 }
 
@@ -29,7 +28,7 @@ impl GsymResolver {
             // owned by the object.  So, it is safe to strip the
             // lifetime of ctx.
             ctx: unsafe { mem::transmute(ctx) },
-            data,
+            _data: data,
             loaded_address,
         })
     }

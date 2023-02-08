@@ -23,8 +23,8 @@ pub enum ElfBackend {
     Elf(Rc<ElfParser>),       // ELF w/o DWARF
 }
 
+#[cfg(test)]
 impl ElfBackend {
-    #[allow(dead_code)]
     pub fn to_dwarf(&self) -> Option<Rc<DwarfResolver>> {
         if let Self::Dwarf(dwarf) = self {
             Some(Rc::clone(dwarf))
@@ -33,23 +33,8 @@ impl ElfBackend {
         }
     }
 
-    #[allow(dead_code)]
-    pub fn to_elf(&self) -> Option<Rc<ElfParser>> {
-        if let Self::Elf(elf) = self {
-            Some(Rc::clone(elf))
-        } else {
-            None
-        }
-    }
-
-    #[allow(dead_code)]
     pub fn is_dwarf(&self) -> bool {
         matches!(self, Self::Dwarf(_))
-    }
-
-    #[allow(dead_code)]
-    pub fn is_elf(&self) -> bool {
-        matches!(self, Self::Elf(_))
     }
 }
 
@@ -191,10 +176,6 @@ struct _ElfCache {
 }
 
 impl _ElfCache {
-    fn get_max_elfs(&self) -> usize {
-        self.max_elfs
-    }
-
     fn new(line_number_info: bool, debug_info_symbols: bool) -> _ElfCache {
         _ElfCache {
             elfs: HashMap::new(),
@@ -295,12 +276,6 @@ impl ElfCache {
         ElfCache {
             cache: RefCell::new(_ElfCache::new(line_number_info, debug_info_symbols)),
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn get_max_elfs(&self) -> usize {
-        let cache = self.cache.borrow();
-        cache.get_max_elfs()
     }
 
     pub fn find(&self, path: &Path) -> Result<ElfBackend, Error> {
