@@ -5,7 +5,6 @@ use std::io::{Error, ErrorKind, Read, Seek, SeekFrom};
 use std::mem;
 #[cfg(test)]
 use std::path::Path;
-use std::path::PathBuf;
 
 use regex::Regex;
 
@@ -103,7 +102,6 @@ struct ElfParserBack {
 /// A parser against ELF64 format.
 ///
 pub struct ElfParser {
-    filename: PathBuf,
     file: RefCell<File>,
     backobj: RefCell<ElfParserBack>,
 }
@@ -111,7 +109,6 @@ pub struct ElfParser {
 impl ElfParser {
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
         let parser = ElfParser {
-            filename: PathBuf::new(),
             file: RefCell::new(file),
             backobj: RefCell::new(ElfParserBack {
                 ehdr: None,
@@ -132,8 +129,7 @@ impl ElfParser {
     pub fn open(filename: &Path) -> Result<ElfParser, Error> {
         let file = File::open(filename)?;
         let parser = Self::open_file(file);
-        if let Ok(mut parser) = parser {
-            parser.filename = filename.to_path_buf();
+        if let Ok(parser) = parser {
             Ok(parser)
         } else {
             parser
