@@ -1,5 +1,5 @@
 use super::elf::Elf64Parser;
-use super::tools::{
+use super::util::{
     decode_leb128, decode_leb128_s, decode_udword, decode_uhalf, decode_uword, search_address_key,
 };
 use super::{FindAddrOpts, SymbolInfo, SymbolType};
@@ -1205,7 +1205,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
-    use crate::tools::{decode_shalf, decode_sword};
+    use crate::util::{decode_shalf, decode_sword};
 
     fn parse_debug_line_elf(filename: &Path) -> Result<Vec<DebugLineCU>, Error> {
         let parser = Elf64Parser::open(filename)?;

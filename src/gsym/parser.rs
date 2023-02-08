@@ -38,7 +38,7 @@ use super::types::*;
 
 use std::io::{Error, ErrorKind};
 
-use crate::tools::{decode_udword, decode_uhalf, decode_uword};
+use crate::util::{decode_udword, decode_uhalf, decode_uword};
 use std::ffi::CStr;
 
 /// Hold the major parts of a standalone GSYM file.
