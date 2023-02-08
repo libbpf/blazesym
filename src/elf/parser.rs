@@ -88,7 +88,7 @@ fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a s
     extract_string(strtab, sect.sh_name as usize)
 }
 
-struct Elf64ParserBack {
+struct ElfParserBack {
     ehdr: Option<Elf64_Ehdr>,
     shdrs: Option<Vec<Elf64_Shdr>>,
     shstrtab: Option<Vec<u8>>,
@@ -102,18 +102,18 @@ struct Elf64ParserBack {
 
 /// A parser against ELF64 format.
 ///
-pub struct Elf64Parser {
+pub struct ElfParser {
     filename: PathBuf,
     file: RefCell<File>,
-    backobj: RefCell<Elf64ParserBack>,
+    backobj: RefCell<ElfParserBack>,
 }
 
-impl Elf64Parser {
-    pub fn open_file(file: File) -> Result<Elf64Parser, Error> {
-        let parser = Elf64Parser {
+impl ElfParser {
+    pub fn open_file(file: File) -> Result<ElfParser, Error> {
+        let parser = ElfParser {
             filename: PathBuf::new(),
             file: RefCell::new(file),
-            backobj: RefCell::new(Elf64ParserBack {
+            backobj: RefCell::new(ElfParserBack {
                 ehdr: None,
                 shdrs: None,
                 shstrtab: None,
@@ -129,7 +129,7 @@ impl Elf64Parser {
     }
 
     #[cfg(test)]
-    pub fn open(filename: &Path) -> Result<Elf64Parser, Error> {
+    pub fn open(filename: &Path) -> Result<ElfParser, Error> {
         let file = File::open(filename)?;
         let parser = Self::open_file(file);
         if let Ok(mut parser) = parser {
@@ -657,7 +657,7 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
     }
 
@@ -667,7 +667,7 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
         let (sym_name, addr) = parser.pick_symtab_addr();
@@ -685,7 +685,7 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
         let (sym_name, addr) = parser.pick_symtab_addr();

@@ -1047,7 +1047,7 @@ impl<'a> Iterator for UnitIter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::elf::Elf64Parser;
+    use crate::elf::ElfParser;
     use std::env;
     use std::path::Path;
 
@@ -1112,7 +1112,7 @@ mod tests {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("dwarf-example");
-        let elfparser = Elf64Parser::open(&bin_name).unwrap();
+        let elfparser = ElfParser::open(&bin_name).unwrap();
         let abbrev_idx = elfparser.find_section(".debug_abbrev").unwrap();
         let abbrev = elfparser.read_section_raw(abbrev_idx).unwrap();
         let info_idx = elfparser.find_section(".debug_info").unwrap();

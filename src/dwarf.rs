@@ -1,4 +1,4 @@
-use super::elf::Elf64Parser;
+use super::elf::ElfParser;
 use super::util::{
     decode_leb128, decode_leb128_s, decode_udword, decode_uhalf, decode_uword, search_address_key,
 };
@@ -219,7 +219,7 @@ fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, us
 }
 
 fn parse_debug_line_cu(
-    parser: &Elf64Parser,
+    parser: &ElfParser,
     addresses: &[u64],
     reused_buf: &mut Vec<u8>,
 ) -> Result<DebugLineCU, Error> {
@@ -628,7 +628,7 @@ fn run_debug_line_stmts(
 /// If addresses is empty, it returns a full version of debug_line matrix.
 /// If addresses is not empty, return only data needed to resolve given addresses .
 fn parse_debug_line_elf_parser(
-    parser: &Elf64Parser,
+    parser: &ElfParser,
     addresses: &[u64],
 ) -> Result<Vec<DebugLineCU>, Error> {
     let debug_line_idx = parser.find_section(".debug_line")?;
@@ -688,7 +688,7 @@ fn parse_debug_line_elf_parser(
 
 /// DwarfResolver provides abilities to query DWARF information of binaries.
 pub struct DwarfResolver {
-    parser: Rc<Elf64Parser>,
+    parser: Rc<ElfParser>,
     debug_line_cus: Vec<DebugLineCU>,
     addr_to_dlcu: Vec<(u64, u32)>,
     enable_debug_info_syms: bool,
@@ -696,12 +696,12 @@ pub struct DwarfResolver {
 }
 
 impl DwarfResolver {
-    pub fn get_parser(&self) -> &Elf64Parser {
+    pub fn get_parser(&self) -> &ElfParser {
         &self.parser
     }
 
     pub fn from_parser_for_addresses(
-        parser: Rc<Elf64Parser>,
+        parser: Rc<ElfParser>,
         addresses: &[u64],
         line_number_info: bool,
         debug_info_symbols: bool,
@@ -749,7 +749,7 @@ impl DwarfResolver {
         line_number_info: bool,
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
-        let parser = Elf64Parser::open(filename)?;
+        let parser = ElfParser::open(filename)?;
         Self::from_parser_for_addresses(
             Rc::new(parser),
             addresses,
@@ -1097,7 +1097,7 @@ enum DIParseResult<'a> {
 /// * `nthreads` - is the number of worker threads to create. 0 or 1
 ///                means single thread.
 fn debug_info_parse_symbols<'a>(
-    parser: &'a Elf64Parser,
+    parser: &'a ElfParser,
     cond: Option<&(dyn Fn(&DWSymInfo<'a>) -> bool + Send + Sync)>,
     nthreads: usize,
 ) -> Result<Vec<DWSymInfo<'a>>, Error> {
@@ -1208,7 +1208,7 @@ mod tests {
     use crate::util::{decode_shalf, decode_sword};
 
     fn parse_debug_line_elf(filename: &Path) -> Result<Vec<DebugLineCU>, Error> {
-        let parser = Elf64Parser::open(filename)?;
+        let parser = ElfParser::open(filename)?;
         parse_debug_line_elf_parser(&parser, &[])
     }
 
@@ -1290,7 +1290,7 @@ mod tests {
         ))
     }
 
-    fn parse_aranges_elf_parser(parser: &Elf64Parser) -> Result<Vec<ArangesCU>, Error> {
+    fn parse_aranges_elf_parser(parser: &ElfParser) -> Result<Vec<ArangesCU>, Error> {
         let debug_aranges_idx = parser.find_section(".debug_aranges")?;
 
         let raw_data = parser.read_section_raw(debug_aranges_idx)?;
@@ -1307,7 +1307,7 @@ mod tests {
     }
 
     fn parse_aranges_elf(filename: &Path) -> Result<Vec<ArangesCU>, Error> {
-        let parser = Elf64Parser::open(filename)?;
+        let parser = ElfParser::open(filename)?;
         parse_aranges_elf_parser(&parser)
     }
 
@@ -1488,7 +1488,7 @@ mod tests {
             .join("data")
             .join("test-dwarf-v4.bin");
 
-        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let syms = debug_info_parse_symbols(&parser, None, 4).unwrap();
         assert!(syms.iter().any(|sym| sym.name == "fibonacci"))
     }
@@ -1513,7 +1513,7 @@ mod tests {
     #[bench]
     fn debug_info_parse_single_threaded(b: &mut Bencher) {
         let bin_name = env::args().next().unwrap();
-        let parser = Elf64Parser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
 
         let () = b.iter(|| debug_info_parse_symbols(&parser, None, 1).unwrap());
     }
