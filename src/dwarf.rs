@@ -1202,7 +1202,6 @@ mod tests {
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
-    use crate::util::{decode_shalf, decode_sword};
 
     fn parse_debug_line_elf(filename: &Path) -> Result<Vec<DebugLineCU>, Error> {
         let parser = ElfParser::open(filename)?;
@@ -1324,15 +1323,6 @@ mod tests {
             assert_eq!(v, -165388);
             assert_eq!(s, 3);
         }
-    }
-
-    #[test]
-    fn test_decode_words() {
-        let data = vec![0x7f, 0x85, 0x36, 0xf9];
-        assert_eq!(decode_uhalf(&data), 0x857f);
-        assert_eq!(decode_shalf(&data), -31361);
-        assert_eq!(decode_uword(&data), 0xf936857f);
-        assert_eq!(decode_sword(&data), -113867393);
     }
 
     #[test]
