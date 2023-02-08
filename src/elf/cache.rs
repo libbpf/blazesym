@@ -1,6 +1,3 @@
-use super::dwarf::DwarfResolver;
-use super::elf::Elf64Parser;
-
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
@@ -11,6 +8,10 @@ use std::rc::Rc;
 
 use nix::sys::stat::{fstat, FileStat};
 use std::os::unix::io::AsRawFd;
+
+use crate::dwarf::DwarfResolver;
+
+use super::Elf64Parser;
 
 type ElfCacheEntryKey = PathBuf;
 
