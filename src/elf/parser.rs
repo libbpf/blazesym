@@ -485,7 +485,7 @@ impl ElfParser {
                     }
                     let sym_i = str2symtab[idx].1;
                     let sym_ref = &me.symtab.as_ref().unwrap()[sym_i];
-                    if !sym_ref.is_undef() {
+                    if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymbolInfo {
                             name: name.to_string(),
                             address: sym_ref.st_value,
@@ -525,7 +525,7 @@ impl ElfParser {
             };
             if re.is_match(sname) {
                 let sym_ref = &me.symtab.as_ref().unwrap()[*sym_i];
-                if !sym_ref.is_undef() {
+                if sym_ref.st_shndx != SHN_UNDEF {
                     syms.push(SymbolInfo {
                         name: sname.to_string(),
                         address: sym_ref.st_value,
