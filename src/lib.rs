@@ -29,7 +29,6 @@ use std::rc::Rc;
 use nix::sys::stat::stat;
 use nix::sys::utsname;
 
-#[doc(hidden)]
 mod dwarf;
 mod elf;
 mod elf_cache;
@@ -68,14 +67,12 @@ impl CacheHolder {
     }
 }
 
-#[doc(hidden)]
-pub trait StackFrame {
+trait StackFrame {
     fn get_ip(&self) -> u64;
     fn get_frame_pointer(&self) -> u64;
 }
 
-#[doc(hidden)]
-pub trait StackSession {
+trait StackSession {
     fn next_frame(&mut self) -> Option<&dyn StackFrame>;
     fn prev_frame(&mut self) -> Option<&dyn StackFrame>;
     fn go_top(&mut self);
@@ -163,40 +160,23 @@ trait SymResolver {
     fn repr(&self) -> String;
 }
 
-#[doc(hidden)]
-pub const REG_RAX: usize = 0;
-#[doc(hidden)]
-pub const REG_RBX: usize = 1;
-#[doc(hidden)]
-pub const REG_RCX: usize = 2;
-#[doc(hidden)]
-pub const REG_RDX: usize = 3;
-#[doc(hidden)]
-pub const REG_RSI: usize = 4;
-#[doc(hidden)]
-pub const REG_RDI: usize = 5;
-#[doc(hidden)]
-pub const REG_RSP: usize = 6;
-#[doc(hidden)]
-pub const REG_RBP: usize = 7;
-#[doc(hidden)]
-pub const REG_R8: usize = 8;
-#[doc(hidden)]
-pub const REG_R9: usize = 9;
-#[doc(hidden)]
-pub const REG_R10: usize = 10;
-#[doc(hidden)]
-pub const REG_R11: usize = 11;
-#[doc(hidden)]
-pub const REG_R12: usize = 12;
-#[doc(hidden)]
-pub const REG_R13: usize = 13;
-#[doc(hidden)]
-pub const REG_R14: usize = 14;
-#[doc(hidden)]
-pub const REG_R15: usize = 15;
-#[doc(hidden)]
-pub const REG_RIP: usize = 16;
+const REG_RAX: usize = 0;
+const REG_RBX: usize = 1;
+const REG_RCX: usize = 2;
+const REG_RDX: usize = 3;
+const REG_RSI: usize = 4;
+const REG_RDI: usize = 5;
+const REG_RSP: usize = 6;
+const REG_RBP: usize = 7;
+const REG_R8: usize = 8;
+const REG_R9: usize = 9;
+const REG_R10: usize = 10;
+const REG_R11: usize = 11;
+const REG_R12: usize = 12;
+const REG_R13: usize = 13;
+const REG_R14: usize = 14;
+const REG_R15: usize = 15;
+const REG_RIP: usize = 16;
 
 struct X86_64StackFrame {
     rip: u64,
@@ -216,8 +196,7 @@ impl StackFrame for X86_64StackFrame {
 ///
 /// Parse a block of memory that is a copy of stack of thread to get frames.
 ///
-#[doc(hidden)]
-pub struct X86_64StackSession {
+struct X86_64StackSession {
     frames: Vec<X86_64StackFrame>,
     stack: Vec<u8>,
     stack_base: u64, // The base address of the stack
