@@ -60,17 +60,14 @@ struct DebugLinePrologue {
 struct DebugLineFileInfo {
     name: String,
     dir_idx: u32, // Index to include_directories of DebugLineCU.
-    #[allow(dead_code)]
-    mod_tm: u64,
-    #[allow(dead_code)]
-    size: usize,
+    _mod_tm: u64,
+    _size: usize,
 }
 
 /// Represent a Compile Unit (CU) in a .debug_line section.
 struct DebugLineCU {
     prologue: DebugLinePrologue,
-    #[allow(dead_code)]
-    standard_opcode_lengths: Vec<u8>,
+    _standard_opcode_lengths: Vec<u8>,
     include_directories: Vec<String>,
     files: Vec<DebugLineFileInfo>,
     matrix: Vec<DebugLineStates>,
@@ -205,8 +202,8 @@ fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, us
             strs.push(DebugLineFileInfo {
                 name: str_r.unwrap(),
                 dir_idx: dir_idx as u32,
-                mod_tm,
-                size: flen as usize,
+                _mod_tm: mod_tm,
+                _size: flen as usize,
             });
         }
         pos = end;
@@ -309,7 +306,7 @@ fn parse_debug_line_cu(
 
     Ok(DebugLineCU {
         prologue,
-        standard_opcode_lengths: std_op_lengths,
+        _standard_opcode_lengths: std_op_lengths,
         include_directories: inc_dirs,
         files,
         matrix,

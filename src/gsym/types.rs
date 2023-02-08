@@ -21,6 +21,7 @@ pub struct AddressInfo<'a> {
     pub data: &'a [u8],
 }
 
+#[cfg(test)]
 pub struct AddressData<'a> {
     /// The data type. Its value should be one of InfoType*.
     pub typ: u32,
@@ -28,9 +29,12 @@ pub struct AddressData<'a> {
     pub data: &'a [u8],
 }
 
+#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const InfoTypeEndOfList: u32 = 0;
+#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const InfoTypeLineTableInfo: u32 = 1;
+#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const InfoTypeInlineInfo: u32 = 2;

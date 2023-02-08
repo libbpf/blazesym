@@ -244,7 +244,8 @@ pub fn find_address(ctx: &GsymContext, addr: u64) -> usize {
 /// * `data` - is the slice from AddressInfo::data.
 ///
 /// Returns a vector of [`AddressData`].
-pub fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
+#[cfg(test)]
+fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
     let mut data_objs = vec![];
 
     let mut off = 0;

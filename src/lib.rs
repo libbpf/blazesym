@@ -5,7 +5,7 @@
 // trace to function names and their locations in the
 // source code.
 #![doc = include_str!("../README.md")]
-#![allow(dead_code, clippy::let_and_return, clippy::let_unit_value)]
+#![allow(clippy::let_and_return, clippy::let_unit_value)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
@@ -160,22 +160,7 @@ trait SymResolver {
     fn repr(&self) -> String;
 }
 
-const REG_RAX: usize = 0;
-const REG_RBX: usize = 1;
-const REG_RCX: usize = 2;
-const REG_RDX: usize = 3;
-const REG_RSI: usize = 4;
-const REG_RDI: usize = 5;
-const REG_RSP: usize = 6;
 const REG_RBP: usize = 7;
-const REG_R8: usize = 8;
-const REG_R9: usize = 9;
-const REG_R10: usize = 10;
-const REG_R11: usize = 11;
-const REG_R12: usize = 12;
-const REG_R13: usize = 13;
-const REG_R14: usize = 14;
-const REG_R15: usize = 15;
 const REG_RIP: usize = 16;
 
 struct X86_64StackFrame {
@@ -231,6 +216,7 @@ impl X86_64StackSession {
             | ((stack[off + 7] as u64) << 56)
     }
 
+    #[cfg(test)]
     pub fn new(stack: Vec<u8>, stack_base: u64, registers: [u64; 17]) -> X86_64StackSession {
         X86_64StackSession {
             frames: Vec::new(),
