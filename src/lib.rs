@@ -35,7 +35,7 @@ mod elf;
 mod elf_cache;
 mod gsym;
 mod ksym;
-mod tools;
+mod util;
 
 use elf_cache::{ElfBackend, ElfCache};
 use gsym::GsymResolver;
@@ -681,7 +681,7 @@ impl ResolverMap {
         resolvers: &mut ResolverList,
         cache_holder: &CacheHolder,
     ) -> Result<(), Error> {
-        let entries = tools::parse_maps(pid)?;
+        let entries = util::parse_maps(pid)?;
 
         for entry in entries.iter() {
             if entry.path.as_path().components().next() != Some(Component::RootDir) {
@@ -786,7 +786,7 @@ impl ResolverMap {
 
     pub fn find_resolver(&self, address: u64) -> Option<&dyn SymResolver> {
         let idx =
-            tools::search_address_key(&self.resolvers, address, &|map: &(
+            util::search_address_key(&self.resolvers, address, &|map: &(
                 (u64, u64),
                 Box<dyn SymResolver>,
             )|

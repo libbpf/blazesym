@@ -10,7 +10,7 @@ use std::path::PathBuf;
 
 use std::cell::RefCell;
 
-use crate::tools::{extract_string, search_address_opt_key};
+use crate::util::{extract_string, search_address_opt_key};
 
 use regex::Regex;
 
