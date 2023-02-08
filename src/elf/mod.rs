@@ -4,5 +4,5 @@ mod resolver;
 mod types;
 
 pub use cache::ElfCache;
-pub use parser::Elf64Parser;
+pub use parser::ElfParser;
 pub use resolver::ElfResolver;

@@ -11,7 +11,7 @@ use std::os::unix::io::AsRawFd;
 
 use crate::dwarf::DwarfResolver;
 
-use super::Elf64Parser;
+use super::ElfParser;
 
 type ElfCacheEntryKey = PathBuf;
 
@@ -20,7 +20,7 @@ const DFL_CACHE_MAX: usize = 1024;
 #[derive(Clone)]
 pub enum ElfBackend {
     Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
-    Elf(Rc<Elf64Parser>),     // ELF w/o DWARF
+    Elf(Rc<ElfParser>),       // ELF w/o DWARF
 }
 
 impl ElfBackend {
@@ -34,7 +34,7 @@ impl ElfBackend {
     }
 
     #[allow(dead_code)]
-    pub fn to_elf(&self) -> Option<Rc<Elf64Parser>> {
+    pub fn to_elf(&self) -> Option<Rc<ElfParser>> {
         if let Self::Elf(elf) = self {
             Some(Rc::clone(elf))
         } else {
@@ -76,7 +76,7 @@ impl ElfCacheEntry {
         debug_info_symbols: bool,
     ) -> Result<ElfCacheEntry, Error> {
         let stat = fstat(file.as_raw_fd())?;
-        let parser = Rc::new(Elf64Parser::open_file(file)?);
+        let parser = Rc::new(ElfParser::open_file(file)?);
         let backend = if let Ok(dwarf) = DwarfResolver::from_parser_for_addresses(
             Rc::clone(&parser),
             &[],

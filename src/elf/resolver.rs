@@ -15,7 +15,7 @@ use super::types::ET_EXEC;
 use super::types::PF_X;
 use super::types::PT_LOAD;
 use super::types::STT_FUNC;
-use super::Elf64Parser;
+use super::ElfParser;
 
 /// The symbol resolver for a single ELF file.
 ///
@@ -94,7 +94,7 @@ impl ElfResolver {
         })
     }
 
-    fn get_parser(&self) -> Option<&Elf64Parser> {
+    fn get_parser(&self) -> Option<&ElfParser> {
         match &self.backend {
             ElfBackend::Dwarf(dwarf) => Some(dwarf.get_parser()),
             ElfBackend::Elf(parser) => Some(parser),
