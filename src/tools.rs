@@ -217,13 +217,13 @@ pub fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
     decode_leb128_128_s(data).map(|(v, s)| (v as i64, s))
 }
 
-#[inline(always)]
+#[inline]
 pub fn decode_uhalf(data: &[u8]) -> u16 {
     (data[0] as u16) | ((data[1] as u16) << 8)
 }
 
 #[cfg(test)]
-#[inline(always)]
+#[inline]
 pub fn decode_shalf(data: &[u8]) -> i16 {
     let uh = decode_uhalf(data);
     if uh >= 0x8000 {
@@ -233,13 +233,13 @@ pub fn decode_shalf(data: &[u8]) -> i16 {
     }
 }
 
-#[inline(always)]
+#[inline]
 pub fn decode_uword(data: &[u8]) -> u32 {
     (data[0] as u32) | ((data[1] as u32) << 8) | ((data[2] as u32) << 16) | ((data[3] as u32) << 24)
 }
 
 #[cfg(test)]
-#[inline(always)]
+#[inline]
 pub fn decode_sword(data: &[u8]) -> i32 {
     let uw = decode_uword(data);
     if uw >= 0x80000000 {
@@ -249,7 +249,7 @@ pub fn decode_sword(data: &[u8]) -> i32 {
     }
 }
 
-#[inline(always)]
+#[inline]
 pub fn decode_udword(data: &[u8]) -> u64 {
     decode_uword(data) as u64 | ((decode_uword(&data[4..]) as u64) << 32)
 }

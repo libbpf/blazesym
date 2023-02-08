@@ -130,7 +130,7 @@ impl Abbrev {
 /// Parse an abbreviation from a buffer.
 ///
 /// Include all attributes, names and forms.
-#[inline(always)]
+#[inline]
 fn parse_abbrev(data: &[u8]) -> Option<(Abbrev, usize)> {
     let (abbrev_code, bytes) = decode_leb128_128(data)?;
     if abbrev_code == 0 {
@@ -178,7 +178,7 @@ fn parse_abbrev(data: &[u8]) -> Option<(Abbrev, usize)> {
 /// Parse an attribute specification from a buffer.
 ///
 /// Return the name, form, optional value and size of an abbreviation.
-#[inline(always)]
+#[inline]
 fn parse_abbrev_attr(data: &[u8]) -> Option<(u8, u8, u128, usize)> {
     let mut pos = 0; // Track the size of this abbreviation.
     let (name, bytes) = decode_leb128_128(&data[pos..])?;
@@ -582,7 +582,7 @@ fn parse_cu_abbrevs(data: &[u8]) -> Option<(Vec<Abbrev>, usize)> {
 /// sizem, which is the number of bytes.
 ///
 /// See also [`extract_attr_value()`].
-#[inline(always)]
+#[inline]
 fn measure_attr_size(data: &[u8], form: u8, dwarf_sz: usize, addr_sz: usize) -> Option<usize> {
     match form {
         DW_FORM_addr => Some(addr_sz),
@@ -802,7 +802,7 @@ pub struct DIE<'a> {
 }
 
 impl<'a> DIE<'a> {
-    #[inline(always)]
+    #[inline]
     pub fn exhaust(&mut self) -> Result<(), Error> {
         let abbrev_attrs = self.abbrev_attrs;
 
@@ -899,7 +899,7 @@ impl<'a> DIEIter<'a> {
         self.die_reading_done = true;
     }
 
-    #[inline(always)]
+    #[inline]
     pub fn exhaust_die(&mut self) -> Result<(), Error> {
         assert!(
             !self.die_reading_done,
