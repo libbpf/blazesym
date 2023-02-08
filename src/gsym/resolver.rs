@@ -3,12 +3,9 @@ use std::io::{Error, Read};
 use std::mem;
 use std::path::{Path, PathBuf};
 
-use super::{AddressLineInfo, FindAddrOpts, SymResolver, SymbolInfo};
+use crate::{AddressLineInfo, FindAddrOpts, SymResolver, SymbolInfo};
 
-mod parser;
-mod types;
-
-use parser::{find_address, GsymContext};
+use super::parser::{find_address, GsymContext};
 
 /// The symbol resolver for the GSYM format.
 pub struct GsymResolver {
