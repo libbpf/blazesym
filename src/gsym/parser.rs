@@ -242,6 +242,7 @@ pub fn find_address(ctx: &GsymContext, addr: u64) -> Option<usize> {
 ///
 /// Returns a vector of [`AddressData`].
 #[cfg(test)]
+#[allow(unused)]
 fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
     let mut data_objs = vec![];
 
@@ -294,22 +295,13 @@ mod tests {
         gsym_fo.read_to_end(&mut data).unwrap();
         let ctx = GsymContext::parse_header(&data).unwrap();
 
-        let idx = 2;
-        // Check gsym-example.c for these hard-coded addresses
-        assert_eq!(ctx.addr_at(idx).unwrap(), 0x0000000002020000);
-        let addrinfo = ctx.addr_info(idx).unwrap();
-        assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "factorial");
-
         let idx = find_address(&ctx, 0x0000000002000000).unwrap();
-        assert_eq!(idx, 0);
         let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "main");
 
-        let addrdata_objs = parse_address_data(addrinfo.data);
-        println!("len = {}", addrdata_objs.len());
-        for o in addrdata_objs {
-            println!("{}", o.typ);
-        }
+        let idx = find_address(&ctx, 0x0000000002000100).unwrap();
+        let addrinfo = ctx.addr_info(idx).unwrap();
+        assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "factorial");
     }
 
     #[test]

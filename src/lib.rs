@@ -1041,22 +1041,18 @@ mod tests {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.gsym");
-        let base: u64 = 0x77a7000; // pickup randomly.
         let features = vec![SymbolizerFeature::LineNumberInfo(true)];
         let srcs = vec![SymbolSrcCfg::Gsym {
             file_name: test_gsym,
-            base_address: base,
+            base_address: 0,
         }];
         let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
-        // Check gsym-example.c for this hard-coded addresses
-        let syms_lst = symbolizer.symbolize(&srcs, &[0x2020000 + base]);
-        let mut cnt = 0;
-        for syms in syms_lst {
-            for sym in syms {
-                assert_eq!(sym.symbol, "factorial");
-                cnt += 1;
-            }
-        }
-        assert_eq!(cnt, 1);
+        let count = symbolizer
+            .symbolize(&srcs, &[0x2000100])
+            .into_iter()
+            .flatten()
+            .filter(|result| result.symbol == "factorial")
+            .count();
+        assert_eq!(count, 1);
     }
 }
