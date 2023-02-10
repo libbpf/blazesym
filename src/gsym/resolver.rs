@@ -42,8 +42,10 @@ impl SymResolver for GsymResolver {
         }
 
         let start = self.ctx.addr_at(0) + self.loaded_address;
-        let end =
-            self.ctx.addr_at(sz - 1) + self.ctx.addr_info(sz - 1).size as u64 + self.loaded_address;
+        // TODO: Must not unwrap.
+        let end = self.ctx.addr_at(sz - 1)
+            + self.ctx.addr_info(sz - 1).unwrap().size as u64
+            + self.loaded_address;
         (start, end)
     }
 
@@ -55,7 +57,11 @@ impl SymResolver for GsymResolver {
             return vec![];
         }
 
-        let info = self.ctx.addr_info(idx);
+        let info = if let Some(info) = self.ctx.addr_info(idx) {
+            info
+        } else {
+            return Vec::new();
+        };
 
         let name = if let Some(name) = self.ctx.get_str(info.name as usize) {
             name
