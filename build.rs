@@ -72,17 +72,18 @@ where
 
 /// Compile `src` into `dst` using `cc`.
 fn cc(src: &Path, dst: &str, options: &[&str]) {
+    let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
+    println!("cargo:rerun-if-changed={}", dst.display());
 
     // Ideally we'd use the `cc` crate here, but it seemingly can't be convinced
     // to create binaries.
     run(
         "cc",
-        options.iter().map(OsStr::new).chain([
-            src.as_os_str(),
-            "-o".as_ref(),
-            src.with_file_name(dst).as_os_str(),
-        ]),
+        options
+            .iter()
+            .map(OsStr::new)
+            .chain([src.as_os_str(), "-o".as_ref(), dst.as_os_str()]),
     )
     .expect("failed to run `cc`")
 }
