@@ -156,21 +156,22 @@ impl<'a> GsymContext<'a> {
     }
 
     /// Get the AddressInfo of an address given by an index.
-    ///
-    /// # Safety
-    ///
-    /// The code will crash with an invalid index.
-    pub fn addr_info(&self, idx: usize) -> AddressInfo {
-        assert!(idx < self.header.num_addrs as usize, "invalid index");
+    pub fn addr_info(&self, idx: usize) -> Option<AddressInfo> {
+        if idx >= self.header.num_addrs as usize {
+            return None;
+        }
+
         let off = idx * 4;
         let ad_off = decode_uword(&self.addr_data_off_tab[off..]) as usize;
         let size = decode_uword(&self.raw_data[ad_off..]);
         let name = decode_uword(&self.raw_data[ad_off + 4..]);
-        AddressInfo {
+        let info = AddressInfo {
             size,
             name,
             data: &self.raw_data[ad_off + 8..],
-        }
+        };
+
+        Some(info)
     }
 
     /// Get the string at the given offset from the String Table.
@@ -297,12 +298,12 @@ mod tests {
         let idx = 2;
         // Check gsym-example.c for these hard-coded addresses
         assert_eq!(ctx.addr_at(idx), 0x0000000002020000);
-        let addrinfo = ctx.addr_info(idx);
+        let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "factorial");
 
         let idx = find_address(&ctx, 0x0000000002000000);
         assert_eq!(idx, 0);
-        let addrinfo = ctx.addr_info(idx);
+        let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "main");
 
         let addrdata_objs = parse_address_data(addrinfo.data);
