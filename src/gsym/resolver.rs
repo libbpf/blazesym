@@ -41,9 +41,10 @@ impl SymResolver for GsymResolver {
             return (0, 0);
         }
 
-        let start = self.ctx.addr_at(0) + self.loaded_address;
         // TODO: Must not unwrap.
-        let end = self.ctx.addr_at(sz - 1)
+        let start = self.ctx.addr_at(0).unwrap() + self.loaded_address;
+        // TODO: Must not unwrap.
+        let end = self.ctx.addr_at(sz - 1).unwrap()
             + self.ctx.addr_info(sz - 1).unwrap().size as u64
             + self.loaded_address;
         (start, end)
@@ -51,8 +52,18 @@ impl SymResolver for GsymResolver {
 
     fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
         let addr = addr - self.loaded_address;
-        let idx = find_address(&self.ctx, addr);
-        let found = self.ctx.addr_at(idx);
+        let idx = if let Some(idx) = find_address(&self.ctx, addr) {
+            idx
+        } else {
+            return vec![];
+        };
+
+        let found = if let Some(addr) = self.ctx.addr_at(idx) {
+            addr
+        } else {
+            return vec![];
+        };
+
         if addr < found {
             return vec![];
         }
