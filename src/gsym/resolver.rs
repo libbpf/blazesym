@@ -56,7 +56,13 @@ impl SymResolver for GsymResolver {
         }
 
         let info = self.ctx.addr_info(idx);
-        let name = self.ctx.get_str(info.name as usize);
+
+        let name = if let Some(name) = self.ctx.get_str(info.name as usize) {
+            name
+        } else {
+            return Vec::new();
+        };
+
         vec![(name, found + self.loaded_address)]
     }
 

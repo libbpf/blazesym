@@ -174,12 +174,10 @@ impl<'a> GsymContext<'a> {
     }
 
     /// Get the string at the given offset from the String Table.
-    ///
-    /// # Safety
-    ///
-    /// The code will crash with an invalid offset.
-    pub fn get_str(&self, off: usize) -> &str {
-        assert!(off < self.str_tab.len());
+    pub fn get_str(&self, off: usize) -> Option<&str> {
+        if off >= self.str_tab.len() {
+            return None;
+        }
 
         // Ensure there is a null byte.
         let mut null_off = self.str_tab.len() - 1;
@@ -187,16 +185,15 @@ impl<'a> GsymContext<'a> {
             null_off -= 1;
         }
         if null_off == off {
-            return "";
+            return Some("");
         }
 
         // SAFETY: the lifetime of `CStr` can live as long as `self`.
         // The returned reference can also live as long as `self`.
-        // So, it is safe.
         unsafe {
             CStr::from_ptr(self.str_tab[off..].as_ptr() as *const i8)
                 .to_str()
-                .unwrap()
+                .ok()
         }
     }
 }
@@ -301,12 +298,12 @@ mod tests {
         // Check gsym-example.c for these hard-coded addresses
         assert_eq!(ctx.addr_at(idx), 0x0000000002020000);
         let addrinfo = ctx.addr_info(idx);
-        assert_eq!(ctx.get_str(addrinfo.name as usize), "factorial");
+        assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "factorial");
 
         let idx = find_address(&ctx, 0x0000000002000000);
         assert_eq!(idx, 0);
         let addrinfo = ctx.addr_info(idx);
-        assert_eq!(ctx.get_str(addrinfo.name as usize), "main");
+        assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "main");
 
         let addrdata_objs = parse_address_data(addrinfo.data);
         println!("len = {}", addrdata_objs.len());
