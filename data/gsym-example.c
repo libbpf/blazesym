@@ -19,7 +19,7 @@
  * Otherwise, we also want the main fucntion at a fixed location.
  * Clang seems to have different options for this purpose.
  *
- * `fibbonacci()` is compiled separate to generate a separate object
+ * `fibonacci()` is compiled separate to generate a separate object
  * file so that it can be relocated manually.
  *
  * We also has a linker script, `data/gsym-example.ld`, to help
@@ -42,7 +42,7 @@ unsigned int factorial(unsigned int n) {
 
 #else
 
-extern unsigned int fibbonacci(unsigned int);
+extern unsigned int fibonacci(unsigned int);
 extern unsigned int factorial(unsigned int n);
 
 static
@@ -56,15 +56,15 @@ main(int argc, const char *argv[]) {
 
 	factorial_inline_wrapper();
 	for (i = 0; i < 100; i++) {
-		fibbonacci(i);
+		fibonacci(i);
 	}
 	return 0;
 }
 
-unsigned int fibbonacci(unsigned int n) {
+unsigned int fibonacci(unsigned int n) {
 	if (n <= 1)
 		return n;
-	return fibbonacci(n - 1) + fibbonacci(n - 2);
+	return fibonacci(n - 1) + fibonacci(n - 2);
 }
 
 #endif
