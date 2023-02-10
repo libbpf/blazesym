@@ -138,12 +138,11 @@ impl<'a> GsymContext<'a> {
     }
 
     /// Get the address of an entry in the Address Table.
-    ///
-    /// # Safety
-    ///
-    /// The code will crash with an invalid index.
-    pub fn addr_at(&self, idx: usize) -> u64 {
-        assert!(idx < self.header.num_addrs as usize, "invalid index");
+    pub fn addr_at(&self, idx: usize) -> Option<u64> {
+        if idx >= self.header.num_addrs as usize {
+            return None;
+        }
+
         let off = idx * self.header.addr_off_size as usize;
         let mut addr = 0u64;
         let mut shift = 0;
@@ -152,7 +151,7 @@ impl<'a> GsymContext<'a> {
             shift += 8;
         }
         addr += self.header.base_address;
-        addr
+        Some(addr)
     }
 
     /// Get the AddressInfo of an address given by an index.
@@ -204,23 +203,23 @@ impl<'a> GsymContext<'a> {
 ///
 /// The callers should check the respective `AddressInfo` to make sure
 /// it is what they request for.
-pub fn find_address(ctx: &GsymContext, addr: u64) -> usize {
+pub fn find_address(ctx: &GsymContext, addr: u64) -> Option<usize> {
     let mut left = 0;
     let mut right = ctx.num_addresses();
 
     if right == 0 {
-        return 0;
+        return None;
     }
-    if addr < ctx.addr_at(0) {
-        return 0;
+    if addr < ctx.addr_at(0)? {
+        return None;
     }
 
     while (left + 1) < right {
         let v = (left + right) / 2;
-        let cur_addr = ctx.addr_at(v);
+        let cur_addr = ctx.addr_at(v)?;
 
         if addr == cur_addr {
-            return v;
+            return Some(v);
         }
         if addr < cur_addr {
             right = v;
@@ -228,7 +227,7 @@ pub fn find_address(ctx: &GsymContext, addr: u64) -> usize {
             left = v;
         }
     }
-    left
+    Some(left)
 }
 
 /// Parse AddressData.
@@ -297,11 +296,11 @@ mod tests {
 
         let idx = 2;
         // Check gsym-example.c for these hard-coded addresses
-        assert_eq!(ctx.addr_at(idx), 0x0000000002020000);
+        assert_eq!(ctx.addr_at(idx).unwrap(), 0x0000000002020000);
         let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "factorial");
 
-        let idx = find_address(&ctx, 0x0000000002000000);
+        let idx = find_address(&ctx, 0x0000000002000000).unwrap();
         assert_eq!(idx, 0);
         let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "main");
@@ -367,7 +366,7 @@ mod tests {
                 ctx.header.base_address = 0;
                 ctx.addr_tab = addr_tab.as_slice();
 
-                let idx = find_address(&ctx, addr as u64);
+                let idx = find_address(&ctx, addr as u64).unwrap_or(0);
                 let addr_u32 = addr as u32;
                 let idx1 = match values.binary_search(&addr_u32) {
                     Ok(idx) => idx,
