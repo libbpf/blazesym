@@ -1,6 +1,9 @@
 pub const GSYM_MAGIC: u32 = 0x4753594d;
 pub const GSYM_VERSION: u16 = 1;
 
+/// The size of address data offsets in GSYM.
+pub const ADDR_DATA_OFFSET_SIZE: usize = 4;
+
 /// GSYM File Header
 pub struct Header {
     pub magic: u32,

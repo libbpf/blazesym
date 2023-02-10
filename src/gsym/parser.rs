@@ -103,7 +103,7 @@ impl<'a> GsymContext<'a> {
         }
         let addr_tab = &data[off..end_off];
         off = (end_off + 0x3) & !0x3;
-        let end_off = off + num_addrs as usize * 4;
+        let end_off = off + num_addrs as usize * ADDR_DATA_OFFSET_SIZE;
         if end_off > data.len() {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -160,7 +160,7 @@ impl<'a> GsymContext<'a> {
             return None;
         }
 
-        let off = idx * 4;
+        let off = idx * ADDR_DATA_OFFSET_SIZE;
         let ad_off = decode_uword(&self.addr_data_off_tab[off..]) as usize;
         let size = decode_uword(&self.raw_data[ad_off..]);
         let name = decode_uword(&self.raw_data[ad_off + 4..]);
