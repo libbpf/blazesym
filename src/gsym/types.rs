@@ -3,6 +3,8 @@ pub const GSYM_VERSION: u16 = 1;
 
 /// The size of address data offsets in GSYM.
 pub const ADDR_DATA_OFFSET_SIZE: usize = 4;
+/// The size of a GSYM `FileInfo` object.
+pub const FILE_INFO_SIZE: usize = 8;
 
 /// GSYM File Header
 pub struct Header {
@@ -17,6 +19,11 @@ pub struct Header {
     pub uuid: [u8; 20],
 }
 
+pub struct FileInfo {
+    pub directory: u32,
+    pub filename: u32,
+}
+
 pub struct AddressInfo<'a> {
     pub size: u32,
     pub name: u32,
@@ -24,7 +31,6 @@ pub struct AddressInfo<'a> {
     pub data: &'a [u8],
 }
 
-#[cfg(test)]
 pub struct AddressData<'a> {
     /// The data type. Its value should be one of InfoType*.
     pub typ: u32,
@@ -32,12 +38,9 @@ pub struct AddressData<'a> {
     pub data: &'a [u8],
 }
 
-#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const InfoTypeEndOfList: u32 = 0;
-#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const InfoTypeLineTableInfo: u32 = 1;
-#[cfg(test)]
 #[allow(non_upper_case_globals)]
 pub const InfoTypeInlineInfo: u32 = 2;

@@ -34,22 +34,43 @@
 //! the respective object; ex, a function or variable.
 //!
 //! See <https://reviews.llvm.org/D53379>
-use super::types::*;
 
+use std::ffi::CStr;
 use std::io::{Error, ErrorKind};
 
-use crate::util::{decode_udword, decode_uhalf, decode_uword};
-use std::ffi::CStr;
+use crate::util::decode_leb128;
+use crate::util::decode_leb128_s;
+use crate::util::decode_udword;
+use crate::util::decode_uhalf;
+use crate::util::decode_uword;
+
+use super::linetab::LineTableHeader;
+use super::types::AddressData;
+use super::types::AddressInfo;
+use super::types::FileInfo;
+use super::types::Header;
+use super::types::InfoTypeEndOfList;
+use super::types::InfoTypeInlineInfo;
+use super::types::InfoTypeLineTableInfo;
+use super::types::ADDR_DATA_OFFSET_SIZE;
+use super::types::FILE_INFO_SIZE;
+use super::types::GSYM_MAGIC;
+use super::types::GSYM_VERSION;
 
 /// Hold the major parts of a standalone GSYM file.
 ///
 /// GsymContext provides functions to access major entities in GSYM.
 /// GsymContext can find respective AddressInfo for an address.  But,
 /// it doesn't parse AddressData to get line numbers.
+///
+/// The developers should use [`parse_address_data()`],
+/// [`parse_line_table_header()`], and [`linetab::run_op()`] to get
+/// line number information from [`AddressInfo`].
 pub struct GsymContext<'a> {
     header: Header,
     addr_tab: &'a [u8],
     addr_data_off_tab: &'a [u8],
+    file_tab: &'a [u8],
     str_tab: &'a [u8],
     raw_data: &'a [u8],
 }
@@ -111,8 +132,25 @@ impl<'a> GsymContext<'a> {
             ));
         }
         let addr_data_off_tab = &data[off..end_off];
-        let str_tab =
-            &data[strtab_offset as usize..(strtab_offset as usize + strtab_size as usize)];
+        off += num_addrs as usize * ADDR_DATA_OFFSET_SIZE;
+        let file_num = decode_uword(&data[off..]);
+        off += 4;
+        let end_off = off + file_num as usize * FILE_INFO_SIZE;
+        if end_off > data.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "the size of the file is smaller than expectation (file table)",
+            ));
+        }
+        let file_tab = &data[off..end_off];
+        let end_off = strtab_offset as usize + strtab_size as usize;
+        if end_off > data.len() {
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                "the size of the file is smaller than expectation (string table)",
+            ));
+        }
+        let str_tab = &data[strtab_offset as usize..end_off];
 
         Ok(GsymContext {
             header: Header {
@@ -128,6 +166,7 @@ impl<'a> GsymContext<'a> {
             },
             addr_tab,
             addr_data_off_tab,
+            file_tab,
             str_tab,
             raw_data: data,
         })
@@ -196,6 +235,21 @@ impl<'a> GsymContext<'a> {
                 .ok()
         }
     }
+
+    pub fn file_info(&self, idx: usize) -> Option<FileInfo> {
+        if idx >= self.file_tab.len() / FILE_INFO_SIZE {
+            return None;
+        }
+        let mut off = idx * FILE_INFO_SIZE;
+        let directory = decode_uword(&self.file_tab[off..(off + 4)]);
+        off += 4;
+        let filename = decode_uword(&self.file_tab[off..(off + 4)]);
+        let info = FileInfo {
+            directory,
+            filename,
+        };
+        Some(info)
+    }
 }
 
 /// Find the index of an entry in the address table most likely
@@ -241,9 +295,7 @@ pub fn find_address(ctx: &GsymContext, addr: u64) -> Option<usize> {
 /// * `data` - is the slice from AddressInfo::data.
 ///
 /// Returns a vector of [`AddressData`].
-#[cfg(test)]
-#[allow(unused)]
-fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
+pub fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
     let mut data_objs = vec![];
 
     let mut off = 0;
@@ -276,13 +328,47 @@ fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
     data_objs
 }
 
+/// Parse AddressData of InfoTypeLineTableInfo.
+///
+/// An `AddressData` of `InfoTypeLineTableInfo` type is a table of line numbers
+/// for a symbol. `AddressData` is the payload of `AddressInfo`. One
+/// `AddressInfo` may have several `AddressData` entries in its payload. Each
+/// `AddressData` entry stores a type of data relates to the symbol the
+/// `AddressInfo` presents.
+///
+/// # Arguments
+///
+/// * `data` - is what [`AddressData::data`] is.
+///
+/// Returns the `LineTableHeader` and the size of the header of a
+/// `AddressData` entry of `InfoTypeLineTableInfo` type in the payload
+/// of an `Addressinfo`.
+pub fn parse_line_table_header(data: &[u8]) -> Option<(LineTableHeader, usize)> {
+    let mut off = 0;
+    let (min_delta, bytes) = decode_leb128_s(&data[off..])?;
+    off += bytes as usize;
+    let (max_delta, bytes) = decode_leb128_s(&data[off..])?;
+    off += bytes as usize;
+    let (first_line, bytes) = decode_leb128(&data[off..])?;
+    off += bytes as usize;
+
+    let header = LineTableHeader {
+        min_delta,
+        max_delta,
+        first_line: first_line as u32,
+    };
+    Some((header, off))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use std::env;
     use std::fs::File;
     use std::io::{Read, Write};
     use std::path::Path;
+
 
     #[test]
     fn test_parse_context() {
