@@ -1,6 +1,6 @@
-#[cfg(feature = "cheader")]
 use std::env;
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::process::Command;
@@ -88,11 +88,47 @@ fn cc(src: &Path, dst: &str, options: &[&str]) {
     .expect("failed to run `cc`")
 }
 
+/// Convert debug information contained in `src` into GSYM in `dst` using
+/// `llvm-gsymutil`.
+fn gsym(src: &Path, dst: &str) {
+    let dst = src.with_file_name(dst);
+    println!("cargo:rerun-if-changed={}", src.display());
+    println!("cargo:rerun-if-changed={}", dst.display());
+
+    let gsymutil = env::var_os("LLVM_GSYMUTIL").unwrap_or_else(|| OsString::from("llvm-gsymutil"));
+
+    run(
+        gsymutil,
+        ["--convert".as_ref(), src, "--out-file".as_ref(), &dst],
+    )
+    .expect("failed to run `llvm-gsymutil`")
+}
+
 /// Build the various test binaries.
 fn build_test_bins(crate_root: &Path) {
     let src = crate_root.join("data").join("test.c");
     cc(&src, "test-no-debug.bin", &["-g0"]);
     cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
+
+    let src = crate_root.join("data").join("test-gsym.c");
+    let ld_script = crate_root.join("data").join("test-gsym.ld");
+    let ld_script = ld_script.to_str().unwrap();
+    println!("cargo:rerun-if-changed={ld_script}");
+    cc(
+        &src,
+        "test-gsym.bin",
+        &[
+            "-gdwarf-4",
+            "-T",
+            ld_script,
+            "-Wl,--build-id=none",
+            "-O0",
+            "-nostdlib",
+        ],
+    );
+
+    let src = crate_root.join("data").join("test-gsym.bin");
+    gsym(&src, "test.gsym");
 }
 
 fn main() {
