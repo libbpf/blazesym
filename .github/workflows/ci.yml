@@ -30,7 +30,7 @@ jobs:
         override: true
     - name: Build ${{ matrix.profile }}
       run: |
-        cargo build --profile=${{ matrix.profile }} --features=${{ matrix.features }} --lib --tests --examples
+        cargo build --profile=${{ matrix.profile }} --features=dont-generate-test-files --features=${{ matrix.features }} --lib --tests --examples
   test-coverage:
     name: Test and coverage
     runs-on: ubuntu-latest
@@ -63,7 +63,7 @@ jobs:
       with:
         toolchain: nightly
         override: true
-    - run: cargo bench --features=nightly
+    - run: cargo bench --features=dont-generate-test-files --features=nightly
   clippy:
     name: Lint with clippy
     runs-on: ubuntu-latest
@@ -74,7 +74,7 @@ jobs:
           toolchain: stable
           components: clippy
           override: true
-      - run: cargo clippy --no-deps --bins --lib --examples --tests -- -A unknown_lints
+      - run: cargo clippy --no-deps --bins --lib --examples --tests --features=dont-generate-test-files -- -A unknown_lints
   rustfmt:
     name: Check code formatting
     runs-on: ubuntu-latest
@@ -97,4 +97,4 @@ jobs:
         with:
           toolchain: stable
           override: true
-      - run: cargo doc --no-deps
+      - run: cargo doc --features=dont-generate-test-files --no-deps
