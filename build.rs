@@ -98,7 +98,9 @@ fn build_test_bins(crate_root: &Path) {
 fn main() {
     let crate_dir = env!("CARGO_MANIFEST_DIR");
 
-    build_test_bins(crate_dir.as_ref());
+    if !cfg!(feature = "dont-generate-test-files") {
+        build_test_bins(crate_dir.as_ref());
+    }
 
     #[cfg(feature = "cheader")]
     {
