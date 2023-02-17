@@ -1308,24 +1308,6 @@ mod tests {
     }
 
     #[test]
-    fn test_decode_leb128() {
-        let data = vec![0xf4, 0xf3, 0x75];
-        let result = decode_leb128(&data);
-        assert!(result.is_some());
-        if let Some((v, s)) = result {
-            assert_eq!(v, 0x1d79f4);
-            assert_eq!(s, 3);
-        }
-
-        let result = decode_leb128_s(&data);
-        assert!(result.is_some());
-        if let Some((v, s)) = result {
-            assert_eq!(v, -165388);
-            assert_eq!(s, 3);
-        }
-    }
-
-    #[test]
     fn test_parse_debug_line_elf() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")

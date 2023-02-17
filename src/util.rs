@@ -181,39 +181,23 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
 }
 
 #[inline]
-pub fn decode_leb128_128(data: &[u8]) -> Option<(u128, u8)> {
-    let mut sz = 0;
-    let mut v: u128 = 0;
-    for c in data {
-        v |= ((c & 0x7f) as u128) << sz;
-        sz += 7;
-        if (c & 0x80) == 0 {
-            return Some((v, sz / 7));
-        }
-    }
-    None
+pub fn decode_leb128_128(mut data: &[u8]) -> Option<(u128, u8)> {
+    data.read_u128_leb128()
 }
 
 #[inline]
-pub fn decode_leb128(data: &[u8]) -> Option<(u64, u8)> {
-    decode_leb128_128(data).map(|(v, s)| (v as u64, s))
+pub fn decode_leb128(mut data: &[u8]) -> Option<(u64, u8)> {
+    data.read_u128_leb128().map(|(v, s)| (v as u64, s))
 }
 
-pub fn decode_leb128_128_s(data: &[u8]) -> Option<(i128, u8)> {
-    if let Some((v, s)) = decode_leb128_128(data) {
-        let s_mask: u128 = 1 << (s * 7 - 1);
-        return if (v & s_mask) != 0 {
-            // negative
-            Some(((v as i128) - ((s_mask << 1) as i128), s))
-        } else {
-            Some((v as i128, s))
-        };
-    }
-    None
+#[inline]
+pub fn decode_leb128_128_s(mut data: &[u8]) -> Option<(i128, u8)> {
+    data.read_i128_leb128()
 }
 
-pub fn decode_leb128_s(data: &[u8]) -> Option<(i64, u8)> {
-    decode_leb128_128_s(data).map(|(v, s)| (v as i64, s))
+#[inline]
+pub fn decode_leb128_s(mut data: &[u8]) -> Option<(i64, u8)> {
+    data.read_i128_leb128().map(|(v, s)| (v as i64, s))
 }
 
 #[inline]
@@ -313,6 +297,40 @@ pub trait ReadRaw<'data> {
     fn read_u64(&mut self) -> Option<u64> {
         self.read_pod::<u64>()
     }
+
+    /// Read a `u128` encoded as unsigned variable length little endian base 128
+    /// value.
+    ///
+    /// The function returns the value read along with the number of bytes
+    /// consumed.
+    fn read_u128_leb128(&mut self) -> Option<(u128, u8)> {
+        let mut shift = 0;
+        let mut value = 0u128;
+        while let Some(bytes) = self.read_slice(1) {
+            if let [byte] = bytes {
+                value |= ((byte & 0b0111_1111) as u128) << shift;
+                shift += 7;
+                if (byte & 0b1000_0000) == 0 {
+                    return Some((value, shift / 7));
+                }
+            } else {
+                unreachable!()
+            }
+        }
+        None
+    }
+
+    /// Read a `u128` encoded as signed variable length little endian base 128
+    /// value.
+    ///
+    /// The function returns the value read along with the number of bytes
+    /// consumed.
+    fn read_i128_leb128(&mut self) -> Option<(i128, u8)> {
+        let (value, shift) = self.read_u128_leb128()?;
+        let sign_bits = 128 - shift * 7;
+        let value = ((value as i128) << sign_bits) >> sign_bits;
+        Some((value, shift))
+    }
 }
 
 impl<'data> ReadRaw<'data> for &'data [u8] {
@@ -401,6 +419,19 @@ mod tests {
         assert_eq!(data.as_slice().read_i16().unwrap(), -31361);
         assert_eq!(data.as_slice().read_u32().unwrap(), 0xf936857f);
         assert_eq!(data.as_slice().read_i32().unwrap(), -113867393);
+    }
+
+    /// Make sure that we can read leb128 encoded values.
+    #[test]
+    fn leb128_reading() {
+        let data = [0xf4, 0xf3, 0x75];
+        let (v, s) = data.as_slice().read_u128_leb128().unwrap();
+        assert_eq!(v, 0x1d79f4);
+        assert_eq!(s, 3);
+
+        let (v, s) = data.as_slice().read_i128_leb128().unwrap();
+        assert_eq!(v, -165388);
+        assert_eq!(s, 3);
     }
 
     /// Check that we can read a NUL terminated string from a slice.
