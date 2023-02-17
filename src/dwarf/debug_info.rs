@@ -990,7 +990,7 @@ impl<'a> Iterator for DIEIter<'a> {
 pub struct UnitIter<'a> {
     info_data: &'a [u8],
     abbrev_data: &'a [u8],
-    pub off: usize,
+    off: usize,
 }
 
 impl<'a> UnitIter<'a> {
