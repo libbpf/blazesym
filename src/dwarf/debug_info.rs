@@ -20,17 +20,26 @@
 //! A user starts a parser by creating an instance of [`UnitIter`].
 //! It will walk through the data in the `.debug_info` and
 //! `.debug_abbrev` section to return Units.
-use super::constants::*;
-use crate::util::{
-    decode_leb128_128, decode_leb128_128_s, decode_udword, decode_uhalf, decode_uword,
-    extract_string,
-};
+
 use std::io::{Error, ErrorKind};
 use std::iter::Iterator;
 use std::mem;
 
-fn decode_3bytes_usigned(data: &[u8]) -> u32 {
-    data[0] as u32 | ((data[1] as u32) << 8) | ((data[2] as u32) << 16)
+use crate::util::ReadRaw as _;
+use crate::util::{
+    decode_leb128_128, decode_leb128_128_s, decode_udword, decode_uhalf, decode_uword,
+    extract_string,
+};
+
+use super::constants::*;
+
+
+fn read_3bytes(mut data: &[u8]) -> Option<u32> {
+    if let [b1, b2, b3] = data.read_slice(3)? {
+        Some(*b1 as u32 | ((*b2 as u32) << 8) | ((*b3 as u32) << 16))
+    } else {
+        unreachable!()
+    }
 }
 
 #[allow(unused)]
@@ -221,336 +230,141 @@ pub enum AttrValue<'a> {
 ///
 /// Return AttrValue and the number of bytes it takes.
 fn extract_attr_value(
-    data: &[u8],
+    mut data: &[u8],
     form: u8,
     dwarf_sz: usize,
     addr_sz: usize,
-) -> Option<(AttrValue, usize)> {
+) -> Option<(AttrValue<'_>, usize)> {
     match form {
         DW_FORM_addr => {
             if addr_sz == 0x4 {
-                if 4 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-                } else {
-                    None
-                }
-            } else if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
+                Some((AttrValue::Unsigned(data.read_u32()? as u64), 4))
             } else {
-                None
+                Some((AttrValue::Unsigned(data.read_u64()?), 8))
             }
         }
         DW_FORM_block2 => {
-            if 2 <= data.len() {
-                let bytes = decode_uhalf(data);
-                let fullsize = bytes as usize + 2;
-                if fullsize <= data.len() {
-                    Some((AttrValue::Bytes(&data[2..fullsize]), fullsize))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            let value = data.read_u16()?;
+            let fullsize = value as usize + 2;
+            Some((AttrValue::Bytes(data.read_slice(value.into())?), fullsize))
         }
         DW_FORM_block4 => {
-            if 2 <= data.len() {
-                let bytes = decode_uword(data);
-                let fullsize = bytes as usize + 2;
-                if fullsize <= data.len() {
-                    Some((AttrValue::Bytes(&data[2..fullsize]), fullsize))
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
+            let value = data.read_u32()?;
+            let fullsize = value as usize + 2;
+            Some((AttrValue::Bytes(data.read_slice(value as usize)?), fullsize))
         }
-        DW_FORM_data2 => {
-            if 2 <= data.len() {
-                let v = decode_uhalf(data);
-                Some((AttrValue::Unsigned(v as u64), 2))
-            } else {
-                None
-            }
-        }
-        DW_FORM_data4 => {
-            if 4 <= data.len() {
-                let v = decode_uword(data);
-                Some((AttrValue::Unsigned(v as u64), 4))
-            } else {
-                None
-            }
-        }
-        DW_FORM_data8 => {
-            if 8 <= data.len() {
-                let v = decode_udword(data);
-                Some((AttrValue::Unsigned(v), 8))
-            } else {
-                None
-            }
-        }
+        DW_FORM_data2 => Some((AttrValue::Unsigned(data.read_u16()?.into()), 2)),
+        DW_FORM_data4 => Some((AttrValue::Unsigned(data.read_u32()?.into()), 4)),
+        DW_FORM_data8 => Some((AttrValue::Unsigned(data.read_u64()?), 8)),
         DW_FORM_string => {
-            let s = extract_string(data, 0)?;
-            if (s.len() + 1) <= data.len() {
-                Some((AttrValue::String(s), s.len() + 1))
-            } else {
-                None
-            }
+            let string = data.read_cstr()?;
+            let len = string.to_bytes_with_nul().len();
+            Some((AttrValue::String(string.to_str().ok()?), len))
         }
         DW_FORM_block => {
-            let (sz, bytes) = decode_leb128_128(data)?;
-            let fullsz = sz as usize + bytes as usize;
-            if fullsz <= data.len() {
-                Some((AttrValue::Bytes(&data[bytes as usize..fullsz]), fullsz))
-            } else {
-                None
-            }
+            let (value, bytes) = data.read_u128_leb128()?;
+            let fullsz = value as usize + bytes as usize;
+            Some((AttrValue::Bytes(data.read_slice(value as usize)?), fullsz))
         }
         DW_FORM_block1 => {
-            if data.is_empty() {
-                return None;
-            }
-            let sz = data[0];
-            let fullsz = sz as usize + 1;
-            if fullsz <= data.len() {
-                Some((AttrValue::Bytes(&data[1..fullsz]), fullsz))
-            } else {
-                None
-            }
+            let value = data.read_u8()?;
+            let fullsz = value as usize + 1;
+            Some((AttrValue::Bytes(data.read_slice(value.into())?), fullsz))
         }
-        DW_FORM_data1 => {
-            if !data.is_empty() {
-                Some((AttrValue::Unsigned(data[0] as u64), 1))
-            } else {
-                None
-            }
-        }
-        DW_FORM_flag => {
-            if !data.is_empty() {
-                Some((AttrValue::Unsigned(data[0] as u64), 1))
-            } else {
-                None
-            }
-        }
+        DW_FORM_data1 => Some((AttrValue::Unsigned(data.read_u8()?.into()), 1)),
+        DW_FORM_flag => Some((AttrValue::Unsigned(data.read_u8()?.into()), 1)),
         DW_FORM_sdata => {
-            let (v, bytes) = decode_leb128_128_s(data)?;
-            Some((AttrValue::Signed128(v), bytes as usize))
+            let (value, bytes) = data.read_i128_leb128()?;
+            Some((AttrValue::Signed128(value), bytes.into()))
         }
         DW_FORM_strp => {
             if dwarf_sz == 0x4 {
-                if 4 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-                } else {
-                    None
-                }
-            } else if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
+                Some((AttrValue::Unsigned(data.read_u32()?.into()), 4))
             } else {
-                None
+                Some((AttrValue::Unsigned(data.read_u64()?), 8))
             }
         }
         DW_FORM_udata => {
-            let (v, bytes) = decode_leb128_128(data)?;
-            Some((AttrValue::Unsigned128(v), bytes as usize))
+            let (value, bytes) = data.read_u128_leb128()?;
+            Some((AttrValue::Unsigned128(value), bytes as usize))
         }
         DW_FORM_ref_addr => {
             if dwarf_sz == 0x4 {
-                if 4 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-                } else {
-                    None
-                }
-            } else if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
+                Some((AttrValue::Unsigned(data.read_u32()?.into()), 4))
             } else {
-                None
+                Some((AttrValue::Unsigned(data.read_u64()?), 8))
             }
         }
-        DW_FORM_ref1 => {
-            if !data.is_empty() {
-                Some((AttrValue::Unsigned(data[0] as u64), 1))
-            } else {
-                None
-            }
-        }
-        DW_FORM_ref2 => {
-            if 2 <= data.len() {
-                Some((AttrValue::Unsigned(decode_uhalf(data) as u64), 2))
-            } else {
-                None
-            }
-        }
-        DW_FORM_ref4 => {
-            if 4 <= data.len() {
-                Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-            } else {
-                None
-            }
-        }
-        DW_FORM_ref8 => {
-            if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
-            } else {
-                None
-            }
-        }
+        DW_FORM_ref1 => Some((AttrValue::Unsigned(data.read_u8()?.into()), 1)),
+        DW_FORM_ref2 => Some((AttrValue::Unsigned(data.read_u16()?.into()), 2)),
+        DW_FORM_ref4 => Some((AttrValue::Unsigned(data.read_u32()?.into()), 4)),
+        DW_FORM_ref8 => Some((AttrValue::Unsigned(data.read_u64()?), 8)),
         DW_FORM_ref_udata => {
-            let (v, bytes) = decode_leb128_128(data)?;
-            Some((AttrValue::Unsigned128(v), bytes as usize))
+            let (value, bytes) = data.read_u128_leb128()?;
+            Some((AttrValue::Unsigned128(value), bytes as usize))
         }
         DW_FORM_indirect => {
-            let (f, bytes) = decode_leb128_128(data)?;
-            let (v, sz) = extract_attr_value(&data[bytes as usize..], f as u8, dwarf_sz, addr_sz)?;
-            Some((v, sz + bytes as usize))
+            let (f, bytes) = data.read_u128_leb128()?;
+            let (value, size) =
+                extract_attr_value(&data[bytes as usize..], f as u8, dwarf_sz, addr_sz)?;
+            Some((value, size + bytes as usize))
         }
         DW_FORM_sec_offset => {
             if dwarf_sz == 0x4 {
-                if 4 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-                } else {
-                    None
-                }
-            } else if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
+                Some((AttrValue::Unsigned(data.read_u32()?.into()), 4))
             } else {
-                None
+                Some((AttrValue::Unsigned(data.read_u64()?), 8))
             }
         }
         DW_FORM_exprloc => {
-            let (sz, bytes) = decode_leb128_128(data)?;
-            let fullsz = sz as usize + bytes as usize;
+            let (value, bytes) = data.read_u128_leb128()?;
+            let fullsz = value as usize + bytes as usize;
             Some((AttrValue::Bytes(&data[bytes as usize..fullsz]), fullsz))
         }
         DW_FORM_flag_present => Some((AttrValue::Unsigned(0), 0)),
         DW_FORM_strx => {
-            let (idx, bytes) = decode_leb128_128(data)?;
-            Some((AttrValue::Unsigned(idx as u64), bytes as usize))
+            let (value, bytes) = data.read_u128_leb128()?;
+            Some((AttrValue::Unsigned(value as u64), bytes as usize))
         }
         DW_FORM_addrx => {
-            let (idx, bytes) = decode_leb128_128(data)?;
-            Some((AttrValue::Unsigned(idx as u64), bytes as usize))
+            let (value, bytes) = data.read_u128_leb128()?;
+            Some((AttrValue::Unsigned(value as u64), bytes as usize))
         }
-        DW_FORM_ref_sup4 => {
-            if 4 <= data.len() {
-                let off = decode_uword(data);
-                Some((AttrValue::Unsigned(off as u64), 4))
-            } else {
-                None
-            }
-        }
+        DW_FORM_ref_sup4 => Some((AttrValue::Unsigned(data.read_u32()?.into()), 4)),
         DW_FORM_strp_sup => {
             if dwarf_sz == 0x4 {
-                if 4 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-                } else {
-                    None
-                }
-            } else if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
+                Some((AttrValue::Unsigned(data.read_u32()?.into()), 4))
             } else {
-                None
+                Some((AttrValue::Unsigned(data.read_u64()?), 8))
             }
         }
-        DW_FORM_data16 => {
-            if 16 <= data.len() {
-                Some((AttrValue::Bytes(&data[..16]), 16))
-            } else {
-                None
-            }
-        }
+        DW_FORM_data16 => Some((AttrValue::Bytes(data.read_slice(16)?), 16)),
         DW_FORM_line_strp => {
             if dwarf_sz == 0x4 {
-                if 4 <= data.len() {
-                    Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-                } else {
-                    None
-                }
-            } else if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
+                Some((AttrValue::Unsigned(data.read_u32()?.into()), 4))
             } else {
-                None
+                Some((AttrValue::Unsigned(data.read_u64()?), 8))
             }
         }
-        DW_FORM_ref_sig8 => {
-            if 8 <= data.len() {
-                Some((AttrValue::Bytes(&data[..8]), 8))
-            } else {
-                None
-            }
-        }
+        DW_FORM_ref_sig8 => Some((AttrValue::Bytes(data.read_slice(8)?), 8)),
         DW_FORM_implicit_const => Some((AttrValue::Unsigned(0), 0)),
         DW_FORM_loclistx => {
-            let (idx, bytes) = decode_leb128_128(data)?;
-            Some((AttrValue::Unsigned(idx as u64), bytes as usize))
+            let (value, bytes) = data.read_u128_leb128()?;
+            Some((AttrValue::Unsigned(value as u64), bytes as usize))
         }
         DW_FORM_rnglistx => {
-            let (idx, bytes) = decode_leb128_128(data)?;
-            Some((AttrValue::Unsigned(idx as u64), bytes as usize))
+            let (value, bytes) = data.read_u128_leb128()?;
+            Some((AttrValue::Unsigned(value as u64), bytes as usize))
         }
-        DW_FORM_ref_sup8 => {
-            if 8 <= data.len() {
-                Some((AttrValue::Unsigned(decode_udword(data)), 8))
-            } else {
-                None
-            }
-        }
-        DW_FORM_str1 => {
-            if !data.is_empty() {
-                Some((AttrValue::Unsigned(data[0] as u64), 1))
-            } else {
-                None
-            }
-        }
-        DW_FORM_str2 => {
-            if 2 <= data.len() {
-                Some((AttrValue::Unsigned(decode_uhalf(data) as u64), 2))
-            } else {
-                None
-            }
-        }
-        DW_FORM_str3 => {
-            if 3 <= data.len() {
-                Some((AttrValue::Unsigned(decode_3bytes_usigned(data) as u64), 3))
-            } else {
-                None
-            }
-        }
-        DW_FORM_str4 => {
-            if 4 <= data.len() {
-                Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-            } else {
-                None
-            }
-        }
-        DW_FORM_addrx1 => {
-            if !data.is_empty() {
-                Some((AttrValue::Unsigned(data[0] as u64), 1))
-            } else {
-                None
-            }
-        }
-        DW_FORM_addrx2 => {
-            if 2 <= data.len() {
-                Some((AttrValue::Unsigned(decode_uhalf(data) as u64), 2))
-            } else {
-                None
-            }
-        }
-        DW_FORM_addrx3 => {
-            if 3 <= data.len() {
-                Some((AttrValue::Unsigned(decode_3bytes_usigned(data) as u64), 3))
-            } else {
-                None
-            }
-        }
-        DW_FORM_addrx4 => {
-            if 4 <= data.len() {
-                Some((AttrValue::Unsigned(decode_uword(data) as u64), 4))
-            } else {
-                None
-            }
-        }
+        DW_FORM_ref_sup8 => Some((AttrValue::Unsigned(data.read_u64()?), 8)),
+        DW_FORM_str1 => Some((AttrValue::Unsigned(data.read_u8()?.into()), 1)),
+        DW_FORM_str2 => Some((AttrValue::Unsigned(data.read_u16()?.into()), 2)),
+        DW_FORM_str3 => Some((AttrValue::Unsigned(read_3bytes(data)?.into()), 3)),
+        DW_FORM_str4 => Some((AttrValue::Unsigned(data.read_u32()?.into()), 4)),
+        DW_FORM_addrx1 => Some((AttrValue::Unsigned(data.read_u8()?.into()), 1)),
+        DW_FORM_addrx2 => Some((AttrValue::Unsigned(data.read_u16()?.into()), 2)),
+        DW_FORM_addrx3 => Some((AttrValue::Unsigned(read_3bytes(data)?.into()), 3)),
+        DW_FORM_addrx4 => Some((AttrValue::Unsigned(data.read_u32()?.into()), 4)),
         _ => None,
     }
 }
