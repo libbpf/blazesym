@@ -791,7 +791,6 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
 #[allow(clippy::upper_case_acronyms)]
 pub struct DIE<'a> {
     pub tag: u8,
-    pub offset: u64,
     pub abbrev: Option<&'a Abbrev>,
     abbrev_attrs: &'a [AbbrevAttr],
     abbrev_attrs_idx: usize,
@@ -939,7 +938,6 @@ impl<'a> Iterator for DIEIter<'a> {
             return None;
         }
 
-        let saved_off = self.off;
         let (abbrev_idx, bytes) = decode_leb128_128(&self.data[self.off..])?;
         self.off += bytes as usize;
 
@@ -950,7 +948,6 @@ impl<'a> Iterator for DIEIter<'a> {
             }
             Some(DIE {
                 tag: 0,
-                offset: saved_off as u64,
                 abbrev: None,
                 abbrev_attrs: &[],
                 abbrev_attrs_idx: 0,
@@ -969,7 +966,6 @@ impl<'a> Iterator for DIEIter<'a> {
             self.die_reading_done = false;
             Some(DIE {
                 tag: abbrev.tag,
-                offset: saved_off as u64,
                 abbrev: Some(abbrev),
                 abbrev_attrs: abbrev.all_attrs(),
                 abbrev_attrs_idx: 0,
