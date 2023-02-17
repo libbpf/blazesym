@@ -866,12 +866,12 @@ impl<'a> Iterator for DIE<'a> {
                 self.dieiter.addr_sz,
             )?;
             self.reading_offset += bytes;
-            return Some((name, form, opt, value));
+            Some((name, form, opt, value))
         } else {
             self.dieiter.die_finish_reading(self.reading_offset);
             self.done = true;
+            None
         }
-        None
     }
 }
 
@@ -942,12 +942,13 @@ impl<'a> Iterator for DIEIter<'a> {
         let saved_off = self.off;
         let (abbrev_idx, bytes) = decode_leb128_128(&self.data[self.off..])?;
         self.off += bytes as usize;
+
         if abbrev_idx == 0 {
             self.cur_depth -= 1;
             if self.cur_depth == 0 {
                 self.done = true;
             }
-            return Some(DIE {
+            Some(DIE {
                 tag: 0,
                 offset: saved_off as u64,
                 abbrev: None,
@@ -957,27 +958,27 @@ impl<'a> Iterator for DIEIter<'a> {
                 dieiter: unsafe { mem::transmute(self) },
                 reading_offset: 0,
                 done: false,
-            });
-        }
+            })
+        } else {
+            let abbrev = unsafe { mem::transmute(&self.abbrevs[abbrev_idx as usize - 1]) };
+            self.abbrev = Some(abbrev);
+            if abbrev.has_children {
+                self.cur_depth += 1;
+            }
 
-        let abbrev = unsafe { mem::transmute(&self.abbrevs[abbrev_idx as usize - 1]) };
-        self.abbrev = Some(abbrev);
-        if abbrev.has_children {
-            self.cur_depth += 1;
+            self.die_reading_done = false;
+            Some(DIE {
+                tag: abbrev.tag,
+                offset: saved_off as u64,
+                abbrev: Some(abbrev),
+                abbrev_attrs: abbrev.all_attrs(),
+                abbrev_attrs_idx: 0,
+                data: &self.data[self.off..],
+                dieiter: unsafe { mem::transmute(self) },
+                reading_offset: 0,
+                done: false,
+            })
         }
-
-        self.die_reading_done = false;
-        Some(DIE {
-            tag: abbrev.tag,
-            offset: saved_off as u64,
-            abbrev: Some(abbrev),
-            abbrev_attrs: abbrev.all_attrs(),
-            abbrev_attrs_idx: 0,
-            data: &self.data[self.off..],
-            dieiter: unsafe { mem::transmute(self) },
-            reading_offset: 0,
-            done: false,
-        })
     }
 }
 
