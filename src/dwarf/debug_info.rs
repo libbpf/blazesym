@@ -25,11 +25,11 @@ use std::io::{Error, ErrorKind};
 use std::iter::Iterator;
 use std::mem;
 
+use crate::util::decode_leb128_128;
+use crate::util::decode_udword;
+use crate::util::decode_uhalf;
+use crate::util::decode_uword;
 use crate::util::ReadRaw as _;
-use crate::util::{
-    decode_leb128_128, decode_leb128_128_s, decode_udword, decode_uhalf, decode_uword,
-    extract_string,
-};
 
 use super::constants::*;
 
@@ -399,104 +399,6 @@ fn parse_cu_abbrevs(data: &[u8]) -> Option<(Vec<Abbrev>, usize)> {
     None
 }
 
-/// Measure the size of the value of an attribute.
-///
-/// It is another [`extract_attr_value()`] but returns only the value
-/// sizem, which is the number of bytes.
-///
-/// See also [`extract_attr_value()`].
-#[inline]
-fn measure_attr_size(data: &[u8], form: u8, dwarf_sz: usize, addr_sz: usize) -> Option<usize> {
-    match form {
-        DW_FORM_addr => Some(addr_sz),
-        DW_FORM_block2 => {
-            let sz = decode_uhalf(data);
-            Some(sz as usize + 2)
-        }
-        DW_FORM_block4 => {
-            let sz = decode_uword(data);
-            Some(sz as usize + 4)
-        }
-        DW_FORM_data2 => Some(2),
-        DW_FORM_data4 => Some(4),
-        DW_FORM_data8 => Some(8),
-        DW_FORM_string => {
-            let s = extract_string(data, 0)?;
-            Some(s.len() + 1)
-        }
-        DW_FORM_block => {
-            let (sz, bytes) = decode_leb128_128(data)?;
-            Some(sz as usize + bytes as usize)
-        }
-        DW_FORM_block1 => {
-            let sz = data[0];
-            Some(sz as usize + 1)
-        }
-        DW_FORM_data1 => Some(1),
-        DW_FORM_flag => Some(1),
-        DW_FORM_sdata => {
-            let (_v, bytes) = decode_leb128_128_s(data)?;
-            Some(bytes as usize)
-        }
-        DW_FORM_strp => Some(dwarf_sz),
-        DW_FORM_udata => {
-            let (_v, bytes) = decode_leb128_128(data)?;
-            Some(bytes as usize)
-        }
-        DW_FORM_ref_addr => Some(dwarf_sz),
-        DW_FORM_ref1 => Some(1),
-        DW_FORM_ref2 => Some(2),
-        DW_FORM_ref4 => Some(4),
-        DW_FORM_ref8 => Some(8),
-        DW_FORM_ref_udata => {
-            let (_v, bytes) = decode_leb128_128(data)?;
-            Some(bytes as usize)
-        }
-        DW_FORM_indirect => {
-            let (f, bytes) = decode_leb128_128(data)?;
-            measure_attr_size(&data[bytes as usize..], f as u8, dwarf_sz, addr_sz)
-        }
-        DW_FORM_sec_offset => Some(dwarf_sz),
-        DW_FORM_exprloc => {
-            let (sz, bytes) = decode_leb128_128(data)?;
-            Some(sz as usize + bytes as usize)
-        }
-        DW_FORM_flag_present => Some(0),
-        DW_FORM_strx => {
-            let (_v, bytes) = decode_leb128_128(data)?;
-            Some(bytes as usize)
-        }
-        DW_FORM_addrx => {
-            let (_v, bytes) = decode_leb128_128(data)?;
-            Some(bytes as usize)
-        }
-        DW_FORM_ref_sup4 => Some(4),
-        DW_FORM_strp_sup => Some(dwarf_sz),
-        DW_FORM_data16 => Some(16),
-        DW_FORM_line_strp => Some(dwarf_sz),
-        DW_FORM_ref_sig8 => Some(8),
-        DW_FORM_implicit_const => Some(0),
-        DW_FORM_loclistx => {
-            let (_v, bytes) = decode_leb128_128(data)?;
-            Some(bytes as usize)
-        }
-        DW_FORM_rnglistx => {
-            let (_v, bytes) = decode_leb128_128(data)?;
-            Some(bytes as usize)
-        }
-        DW_FORM_ref_sup8 => Some(8),
-        DW_FORM_str1 => Some(1),
-        DW_FORM_str2 => Some(2),
-        DW_FORM_str3 => Some(3),
-        DW_FORM_str4 => Some(4),
-        DW_FORM_addrx1 => Some(1),
-        DW_FORM_addrx2 => Some(2),
-        DW_FORM_addrx3 => Some(3),
-        DW_FORM_addrx4 => Some(4),
-        _ => None,
-    }
-}
-
 /// Parse an Unit Header from a buffer.
 ///
 /// An Unit Header is the header of a compile unit, at leat for v4.
@@ -639,7 +541,7 @@ impl<'a> DIE<'a> {
             if attr.form == 0 {
                 continue;
             }
-            let bytes = measure_attr_size(
+            let (_value, bytes) = extract_attr_value(
                 &self.data[self.reading_offset..],
                 attr.form,
                 self.dieiter.dwarf_sz,
@@ -734,7 +636,7 @@ impl<'a> DIEIter<'a> {
             if attr.form == 0 {
                 continue;
             }
-            let bytes = measure_attr_size(
+            let (_value, bytes) = extract_attr_value(
                 &self.data[self.off..],
                 attr.form,
                 self.dwarf_sz,

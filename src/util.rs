@@ -191,11 +191,6 @@ pub fn decode_leb128(mut data: &[u8]) -> Option<(u64, u8)> {
 }
 
 #[inline]
-pub fn decode_leb128_128_s(mut data: &[u8]) -> Option<(i128, u8)> {
-    data.read_i128_leb128()
-}
-
-#[inline]
 pub fn decode_leb128_s(mut data: &[u8]) -> Option<(i64, u8)> {
     data.read_i128_leb128().map(|(v, s)| (v as i64, s))
 }
