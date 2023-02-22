@@ -174,7 +174,7 @@ fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, us
             if dir_idx_r.is_none() {
                 return Err(Error::new(
                     ErrorKind::InvalidData,
-                    "Invliad directory index",
+                    "Invalid directory index",
                 ));
             }
             let (dir_idx, bytes) = dir_idx_r.unwrap();

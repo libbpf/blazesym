@@ -215,7 +215,7 @@ pub enum AttrValue<'a> {
 /// # Arguments
 ///
 /// * `data` - A buffer where the value is in.
-/// * `form` - The formate of the value. (DW_FORM_*)
+/// * `form` - The format of the value. (DW_FORM_*)
 /// * `dwarf_sz` - Describe the DWARF format. (4 for 32-bits and 8 for 64-bits)
 /// * `addr_sz` - The size of an address of the target platform. (4 for 32-bits and 8 for 64-bits)
 ///
@@ -823,7 +823,9 @@ impl<'a> DIE<'a> {
                 self.dieiter.dwarf_sz,
                 self.dieiter.addr_sz,
             )
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "fail to parse attribute values"))?;
+            .ok_or_else(|| {
+                Error::new(ErrorKind::InvalidData, "failed to parse attribute values")
+            })?;
             self.reading_offset += bytes;
         }
         self.dieiter.die_finish_reading(self.reading_offset);
@@ -916,7 +918,9 @@ impl<'a> DIEIter<'a> {
                 self.dwarf_sz,
                 self.addr_sz,
             )
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "fail to parse attribute values"))?;
+            .ok_or_else(|| {
+                Error::new(ErrorKind::InvalidData, "failed to parse attribute values")
+            })?;
             self.off += bytes;
         }
         self.die_reading_done = true;
