@@ -22,7 +22,7 @@ use super::types::SHN_UNDEF;
 use super::types::STT_FUNC;
 
 
-fn read_u8(file: &mut File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
+fn read_u8(mut file: &File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
     let mut buf = vec![0; size];
 
     file.seek(SeekFrom::Start(off))?;
@@ -31,7 +31,7 @@ fn read_u8(file: &mut File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
     Ok(buf)
 }
 
-fn read_elf_header(file: &mut File) -> Result<Elf64_Ehdr, Error> {
+fn read_elf_header(mut file: &File) -> Result<Elf64_Ehdr, Error> {
     let mut buffer = [0u8; mem::size_of::<Elf64_Ehdr>()];
     let () = file.read_exact(&mut buffer)?;
 
@@ -44,7 +44,7 @@ fn read_elf_header(file: &mut File) -> Result<Elf64_Ehdr, Error> {
     Ok(elf_header)
 }
 
-fn read_elf_sections(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shdr>, Error> {
+fn read_elf_sections(file: &File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shdr>, Error> {
     const HDRSIZE: usize = mem::size_of::<Elf64_Shdr>();
     let off = ehdr.e_shoff as usize;
     let num = ehdr.e_shnum as usize;
@@ -59,7 +59,7 @@ fn read_elf_sections(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shd
     Ok(shdrs)
 }
 
-fn read_elf_program_headers(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Phdr>, Error> {
+fn read_elf_program_headers(file: &File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Phdr>, Error> {
     const HDRSIZE: usize = mem::size_of::<Elf64_Phdr>();
     let off = ehdr.e_phoff as usize;
     let num = ehdr.e_phnum as usize;
@@ -74,11 +74,11 @@ fn read_elf_program_headers(file: &mut File, ehdr: &Elf64_Ehdr) -> Result<Vec<El
     Ok(phdrs)
 }
 
-fn read_elf_section_raw(file: &mut File, section: &Elf64_Shdr) -> Result<Vec<u8>, Error> {
+fn read_elf_section_raw(file: &File, section: &Elf64_Shdr) -> Result<Vec<u8>, Error> {
     read_u8(file, section.sh_offset, section.sh_size as usize)
 }
 
-fn read_elf_section_seek(file: &mut File, section: &Elf64_Shdr) -> Result<(), Error> {
+fn read_elf_section_seek(mut file: &File, section: &Elf64_Shdr) -> Result<(), Error> {
     file.seek(SeekFrom::Start(section.sh_offset))?;
     Ok(())
 }
@@ -103,14 +103,14 @@ struct ElfParserBack {
 /// A parser against ELF64 format.
 #[derive(Debug)]
 pub struct ElfParser {
-    file: RefCell<File>,
+    file: File,
     backobj: RefCell<ElfParserBack>,
 }
 
 impl ElfParser {
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
         let parser = ElfParser {
-            file: RefCell::new(file),
+            file,
             backobj: RefCell::new(ElfParserBack {
                 ehdr: None,
                 shdrs: None,
@@ -144,7 +144,7 @@ impl ElfParser {
             return Ok(());
         }
 
-        let ehdr = read_elf_header(&mut self.file.borrow_mut())?;
+        let ehdr = read_elf_header(&self.file)?;
         if !(ehdr.e_ident[0] == 0x7f
             && ehdr.e_ident[1] == 0x45
             && ehdr.e_ident[2] == 0x4c
@@ -167,7 +167,7 @@ impl ElfParser {
             return Ok(());
         }
 
-        let shdrs = read_elf_sections(&mut self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
+        let shdrs = read_elf_sections(&self.file, me.ehdr.as_ref().unwrap())?;
         me.sect_cache.resize(shdrs.len(), None);
         me.shdrs = Some(shdrs);
 
@@ -183,8 +183,7 @@ impl ElfParser {
             return Ok(());
         }
 
-        let phdrs =
-            read_elf_program_headers(&mut self.file.borrow_mut(), me.ehdr.as_ref().unwrap())?;
+        let phdrs = read_elf_program_headers(&self.file, me.ehdr.as_ref().unwrap())?;
         me.phdrs = Some(phdrs);
 
         Ok(())
@@ -201,7 +200,7 @@ impl ElfParser {
 
         let shstrndx = me.ehdr.as_ref().unwrap().e_shstrndx;
         let shstrtab_sec = &me.shdrs.as_ref().unwrap()[shstrndx as usize];
-        let shstrtab = read_elf_section_raw(&mut self.file.borrow_mut(), shstrtab_sec)?;
+        let shstrtab = read_elf_section_raw(&self.file, shstrtab_sec)?;
         me.shstrtab = Some(shstrtab);
 
         Ok(())
@@ -314,10 +313,7 @@ impl ElfParser {
         self.check_section_index(sect_idx)?;
         self.ensure_shdrs()?;
         let me = self.backobj.borrow();
-        read_elf_section_seek(
-            &mut self.file.borrow_mut(),
-            &me.shdrs.as_ref().unwrap()[sect_idx],
-        )
+        read_elf_section_seek(&self.file, &me.shdrs.as_ref().unwrap()[sect_idx])
     }
 
     /// Read the raw data of the section of a given index.
@@ -326,10 +322,7 @@ impl ElfParser {
         self.ensure_shdrs()?;
 
         let me = self.backobj.borrow();
-        read_elf_section_raw(
-            &mut self.file.borrow_mut(),
-            &me.shdrs.as_ref().unwrap()[sect_idx],
-        )
+        read_elf_section_raw(&self.file, &me.shdrs.as_ref().unwrap()[sect_idx])
     }
 
     /// Read the raw data of the section of a given index.
@@ -339,10 +332,7 @@ impl ElfParser {
 
         let mut me = self.backobj.borrow_mut();
         if me.sect_cache[sect_idx].is_none() {
-            let buf = read_elf_section_raw(
-                &mut self.file.borrow_mut(),
-                &me.shdrs.as_ref().unwrap()[sect_idx],
-            )?;
+            let buf = read_elf_section_raw(&self.file, &me.shdrs.as_ref().unwrap()[sect_idx])?;
             me.sect_cache[sect_idx] = Some(buf);
         }
 
@@ -601,7 +591,7 @@ impl ElfParser {
     /// not cross the boundary of the section.  The caller should take
     /// care about it.
     pub fn read_raw(&self, buf: &mut [u8]) -> Result<(), Error> {
-        self.file.borrow_mut().read_exact(buf)?;
+        (&self.file).read_exact(buf)?;
         Ok(())
     }
 }
@@ -618,8 +608,8 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let mut bin_file = File::open(bin_name).unwrap();
-        let ehdr = read_elf_header(&mut bin_file);
+        let bin_file = File::open(bin_name).unwrap();
+        let ehdr = read_elf_header(&bin_file);
         assert!(ehdr.is_ok());
         let ehdr = ehdr.unwrap();
         assert_eq!(
@@ -632,13 +622,13 @@ mod tests {
         assert_eq!(ehdr.e_version, 0x1);
         assert_eq!(ehdr.e_shentsize as usize, mem::size_of::<Elf64_Shdr>());
 
-        let shdrs = read_elf_sections(&mut bin_file, &ehdr);
+        let shdrs = read_elf_sections(&bin_file, &ehdr);
         assert!(shdrs.is_ok());
         let shdrs = shdrs.unwrap();
         let shstrndx = ehdr.e_shstrndx as usize;
 
         let shstrtab_sec = &shdrs[shstrndx];
-        let shstrtab = read_elf_section_raw(&mut bin_file, shstrtab_sec);
+        let shstrtab = read_elf_section_raw(&bin_file, shstrtab_sec);
         assert!(shstrtab.is_ok());
         let shstrtab = shstrtab.unwrap();
 
