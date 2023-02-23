@@ -600,7 +600,7 @@ impl ElfParser {
     /// of the backed file.  However, this function doesn't promise to
     /// not cross the boundary of the section.  The caller should take
     /// care about it.
-    pub unsafe fn read_raw(&self, buf: &mut [u8]) -> Result<(), Error> {
+    pub fn read_raw(&self, buf: &mut [u8]) -> Result<(), Error> {
         self.file.borrow_mut().read_exact(buf)?;
         Ok(())
     }
