@@ -201,16 +201,11 @@ fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>, Er
     }
 }
 
-fn parse_debug_line_cu(
-    parser: &ElfParser,
-    addresses: &[u64],
-    reused_buf: &mut Vec<u8>,
-) -> Result<DebugLineCU, Error> {
+fn parse_debug_line_cu(parser: &ElfParser, addresses: &[u64]) -> Result<DebugLineCU, Error> {
     let mut prologue_sz: usize = mem::size_of::<DebugLinePrologueV2>();
     let prologue_v4_sz: usize = mem::size_of::<DebugLinePrologue>();
-    let buf = reused_buf;
-
-    buf.resize(prologue_sz, 0);
+    let mut buf = Vec::with_capacity(prologue_sz);
+    let () = buf.resize(prologue_sz, 0);
     let () = parser.read_raw(buf.as_mut_slice())?;
     let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologueV2;
     // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologueV2` is
@@ -228,7 +223,7 @@ fn parse_debug_line_cu(
     let prologue = if v2.version == 0x4 {
         // Upgrade to V4.
         // V4 has more fields to read.
-        buf.resize(prologue_v4_sz, 0);
+        let () = buf.resize(prologue_v4_sz, 0);
         let () = parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..])?;
         let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
         // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologue` is
@@ -253,7 +248,7 @@ fn parse_debug_line_cu(
     };
 
     let to_read = prologue.total_length as usize + 4 - prologue_sz;
-    let data_buf = buf;
+    let data_buf = &mut buf;
     if to_read <= data_buf.capacity() {
         // Gain better performance by skipping initialization.
         unsafe { data_buf.set_len(to_read) };
@@ -617,9 +612,8 @@ fn parse_debug_line_elf_parser(
     parser.section_seek(debug_line_idx)?;
 
     let mut all_cus = Vec::<DebugLineCU>::new();
-    let mut buf = Vec::<u8>::new();
     while remain_sz > prologue_size {
-        let debug_line_cu = parse_debug_line_cu(parser, &not_found, &mut buf)?;
+        let debug_line_cu = parse_debug_line_cu(parser, &not_found)?;
         let prologue = &debug_line_cu.prologue;
         remain_sz -= prologue.total_length as usize + 4;
 
