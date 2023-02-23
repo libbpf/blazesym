@@ -248,12 +248,7 @@ fn parse_debug_line_cu(parser: &ElfParser, addresses: &[u64]) -> Result<DebugLin
     };
 
     let to_read = prologue.total_length as usize + 4 - prologue_sz;
-    if to_read <= buf.capacity() {
-        // Gain better performance by skipping initialization.
-        unsafe { buf.set_len(to_read) };
-    } else {
-        buf.resize(to_read, 0);
-    }
+    let () = buf.resize(to_read, 0);
     let () = parser.read_raw(buf.as_mut_slice())?;
 
     let data = &mut &buf[0..];
