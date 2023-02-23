@@ -211,7 +211,7 @@ fn parse_debug_line_cu(
     let buf = reused_buf;
 
     buf.resize(prologue_sz, 0);
-    unsafe { parser.read_raw(buf.as_mut_slice()) }?;
+    let () = parser.read_raw(buf.as_mut_slice())?;
     let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologueV2;
     // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologueV2` is
     //         comprised only of objects that are valid for any bit pattern.
@@ -229,7 +229,7 @@ fn parse_debug_line_cu(
         // Upgrade to V4.
         // V4 has more fields to read.
         buf.resize(prologue_v4_sz, 0);
-        unsafe { parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..]) }?;
+        let () = parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..])?;
         let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
         // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologue` is
         //         comprised only of objects that are valid for any bit pattern.
@@ -260,7 +260,7 @@ fn parse_debug_line_cu(
     } else {
         data_buf.resize(to_read, 0);
     }
-    unsafe { parser.read_raw(data_buf.as_mut_slice())? };
+    let () = parser.read_raw(data_buf.as_mut_slice())?;
 
     let data = &mut &data_buf[0..];
     let std_op_num = (prologue.opcode_base - 1) as usize;
