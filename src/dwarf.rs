@@ -1,10 +1,3 @@
-use super::elf::ElfParser;
-use super::util::{
-    decode_leb128, decode_leb128_s, decode_udword, decode_uhalf, decode_uword, search_address_key,
-};
-use super::{FindAddrOpts, SymbolInfo, SymbolType};
-use crossbeam_channel::unbounded;
-
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -24,7 +17,22 @@ use std::ffi::CStr;
 use std::sync::mpsc;
 use std::thread;
 
+use crossbeam_channel::unbounded;
+
 use regex::Regex;
+
+use crate::elf::ElfParser;
+use crate::util::decode_leb128;
+use crate::util::decode_leb128_s;
+use crate::util::decode_udword;
+use crate::util::decode_uhalf;
+use crate::util::decode_uword;
+use crate::util::search_address_key;
+use crate::util::ReadRaw as _;
+
+use super::FindAddrOpts;
+use super::SymbolInfo;
+use super::SymbolType;
 
 #[allow(non_upper_case_globals, unused)]
 mod constants;
@@ -161,75 +169,45 @@ fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error>
 }
 
 /// Parse the list of file information for a CU.
-fn parse_debug_line_files(data_buf: &[u8]) -> Result<(Vec<DebugLineFileInfo>, usize), Error> {
+fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>, Error> {
     let mut strs = Vec::<DebugLineFileInfo>::new();
-    let mut pos = 0;
 
-    while pos < data_buf.len() {
-        if data_buf[pos] == 0 {
-            return Ok((strs, pos + 1));
-        }
-
-        // Find NULL byte
-        let mut end = pos;
-        while end < data_buf.len() && data_buf[end] != 0 {
-            end += 1;
-        }
-        if end < data_buf.len() {
-            // Null terminated file name string
-            let mut str_vec = Vec::<u8>::with_capacity(end - pos);
-            str_vec.extend_from_slice(&data_buf[pos..end]);
-
-            let str_r = String::from_utf8(str_vec);
-            if str_r.is_err() {
-                return Err(Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"));
-            }
-            end += 1;
-
-            // LEB128 directory index
-            let dir_idx_r = decode_leb128(&data_buf[end..]);
-            if dir_idx_r.is_none() {
-                return Err(Error::new(
+    loop {
+        let name = data
+            .read_cstr()
+            .ok_or_else(|| {
+                Error::new(
                     ErrorKind::InvalidData,
-                    "Invalid directory index",
-                ));
-            }
-            let (dir_idx, bytes) = dir_idx_r.unwrap();
-            end += bytes as usize;
-
-            // LEB128 last modified time
-            let mod_tm_r = decode_leb128(&data_buf[end..]);
-            if mod_tm_r.is_none() {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "Invalid last modified time",
-                ));
-            }
-            let (mod_tm, bytes) = mod_tm_r.unwrap();
-            end += bytes as usize;
-
-            // LEB128 file size
-            let flen_r = decode_leb128(&data_buf[end..]);
-            if flen_r.is_none() {
-                return Err(Error::new(ErrorKind::InvalidData, "Invalid file size"));
-            }
-            let (flen, bytes) = flen_r.unwrap();
-            end += bytes as usize;
-
-            strs.push(DebugLineFileInfo {
-                name: str_r.unwrap(),
-                dir_idx: dir_idx as u32,
-                _mod_tm: mod_tm,
-                _size: flen as usize,
-            });
+                    "failed to find NUL terminated string",
+                )
+            })?
+            .to_str()
+            .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"))?;
+        // If the first byte is 0 we reached the end. In our case that
+        // maps to an empty NUL terminated string.
+        if name.is_empty() {
+            break Ok(strs);
         }
-        pos = end;
+
+        let (dir_idx, _bytes) = data
+            .read_u128_leb128()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid directory index"))?;
+
+        let (mod_tm, _bytes) = data
+            .read_u128_leb128()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid last modified time"))?;
+
+        let (size, _bytes) = data
+            .read_u128_leb128()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Invalid file size"))?;
+
+        let () = strs.push(DebugLineFileInfo {
+            name: name.to_string(),
+            dir_idx: dir_idx as u32,
+            _mod_tm: mod_tm as u64,
+            _size: size as usize,
+        });
     }
-
-    Err(Error::new(
-        ErrorKind::InvalidData,
-        "Do not found null string",
-    ))
 }
 
 fn parse_debug_line_cu(
@@ -303,10 +281,9 @@ fn parse_debug_line_cu(
     let (inc_dirs, bytes) = parse_debug_line_dirs(&data_buf[pos..])?;
     pos += bytes;
 
-    let (files, bytes) = parse_debug_line_files(&data_buf[pos..])?;
-    pos += bytes;
-
-    let matrix = run_debug_line_stmts(&data_buf[pos..], &prologue, addresses)?;
+    let data = &mut &data_buf[pos..];
+    let files = parse_debug_line_files(data)?;
+    let matrix = run_debug_line_stmts(data, &prologue, addresses)?;
 
     #[cfg(debug_assertions)]
     for i in 1..matrix.len() {
@@ -1221,11 +1198,6 @@ mod tests {
     use test::Bencher;
 
 
-    fn parse_debug_line_elf(filename: &Path) -> Result<Vec<DebugLineCU>, Error> {
-        let parser = ElfParser::open(filename)?;
-        parse_debug_line_elf_parser(&parser, &[])
-    }
-
     #[allow(unused)]
     struct ArangesCU {
         debug_line_off: usize,
@@ -1331,7 +1303,8 @@ mod tests {
             .join("data")
             .join("test-dwarf-v4.bin");
 
-        let _ = parse_debug_line_elf(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let _line = parse_debug_line_elf_parser(&parser, &[]).unwrap();
     }
 
     #[test]
