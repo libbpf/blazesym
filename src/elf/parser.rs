@@ -80,11 +80,6 @@ fn read_elf_section_raw(file: &File, section: &Elf64_Shdr) -> Result<Vec<u8>, Er
     read_u8(file, section.sh_offset, section.sh_size as usize)
 }
 
-fn read_elf_section_seek(mut file: &File, section: &Elf64_Shdr) -> Result<(), Error> {
-    file.seek(SeekFrom::Start(section.sh_offset))?;
-    Ok(())
-}
-
 fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a str> {
     extract_string(strtab, sect.sh_name as usize)
 }
@@ -307,11 +302,18 @@ impl ElfParser {
         Ok(())
     }
 
-    pub fn section_seek(&self, sect_idx: usize) -> Result<(), Error> {
-        self.check_section_index(sect_idx)?;
+    /// Retrieve the data corresponding to the ELF section at index `idx`.
+    pub fn section_data(&self, idx: usize) -> Result<&[u8], Error> {
+        self.check_section_index(idx)?;
         self.ensure_shdrs()?;
         let cache = self.cache.borrow();
-        read_elf_section_seek(&self.file, &cache.shdrs.as_ref().unwrap()[sect_idx])
+        let section = cache.shdrs.as_ref().unwrap()[idx];
+        let offset = section.sh_offset as usize;
+        let size = section.sh_size as usize;
+
+        self.mmap
+            .get(offset..offset + size)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "ELF section data out of bounds"))
     }
 
     /// Read the raw data of the section of a given index.
@@ -583,17 +585,6 @@ impl ElfParser {
 
         let sym_name = self.get_symbol_name(idx).unwrap();
         (sym_name, addr)
-    }
-
-    /// Read raw data from the file at the current position.
-    ///
-    /// The caller can use section_seek() to move the current position
-    /// of the backed file.  However, this function doesn't promise to
-    /// not cross the boundary of the section.  The caller should take
-    /// care about it.
-    pub fn read_raw(&self, buf: &mut [u8]) -> Result<(), Error> {
-        (&self.file).read_exact(buf)?;
-        Ok(())
     }
 }
 
