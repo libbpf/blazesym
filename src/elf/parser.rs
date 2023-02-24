@@ -6,6 +6,8 @@ use std::mem;
 #[cfg(test)]
 use std::path::Path;
 
+use memmap::Mmap;
+
 use regex::Regex;
 
 use crate::util::{extract_string, search_address_opt_key};
@@ -103,15 +105,20 @@ struct Cache {
 /// A parser for ELF64 files.
 #[derive(Debug)]
 pub struct ElfParser {
+    /// The file representing the ELF object to be parsed.
     file: File,
+    /// The memory mapped file.
+    mmap: Mmap,
     /// A cache for relevant parts of the ELF file.
     cache: RefCell<Cache>,
 }
 
 impl ElfParser {
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
+        let mmap = unsafe { Mmap::map(&file) }?;
         let parser = ElfParser {
             file,
+            mmap,
             cache: RefCell::new(Cache::default()),
         };
         Ok(parser)
