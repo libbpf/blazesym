@@ -262,14 +262,11 @@ fn parse_debug_line_cu(
     }
     unsafe { parser.read_raw(data_buf.as_mut_slice())? };
 
-    let mut pos = 0;
-
+    let data = &mut &data_buf[0..];
     let std_op_num = (prologue.opcode_base - 1) as usize;
-    let mut std_op_lengths = Vec::<u8>::with_capacity(std_op_num);
-    std_op_lengths.extend_from_slice(&data_buf[pos..pos + std_op_num]);
-    pos += std_op_num;
-
-    let data = &mut &data_buf[pos..];
+    let std_op_lengths = data
+        .read_slice(std_op_num)
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read std op lengths"))?;
     let inc_dirs = parse_debug_line_dirs(data)?;
     let files = parse_debug_line_files(data)?;
     let matrix = run_debug_line_stmts(data, &prologue, addresses)?;
@@ -289,7 +286,7 @@ fn parse_debug_line_cu(
 
     Ok(DebugLineCU {
         prologue,
-        _standard_opcode_lengths: std_op_lengths,
+        _standard_opcode_lengths: std_op_lengths.to_vec(),
         include_directories: inc_dirs,
         files,
         matrix,
