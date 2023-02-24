@@ -136,36 +136,27 @@ impl DebugLineCU {
 }
 
 /// Parse the list of directory paths for a CU.
-fn parse_debug_line_dirs(data_buf: &[u8]) -> Result<(Vec<String>, usize), Error> {
+fn parse_debug_line_dirs(data: &mut &[u8]) -> Result<Vec<String>, Error> {
     let mut strs = Vec::<String>::new();
-    let mut pos = 0;
 
-    while pos < data_buf.len() {
-        if data_buf[pos] == 0 {
-            return Ok((strs, pos + 1));
+    loop {
+        let string = data
+            .read_cstr()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    "failed to find NUL terminated string",
+                )
+            })?
+            .to_str()
+            .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"))?;
+        // If the first byte is 0 we reached the end. In our case that
+        // maps to an empty NUL terminated string.
+        if string.is_empty() {
+            break Ok(strs);
         }
-
-        // Find NUL byte
-        let mut end = pos;
-        while end < data_buf.len() && data_buf[end] != 0 {
-            end += 1;
-        }
-        if end < data_buf.len() {
-            let mut str_vec = Vec::<u8>::with_capacity(end - pos);
-            str_vec.extend_from_slice(&data_buf[pos..end]);
-
-            let str_r = String::from_utf8(str_vec)
-                .map_err(|_| Error::new(ErrorKind::InvalidData, "Invalid UTF-8 string"))?;
-            strs.push(str_r);
-            end += 1;
-        }
-        pos = end;
+        strs.push(string.to_string());
     }
-
-    Err(Error::new(
-        ErrorKind::InvalidData,
-        "Did not find NULL terminated string",
-    ))
 }
 
 /// Parse the list of file information for a CU.
@@ -278,10 +269,8 @@ fn parse_debug_line_cu(
     std_op_lengths.extend_from_slice(&data_buf[pos..pos + std_op_num]);
     pos += std_op_num;
 
-    let (inc_dirs, bytes) = parse_debug_line_dirs(&data_buf[pos..])?;
-    pos += bytes;
-
     let data = &mut &data_buf[pos..];
+    let inc_dirs = parse_debug_line_dirs(data)?;
     let files = parse_debug_line_files(data)?;
     let matrix = run_debug_line_stmts(data, &prologue, addresses)?;
 
