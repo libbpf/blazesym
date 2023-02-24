@@ -1,19 +1,15 @@
 use std::cell::RefCell;
+#[cfg(test)]
+use std::env;
+use std::ffi::CStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::{Error, ErrorKind};
-use std::iter::Iterator;
 use std::mem;
 #[cfg(test)]
 use std::path::Path;
 use std::rc::Rc;
-
-#[cfg(test)]
-use std::env;
-
-use std::clone::Clone;
-use std::ffi::CStr;
 use std::sync::mpsc;
 use std::thread;
 
@@ -28,6 +24,7 @@ use crate::util::decode_udword;
 use crate::util::decode_uhalf;
 use crate::util::decode_uword;
 use crate::util::search_address_key;
+use crate::util::Pod;
 use crate::util::ReadRaw as _;
 
 use super::FindAddrOpts;
@@ -50,6 +47,10 @@ struct DebugLinePrologueV2 {
     line_range: u8,
     opcode_base: u8,
 }
+
+// SAFETY: `DebugLinePrologueV2` is valid for any bit pattern.
+unsafe impl Pod for DebugLinePrologueV2 {}
+
 
 /// DebugLinePrologue is actually a V4.
 ///
@@ -78,6 +79,10 @@ impl Debug for DebugLinePrologue {
             .finish()
     }
 }
+
+// SAFETY: `DebugLinePrologue` is valid for any bit pattern.
+unsafe impl Pod for DebugLinePrologue {}
+
 
 /// The file information of a file for a CU.
 #[derive(Debug)]
@@ -201,36 +206,34 @@ fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>, Er
     }
 }
 
-fn parse_debug_line_cu(parser: &ElfParser, addresses: &[u64]) -> Result<DebugLineCU, Error> {
-    let mut prologue_sz: usize = mem::size_of::<DebugLinePrologueV2>();
-    let prologue_v4_sz: usize = mem::size_of::<DebugLinePrologue>();
-    let mut buf = Vec::with_capacity(prologue_sz);
-    let () = buf.resize(prologue_sz, 0);
-    let () = parser.read_raw(buf.as_mut_slice())?;
-    let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologueV2;
-    // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologueV2` is
-    //         comprised only of objects that are valid for any bit pattern.
-    let v2 = unsafe { prologue_raw.read_unaligned() };
+fn parse_debug_line_cu(data: &mut &[u8], addresses: &[u64]) -> Result<DebugLineCU, Error> {
+    let prologue_v2_size: usize = mem::size_of::<DebugLinePrologueV2>();
+    let prologue_v4_size: usize = mem::size_of::<DebugLinePrologue>();
 
-    if v2.version != 0x2 && v2.version != 0x4 {
+    let mut head = *data;
+    let v2 = data
+        .read_pod::<DebugLinePrologueV2>()
+        .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read debug line prologue"))?;
+
+    if v2.version != 2 && v2.version != 4 {
         let version = v2.version;
         return Err(Error::new(
             ErrorKind::Unsupported,
-            format!("Support DWARF version 2 & 4 (version: {version})"),
+            format!("encountered unsupported DWARF version: {version}"),
         ));
     }
 
-    let prologue = if v2.version == 0x4 {
+    let (prologue, prologue_size) = if v2.version == 4 {
         // Upgrade to V4.
         // V4 has more fields to read.
-        let () = buf.resize(prologue_v4_sz, 0);
-        let () = parser.read_raw(&mut buf.as_mut_slice()[prologue_sz..])?;
-        let prologue_raw = buf.as_mut_ptr() as *mut DebugLinePrologue;
-        // SAFETY: `prologue_raw` is valid for reads and `DebugLinePrologue` is
-        //         comprised only of objects that are valid for any bit pattern.
-        let prologue_v4 = unsafe { prologue_raw.read_unaligned() };
-        prologue_sz = prologue_v4_sz;
-        prologue_v4
+        let prologue_v4 = head.read_pod::<DebugLinePrologue>().ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidData,
+                "failed to read debug line v4 prologue",
+            )
+        })?;
+        (*data) = head;
+        (prologue_v4, prologue_v4_size)
     } else {
         // Convert V2 to V4
         let prologue_v4 = DebugLinePrologue {
@@ -244,14 +247,17 @@ fn parse_debug_line_cu(parser: &ElfParser, addresses: &[u64]) -> Result<DebugLin
             line_range: v2.line_range,
             opcode_base: v2.opcode_base,
         };
-        prologue_v4
+        (prologue_v4, prologue_v2_size)
     };
 
-    let to_read = prologue.total_length as usize + 4 - prologue_sz;
-    let () = buf.resize(to_read, 0);
-    let () = parser.read_raw(buf.as_mut_slice())?;
+    let to_read = prologue.total_length as usize + 4 - prologue_size;
+    let () = data.ensure(to_read).ok_or_else(|| {
+        Error::new(
+            ErrorKind::InvalidData,
+            "encountered insufficient debug line information data",
+        )
+    })?;
 
-    let data = &mut &buf[0..];
     let std_op_num = (prologue.opcode_base - 1) as usize;
     let std_op_lengths = data
         .read_slice(std_op_num)
@@ -603,11 +609,11 @@ fn parse_debug_line_elf_parser(
     let prologue_size: usize = mem::size_of::<DebugLinePrologueV2>();
     let mut not_found = Vec::from(addresses);
 
-    parser.section_seek(debug_line_idx)?;
+    let data = &mut parser.section_data(debug_line_idx)?;
 
     let mut all_cus = Vec::<DebugLineCU>::new();
     while remain_sz > prologue_size {
-        let debug_line_cu = parse_debug_line_cu(parser, &not_found)?;
+        let debug_line_cu = parse_debug_line_cu(data, &not_found)?;
         let prologue = &debug_line_cu.prologue;
         remain_sz -= prologue.total_length as usize + 4;
 

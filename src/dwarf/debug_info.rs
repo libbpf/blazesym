@@ -112,9 +112,9 @@ pub struct AbbrevAttr {
 
 /// An abbreviation.
 ///
-/// An abbrivation describes the format of a DIE.  it comprises a list
+/// An abbreviation describes the format of a DIE. It comprises a list
 /// of specifications that describe the names and the formats of
-/// attributes.  A DIE will be formated in the way described by it's
+/// attributes. A DIE will be formatted in the way described by it's
 /// abbreviation.
 pub struct Abbrev {
     /// The index to the abbreviation table.
@@ -348,7 +348,7 @@ fn extract_attr_value_impl<'data>(
 /// Extract the value of an attribute from a data buffer.
 ///
 /// This function works with [`parse_abbrev_attr()`], that parse the
-/// attribute specifications of DIEs delcared in the abbreviation
+/// attribute specifications of DIEs declared in the abbreviation
 /// table in the .debug_abbrev section, by using the result of
 /// [`parse_abbrev_attr()`] to parse the value of an attribute of a
 /// DIE.
