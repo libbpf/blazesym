@@ -977,7 +977,7 @@ fn parse_die_subprogram<'a>(
                 }
                 name_str = Some(match value {
                     debug_info::AttrValue::Unsigned(str_off) => unsafe {
-                        CStr::from_ptr(str_data[str_off as usize..].as_ptr() as *const i8)
+                        CStr::from_ptr(str_data[str_off as usize..].as_ptr().cast())
                             .to_str()
                             .map_err(|_e| {
                                 Error::new(
