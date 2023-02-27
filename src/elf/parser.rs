@@ -285,8 +285,7 @@ impl ElfParser {
         }
 
         // Sort in the dictionary order
-        str2symtab
-            .sort_by_key(|&x| unsafe { CStr::from_ptr(&strtab[x.0] as *const u8 as *const i8) });
+        str2symtab.sort_by_key(|&x| unsafe { CStr::from_ptr(strtab[x.0..].as_ptr().cast()) });
 
         me.str2symtab = Some(str2symtab);
 
@@ -447,7 +446,7 @@ impl ElfParser {
         let strtab = me.strtab.as_ref().unwrap();
         let r = str2symtab.binary_search_by_key(&name.to_string(), |&x| {
             String::from(
-                unsafe { CStr::from_ptr(&strtab[x.0] as *const u8 as *const i8) }
+                unsafe { CStr::from_ptr(strtab[x.0..].as_ptr().cast()) }
                     .to_str()
                     .unwrap(),
             )
@@ -458,7 +457,7 @@ impl ElfParser {
                 let mut idx = str2sym_i;
                 while idx > 0 {
                     let name_seek = unsafe {
-                        CStr::from_ptr(&strtab[str2symtab[idx].0] as *const u8 as *const i8)
+                        CStr::from_ptr(strtab[str2symtab[idx].0..].as_ptr().cast())
                             .to_str()
                             .unwrap()
                     };
@@ -472,7 +471,7 @@ impl ElfParser {
                 let mut found = vec![];
                 for idx in idx..str2symtab.len() {
                     let name_visit = unsafe {
-                        CStr::from_ptr(&strtab[str2symtab[idx].0] as *const u8 as *const i8)
+                        CStr::from_ptr(strtab[str2symtab[idx].0..].as_ptr().cast())
                             .to_str()
                             .unwrap()
                     };
@@ -515,7 +514,7 @@ impl ElfParser {
         let mut syms = vec![];
         for (str_off, sym_i) in str2symtab {
             let sname = unsafe {
-                CStr::from_ptr(&strtab[*str_off] as *const u8 as *const i8)
+                CStr::from_ptr(strtab[*str_off..].as_ptr().cast())
                     .to_str()
                     .unwrap()
             };

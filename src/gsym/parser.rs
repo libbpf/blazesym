@@ -230,7 +230,7 @@ impl<'a> GsymContext<'a> {
         // SAFETY: the lifetime of `CStr` can live as long as `self`.
         // The returned reference can also live as long as `self`.
         unsafe {
-            CStr::from_ptr(self.str_tab[off..].as_ptr() as *const i8)
+            CStr::from_ptr(self.str_tab[off..].as_ptr().cast())
                 .to_str()
                 .ok()
         }
