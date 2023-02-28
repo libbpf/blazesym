@@ -134,7 +134,7 @@ fn build_test_bins(crate_root: &Path) {
 fn main() {
     let crate_dir = env!("CARGO_MANIFEST_DIR");
 
-    if !cfg!(feature = "dont-generate-test-files") {
+    if cfg!(feature = "generate-test-files") && !cfg!(feature = "dont-generate-test-files") {
         build_test_bins(crate_dir.as_ref());
     }
 
