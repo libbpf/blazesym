@@ -1074,12 +1074,12 @@ fn debug_info_parse_symbols<'a>(
     nthreads: usize,
 ) -> Result<Vec<DWSymInfo<'a>>, Error> {
     let info_sect_idx = parser.find_section(".debug_info")?;
-    let info_data = parser.read_section_raw_cache(info_sect_idx)?;
+    let info_data = parser.section_data(info_sect_idx)?;
     let abbrev_sect_idx = parser.find_section(".debug_abbrev")?;
-    let abbrev_data = parser.read_section_raw_cache(abbrev_sect_idx)?;
+    let abbrev_data = parser.section_data(abbrev_sect_idx)?;
     let units = debug_info::UnitIter::new(info_data, abbrev_data);
     let str_sect_idx = parser.find_section(".debug_str")?;
-    let str_data = parser.read_section_raw_cache(str_sect_idx)?;
+    let str_data = parser.section_data(str_sect_idx)?;
 
     let mut syms = Vec::<DWSymInfo>::new();
 
