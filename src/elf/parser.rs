@@ -3,6 +3,7 @@ use std::ffi::CStr;
 use std::fs::File;
 use std::io::{Error, ErrorKind, Read, Seek, SeekFrom};
 use std::mem;
+use std::ops::Deref as _;
 #[cfg(test)]
 use std::path::Path;
 
@@ -10,7 +11,9 @@ use memmap::Mmap;
 
 use regex::Regex;
 
-use crate::util::{extract_string, search_address_opt_key};
+use crate::util::extract_string;
+use crate::util::search_address_opt_key;
+use crate::util::ReadRaw as _;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
 use crate::SymbolType;
@@ -31,19 +34,6 @@ fn read_u8(mut file: &File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
     file.read_exact(buf.as_mut_slice())?;
 
     Ok(buf)
-}
-
-fn read_elf_header(mut file: &File) -> Result<Elf64_Ehdr, Error> {
-    let mut buffer = [0u8; mem::size_of::<Elf64_Ehdr>()];
-    let () = file.read_exact(&mut buffer)?;
-
-    let pointer = buffer.as_ptr() as *const Elf64_Ehdr;
-    // SAFETY: `buffer` is valid for reads and the `Elf64_Ehdr` object that we
-    //         read is comprised only of members that are valid for any bit
-    //         pattern.
-    let elf_header = unsafe { pointer.read_unaligned() };
-
-    Ok(elf_header)
 }
 
 fn read_elf_sections(file: &File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shdr>, Error> {
@@ -84,9 +74,12 @@ fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a s
     extract_string(strtab, sect.sh_name as usize)
 }
 
-#[derive(Debug, Default)]
-struct Cache {
-    ehdr: Option<Elf64_Ehdr>,
+#[derive(Debug)]
+struct Cache<'mmap> {
+    /// A slice of the raw ELF data that we are about to parse.
+    elf_data: &'mmap [u8],
+    /// The cached ELF header.
+    ehdr: Option<&'mmap Elf64_Ehdr>,
     shdrs: Option<Vec<Elf64_Shdr>>,
     shstrtab: Option<Vec<u8>>,
     phdrs: Option<Vec<Elf64_Phdr>>,
@@ -97,24 +90,73 @@ struct Cache {
     sect_cache: Vec<Option<Vec<u8>>>,
 }
 
+impl<'mmap> Cache<'mmap> {
+    /// Create a new `Cache` using the provided raw ELF object data.
+    fn new(elf_data: &'mmap [u8]) -> Self {
+        Self {
+            elf_data,
+            ehdr: None,
+            shdrs: None,
+            shstrtab: None,
+            phdrs: None,
+            symtab: None,
+            symtab_origin: None,
+            strtab: None,
+            str2symtab: None,
+            sect_cache: Vec::new(),
+        }
+    }
+
+    fn ensure_ehdr(&mut self) -> Result<&'mmap Elf64_Ehdr, Error> {
+        if let Some(ehdr) = self.ehdr {
+            return Ok(ehdr);
+        }
+
+        let mut elf_data = self.elf_data;
+        let ehdr = elf_data
+            .read_pod_ref::<Elf64_Ehdr>()
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read Elf64_Ehdr"))?;
+        if !(ehdr.e_ident[0] == 0x7f
+            && ehdr.e_ident[1] == b'E'
+            && ehdr.e_ident[2] == b'L'
+            && ehdr.e_ident[3] == b'F')
+        {
+            return Err(Error::new(ErrorKind::InvalidData, "e_ident is wrong"));
+        }
+        self.ehdr = Some(ehdr);
+        Ok(ehdr)
+    }
+}
+
+
 /// A parser for ELF64 files.
 #[derive(Debug)]
 pub struct ElfParser {
     /// The file representing the ELF object to be parsed.
     file: File,
+    /// A cache for relevant parts of the ELF file.
+    /// SAFETY: We must not hand out references with a 'static lifetime to
+    ///         this member. Rather, they should never outlive `self`.
+    ///         Furthermore, this member has to be listed before `mmap`
+    ///         to make sure we never end up with a dangling reference.
+    cache: RefCell<Cache<'static>>,
     /// The memory mapped file.
     mmap: Mmap,
-    /// A cache for relevant parts of the ELF file.
-    cache: RefCell<Cache>,
 }
 
 impl ElfParser {
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
         let mmap = unsafe { Mmap::map(&file) }?;
+        // We transmute the mmap's lifetime to static here as that is a
+        // necessity for self-referentiality.
+        // SAFETY: We never hand out any 'static references to cache
+        //         data.
+        let elf_data = unsafe { std::mem::transmute(mmap.deref()) };
+
         let parser = ElfParser {
             file,
             mmap,
-            cache: RefCell::new(Cache::default()),
+            cache: RefCell::new(Cache::new(elf_data)),
         };
         Ok(parser)
     }
@@ -130,37 +172,15 @@ impl ElfParser {
         }
     }
 
-    fn ensure_ehdr(&self) -> Result<(), Error> {
-        let mut cache = self.cache.borrow_mut();
-
-        if cache.ehdr.is_some() {
-            return Ok(());
-        }
-
-        let ehdr = read_elf_header(&self.file)?;
-        if !(ehdr.e_ident[0] == 0x7f
-            && ehdr.e_ident[1] == 0x45
-            && ehdr.e_ident[2] == 0x4c
-            && ehdr.e_ident[3] == 0x46)
-        {
-            return Err(Error::new(ErrorKind::InvalidData, "e_ident is wrong"));
-        }
-
-        cache.ehdr = Some(ehdr);
-
-        Ok(())
-    }
-
     fn ensure_shdrs(&self) -> Result<(), Error> {
-        self.ensure_ehdr()?;
-
         let mut cache = self.cache.borrow_mut();
+        let ehdr = cache.ensure_ehdr()?;
 
         if cache.shdrs.is_some() {
             return Ok(());
         }
 
-        let shdrs = read_elf_sections(&self.file, cache.ehdr.as_ref().unwrap())?;
+        let shdrs = read_elf_sections(&self.file, ehdr)?;
         cache.sect_cache.resize(shdrs.len(), None);
         cache.shdrs = Some(shdrs);
 
@@ -168,17 +188,15 @@ impl ElfParser {
     }
 
     fn ensure_phdrs(&self) -> Result<(), Error> {
-        self.ensure_ehdr()?;
-
         let mut cache = self.cache.borrow_mut();
+        let ehdr = cache.ensure_ehdr()?;
 
         if cache.phdrs.is_some() {
             return Ok(());
         }
 
-        let phdrs = read_elf_program_headers(&self.file, cache.ehdr.as_ref().unwrap())?;
+        let phdrs = read_elf_program_headers(&self.file, ehdr)?;
         cache.phdrs = Some(phdrs);
-
         Ok(())
     }
 
@@ -186,12 +204,13 @@ impl ElfParser {
         self.ensure_shdrs()?;
 
         let mut cache = self.cache.borrow_mut();
+        let ehdr = cache.ensure_ehdr()?;
 
         if cache.shstrtab.is_some() {
             return Ok(());
         }
 
-        let shstrndx = cache.ehdr.as_ref().unwrap().e_shstrndx;
+        let shstrndx = ehdr.e_shstrndx;
         let shstrtab_sec = &cache.shdrs.as_ref().unwrap()[shstrndx as usize];
         let shstrtab = read_elf_section_raw(&self.file, shstrtab_sec)?;
         cache.shstrtab = Some(shstrtab);
@@ -286,11 +305,10 @@ impl ElfParser {
     }
 
     pub fn get_elf_file_type(&self) -> Result<u16, Error> {
-        self.ensure_ehdr()?;
+        let mut cache = self.cache.borrow_mut();
+        let ehdr = cache.ensure_ehdr()?;
 
-        let cache = self.cache.borrow();
-
-        Ok(cache.ehdr.as_ref().unwrap().e_type)
+        Ok(ehdr.e_type)
     }
 
     fn check_section_index(&self, sect_idx: usize) -> Result<(), Error> {
@@ -367,9 +385,9 @@ impl ElfParser {
     }
 
     pub fn get_num_sections(&self) -> Result<usize, Error> {
-        self.ensure_ehdr()?;
-        let cache = self.cache.borrow();
-        Ok(cache.ehdr.as_ref().unwrap().e_shnum as usize)
+        let mut cache = self.cache.borrow_mut();
+        let ehdr = cache.ensure_ehdr()?;
+        Ok(ehdr.e_shnum as usize)
     }
 
     /// Find the section of a given name.
@@ -592,42 +610,9 @@ impl ElfParser {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use std::env;
 
-    #[test]
-    fn test_elf_header_sections() {
-        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-no-debug.bin");
-
-        let bin_file = File::open(bin_name).unwrap();
-        let ehdr = read_elf_header(&bin_file);
-        assert!(ehdr.is_ok());
-        let ehdr = ehdr.unwrap();
-        assert_eq!(
-            ehdr.e_ident,
-            [
-                0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00
-            ]
-        );
-        assert_eq!(ehdr.e_version, 0x1);
-        assert_eq!(ehdr.e_shentsize as usize, mem::size_of::<Elf64_Shdr>());
-
-        let shdrs = read_elf_sections(&bin_file, &ehdr);
-        assert!(shdrs.is_ok());
-        let shdrs = shdrs.unwrap();
-        let shstrndx = ehdr.e_shstrndx as usize;
-
-        let shstrtab_sec = &shdrs[shstrndx];
-        let shstrtab = read_elf_section_raw(&bin_file, shstrtab_sec);
-        assert!(shstrtab.is_ok());
-        let shstrtab = shstrtab.unwrap();
-
-        let sec_name = get_elf_section_name(shstrtab_sec, &shstrtab);
-        assert!(sec_name.is_some());
-        assert_eq!(sec_name.unwrap(), ".shstrtab");
-    }
 
     #[test]
     fn test_elf64_parser() {
