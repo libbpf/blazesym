@@ -36,21 +36,6 @@ fn read_u8(mut file: &File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
     Ok(buf)
 }
 
-fn read_elf_sections(file: &File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Shdr>, Error> {
-    const HDRSIZE: usize = mem::size_of::<Elf64_Shdr>();
-    let off = ehdr.e_shoff as usize;
-    let num = ehdr.e_shnum as usize;
-
-    let mut buf = read_u8(file, off as u64, num * HDRSIZE)?;
-
-    let shdrs: Vec<Elf64_Shdr> = unsafe {
-        let shdrs_ptr = buf.as_mut_ptr() as *mut Elf64_Shdr;
-        buf.leak();
-        Vec::from_raw_parts(shdrs_ptr, num, num)
-    };
-    Ok(shdrs)
-}
-
 fn read_elf_program_headers(file: &File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Phdr>, Error> {
     const HDRSIZE: usize = mem::size_of::<Elf64_Phdr>();
     let off = ehdr.e_phoff as usize;
@@ -80,7 +65,8 @@ struct Cache<'mmap> {
     elf_data: &'mmap [u8],
     /// The cached ELF header.
     ehdr: Option<&'mmap Elf64_Ehdr>,
-    shdrs: Option<Vec<Elf64_Shdr>>,
+    /// The cached ELF section headers.
+    shdrs: Option<&'mmap [Elf64_Shdr]>,
     shstrtab: Option<Vec<u8>>,
     phdrs: Option<Vec<Elf64_Phdr>>,
     symtab: Option<Vec<Elf64_Sym>>,        // in address order
@@ -123,6 +109,22 @@ impl<'mmap> Cache<'mmap> {
         }
         self.ehdr = Some(ehdr);
         Ok(ehdr)
+    }
+
+    fn ensure_shdrs(&mut self) -> Result<&'mmap [Elf64_Shdr], Error> {
+        if let Some(shdrs) = self.shdrs {
+            return Ok(shdrs);
+        }
+
+        let ehdr = self.ensure_ehdr()?;
+        let shdrs = self
+            .elf_data
+            .get(ehdr.e_shoff as usize..)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Elf64_Ehdr::e_shoff is invalid"))?
+            .read_pod_slice_ref::<Elf64_Shdr>(ehdr.e_shnum.into())
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read Elf64_Shdr"))?;
+        self.shdrs = Some(shdrs);
+        Ok(shdrs)
     }
 }
 
@@ -170,20 +172,6 @@ impl ElfParser {
         }
     }
 
-    fn ensure_shdrs(&self) -> Result<(), Error> {
-        let mut cache = self.cache.borrow_mut();
-        let ehdr = cache.ensure_ehdr()?;
-
-        if cache.shdrs.is_some() {
-            return Ok(());
-        }
-
-        let shdrs = read_elf_sections(&self.file, ehdr)?;
-        cache.shdrs = Some(shdrs);
-
-        Ok(())
-    }
-
     fn ensure_phdrs(&self) -> Result<(), Error> {
         let mut cache = self.cache.borrow_mut();
         let ehdr = cache.ensure_ehdr()?;
@@ -198,17 +186,18 @@ impl ElfParser {
     }
 
     fn ensure_shstrtab(&self) -> Result<(), Error> {
-        self.ensure_shdrs()?;
-
         let mut cache = self.cache.borrow_mut();
         let ehdr = cache.ensure_ehdr()?;
+        let shdrs = cache.ensure_shdrs()?;
 
         if cache.shstrtab.is_some() {
             return Ok(());
         }
 
         let shstrndx = ehdr.e_shstrndx;
-        let shstrtab_sec = &cache.shdrs.as_ref().unwrap()[shstrndx as usize];
+        let shstrtab_sec = shdrs.get(shstrndx as usize).ok_or_else(|| {
+            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
+        })?;
         let shstrtab = read_elf_section_raw(&self.file, shstrtab_sec)?;
         cache.shstrtab = Some(shstrtab);
 
@@ -319,10 +308,11 @@ impl ElfParser {
 
     /// Retrieve the data corresponding to the ELF section at index `idx`.
     pub fn section_data(&self, idx: usize) -> Result<&[u8], Error> {
-        self.check_section_index(idx)?;
-        self.ensure_shdrs()?;
-        let cache = self.cache.borrow();
-        let section = cache.shdrs.as_ref().unwrap()[idx];
+        let mut cache = self.cache.borrow_mut();
+        let shdrs = cache.ensure_shdrs()?;
+        let section = shdrs.get(idx).ok_or_else(|| {
+            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
+        })?;
         let offset = section.sh_offset as usize;
         let size = section.sh_size as usize;
 
@@ -333,11 +323,12 @@ impl ElfParser {
 
     /// Read the raw data of the section of a given index.
     pub fn read_section_raw(&self, sect_idx: usize) -> Result<Vec<u8>, Error> {
-        self.check_section_index(sect_idx)?;
-        self.ensure_shdrs()?;
-
-        let cache = self.cache.borrow();
-        read_elf_section_raw(&self.file, &cache.shdrs.as_ref().unwrap()[sect_idx])
+        let mut cache = self.cache.borrow_mut();
+        let shdrs = cache.ensure_shdrs()?;
+        let shdr = shdrs.get(sect_idx).ok_or_else(|| {
+            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
+        })?;
+        read_elf_section_raw(&self.file, shdr)
     }
 
     /// Get the name of the section of a given index.
@@ -359,11 +350,11 @@ impl ElfParser {
     }
 
     pub fn get_section_size(&self, sect_idx: usize) -> Result<usize, Error> {
-        self.check_section_index(sect_idx)?;
-        self.ensure_shdrs()?;
-
-        let cache = self.cache.borrow();
-        let sect = &cache.shdrs.as_ref().unwrap()[sect_idx];
+        let mut cache = self.cache.borrow_mut();
+        let shdrs = cache.ensure_shdrs()?;
+        let sect = shdrs.get(sect_idx).ok_or_else(|| {
+            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
+        })?;
         Ok(sect.sh_size as usize)
     }
 

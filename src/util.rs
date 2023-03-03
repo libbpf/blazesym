@@ -4,6 +4,7 @@ use std::io::{BufRead, BufReader, Error, ErrorKind};
 use std::mem::align_of;
 use std::mem::size_of;
 use std::path::PathBuf;
+use std::slice;
 
 use regex::Regex;
 
@@ -276,6 +277,26 @@ pub(crate) trait ReadRaw<'data> {
         }
     }
 
+    /// Read a reference to something implementing `Pod`.
+    #[inline]
+    fn read_pod_slice_ref<T>(&mut self, count: usize) -> Option<&'data [T]>
+    where
+        T: Pod,
+    {
+        let data = self.read_slice(size_of::<T>().checked_mul(count)?)?;
+        let ptr = data.as_ptr();
+
+        if ptr.align_offset(align_of::<T>()) == 0 {
+            // SAFETY: `T` is `Pod` and hence valid for any bit pattern. The pointer
+            //         is guaranteed to be valid and to point to memory of at least
+            //         `sizeof(T)` bytes. We know it is properly aligned
+            //         because we checked that.
+            Some(unsafe { slice::from_raw_parts(ptr.cast::<T>(), count) })
+        } else {
+            None
+        }
+    }
+
     /// Read a `u8` value.
     #[inline]
     fn read_u8(&mut self) -> Option<u8> {
@@ -375,8 +396,6 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::slice;
 
 
     /// Make sure that `[u8]::ensure` works as expected.
