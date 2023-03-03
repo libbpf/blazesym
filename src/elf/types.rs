@@ -11,6 +11,8 @@ pub use libc::Elf64_Xword;
 
 // SAFETY: `Elf64_Ehdr` is valid for any bit pattern.
 unsafe impl crate::util::Pod for Elf64_Ehdr {}
+// SAFETY: `Elf64_Shdr` is valid for any bit pattern.
+unsafe impl crate::util::Pod for Elf64_Shdr {}
 
 pub use libc::ET_CORE;
 pub use libc::ET_DYN;
