@@ -36,21 +36,6 @@ fn read_u8(mut file: &File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
     Ok(buf)
 }
 
-fn read_elf_program_headers(file: &File, ehdr: &Elf64_Ehdr) -> Result<Vec<Elf64_Phdr>, Error> {
-    const HDRSIZE: usize = mem::size_of::<Elf64_Phdr>();
-    let off = ehdr.e_phoff as usize;
-    let num = ehdr.e_phnum as usize;
-
-    let mut buf = read_u8(file, off as u64, num * HDRSIZE)?;
-
-    let phdrs: Vec<Elf64_Phdr> = unsafe {
-        let phdrs_ptr = buf.as_mut_ptr() as *mut Elf64_Phdr;
-        buf.leak();
-        Vec::from_raw_parts(phdrs_ptr, num, num)
-    };
-    Ok(phdrs)
-}
-
 fn read_elf_section_raw(file: &File, section: &Elf64_Shdr) -> Result<Vec<u8>, Error> {
     read_u8(file, section.sh_offset, section.sh_size as usize)
 }
@@ -68,7 +53,8 @@ struct Cache<'mmap> {
     /// The cached ELF section headers.
     shdrs: Option<&'mmap [Elf64_Shdr]>,
     shstrtab: Option<Vec<u8>>,
-    phdrs: Option<Vec<Elf64_Phdr>>,
+    /// The cached ELF program headers.
+    phdrs: Option<&'mmap [Elf64_Phdr]>,
     symtab: Option<Vec<Elf64_Sym>>,        // in address order
     symtab_origin: Option<Vec<Elf64_Sym>>, // The copy in the same order as the file
     strtab: Option<Vec<u8>>,
@@ -126,6 +112,22 @@ impl<'mmap> Cache<'mmap> {
         self.shdrs = Some(shdrs);
         Ok(shdrs)
     }
+
+    fn ensure_phdrs(&mut self) -> Result<&'mmap [Elf64_Phdr], Error> {
+        if let Some(phdrs) = self.phdrs {
+            return Ok(phdrs);
+        }
+
+        let ehdr = self.ensure_ehdr()?;
+        let phdrs = self
+            .elf_data
+            .get(ehdr.e_phoff as usize..)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Elf64_Ehdr::e_phoff is invalid"))?
+            .read_pod_slice_ref::<Elf64_Phdr>(ehdr.e_phnum.into())
+            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read Elf64_Phdr"))?;
+        self.phdrs = Some(phdrs);
+        Ok(phdrs)
+    }
 }
 
 
@@ -170,19 +172,6 @@ impl ElfParser {
         } else {
             parser
         }
-    }
-
-    fn ensure_phdrs(&self) -> Result<(), Error> {
-        let mut cache = self.cache.borrow_mut();
-        let ehdr = cache.ensure_ehdr()?;
-
-        if cache.phdrs.is_some() {
-            return Ok(());
-        }
-
-        let phdrs = read_elf_program_headers(&self.file, ehdr)?;
-        cache.phdrs = Some(phdrs);
-        Ok(())
     }
 
     fn ensure_shstrtab(&self) -> Result<(), Error> {
@@ -550,13 +539,8 @@ impl ElfParser {
     }
 
     pub fn get_all_program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
-        self.ensure_phdrs()?;
-
-        let phdrs = unsafe {
-            let cache = self.cache.as_ptr();
-            let phdrs_ref = (*cache).phdrs.as_mut().unwrap();
-            phdrs_ref
-        };
+        let mut cache = self.cache.borrow_mut();
+        let phdrs = cache.ensure_phdrs()?;
         Ok(phdrs)
     }
 
