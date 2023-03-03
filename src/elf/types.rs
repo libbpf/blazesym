@@ -1,4 +1,5 @@
 pub use libc::Elf64_Addr;
+pub use libc::Elf64_Ehdr;
 pub use libc::Elf64_Half;
 pub use libc::Elf64_Off;
 pub use libc::Elf64_Phdr;
@@ -8,7 +9,9 @@ pub use libc::Elf64_Sym;
 pub use libc::Elf64_Word;
 pub use libc::Elf64_Xword;
 
-pub use libc::Elf64_Ehdr;
+// SAFETY: `Elf64_Ehdr` is valid for any bit pattern.
+unsafe impl crate::util::Pod for Elf64_Ehdr {}
+
 pub use libc::ET_CORE;
 pub use libc::ET_DYN;
 pub use libc::ET_EXEC;
