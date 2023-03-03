@@ -87,8 +87,8 @@ fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a s
     extract_string(strtab, sect.sh_name as usize)
 }
 
-#[derive(Debug)]
-struct ElfParserBack {
+#[derive(Debug, Default)]
+struct Cache {
     ehdr: Option<Elf64_Ehdr>,
     shdrs: Option<Vec<Elf64_Shdr>>,
     shstrtab: Option<Vec<u8>>,
@@ -100,28 +100,19 @@ struct ElfParserBack {
     sect_cache: Vec<Option<Vec<u8>>>,
 }
 
-/// A parser against ELF64 format.
+/// A parser for ELF64 files.
 #[derive(Debug)]
 pub struct ElfParser {
     file: File,
-    backobj: RefCell<ElfParserBack>,
+    /// A cache for relevant parts of the ELF file.
+    cache: RefCell<Cache>,
 }
 
 impl ElfParser {
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
         let parser = ElfParser {
             file,
-            backobj: RefCell::new(ElfParserBack {
-                ehdr: None,
-                shdrs: None,
-                shstrtab: None,
-                phdrs: None,
-                symtab: None,
-                symtab_origin: None,
-                strtab: None,
-                str2symtab: None,
-                sect_cache: vec![],
-            }),
+            cache: RefCell::new(Cache::default()),
         };
         Ok(parser)
     }
@@ -138,9 +129,9 @@ impl ElfParser {
     }
 
     fn ensure_ehdr(&self) -> Result<(), Error> {
-        let mut me = self.backobj.borrow_mut();
+        let mut cache = self.cache.borrow_mut();
 
-        if me.ehdr.is_some() {
+        if cache.ehdr.is_some() {
             return Ok(());
         }
 
@@ -153,7 +144,7 @@ impl ElfParser {
             return Err(Error::new(ErrorKind::InvalidData, "e_ident is wrong"));
         }
 
-        me.ehdr = Some(ehdr);
+        cache.ehdr = Some(ehdr);
 
         Ok(())
     }
@@ -161,15 +152,15 @@ impl ElfParser {
     fn ensure_shdrs(&self) -> Result<(), Error> {
         self.ensure_ehdr()?;
 
-        let mut me = self.backobj.borrow_mut();
+        let mut cache = self.cache.borrow_mut();
 
-        if me.shdrs.is_some() {
+        if cache.shdrs.is_some() {
             return Ok(());
         }
 
-        let shdrs = read_elf_sections(&self.file, me.ehdr.as_ref().unwrap())?;
-        me.sect_cache.resize(shdrs.len(), None);
-        me.shdrs = Some(shdrs);
+        let shdrs = read_elf_sections(&self.file, cache.ehdr.as_ref().unwrap())?;
+        cache.sect_cache.resize(shdrs.len(), None);
+        cache.shdrs = Some(shdrs);
 
         Ok(())
     }
@@ -177,14 +168,14 @@ impl ElfParser {
     fn ensure_phdrs(&self) -> Result<(), Error> {
         self.ensure_ehdr()?;
 
-        let mut me = self.backobj.borrow_mut();
+        let mut cache = self.cache.borrow_mut();
 
-        if me.phdrs.is_some() {
+        if cache.phdrs.is_some() {
             return Ok(());
         }
 
-        let phdrs = read_elf_program_headers(&self.file, me.ehdr.as_ref().unwrap())?;
-        me.phdrs = Some(phdrs);
+        let phdrs = read_elf_program_headers(&self.file, cache.ehdr.as_ref().unwrap())?;
+        cache.phdrs = Some(phdrs);
 
         Ok(())
     }
@@ -192,25 +183,25 @@ impl ElfParser {
     fn ensure_shstrtab(&self) -> Result<(), Error> {
         self.ensure_shdrs()?;
 
-        let mut me = self.backobj.borrow_mut();
+        let mut cache = self.cache.borrow_mut();
 
-        if me.shstrtab.is_some() {
+        if cache.shstrtab.is_some() {
             return Ok(());
         }
 
-        let shstrndx = me.ehdr.as_ref().unwrap().e_shstrndx;
-        let shstrtab_sec = &me.shdrs.as_ref().unwrap()[shstrndx as usize];
+        let shstrndx = cache.ehdr.as_ref().unwrap().e_shstrndx;
+        let shstrtab_sec = &cache.shdrs.as_ref().unwrap()[shstrndx as usize];
         let shstrtab = read_elf_section_raw(&self.file, shstrtab_sec)?;
-        me.shstrtab = Some(shstrtab);
+        cache.shstrtab = Some(shstrtab);
 
         Ok(())
     }
 
     fn ensure_symtab(&self) -> Result<(), Error> {
         {
-            let me = self.backobj.borrow();
+            let cache = self.cache.borrow();
 
-            if me.symtab.is_some() {
+            if cache.symtab.is_some() {
                 return Ok(());
             }
         }
@@ -237,18 +228,18 @@ impl ElfParser {
         let origin = symtab.clone();
         symtab.sort_by_key(|x| x.st_value);
 
-        let mut me = self.backobj.borrow_mut();
-        me.symtab = Some(symtab);
-        me.symtab_origin = Some(origin);
+        let mut cache = self.cache.borrow_mut();
+        cache.symtab = Some(symtab);
+        cache.symtab_origin = Some(origin);
 
         Ok(())
     }
 
     fn ensure_strtab(&self) -> Result<(), Error> {
         {
-            let me = self.backobj.borrow();
+            let cache = self.cache.borrow();
 
-            if me.strtab.is_some() {
+            if cache.strtab.is_some() {
                 return Ok(());
             }
         }
@@ -260,8 +251,8 @@ impl ElfParser {
         };
         let strtab = self.read_section_raw(sect_idx)?;
 
-        let mut me = self.backobj.borrow_mut();
-        me.strtab = Some(strtab);
+        let mut cache = self.cache.borrow_mut();
+        cache.strtab = Some(strtab);
 
         Ok(())
     }
@@ -270,14 +261,14 @@ impl ElfParser {
         self.ensure_symtab()?;
         self.ensure_strtab()?;
 
-        let mut me = self.backobj.borrow_mut();
-        if me.str2symtab.is_some() {
+        let mut cache = self.cache.borrow_mut();
+        if cache.str2symtab.is_some() {
             return Ok(());
         }
 
         // Build strtab offsets to symtab indices
-        let strtab = me.strtab.as_ref().unwrap();
-        let symtab = me.symtab.as_ref().unwrap();
+        let strtab = cache.strtab.as_ref().unwrap();
+        let symtab = cache.symtab.as_ref().unwrap();
         let mut str2symtab = Vec::<(usize, usize)>::with_capacity(symtab.len());
         for (sym_i, sym) in symtab.iter().enumerate() {
             let name_off = sym.st_name;
@@ -287,7 +278,7 @@ impl ElfParser {
         // Sort in the dictionary order
         str2symtab.sort_by_key(|&x| unsafe { CStr::from_ptr(strtab[x.0..].as_ptr().cast()) });
 
-        me.str2symtab = Some(str2symtab);
+        cache.str2symtab = Some(str2symtab);
 
         Ok(())
     }
@@ -295,9 +286,9 @@ impl ElfParser {
     pub fn get_elf_file_type(&self) -> Result<u16, Error> {
         self.ensure_ehdr()?;
 
-        let me = self.backobj.borrow();
+        let cache = self.cache.borrow();
 
-        Ok(me.ehdr.as_ref().unwrap().e_type)
+        Ok(cache.ehdr.as_ref().unwrap().e_type)
     }
 
     fn check_section_index(&self, sect_idx: usize) -> Result<(), Error> {
@@ -312,8 +303,8 @@ impl ElfParser {
     pub fn section_seek(&self, sect_idx: usize) -> Result<(), Error> {
         self.check_section_index(sect_idx)?;
         self.ensure_shdrs()?;
-        let me = self.backobj.borrow();
-        read_elf_section_seek(&self.file, &me.shdrs.as_ref().unwrap()[sect_idx])
+        let cache = self.cache.borrow();
+        read_elf_section_seek(&self.file, &cache.shdrs.as_ref().unwrap()[sect_idx])
     }
 
     /// Read the raw data of the section of a given index.
@@ -321,8 +312,8 @@ impl ElfParser {
         self.check_section_index(sect_idx)?;
         self.ensure_shdrs()?;
 
-        let me = self.backobj.borrow();
-        read_elf_section_raw(&self.file, &me.shdrs.as_ref().unwrap()[sect_idx])
+        let cache = self.cache.borrow();
+        read_elf_section_raw(&self.file, &cache.shdrs.as_ref().unwrap()[sect_idx])
     }
 
     /// Read the raw data of the section of a given index.
@@ -330,13 +321,13 @@ impl ElfParser {
         self.check_section_index(sect_idx)?;
         self.ensure_shdrs()?;
 
-        let mut me = self.backobj.borrow_mut();
-        if me.sect_cache[sect_idx].is_none() {
-            let buf = read_elf_section_raw(&self.file, &me.shdrs.as_ref().unwrap()[sect_idx])?;
-            me.sect_cache[sect_idx] = Some(buf);
+        let mut cache = self.cache.borrow_mut();
+        if cache.sect_cache[sect_idx].is_none() {
+            let buf = read_elf_section_raw(&self.file, &cache.shdrs.as_ref().unwrap()[sect_idx])?;
+            cache.sect_cache[sect_idx] = Some(buf);
         }
 
-        Ok(unsafe { mem::transmute(me.sect_cache[sect_idx].as_ref().unwrap().as_slice()) })
+        Ok(unsafe { mem::transmute(cache.sect_cache[sect_idx].as_ref().unwrap().as_slice()) })
     }
 
     /// Get the name of the section of a given index.
@@ -345,11 +336,11 @@ impl ElfParser {
 
         self.ensure_shstrtab()?;
 
-        let me = self.backobj.borrow();
+        let cache = self.cache.borrow();
 
-        let sect = &me.shdrs.as_ref().unwrap()[sect_idx];
+        let sect = &cache.shdrs.as_ref().unwrap()[sect_idx];
         let name = get_elf_section_name(sect, unsafe {
-            (*self.backobj.as_ptr()).shstrtab.as_ref().unwrap()
+            (*self.cache.as_ptr()).shstrtab.as_ref().unwrap()
         });
         if name.is_none() {
             return Err(Error::new(ErrorKind::InvalidData, "invalid section name"));
@@ -361,15 +352,15 @@ impl ElfParser {
         self.check_section_index(sect_idx)?;
         self.ensure_shdrs()?;
 
-        let me = self.backobj.borrow();
-        let sect = &me.shdrs.as_ref().unwrap()[sect_idx];
+        let cache = self.cache.borrow();
+        let sect = &cache.shdrs.as_ref().unwrap()[sect_idx];
         Ok(sect.sh_size as usize)
     }
 
     pub fn get_num_sections(&self) -> Result<usize, Error> {
         self.ensure_ehdr()?;
-        let me = self.backobj.borrow();
-        Ok(me.ehdr.as_ref().unwrap().e_shnum as usize)
+        let cache = self.cache.borrow();
+        Ok(cache.ehdr.as_ref().unwrap().e_shnum as usize)
     }
 
     /// Find the section of a given name.
@@ -392,15 +383,18 @@ impl ElfParser {
         self.ensure_symtab()?;
         self.ensure_strtab()?;
 
-        let me = self.backobj.borrow();
-        let idx_r =
-            search_address_opt_key(me.symtab.as_ref().unwrap(), address, &|sym: &Elf64_Sym| {
+        let cache = self.cache.borrow();
+        let idx_r = search_address_opt_key(
+            cache.symtab.as_ref().unwrap(),
+            address,
+            &|sym: &Elf64_Sym| {
                 if sym.st_info & 0xf != st_type || sym.st_shndx == SHN_UNDEF {
                     None
                 } else {
                     Some(sym.st_value)
                 }
-            });
+            },
+        );
         if idx_r.is_none() {
             return Err(Error::new(
                 ErrorKind::NotFound,
@@ -409,9 +403,9 @@ impl ElfParser {
         }
         let idx = idx_r.unwrap();
 
-        let sym = &me.symtab.as_ref().unwrap()[idx];
+        let sym = &cache.symtab.as_ref().unwrap()[idx];
         let sym_name = match extract_string(
-            unsafe { (*self.backobj.as_ptr()).strtab.as_ref().unwrap().as_slice() },
+            unsafe { (*self.cache.as_ptr()).strtab.as_ref().unwrap().as_slice() },
             sym.st_name as usize,
         ) {
             Some(sym_name) => sym_name,
@@ -432,9 +426,9 @@ impl ElfParser {
 
         self.ensure_str2symtab()?;
 
-        let me = self.backobj.borrow();
-        let str2symtab = me.str2symtab.as_ref().unwrap();
-        let strtab = me.strtab.as_ref().unwrap();
+        let cache = self.cache.borrow();
+        let str2symtab = cache.str2symtab.as_ref().unwrap();
+        let strtab = cache.strtab.as_ref().unwrap();
         let r = str2symtab.binary_search_by_key(&name.to_string(), |&x| {
             String::from(
                 unsafe { CStr::from_ptr(strtab[x.0..].as_ptr().cast()) }
@@ -470,7 +464,7 @@ impl ElfParser {
                         break;
                     }
                     let sym_i = str2symtab[idx].1;
-                    let sym_ref = &me.symtab.as_ref().unwrap()[sym_i];
+                    let sym_ref = &cache.symtab.as_ref().unwrap()[sym_i];
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymbolInfo {
                             name: name.to_string(),
@@ -498,9 +492,9 @@ impl ElfParser {
 
         self.ensure_str2symtab()?;
 
-        let me = self.backobj.borrow();
-        let str2symtab = me.str2symtab.as_ref().unwrap();
-        let strtab = me.strtab.as_ref().unwrap();
+        let cache = self.cache.borrow();
+        let str2symtab = cache.str2symtab.as_ref().unwrap();
+        let strtab = cache.strtab.as_ref().unwrap();
         let re = Regex::new(pattern).unwrap();
         let mut syms = vec![];
         for (str_off, sym_i) in str2symtab {
@@ -510,7 +504,7 @@ impl ElfParser {
                     .unwrap()
             };
             if re.is_match(sname) {
-                let sym_ref = &me.symtab.as_ref().unwrap()[*sym_i];
+                let sym_ref = &cache.symtab.as_ref().unwrap()[*sym_i];
                 if sym_ref.st_shndx != SHN_UNDEF {
                     syms.push(SymbolInfo {
                         name: sname.to_string(),
@@ -529,17 +523,17 @@ impl ElfParser {
     fn get_symbol(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
         self.ensure_symtab()?;
 
-        let me = self.backobj.as_ptr();
-        Ok(unsafe { &(*me).symtab.as_mut().unwrap()[idx] })
+        let cache = self.cache.as_ptr();
+        Ok(unsafe { &(*cache).symtab.as_mut().unwrap()[idx] })
     }
 
     #[cfg(test)]
     fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
         let sym = self.get_symbol(idx)?;
 
-        let me = self.backobj.as_ptr();
+        let cache = self.cache.as_ptr();
         let sym_name = match extract_string(
-            unsafe { (*me).strtab.as_ref().unwrap().as_slice() },
+            unsafe { (*cache).strtab.as_ref().unwrap().as_slice() },
             sym.st_name as usize,
         ) {
             Some(name) => name,
@@ -558,8 +552,8 @@ impl ElfParser {
         self.ensure_phdrs()?;
 
         let phdrs = unsafe {
-            let me = self.backobj.as_ptr();
-            let phdrs_ref = (*me).phdrs.as_mut().unwrap();
+            let cache = self.cache.as_ptr();
+            let phdrs_ref = (*cache).phdrs.as_mut().unwrap();
             phdrs_ref
         };
         Ok(phdrs)
@@ -570,15 +564,15 @@ impl ElfParser {
         self.ensure_symtab().unwrap();
         self.ensure_strtab().unwrap();
 
-        let me = self.backobj.borrow();
-        let symtab = me.symtab.as_ref().unwrap();
+        let cache = self.cache.borrow();
+        let symtab = cache.symtab.as_ref().unwrap();
         let mut idx = symtab.len() / 2;
         while symtab[idx].st_info & 0xf != STT_FUNC || symtab[idx].st_shndx == SHN_UNDEF {
             idx += 1;
         }
         let sym = &symtab[idx];
         let addr = sym.st_value;
-        drop(me);
+        drop(cache);
 
         let sym_name = self.get_symbol_name(idx).unwrap();
         (sym_name, addr)
