@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 use std::fs;
 use std::io::{BufRead, BufReader, Error, ErrorKind};
+use std::mem::align_of;
 use std::mem::size_of;
 use std::path::PathBuf;
 
@@ -255,6 +256,26 @@ pub(crate) trait ReadRaw<'data> {
         Some(value)
     }
 
+    /// Read a reference to something implementing `Pod`.
+    #[inline]
+    fn read_pod_ref<T>(&mut self) -> Option<&'data T>
+    where
+        T: Pod,
+    {
+        let data = self.read_slice(size_of::<T>())?;
+        let ptr = data.as_ptr();
+
+        if ptr.align_offset(align_of::<T>()) == 0 {
+            // SAFETY: `T` is `Pod` and hence valid for any bit pattern. The pointer
+            //         is guaranteed to be valid and to point to memory of at least
+            //         `sizeof(T)` bytes. We know it is properly aligned
+            //         because we checked that.
+            unsafe { ptr.cast::<T>().as_ref() }
+        } else {
+            None
+        }
+    }
+
     /// Read a `u8` value.
     #[inline]
     fn read_u8(&mut self) -> Option<u8> {
@@ -355,6 +376,8 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
 mod tests {
     use super::*;
 
+    use std::slice;
+
 
     /// Make sure that `[u8]::ensure` works as expected.
     #[test]
@@ -401,6 +424,40 @@ mod tests {
         test!(u64);
         test!(i128);
         test!(u128);
+    }
+
+    /// Check that we can read references to `Pod`s.
+    #[test]
+    fn pod_ref_reading() {
+        // This test assumes that `u64`'s required alignment is greater
+        // than 1.
+        assert!(align_of::<u64>() > 1, "{}", align_of::<u64>());
+
+        let mut buffer = [0u8; 64];
+        let ptr = buffer.as_mut_ptr();
+
+        let aligned_ptr = match ptr.align_offset(align_of::<u64>()) {
+            offset if offset < size_of::<u64>() => unsafe { ptr.add(offset) },
+            _ => unreachable!(),
+        };
+
+        // Write some data at the aligned location so that we can read
+        // it back.
+        let () = unsafe { aligned_ptr.cast::<u64>().write(1337) };
+
+        // We are sure that we have at least space for two `u64` (16
+        // bytes) in the buffer, even after alignment.
+        let mut slice = unsafe { slice::from_raw_parts(aligned_ptr, 16) };
+        assert_eq!(slice.read_pod_ref::<u64>(), Some(&1337));
+
+        // Make sure that we fail if there is insufficient space.
+        let mut slice = unsafe { slice::from_raw_parts(aligned_ptr, 4) };
+        assert_eq!(slice.read_pod_ref::<u64>(), None);
+
+        // Now also try with an unaligned pointer. It is guaranteed to
+        // be unaligned if we add a one byte offset.
+        let mut slice = unsafe { slice::from_raw_parts(aligned_ptr.add(1), 15) };
+        assert_eq!(slice.read_pod_ref::<u64>(), None);
     }
 
     /// Test reading of signed and unsigned 16 and 32 bit values against known
