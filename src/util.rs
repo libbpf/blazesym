@@ -213,27 +213,25 @@ pub fn decode_udword(mut data: &[u8]) -> u64 {
     data.read_u64().unwrap()
 }
 
-mod sealed {
-    /// A marker trait for "plain old data" data types.
-    ///
-    /// # Safety
-    /// Only safe to implement for types that are valid for any bit pattern.
-    pub unsafe trait Pod {}
+/// A marker trait for "plain old data" data types.
+///
+/// # Safety
+/// Only safe to implement for types that are valid for any bit pattern.
+pub(crate) unsafe trait Pod {}
 
-    unsafe impl Pod for i8 {}
-    unsafe impl Pod for u8 {}
-    unsafe impl Pod for i16 {}
-    unsafe impl Pod for u16 {}
-    unsafe impl Pod for i32 {}
-    unsafe impl Pod for u32 {}
-    unsafe impl Pod for i64 {}
-    unsafe impl Pod for u64 {}
-    unsafe impl Pod for i128 {}
-    unsafe impl Pod for u128 {}
-}
+unsafe impl Pod for i8 {}
+unsafe impl Pod for u8 {}
+unsafe impl Pod for i16 {}
+unsafe impl Pod for u16 {}
+unsafe impl Pod for i32 {}
+unsafe impl Pod for u32 {}
+unsafe impl Pod for i64 {}
+unsafe impl Pod for u64 {}
+unsafe impl Pod for i128 {}
+unsafe impl Pod for u128 {}
 
 /// An trait providing utility functions for reading data from a byte buffer.
-pub trait ReadRaw<'data> {
+pub(crate) trait ReadRaw<'data> {
     /// Ensure that `len` bytes are available for consumption.
     fn ensure(&self, len: usize) -> Option<()>;
 
@@ -247,7 +245,7 @@ pub trait ReadRaw<'data> {
     #[inline]
     fn read_pod<T>(&mut self) -> Option<T>
     where
-        T: sealed::Pod,
+        T: Pod,
     {
         let data = self.read_slice(size_of::<T>())?;
         // SAFETY: `T` is `Pod` and hence valid for any bit pattern. The pointer
