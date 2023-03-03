@@ -87,7 +87,6 @@ struct Cache<'mmap> {
     symtab_origin: Option<Vec<Elf64_Sym>>, // The copy in the same order as the file
     strtab: Option<Vec<u8>>,
     str2symtab: Option<Vec<(usize, usize)>>, // strtab offset to symtab in the dictionary order
-    sect_cache: Vec<Option<Vec<u8>>>,
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -103,7 +102,6 @@ impl<'mmap> Cache<'mmap> {
             symtab_origin: None,
             strtab: None,
             str2symtab: None,
-            sect_cache: Vec::new(),
         }
     }
 
@@ -181,7 +179,6 @@ impl ElfParser {
         }
 
         let shdrs = read_elf_sections(&self.file, ehdr)?;
-        cache.sect_cache.resize(shdrs.len(), None);
         cache.shdrs = Some(shdrs);
 
         Ok(())
@@ -341,20 +338,6 @@ impl ElfParser {
 
         let cache = self.cache.borrow();
         read_elf_section_raw(&self.file, &cache.shdrs.as_ref().unwrap()[sect_idx])
-    }
-
-    /// Read the raw data of the section of a given index.
-    pub fn read_section_raw_cache(&self, sect_idx: usize) -> Result<&[u8], Error> {
-        self.check_section_index(sect_idx)?;
-        self.ensure_shdrs()?;
-
-        let mut cache = self.cache.borrow_mut();
-        if cache.sect_cache[sect_idx].is_none() {
-            let buf = read_elf_section_raw(&self.file, &cache.shdrs.as_ref().unwrap()[sect_idx])?;
-            cache.sect_cache[sect_idx] = Some(buf);
-        }
-
-        Ok(unsafe { mem::transmute(cache.sect_cache[sect_idx].as_ref().unwrap().as_slice()) })
     }
 
     /// Get the name of the section of a given index.
