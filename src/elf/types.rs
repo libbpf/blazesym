@@ -15,6 +15,8 @@ unsafe impl crate::util::Pod for Elf64_Ehdr {}
 unsafe impl crate::util::Pod for Elf64_Phdr {}
 // SAFETY: `Elf64_Shdr` is valid for any bit pattern.
 unsafe impl crate::util::Pod for Elf64_Shdr {}
+// SAFETY: `Elf64_Sym` is valid for any bit pattern.
+unsafe impl crate::util::Pod for Elf64_Sym {}
 
 pub use libc::ET_CORE;
 pub use libc::ET_DYN;
