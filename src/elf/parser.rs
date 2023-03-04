@@ -51,8 +51,7 @@ struct Cache<'mmap> {
     shstrtab: Option<&'mmap [u8]>,
     /// The cached ELF program headers.
     phdrs: Option<&'mmap [Elf64_Phdr]>,
-    symtab: Option<Vec<Elf64_Sym>>,        // in address order
-    symtab_origin: Option<Vec<Elf64_Sym>>, // The copy in the same order as the file
+    symtab: Option<Vec<Elf64_Sym>>, // in address order
     strtab: Option<Vec<u8>>,
     str2symtab: Option<Vec<(usize, usize)>>, // strtab offset to symtab in the dictionary order
 }
@@ -67,7 +66,6 @@ impl<'mmap> Cache<'mmap> {
             shstrtab: None,
             phdrs: None,
             symtab: None,
-            symtab_origin: None,
             strtab: None,
             str2symtab: None,
         }
@@ -263,12 +261,10 @@ impl ElfParser {
             symtab_raw.leak();
             Vec::from_raw_parts(symtab_ptr, cnt, cnt)
         };
-        let origin = symtab.clone();
         symtab.sort_by_key(|x| x.st_value);
 
         let mut cache = self.cache.borrow_mut();
         cache.symtab = Some(symtab);
-        cache.symtab_origin = Some(origin);
 
         Ok(())
     }
