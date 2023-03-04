@@ -40,10 +40,6 @@ fn read_elf_section_raw(file: &File, section: &Elf64_Shdr) -> Result<Vec<u8>, Er
     read_u8(file, section.sh_offset, section.sh_size as usize)
 }
 
-fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a str> {
-    extract_string(strtab, sect.sh_name as usize)
-}
-
 #[derive(Debug)]
 struct Cache<'mmap> {
     /// A slice of the raw ELF data that we are about to parse.
@@ -169,6 +165,29 @@ impl<'mmap> Cache<'mmap> {
         let shstrtab = self.section_data(shstrndx as usize)?;
         self.shstrtab = Some(shstrtab);
         Ok(shstrtab)
+    }
+
+    /// Get the name of the section at a given index.
+    fn section_name(&mut self, idx: usize) -> Result<&'mmap str, Error> {
+        let shdrs = self.ensure_shdrs()?;
+        let shstrtab = self.ensure_shstrtab()?;
+
+        let sect = shdrs.get(idx).ok_or_else(|| {
+            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
+        })?;
+        let name = shstrtab
+            .get(sect.sh_name as usize..)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "string table index out of bounds"))?
+            .read_cstr()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    "no valid string found in string table",
+                )
+            })?
+            .to_str()
+            .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid section name"))?;
+        Ok(name)
     }
 }
 
@@ -328,17 +347,7 @@ impl ElfParser {
     /// Get the name of the section of a given index.
     pub fn get_section_name(&self, sect_idx: usize) -> Result<&str, Error> {
         let mut cache = self.cache.borrow_mut();
-        let shdrs = cache.ensure_shdrs()?;
-        let shstrtab = cache.ensure_shstrtab()?;
-
-        let sect = shdrs.get(sect_idx).ok_or_else(|| {
-            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
-        })?;
-        let name = get_elf_section_name(sect, shstrtab);
-        if name.is_none() {
-            return Err(Error::new(ErrorKind::InvalidData, "invalid section name"));
-        }
-        Ok(name.unwrap())
+        cache.section_name(sect_idx)
     }
 
     pub fn get_section_size(&self, sect_idx: usize) -> Result<usize, Error> {
