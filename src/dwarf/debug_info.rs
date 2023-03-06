@@ -844,7 +844,7 @@ mod tests {
         let info_idx = elfparser.find_section(".debug_info").unwrap();
         let info = elfparser.read_section_raw(info_idx).unwrap();
 
-        let iter = UnitIter::new(&info, &abbrev);
+        let iter = UnitIter::new(info, abbrev);
         let mut cnt = 0;
         let mut die_cnt = 0;
         let mut attr_cnt = 0;
