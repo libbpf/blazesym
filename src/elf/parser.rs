@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::ffi::CStr;
 use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -41,7 +40,7 @@ struct Cache<'mmap> {
     symtab: Option<Vec<&'mmap Elf64_Sym>>, // in address order
     /// The cached ELF string table.
     strtab: Option<&'mmap [u8]>,
-    str2symtab: Option<Vec<(usize, usize)>>, // strtab offset to symtab in the dictionary order
+    str2symtab: Option<Vec<(&'mmap str, usize)>>, // strtab offset to symtab in the dictionary order
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -279,6 +278,53 @@ impl<'mmap> Cache<'mmap> {
         self.strtab = Some(strtab);
         Ok(strtab)
     }
+
+    // Note: This function should really return a reference to
+    //       `self.str2symtab`, but current borrow checker limitations
+    //       effectively prevent us from doing so.
+    fn ensure_str2symtab(&mut self) -> Result<(), Error> {
+        if self.str2symtab.is_some() {
+            return Ok(())
+        }
+
+        let strtab = self.ensure_strtab()?;
+        let () = self.ensure_symtab()?;
+        // SANITY: The above `ensure_symtab` ensures we have `symtab`
+        //         available.
+        let symtab = self.symtab.as_ref().unwrap();
+
+        let mut str2symtab = symtab
+            .iter()
+            .enumerate()
+            .map(|(i, sym)| {
+                let name = strtab
+                    .get(sym.st_name as usize..)
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::InvalidInput,
+                            "string table index out of bounds",
+                        )
+                    })?
+                    .read_cstr()
+                    .ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::InvalidInput,
+                            "no valid string found in string table",
+                        )
+                    })?
+                    .to_str()
+                    .map_err(|_| {
+                        Error::new(ErrorKind::InvalidInput, "invalid symbol name")
+                    })?;
+                Ok((name, i))
+            })
+            .collect::<Result<Vec<_>, Error>>()?;
+
+        let () = str2symtab.sort_by_key(|&(name, _i)| name);
+
+        self.str2symtab = Some(str2symtab);
+        Ok(())
+    }
 }
 
 
@@ -320,33 +366,6 @@ impl ElfParser {
         } else {
             parser
         }
-    }
-
-    fn ensure_str2symtab(&self) -> Result<(), Error> {
-        let mut cache = self.cache.borrow_mut();
-        let strtab = cache.ensure_strtab()?;
-        let () = cache.ensure_symtab()?;
-        // SANITY: The above `ensure_symtab` ensures we have `symtab`
-        //         available.
-        let symtab = cache.symtab.as_ref().unwrap();
-
-        if cache.str2symtab.is_some() {
-            return Ok(());
-        }
-
-        // Build strtab offsets to symtab indices
-        let mut str2symtab = Vec::<(usize, usize)>::with_capacity(symtab.len());
-        for (sym_i, sym) in symtab.iter().enumerate() {
-            let name_off = sym.st_name;
-            str2symtab.push((name_off as usize, sym_i));
-        }
-
-        // Sort in the dictionary order
-        str2symtab.sort_by_key(|&x| unsafe { CStr::from_ptr(strtab[x.0..].as_ptr().cast()) });
-
-        cache.str2symtab = Some(str2symtab);
-
-        Ok(())
     }
 
     pub fn get_elf_file_type(&self) -> Result<u16, Error> {
@@ -419,29 +438,23 @@ impl ElfParser {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
         }
 
-        self.ensure_str2symtab()?;
-
         let mut cache = self.cache.borrow_mut();
-        let strtab = cache.ensure_strtab()?;
+        let () = cache.ensure_symtab()?;
+        let () = cache.ensure_str2symtab()?;
+        // SANITY: The above `ensure_symtab` ensures we have `symtab`
+        //         available.
+        let symtab = cache.symtab.as_ref().unwrap();
+        // SANITY: The above `ensure_str2symtab` ensures we have
+        //         `str2symtab` available.
         let str2symtab = cache.str2symtab.as_ref().unwrap();
 
-        let r = str2symtab.binary_search_by_key(&name.to_string(), |&x| {
-            String::from(
-                unsafe { CStr::from_ptr(strtab[x.0..].as_ptr().cast()) }
-                    .to_str()
-                    .unwrap(),
-            )
-        });
+        let r = str2symtab.binary_search_by_key(&name.to_string(), |&(name, _i)| name.to_string());
 
         match r {
             Ok(str2sym_i) => {
                 let mut idx = str2sym_i;
                 while idx > 0 {
-                    let name_seek = unsafe {
-                        CStr::from_ptr(strtab[str2symtab[idx].0..].as_ptr().cast())
-                            .to_str()
-                            .unwrap()
-                    };
+                    let name_seek = str2symtab[idx].0;
                     if !name_seek.eq(name) {
                         idx += 1;
                         break;
@@ -450,17 +463,11 @@ impl ElfParser {
                 }
 
                 let mut found = vec![];
-                for idx in idx..str2symtab.len() {
-                    let name_visit = unsafe {
-                        CStr::from_ptr(strtab[str2symtab[idx].0..].as_ptr().cast())
-                            .to_str()
-                            .unwrap()
-                    };
-                    if !name_visit.eq(name) {
+                for (name_visit, sym_i) in str2symtab.iter().skip(idx) {
+                    if !(*name_visit).eq(name) {
                         break;
                     }
-                    let sym_i = str2symtab[idx].1;
-                    let sym_ref = &cache.symtab.as_ref().unwrap()[sym_i];
+                    let sym_ref = &symtab[*sym_i];
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymbolInfo {
                             name: name.to_string(),
@@ -486,22 +493,27 @@ impl ElfParser {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
         }
 
-        self.ensure_str2symtab()?;
 
         let mut cache = self.cache.borrow_mut();
-        let strtab = cache.ensure_strtab()?;
+        let () = cache.ensure_symtab()?;
+        let () = cache.ensure_str2symtab()?;
+        // SANITY: The above `ensure_symtab` ensures we have `symtab`
+        //         available.
+        let symtab = cache.symtab.as_ref().unwrap();
+        // SANITY: The above `ensure_str2symtab` ensures we have
+        //         `str2symtab` available.
         let str2symtab = cache.str2symtab.as_ref().unwrap();
 
         let re = Regex::new(pattern).unwrap();
         let mut syms = vec![];
-        for (str_off, sym_i) in str2symtab {
-            let sname = unsafe {
-                CStr::from_ptr(strtab[*str_off..].as_ptr().cast())
-                    .to_str()
-                    .unwrap()
-            };
+        for (sname, sym_i) in str2symtab {
             if re.is_match(sname) {
-                let sym_ref = &cache.symtab.as_ref().unwrap()[*sym_i];
+                let sym_ref = &symtab.get(*sym_i).ok_or_else(|| {
+                    Error::new(
+                        ErrorKind::InvalidInput,
+                        format!("index ({sym_i}) into ELF symbol table out of bounds"),
+                    )
+                })?;
                 if sym_ref.st_shndx != SHN_UNDEF {
                     syms.push(SymbolInfo {
                         name: sname.to_string(),
