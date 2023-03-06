@@ -99,24 +99,6 @@ pub fn search_address_opt_key<T, V: Ord>(
     Some(left)
 }
 
-pub fn extract_string(raw: &[u8], off: usize) -> Option<&str> {
-    let mut end = off;
-
-    if off >= raw.len() {
-        return None;
-    }
-    while end < raw.len() && raw[end] != 0 {
-        end += 1;
-    }
-    if end >= raw.len() {
-        return None;
-    }
-    CStr::from_bytes_with_nul(&raw[off..=end])
-        .ok()?
-        .to_str()
-        .ok()
-}
-
 pub struct LinuxMapsEntry {
     pub loaded_address: u64,
     pub end_address: u64,

@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::ffi::CStr;
 use std::fs::File;
-use std::io::{Error, ErrorKind, Read, Seek, SeekFrom};
+use std::io::Error;
+use std::io::ErrorKind;
 use std::mem;
 use std::ops::Deref as _;
 #[cfg(test)]
@@ -11,7 +12,6 @@ use memmap::Mmap;
 
 use regex::Regex;
 
-use crate::util::extract_string;
 use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
 use crate::FindAddrOpts;
@@ -26,19 +26,6 @@ use super::types::SHN_UNDEF;
 #[cfg(test)]
 use super::types::STT_FUNC;
 
-
-fn read_u8(mut file: &File, off: u64, size: usize) -> Result<Vec<u8>, Error> {
-    let mut buf = vec![0; size];
-
-    file.seek(SeekFrom::Start(off))?;
-    file.read_exact(buf.as_mut_slice())?;
-
-    Ok(buf)
-}
-
-fn read_elf_section_raw(file: &File, section: &Elf64_Shdr) -> Result<Vec<u8>, Error> {
-    read_u8(file, section.sh_offset, section.sh_size as usize)
-}
 
 #[derive(Debug)]
 struct Cache<'mmap> {
@@ -298,8 +285,6 @@ impl<'mmap> Cache<'mmap> {
 /// A parser for ELF64 files.
 #[derive(Debug)]
 pub struct ElfParser {
-    /// The file representing the ELF object to be parsed.
-    file: File,
     /// A cache for relevant parts of the ELF file.
     /// SAFETY: We must not hand out references with a 'static lifetime to
     ///         this member. Rather, they should never outlive `self`.
@@ -307,7 +292,7 @@ pub struct ElfParser {
     ///         to make sure we never end up with a dangling reference.
     cache: RefCell<Cache<'static>>,
     /// The memory mapped file.
-    mmap: Mmap,
+    _mmap: Mmap,
 }
 
 impl ElfParser {
@@ -320,8 +305,7 @@ impl ElfParser {
         let elf_data = unsafe { std::mem::transmute(mmap.deref()) };
 
         let parser = ElfParser {
-            file,
-            mmap,
+            _mmap: mmap,
             cache: RefCell::new(Cache::new(elf_data)),
         };
         Ok(parser)
@@ -379,13 +363,10 @@ impl ElfParser {
     }
 
     /// Read the raw data of the section of a given index.
-    pub fn read_section_raw(&self, sect_idx: usize) -> Result<Vec<u8>, Error> {
+    #[cfg(test)]
+    pub fn read_section_raw(&self, sect_idx: usize) -> Result<&[u8], Error> {
         let mut cache = self.cache.borrow_mut();
-        let shdrs = cache.ensure_shdrs()?;
-        let shdr = shdrs.get(sect_idx).ok_or_else(|| {
-            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
-        })?;
-        read_elf_section_raw(&self.file, shdr)
+        cache.section_data(sect_idx)
     }
 
     pub fn get_section_size(&self, sect_idx: usize) -> Result<usize, Error> {
@@ -533,12 +514,6 @@ impl ElfParser {
             }
         }
         Ok(syms)
-    }
-
-    #[cfg(test)]
-    fn get_symbol(&self, idx: usize) -> Result<&Elf64_Sym, Error> {
-        let mut cache = self.cache.borrow_mut();
-        cache.symbol(idx)
     }
 
     #[cfg(test)]
