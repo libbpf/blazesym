@@ -52,7 +52,8 @@ struct Cache<'mmap> {
     /// The cached ELF program headers.
     phdrs: Option<&'mmap [Elf64_Phdr]>,
     symtab: Option<Vec<&'mmap Elf64_Sym>>, // in address order
-    strtab: Option<Vec<u8>>,
+    /// The cached ELF string table.
+    strtab: Option<&'mmap [u8]>,
     str2symtab: Option<Vec<(usize, usize)>>, // strtab offset to symtab in the dictionary order
 }
 
@@ -203,6 +204,25 @@ impl<'mmap> Cache<'mmap> {
         Ok(symbol)
     }
 
+    fn symbol_name(&mut self, sym: &Elf64_Sym) -> Result<&'mmap str, Error> {
+        let strtab = self.ensure_strtab()?;
+
+        let name = strtab
+            .get(sym.st_name as usize..)
+            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "string table index out of bounds"))?
+            .read_cstr()
+            .ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    "no valid string found in string table",
+                )
+            })?
+            .to_str()
+            .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid symbol name"))?;
+
+        Ok(name)
+    }
+
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
@@ -257,6 +277,21 @@ impl<'mmap> Cache<'mmap> {
         self.symtab = Some(symtab);
         Ok(())
     }
+
+    fn ensure_strtab(&mut self) -> Result<&'mmap [u8], Error> {
+        if let Some(strtab) = self.strtab {
+            return Ok(strtab);
+        }
+
+        let idx = if let Ok(idx) = self.find_section(".strtab") {
+            idx
+        } else {
+            self.find_section(".dynstr")?
+        };
+        let strtab = self.section_data(idx)?;
+        self.strtab = Some(strtab);
+        Ok(strtab)
+    }
 }
 
 
@@ -303,32 +338,9 @@ impl ElfParser {
         }
     }
 
-    fn ensure_strtab(&self) -> Result<(), Error> {
-        {
-            let cache = self.cache.borrow();
-
-            if cache.strtab.is_some() {
-                return Ok(());
-            }
-        }
-
-        let sect_idx = if let Ok(idx) = self.find_section(".strtab") {
-            idx
-        } else {
-            self.find_section(".dynstr")?
-        };
-        let strtab = self.read_section_raw(sect_idx)?;
-
-        let mut cache = self.cache.borrow_mut();
-        cache.strtab = Some(strtab);
-
-        Ok(())
-    }
-
     fn ensure_str2symtab(&self) -> Result<(), Error> {
-        self.ensure_strtab()?;
-
         let mut cache = self.cache.borrow_mut();
+        let strtab = cache.ensure_strtab()?;
         let () = cache.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
         //         available.
@@ -339,7 +351,6 @@ impl ElfParser {
         }
 
         // Build strtab offsets to symtab indices
-        let strtab = cache.strtab.as_ref().unwrap();
         let mut str2symtab = Vec::<(usize, usize)>::with_capacity(symtab.len());
         for (sym_i, sym) in symtab.iter().enumerate() {
             let name_off = sym.st_name;
@@ -396,8 +407,6 @@ impl ElfParser {
     }
 
     pub fn find_symbol(&self, address: u64, st_type: u8) -> Result<(&str, u64), Error> {
-        self.ensure_strtab()?;
-
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
@@ -420,19 +429,8 @@ impl ElfParser {
         let idx = idx_r.unwrap();
 
         let sym = cache.symbol(idx)?;
-        let sym_name = match extract_string(
-            unsafe { (*self.cache.as_ptr()).strtab.as_ref().unwrap().as_slice() },
-            sym.st_name as usize,
-        ) {
-            Some(sym_name) => sym_name,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "invalid symbol name string/offset",
-                ));
-            }
-        };
-        Ok((sym_name, sym.st_value))
+        let name = cache.symbol_name(sym)?;
+        Ok((name, sym.st_value))
     }
 
     pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
@@ -442,9 +440,10 @@ impl ElfParser {
 
         self.ensure_str2symtab()?;
 
-        let cache = self.cache.borrow();
+        let mut cache = self.cache.borrow_mut();
+        let strtab = cache.ensure_strtab()?;
         let str2symtab = cache.str2symtab.as_ref().unwrap();
-        let strtab = cache.strtab.as_ref().unwrap();
+
         let r = str2symtab.binary_search_by_key(&name.to_string(), |&x| {
             String::from(
                 unsafe { CStr::from_ptr(strtab[x.0..].as_ptr().cast()) }
@@ -508,9 +507,10 @@ impl ElfParser {
 
         self.ensure_str2symtab()?;
 
-        let cache = self.cache.borrow();
+        let mut cache = self.cache.borrow_mut();
+        let strtab = cache.ensure_strtab()?;
         let str2symtab = cache.str2symtab.as_ref().unwrap();
-        let strtab = cache.strtab.as_ref().unwrap();
+
         let re = Regex::new(pattern).unwrap();
         let mut syms = vec![];
         for (str_off, sym_i) in str2symtab {
@@ -543,23 +543,10 @@ impl ElfParser {
 
     #[cfg(test)]
     fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
-        let sym = self.get_symbol(idx)?;
-
-        let cache = self.cache.as_ptr();
-        let sym_name = match extract_string(
-            unsafe { (*cache).strtab.as_ref().unwrap().as_slice() },
-            sym.st_name as usize,
-        ) {
-            Some(name) => name,
-            None => {
-                return Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "invalid symb name string/offset",
-                ));
-            }
-        };
-
-        Ok(sym_name)
+        let mut cache = self.cache.borrow_mut();
+        let sym = cache.symbol(idx)?;
+        let name = cache.symbol_name(sym)?;
+        Ok(name)
     }
 
     pub fn get_all_program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
@@ -570,8 +557,6 @@ impl ElfParser {
 
     #[cfg(test)]
     fn pick_symtab_addr(&self) -> (&str, u64) {
-        self.ensure_strtab().unwrap();
-
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab().unwrap();
         let symtab = cache.symtab.as_ref().unwrap();
