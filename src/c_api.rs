@@ -794,7 +794,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     let pattern = unsafe { CStr::from_ptr(pattern) };
     let features = unsafe { convert_find_addr_features(features, num_features) };
     let syms =
-        { symbolizer.find_address_regex_opt(&sym_srcs_rs, pattern.to_str().unwrap(), features) };
+        { symbolizer.find_address_regex_opt(&sym_srcs_rs, pattern.to_str().unwrap(), &features) };
 
     if syms.is_none() {
         return ptr::null_mut();
@@ -892,7 +892,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         for name in names_cstr.iter().take(name_cnt) {
             names_r.push(name.to_str().unwrap());
         }
-        symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, features)
+        symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, &features)
     };
 
     unsafe { convert_syms_list_to_c(syms) }
