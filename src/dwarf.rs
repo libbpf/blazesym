@@ -1495,6 +1495,44 @@ mod tests {
         assert!(!syms.is_empty());
     }
 
+    /// Check that we can look up a symbol in DWARF debug information.
+    #[test]
+    fn lookup_symbol() {
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-dwarf.bin");
+        let opts = FindAddrOpts {
+            offset_in_file: false,
+            obj_file_name: false,
+            sym_type: SymbolType::Function,
+        };
+        let resolver = DwarfResolver::open(test_gsym.as_ref(), true, true).unwrap();
+
+        let symbols = resolver.find_address("factorial", &opts).unwrap();
+        assert_eq!(symbols.len(), 1);
+
+        // `factorial` resides at address 0x2000100.
+        let symbol = symbols.first().unwrap();
+        assert_eq!(symbol.address, 0x2000100);
+    }
+
+    /// Check that we fail to look up variables.
+    #[test]
+    fn lookup_symbol_wrong_type() {
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-dwarf.bin");
+        let opts = FindAddrOpts {
+            offset_in_file: false,
+            obj_file_name: false,
+            sym_type: SymbolType::Variable,
+        };
+        let resolver = DwarfResolver::open(test_gsym.as_ref(), true, true).unwrap();
+
+        let err = resolver.find_address("factorial", &opts).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+    }
+
     /// Benchmark the [`debug_info_parse_symbols`] function.
     #[cfg(feature = "nightly")]
     #[bench]
