@@ -110,13 +110,13 @@ fn build_test_bins(crate_root: &Path) {
     cc(&src, "test-no-debug.bin", &["-g0"]);
     cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
 
-    let src = crate_root.join("data").join("test-gsym.c");
-    let ld_script = crate_root.join("data").join("test-gsym.ld");
+    let src = crate_root.join("data").join("test-stable-addresses.c");
+    let ld_script = crate_root.join("data").join("test-stable-addresses.ld");
     let ld_script = ld_script.to_str().unwrap();
     println!("cargo:rerun-if-changed={ld_script}");
     cc(
         &src,
-        "test-gsym.bin",
+        "test-stable-addresses.bin",
         &[
             "-gdwarf-4",
             "-T",
@@ -127,7 +127,7 @@ fn build_test_bins(crate_root: &Path) {
         ],
     );
 
-    let src = crate_root.join("data").join("test-gsym.bin");
+    let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test.gsym");
 }
 

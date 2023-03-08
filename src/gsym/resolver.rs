@@ -214,11 +214,11 @@ mod tests {
         // `main` resides at address 0x2000000, and it's located at line 19.
         let info = resolver.find_line_info(0x2000000).unwrap();
         assert_eq!(info.line_no, 19);
-        assert!(info.path.ends_with("test-gsym.c"));
+        assert!(info.path.ends_with("test-stable-addresses.c"));
 
         // `factorial` resides at address 0x2000100, and it's located at line 7.
         let info = resolver.find_line_info(0x2000100).unwrap();
         assert_eq!(info.line_no, 7);
-        assert!(info.path.ends_with("test-gsym.c"));
+        assert!(info.path.ends_with("test-stable-addresses.c"));
     }
 }
