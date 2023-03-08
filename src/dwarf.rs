@@ -6,6 +6,9 @@ use super::{FindAddrOpts, SymbolInfo, SymbolType};
 use crossbeam_channel::unbounded;
 
 use std::cell::RefCell;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::io::{Error, ErrorKind};
 use std::iter::Iterator;
 use std::mem;
@@ -56,7 +59,20 @@ struct DebugLinePrologue {
     opcode_base: u8,
 }
 
+impl Debug for DebugLinePrologue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let total_length = self.total_length;
+        let version = self.version;
+
+        f.debug_struct("DebugLinePrologue")
+            .field("total_length", &total_length)
+            .field("version", &version)
+            .finish()
+    }
+}
+
 /// The file information of a file for a CU.
+#[derive(Debug)]
 struct DebugLineFileInfo {
     name: String,
     dir_idx: u32, // Index to include_directories of DebugLineCU.
@@ -65,6 +81,7 @@ struct DebugLineFileInfo {
 }
 
 /// Represent a Compile Unit (CU) in a .debug_line section.
+#[derive(Debug)]
 struct DebugLineCU {
     prologue: DebugLinePrologue,
     _standard_opcode_lengths: Vec<u8>,
@@ -684,6 +701,7 @@ fn parse_debug_line_elf_parser(
 }
 
 /// DwarfResolver provides abilities to query DWARF information of binaries.
+#[derive(Debug)]
 pub struct DwarfResolver {
     parser: Rc<ElfParser>,
     debug_line_cus: Vec<DebugLineCU>,
@@ -929,7 +947,7 @@ impl DwarfResolver {
 }
 
 /// The symbol information extracted out of DWARF.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct DWSymInfo<'a> {
     name: &'a str,
     address: u64,

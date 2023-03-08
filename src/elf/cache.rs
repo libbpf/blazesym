@@ -17,7 +17,7 @@ type ElfCacheEntryKey = PathBuf;
 
 const DFL_CACHE_MAX: usize = 1024;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ElfBackend {
     Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
     Elf(Rc<ElfParser>),       // ELF w/o DWARF
@@ -38,6 +38,7 @@ impl ElfBackend {
     }
 }
 
+#[derive(Debug)]
 struct ElfCacheEntry {
     // LRU links
     prev: *mut ElfCacheEntry,
@@ -104,6 +105,7 @@ impl ElfCacheEntry {
 }
 
 /// Maintain a LRU linked list of entries
+#[derive(Debug)]
 struct ElfCacheLru {
     head: *mut ElfCacheEntry,
     tail: *mut ElfCacheEntry,
@@ -167,6 +169,7 @@ impl ElfCacheLru {
     }
 }
 
+#[derive(Debug)]
 struct _ElfCache {
     elfs: HashMap<ElfCacheEntryKey, Box<ElfCacheEntry>>,
     lru: ElfCacheLru,
@@ -267,6 +270,7 @@ impl _ElfCache {
     }
 }
 
+#[derive(Debug)]
 pub struct ElfCache {
     cache: RefCell<_ElfCache>,
 }

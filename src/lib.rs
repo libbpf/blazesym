@@ -7,6 +7,7 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::let_and_return, clippy::let_unit_value)]
 #![deny(unsafe_op_in_unsafe_fn)]
+#![warn(missing_debug_implementations)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
 #[cfg(feature = "nightly")]
@@ -36,6 +37,7 @@ use ksym::{KSymCache, KSymResolver};
 #[cfg(doc)]
 pub use c_api::*;
 
+#[derive(Debug)]
 struct CacheHolder {
     ksym: KSymCache,
     elf: ElfCache,
@@ -81,7 +83,7 @@ struct AddressLineInfo {
 }
 
 /// Types of symbols..
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum SymbolType {
     Unknown,
     Function,
@@ -92,6 +94,7 @@ pub enum SymbolType {
 ///
 /// This type passes additional parameters to resolvers.
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct FindAddrOpts {
     /// Return the offset of the symbol from the first byte of the
     /// object file if it is true. (False by default)
@@ -103,6 +106,7 @@ pub struct FindAddrOpts {
 }
 
 /// Information of a symbol.
+#[derive(Debug)]
 pub struct SymbolInfo {
     /// The name of the symbol; for example, a function name.
     pub name: String,
@@ -372,7 +376,7 @@ impl SymResolver for KernelResolver {
 ///
 /// The source of symbols and debug information can be an ELF file, kernel
 /// image, or process.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SymbolSrcCfg {
     /// A single ELF file
     ///
@@ -443,7 +447,7 @@ pub enum SymbolSrcCfg {
 /// ...]`.  At the first level, each entry is a list of
 /// `SymbolizedResult`.  [`BlazeSymbolizer::symbolize()`] can return
 /// multiple results of an address due to compiler optimizations.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct SymbolizedResult {
     /// The symbol name that an address may belong to.
     pub symbol: String,
@@ -603,6 +607,7 @@ impl ResolverMap {
 /// Passing variants of this `enum` to [`BlazeSymbolizer::new_opt()`]
 /// will enable (true) or disable (false) respective features
 /// of a symbolizer.
+#[derive(Debug)]
 pub enum SymbolizerFeature {
     /// Switch on or off the feature of returning file names and line numbers of addresses.
     ///
@@ -618,6 +623,7 @@ pub enum SymbolizerFeature {
 
 /// Switches and settings of features to modify the way looking up addresses of
 /// symbols or the returned information.
+#[derive(Debug)]
 pub enum FindAddrFeature {
     /// Return the offset in the file.
     ///
@@ -650,6 +656,7 @@ pub enum FindAddrFeature {
 /// (`SymbolSrcCfg::Elf`), or a Linux kernel image and a copy of its
 /// kallsyms (`SymbolSrcCfg::Kernel`).  Additionally, BlazeSymbolizer
 /// uses information from these sources to symbolize addresses.
+#[derive(Debug)]
 pub struct BlazeSymbolizer {
     cache_holder: CacheHolder,
 

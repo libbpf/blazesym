@@ -16,6 +16,7 @@ use regex::Regex;
 const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
 
+#[derive(Debug)]
 pub struct Ksym {
     pub addr: u64,
     pub name: String,
@@ -25,6 +26,7 @@ pub struct Ksym {
 ///
 /// The users should provide the path of kallsyms, so you can provide
 /// a copy from other devices.
+#[derive(Debug)]
 pub struct KSymResolver {
     syms: Vec<Ksym>,
     sym_to_addr: RefCell<HashMap<&'static str, u64>>,
@@ -203,6 +205,7 @@ impl SymResolver for KSymResolver {
 /// Cache of KSymResolver.
 ///
 /// It returns the same isntance if path is the same.
+#[derive(Debug)]
 pub struct KSymCache {
     resolvers: RefCell<HashMap<PathBuf, Rc<KSymResolver>>>,
 }
