@@ -87,6 +87,7 @@ fn get_elf_section_name<'a>(sect: &Elf64_Shdr, strtab: &'a [u8]) -> Option<&'a s
     extract_string(strtab, sect.sh_name as usize)
 }
 
+#[derive(Debug)]
 struct ElfParserBack {
     ehdr: Option<Elf64_Ehdr>,
     shdrs: Option<Vec<Elf64_Shdr>>,
@@ -100,7 +101,7 @@ struct ElfParserBack {
 }
 
 /// A parser against ELF64 format.
-///
+#[derive(Debug)]
 pub struct ElfParser {
     file: RefCell<File>,
     backobj: RefCell<ElfParserBack>,
