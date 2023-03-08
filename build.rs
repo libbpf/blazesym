@@ -1,6 +1,7 @@
 use std::env;
 use std::ffi::OsStr;
 use std::ffi::OsString;
+use std::fs::copy;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::process::Command;
@@ -104,6 +105,18 @@ fn gsym(src: &Path, dst: &str) {
     .expect("failed to run `llvm-gsymutil`")
 }
 
+/// Strip all non-debug information from an ELF binary, in an attempt to
+/// leave only DWARF remains and necessary ELF bits.
+fn dwarf_mostly(src: &Path, dst: &str) {
+    let dst = src.with_file_name(dst);
+    println!("cargo:rerun-if-changed={}", src.display());
+    println!("cargo:rerun-if-changed={}", dst.display());
+
+    let _bytes = copy(src, &dst).expect("failed to copy file");
+
+    run("strip", ["--only-keep-debug".as_ref(), dst.as_os_str()]).expect("failed to run `strip`")
+}
+
 /// Build the various test binaries.
 fn build_test_bins(crate_root: &Path) {
     let src = crate_root.join("data").join("test.c");
@@ -129,6 +142,7 @@ fn build_test_bins(crate_root: &Path) {
 
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test.gsym");
+    dwarf_mostly(&src, "test-dwarf.bin");
 }
 
 fn main() {
