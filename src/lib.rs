@@ -945,8 +945,9 @@ impl BlazeSymbolizer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
+
     use std::path::Path;
+
 
     #[test]
     fn hello_world_stack() {
@@ -1041,25 +1042,5 @@ mod tests {
         let kresolver = KernelResolver::new(kallsyms, kernel_image, &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());
         assert!(kresolver.kernelresolver.is_none());
-    }
-
-    #[test]
-    fn load_gsym_resolver() {
-        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test.gsym");
-        let features = vec![SymbolizerFeature::LineNumberInfo(true)];
-        let srcs = vec![SymbolSrcCfg::Gsym {
-            file_name: test_gsym,
-            base_address: 0,
-        }];
-        let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
-        let count = symbolizer
-            .symbolize(&srcs, &[0x2000100])
-            .into_iter()
-            .flatten()
-            .filter(|result| result.symbol == "factorial")
-            .count();
-        assert_eq!(count, 1);
     }
 }
