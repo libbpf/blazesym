@@ -701,7 +701,7 @@ impl BlazeSymbolizer {
         })
     }
 
-    fn find_addr_features_context(features: Vec<FindAddrFeature>) -> FindAddrOpts {
+    fn find_addr_features_context(features: &[FindAddrFeature]) -> FindAddrOpts {
         let mut opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
@@ -710,13 +710,13 @@ impl BlazeSymbolizer {
         for f in features {
             match f {
                 FindAddrFeature::OffsetInFile(enable) => {
-                    opts.offset_in_file = enable;
+                    opts.offset_in_file = *enable;
                 }
                 FindAddrFeature::ObjFileName(enable) => {
-                    opts.obj_file_name = enable;
+                    opts.obj_file_name = *enable;
                 }
                 FindAddrFeature::SymbolType(sym_type) => {
-                    opts.sym_type = sym_type;
+                    opts.sym_type = *sym_type;
                 }
                 _ => {
                     todo!();
@@ -742,7 +742,7 @@ impl BlazeSymbolizer {
         &self,
         sym_srcs: &[SymbolSrcCfg],
         pattern: &str,
-        features: Vec<FindAddrFeature>,
+        features: &[FindAddrFeature],
     ) -> Option<Vec<SymbolInfo>> {
         let ctx = Self::find_addr_features_context(features);
 
@@ -786,7 +786,7 @@ impl BlazeSymbolizer {
         sym_srcs: &[SymbolSrcCfg],
         pattern: &str,
     ) -> Option<Vec<SymbolInfo>> {
-        self.find_address_regex_opt(sym_srcs, pattern, vec![])
+        self.find_address_regex_opt(sym_srcs, pattern, &[])
     }
 
     /// Find the addresses of a list of symbol names.
@@ -805,7 +805,7 @@ impl BlazeSymbolizer {
         &self,
         sym_srcs: &[SymbolSrcCfg],
         names: &[&str],
-        features: Vec<FindAddrFeature>,
+        features: &[FindAddrFeature],
     ) -> Vec<Vec<SymbolInfo>> {
         let ctx = Self::find_addr_features_context(features);
 
@@ -852,7 +852,7 @@ impl BlazeSymbolizer {
         sym_srcs: &[SymbolSrcCfg],
         names: &[&str],
     ) -> Vec<Vec<SymbolInfo>> {
-        self.find_addresses_opt(sym_srcs, names, vec![])
+        self.find_addresses_opt(sym_srcs, names, &[])
     }
 
     /// Symbolize a list of addresses.
