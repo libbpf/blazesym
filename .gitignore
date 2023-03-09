@@ -1,2 +1,4 @@
+/data/*.bin
+/data/*.gsym
 /target
 Cargo.lock
