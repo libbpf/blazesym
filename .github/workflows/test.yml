@@ -23,7 +23,7 @@ jobs:
         include:
           - rust: stable
             profile: dev
-            features: cheader
+            features: generate-c-header
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
