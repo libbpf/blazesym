@@ -1,4 +1,5 @@
 /data/*.bin
 /data/*.gsym
+/data/vmlinux-5.17.12-100.fc34.x86_64
 /target
 Cargo.lock
