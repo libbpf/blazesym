@@ -145,11 +145,55 @@ fn build_test_bins(crate_root: &Path) {
     dwarf_mostly(&src, "test-dwarf.bin");
 }
 
+/// Unpack an xz compressed file.
+#[cfg(feature = "xz2")]
+fn unpack_xz(src: &Path, dst: &Path) {
+    use std::fs::File;
+    use std::io::copy;
+    use xz2::read::XzDecoder;
+
+    let src_file = File::options().create(false).read(true).open(src).unwrap();
+    let mut decoder = XzDecoder::new_multi_decoder(src_file);
+
+    let mut dst_file = File::options()
+        .create(true)
+        .truncate(true)
+        .read(false)
+        .write(true)
+        .open(dst)
+        .unwrap();
+
+    copy(&mut decoder, &mut dst_file).unwrap();
+}
+
+#[cfg(not(feature = "xz2"))]
+fn unpack_xz(_src: &Path, _dst: &Path) {
+    unimplemented!()
+}
+
+/// Unpack benchmark files.
+fn unpack_bench_files(crate_root: &Path) {
+    let src = Path::new(crate_root)
+        .join("data")
+        .join("vmlinux-5.17.12-100.fc34.x86_64.xz");
+    println!("cargo:rerun-if-changed={}", src.display());
+
+    let mut dst = src.clone();
+    assert!(dst.set_extension(""));
+    println!("cargo:rerun-if-changed={}", dst.display());
+
+    unpack_xz(&src, &dst)
+}
+
 fn main() {
     let crate_dir = env!("CARGO_MANIFEST_DIR");
 
     if cfg!(feature = "generate-test-files") && !cfg!(feature = "dont-generate-test-files") {
         build_test_bins(crate_dir.as_ref());
+    }
+
+    if cfg!(feature = "generate-bench-files") {
+        unpack_bench_files(crate_dir.as_ref());
     }
 
     #[cfg(feature = "generate-c-header")]
