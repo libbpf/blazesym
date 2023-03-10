@@ -20,14 +20,11 @@ to build BlazeSym.
 
  - cargo build
 
-You may want to build a C header (**blazesym.h**) to include in your C programs.
-
- - cargo build --features="cheader"
-
-You will see **blazesym.h** and **libblazesym.a** in target/debug/ or
-target/release/ directory.  Your C programs, if any, should
-include **blazesym.h** and link to **libblazesym.a** to access
-functions and various types of BlazeSym.
+You will see **libblazesym.a** in `target/debug/` or `target/release/`
+directory. The corresponding **blazesym.h** header file is located
+inside `include/`. Your C programs, if any, should include
+**blazesym.h** and link to **libblazesym.a** to access functions and
+various types of BlazeSym.
 
 ## Rust API
 
