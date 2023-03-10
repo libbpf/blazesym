@@ -152,7 +152,7 @@ fn main() {
         build_test_bins(crate_dir.as_ref());
     }
 
-    #[cfg(feature = "cheader")]
+    #[cfg(feature = "generate-c-header")]
     {
         cbindgen::Builder::new()
             .with_crate(crate_dir)

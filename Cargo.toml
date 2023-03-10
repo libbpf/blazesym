@@ -28,7 +28,11 @@ anyhow = "1.0.68"
 cbindgen = {version = "0.24", optional = true}
 
 [features]
-cheader = ["cbindgen"]
+# Enable this feature to re-generate the library's C header file. An
+# up-to-date version of this header should already be available in the
+# include/ directory, so this feature is only necessary when APIs are
+# changed.
+generate-c-header = ["cbindgen"]
 # Enable this feature to opt in to the generation of test files. Having test
 # files created is necessary for running tests.
 generate-test-files = []
