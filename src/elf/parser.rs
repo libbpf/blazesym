@@ -214,7 +214,7 @@ impl<'mmap> Cache<'mmap> {
     /// This function return the index of the section if found.
     fn find_section(&mut self, name: &str) -> Result<usize, Error> {
         let ehdr = self.ensure_ehdr()?;
-        for i in 0..ehdr.e_shnum.into() {
+        for i in 1..ehdr.e_shnum.into() {
             if self.section_name(i)? == name {
                 return Ok(i)
             }
