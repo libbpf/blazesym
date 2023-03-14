@@ -38,11 +38,10 @@
 use std::ffi::CStr;
 use std::io::{Error, ErrorKind};
 
-use crate::util::decode_leb128;
-use crate::util::decode_leb128_s;
 use crate::util::decode_udword;
 use crate::util::decode_uhalf;
 use crate::util::decode_uword;
+use crate::util::ReadRaw as _;
 
 use super::linetab::LineTableHeader;
 use super::types::AddressData;
@@ -341,21 +340,17 @@ pub fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
 /// Returns the `LineTableHeader` and the size of the header of a
 /// `AddressData` entry of `InfoTypeLineTableInfo` type in the payload
 /// of an `Addressinfo`.
-pub fn parse_line_table_header(data: &[u8]) -> Option<(LineTableHeader, usize)> {
-    let mut off = 0;
-    let (min_delta, bytes) = decode_leb128_s(&data[off..])?;
-    off += bytes as usize;
-    let (max_delta, bytes) = decode_leb128_s(&data[off..])?;
-    off += bytes as usize;
-    let (first_line, bytes) = decode_leb128(&data[off..])?;
-    off += bytes as usize;
+pub fn parse_line_table_header(data: &mut &[u8]) -> Option<LineTableHeader> {
+    let (min_delta, _bytes) = data.read_i128_leb128()?;
+    let (max_delta, _bytes) = data.read_i128_leb128()?;
+    let (first_line, _bytes) = data.read_u128_leb128()?;
 
     let header = LineTableHeader {
-        min_delta,
-        max_delta,
+        min_delta: min_delta as i64,
+        max_delta: max_delta as i64,
         first_line: first_line as u32,
     };
-    Some((header, off))
+    Some(header)
 }
 
 #[cfg(test)]

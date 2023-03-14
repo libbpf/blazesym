@@ -137,13 +137,13 @@ impl SymResolver for GsymResolver {
             // Continue to execute all GSYM line table operations
             // until the end of the buffer is reached or a row
             // containing addr is located.
-            let (lntab_hdr, hdr_bytes) = parse_line_table_header(adr_ent.data)?;
-            let mut ops = &adr_ent.data[hdr_bytes..];
+            let mut data = adr_ent.data;
+            let lntab_hdr = parse_line_table_header(&mut data)?;
             let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
             let mut last_lntab_row = lntab_row.clone();
             let mut row_cnt = 0;
-            while !ops.is_empty() {
-                match run_op(&mut lntab_row, &lntab_hdr, &mut ops) {
+            while !data.is_empty() {
+                match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
                     Some(RunResult::Ok) => {}
                     Some(RunResult::NewRow) => {
                         row_cnt += 1;
