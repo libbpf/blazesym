@@ -142,10 +142,10 @@ impl SymResolver for GsymResolver {
             let mut pc = 0;
             while pc < ops.len() {
                 match run_op(&mut lntab_row, &lntab_hdr, ops, pc) {
-                    RunResult::Ok(bytes) => {
+                    Some(RunResult::Ok(bytes)) => {
                         pc += bytes;
                     }
-                    RunResult::NewRow(bytes) => {
+                    Some(RunResult::NewRow(bytes)) => {
                         pc += bytes;
                         row_cnt += 1;
                         if addr < lntab_row.address {
@@ -159,7 +159,7 @@ impl SymResolver for GsymResolver {
                         }
                         last_lntab_row = lntab_row.clone();
                     }
-                    RunResult::End | RunResult::Err => break,
+                    Some(RunResult::End) | None => break,
                 }
             }
 
