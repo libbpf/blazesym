@@ -135,18 +135,14 @@ impl SymResolver for GsymResolver {
             // until the end of the buffer is reached or a row
             // containing addr is located.
             let (lntab_hdr, hdr_bytes) = parse_line_table_header(adr_ent.data)?;
-            let ops = &adr_ent.data[hdr_bytes..];
+            let mut ops = &adr_ent.data[hdr_bytes..];
             let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
             let mut last_lntab_row = lntab_row.clone();
             let mut row_cnt = 0;
-            let mut pc = 0;
-            while pc < ops.len() {
-                match run_op(&mut lntab_row, &lntab_hdr, ops, pc) {
-                    Some(RunResult::Ok(bytes)) => {
-                        pc += bytes;
-                    }
-                    Some(RunResult::NewRow(bytes)) => {
-                        pc += bytes;
+            while !ops.is_empty() {
+                match run_op(&mut lntab_row, &lntab_hdr, &mut ops) {
+                    Some(RunResult::Ok(_bytes)) => {}
+                    Some(RunResult::NewRow(_bytes)) => {
                         row_cnt += 1;
                         if addr < lntab_row.address {
                             if row_cnt == 1 {
