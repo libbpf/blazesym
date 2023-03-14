@@ -1,7 +1,6 @@
 //! Opcode runner of GSYM line table.
 
-use crate::util::decode_leb128;
-use crate::util::decode_leb128_s;
+use crate::util::ReadRaw as _;
 
 /// End of the line table
 const END_SEQUENCE: u8 = 0x00;
@@ -72,48 +71,28 @@ impl LineTableRow {
 /// * `header` - is a `LineTableHeader`.
 /// * `ops` - is the buffer of the operators following the `LineTableHeader` in
 ///           a GSYM file.
-/// * `pc` - is the program counter of the virtual machine.
-///
-/// Returns a [`RunResult`]. `Ok` and `NewRow` will return the size of this
-/// instruction. The caller should adjust the value of `pc` according to the
-/// value returned.
 pub fn run_op(
     ctx: &mut LineTableRow,
     header: &LineTableHeader,
-    ops: &[u8],
-    pc: usize,
+    ops: &mut &[u8],
 ) -> Option<RunResult> {
-    let mut off = pc;
-    let op = ops[off];
-    off += 1;
+    let op = ops.read_u8()?;
     match op {
         END_SEQUENCE => Some(RunResult::End),
         SET_FILE => {
-            if let Some((f, bytes)) = decode_leb128(&ops[off..]) {
-                off += bytes as usize;
-                ctx.file_idx = f as u32;
-                Some(RunResult::Ok(off - pc))
-            } else {
-                None
-            }
+            let (f, _bytes) = ops.read_u128_leb128()?;
+            ctx.file_idx = f as u32;
+            Some(RunResult::Ok(0))
         }
         ADVANCE_PC => {
-            if let Some((adv, bytes)) = decode_leb128(&ops[off..]) {
-                off += bytes as usize;
-                ctx.address += adv;
-                Some(RunResult::NewRow(off - pc))
-            } else {
-                None
-            }
+            let (adv, _bytes) = ops.read_u128_leb128()?;
+            ctx.address += adv as u64;
+            Some(RunResult::NewRow(0))
         }
         ADVANCE_LINE => {
-            if let Some((adv, bytes)) = decode_leb128_s(&ops[off..]) {
-                off += bytes as usize;
-                ctx.file_line = (ctx.file_line as i64 + adv) as u32;
-                Some(RunResult::Ok(off - pc))
-            } else {
-                None
-            }
+            let (adv, _bytes) = ops.read_i128_leb128()?;
+            ctx.file_line = (ctx.file_line as i64 + adv as i64) as u32;
+            Some(RunResult::Ok(0))
         }
         // Special operators.
         //
@@ -139,7 +118,7 @@ pub fn run_op(
 
             ctx.file_line = file_line as u32;
             ctx.address = (ctx.address as i64 + addr_delta) as u64;
-            Some(RunResult::NewRow(off - pc))
+            Some(RunResult::NewRow(0))
         }
     }
 }
