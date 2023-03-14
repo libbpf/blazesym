@@ -112,7 +112,7 @@ impl DebugLineCU {
         let states = &self.matrix[idx];
         if states.end_sequence {
             // This is the first byte after the last instruction
-            return None;
+            return None
         }
 
         self.stringify_row(idx)
@@ -158,7 +158,7 @@ fn parse_debug_line_dirs(data: &mut &[u8]) -> Result<Vec<String>, Error> {
         // If the first byte is 0 we reached the end. In our case that
         // maps to an empty NUL terminated string.
         if string.is_empty() {
-            break Ok(strs);
+            break Ok(strs)
         }
         strs.push(string.to_string());
     }
@@ -182,7 +182,7 @@ fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>, Er
         // If the first byte is 0 we reached the end. In our case that
         // maps to an empty NUL terminated string.
         if name.is_empty() {
-            break Ok(strs);
+            break Ok(strs)
         }
 
         let (dir_idx, _bytes) = data
@@ -220,7 +220,7 @@ fn parse_debug_line_cu(data: &mut &[u8], addresses: &[u64]) -> Result<DebugLineC
         return Err(Error::new(
             ErrorKind::Unsupported,
             format!("encountered unsupported DWARF version: {version}"),
-        ));
+        ))
     }
 
     let (prologue, prologue_size) = if v2.version == 4 {
@@ -374,7 +374,7 @@ fn run_debug_line_stmt(
                     return Err(Error::new(
                         ErrorKind::InvalidData,
                         format!("invalid extended opcode (ip=0x{ip:x}, insn_size=0x{insn_size:x}"),
-                    ));
+                    ))
                 }
                 let ext_opcode = stmts[ip + 1 + bytes as usize];
                 match ext_opcode {
@@ -566,7 +566,7 @@ fn run_debug_line_stmts(
                                     }
                                     matrix.push(states_cur.clone());
                                     pushed = true;
-                                    break;
+                                    break
                                 }
                             }
                             last_ip_pushed = pushed;
@@ -584,9 +584,7 @@ fn run_debug_line_stmts(
                     force_no_emit = false;
                 }
             }
-            Err(e) => {
-                return Err(e);
-            }
+            Err(e) => return Err(e),
         }
     }
 
@@ -618,7 +616,7 @@ fn parse_debug_line_elf_parser(
         remain_sz -= prologue.total_length as usize + 4;
 
         if debug_line_cu.matrix.is_empty() {
-            continue;
+            continue
         }
 
         if !addresses.is_empty() {
@@ -640,7 +638,7 @@ fn parse_debug_line_elf_parser(
             all_cus.push(debug_line_cu);
 
             if not_found.is_empty() {
-                return Ok(all_cus);
+                return Ok(all_cus)
             }
         } else {
             all_cus.push(debug_line_cu);
@@ -651,7 +649,7 @@ fn parse_debug_line_elf_parser(
         return Err(Error::new(
             ErrorKind::InvalidData,
             "encountered remaining garbage data at the end",
-        ));
+        ))
     }
 
     Ok(all_cus)
@@ -687,7 +685,7 @@ impl DwarfResolver {
         let mut addr_to_dlcu = Vec::with_capacity(debug_line_cus.len());
         for (idx, dlcu) in debug_line_cus.iter().enumerate() {
             if dlcu.matrix.is_empty() {
-                continue;
+                continue
             }
             let first_addr = dlcu.matrix[0].address;
             addr_to_dlcu.push((first_addr, idx as u32));
@@ -781,7 +779,7 @@ impl DwarfResolver {
         if self.enable_debug_info_syms {
             let mut dis_ref = self.debug_info_syms.borrow_mut();
             if dis_ref.is_some() {
-                return Ok(());
+                return Ok(())
             }
             let mut debug_info_syms = debug_info_parse_symbols(&self.parser, None, 1)?;
             debug_info_syms.sort_by_key(|v: &DWSymInfo| -> &str { v.name });
@@ -798,13 +796,13 @@ impl DwarfResolver {
     /// * `opts` - is the context giving additional parameters.
     pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
         let elf_r = self.parser.find_address(name, opts)?;
         if !elf_r.is_empty() {
             // Since it is found from symtab, symtab should be
             // complete and DWARF shouldn't provide more information.
-            return Ok(elf_r);
+            return Ok(elf_r)
         }
 
         self.ensure_debug_info_syms()?;
@@ -813,9 +811,7 @@ impl DwarfResolver {
         let mut idx =
             match debug_info_syms.binary_search_by_key(&name.to_string(), |v| v.name.to_string()) {
                 Ok(idx) => idx,
-                _ => {
-                    return Ok(vec![]);
-                }
+                _ => return Ok(vec![]),
             };
         while idx > 0 && debug_info_syms[idx].name.eq(name) {
             idx -= 1;
@@ -857,18 +853,18 @@ impl DwarfResolver {
         opts: &FindAddrOpts,
     ) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
         let r = self.parser.find_address_regex(pattern, opts)?;
         if !r.is_empty() {
-            return Ok(r);
+            return Ok(r)
         }
 
         self.ensure_debug_info_syms()?;
 
         let dis_ref = self.debug_info_syms.borrow();
         if dis_ref.is_none() {
-            return Ok(vec![]);
+            return Ok(vec![])
         }
         let debug_info_syms = dis_ref.as_ref().unwrap();
         let mut syms = vec![];
@@ -916,9 +912,9 @@ fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
     for (name, _form, _opt, value) in die {
         if name == constants::DW_AT_sibling {
             if let debug_info::AttrValue::Unsigned(off) = value {
-                return Some(off as usize);
+                return Some(off as usize)
             }
-            return None;
+            return None
         }
     }
     None
@@ -948,7 +944,7 @@ fn parse_die_subprogram<'a>(
         match name {
             constants::DW_AT_linkage_name | constants::DW_AT_name => {
                 if name_str.is_some() {
-                    continue;
+                    continue
                 }
                 name_str = Some(match value {
                     debug_info::AttrValue::Unsigned(str_off) => unsafe {
@@ -966,7 +962,7 @@ fn parse_die_subprogram<'a>(
                         return Err(Error::new(
                             ErrorKind::InvalidData,
                             "fail to parse DW_AT_linkage_name {}",
-                        ));
+                        ))
                     }
                 });
             }
@@ -978,7 +974,7 @@ fn parse_die_subprogram<'a>(
                     return Err(Error::new(
                         ErrorKind::InvalidData,
                         "fail to parse DW_AT_lo_pc",
-                    ));
+                    ))
                 }
             },
             constants::DW_AT_hi_pc => match value {
@@ -989,7 +985,7 @@ fn parse_die_subprogram<'a>(
                     return Err(Error::new(
                         ErrorKind::InvalidData,
                         "fail to parse DW_AT_lo_pc",
-                    ));
+                    ))
                 }
             },
             _ => {}
@@ -1023,7 +1019,7 @@ fn debug_info_parse_symbols_cu<'a>(
 ) {
     while let Some(mut die) = dieiter.next() {
         if die.tag == 0 || die.tag == constants::DW_TAG_namespace {
-            continue;
+            continue
         }
 
         assert!(die.abbrev.is_some());
@@ -1031,13 +1027,13 @@ fn debug_info_parse_symbols_cu<'a>(
             if die.abbrev.unwrap().has_children {
                 if let Some(sibling_off) = find_die_sibling(&mut die) {
                     dieiter.seek_to_sibling(sibling_off);
-                    continue;
+                    continue
                 }
                 // Skip this DIE quickly, or the iterator will
                 // recalculate the size of the DIE.
                 die.exhaust().unwrap();
             }
-            continue;
+            continue
         }
 
         if let Ok(Some(syminfo)) = parse_die_subprogram(&mut die, str_data) {
@@ -1125,12 +1121,12 @@ fn debug_info_parse_symbols<'a>(
 
                 if let Ok(result) = result_rx.try_recv() {
                     if let DIParseResult::Stop = result {
-                        break;
+                        break
                     } else {
                         return Err(Error::new(
                             ErrorKind::UnexpectedEof,
                             "Receive an unexpected result",
-                        ));
+                        ))
                     }
                 }
             }
@@ -1155,7 +1151,7 @@ fn debug_info_parse_symbols<'a>(
                 debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
                 for sym in &syms[saved_sz..] {
                     if !cond(sym) {
-                        break 'outer;
+                        break 'outer
                     }
                 }
             }
@@ -1189,7 +1185,7 @@ mod tests {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "invalid arange header (too small)",
-            ));
+            ))
         }
         let len = decode_uword(data);
         let version = decode_uhalf(&data[4..]);
@@ -1201,7 +1197,7 @@ mod tests {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "data is broken (too small)",
-            ));
+            ))
         }
 
         // Size of the header
@@ -1221,7 +1217,7 @@ mod tests {
                     pos += 4;
 
                     if start == 0 && size == 0 {
-                        break;
+                        break
                     }
                     aranges.push((start as u64, size as u64));
                 }
@@ -1234,7 +1230,7 @@ mod tests {
                     pos += 8;
 
                     if start == 0 && size == 0 {
-                        break;
+                        break
                     }
                     aranges.push((start, size));
                 }
@@ -1243,7 +1239,7 @@ mod tests {
                 return Err(Error::new(
                     ErrorKind::Unsupported,
                     format!("unsupported address size {addr_sz} ver {version} off 0x{offset:x}"),
-                ));
+                ))
             }
         }
 

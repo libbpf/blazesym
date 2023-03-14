@@ -88,12 +88,12 @@ impl<'a> GsymContext<'a> {
         // Parse Header
         let magic = decode_uword(data);
         if magic != GSYM_MAGIC {
-            return Err(Error::new(ErrorKind::InvalidData, "invalid magic number"));
+            return Err(Error::new(ErrorKind::InvalidData, "invalid magic number"))
         }
         off += 4;
         let version = decode_uhalf(&data[off..]);
         if version != GSYM_VERSION {
-            return Err(Error::new(ErrorKind::InvalidData, "unknown version number"));
+            return Err(Error::new(ErrorKind::InvalidData, "unknown version number"))
         }
         off += 2;
         let addr_off_size = data[off];
@@ -120,7 +120,7 @@ impl<'a> GsymContext<'a> {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "the size of the file is smaller than expectation (address table)",
-            ));
+            ))
         }
         let addr_tab = &data[off..end_off];
         off = (end_off + 0x3) & !0x3;
@@ -129,7 +129,7 @@ impl<'a> GsymContext<'a> {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "the size of the file is smaller than expectation (address data offset table)",
-            ));
+            ))
         }
         let addr_data_off_tab = &data[off..end_off];
         off += num_addrs as usize * ADDR_DATA_OFFSET_SIZE;
@@ -140,7 +140,7 @@ impl<'a> GsymContext<'a> {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "the size of the file is smaller than expectation (file table)",
-            ));
+            ))
         }
         let file_tab = &data[off..end_off];
         let end_off = strtab_offset as usize + strtab_size as usize;
@@ -148,7 +148,7 @@ impl<'a> GsymContext<'a> {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "the size of the file is smaller than expectation (string table)",
-            ));
+            ))
         }
         let str_tab = &data[strtab_offset as usize..end_off];
 
@@ -179,7 +179,7 @@ impl<'a> GsymContext<'a> {
     /// Get the address of an entry in the Address Table.
     pub fn addr_at(&self, idx: usize) -> Option<u64> {
         if idx >= self.header.num_addrs as usize {
-            return None;
+            return None
         }
 
         let off = idx * self.header.addr_off_size as usize;
@@ -196,7 +196,7 @@ impl<'a> GsymContext<'a> {
     /// Get the AddressInfo of an address given by an index.
     pub fn addr_info(&self, idx: usize) -> Option<AddressInfo> {
         if idx >= self.header.num_addrs as usize {
-            return None;
+            return None
         }
 
         let off = idx * ADDR_DATA_OFFSET_SIZE;
@@ -215,7 +215,7 @@ impl<'a> GsymContext<'a> {
     /// Get the string at the given offset from the String Table.
     pub fn get_str(&self, off: usize) -> Option<&str> {
         if off >= self.str_tab.len() {
-            return None;
+            return None
         }
 
         // Ensure there is a null byte.
@@ -224,7 +224,7 @@ impl<'a> GsymContext<'a> {
             null_off -= 1;
         }
         if null_off == off {
-            return Some("");
+            return Some("")
         }
 
         // SAFETY: the lifetime of `CStr` can live as long as `self`.
@@ -238,7 +238,7 @@ impl<'a> GsymContext<'a> {
 
     pub fn file_info(&self, idx: usize) -> Option<FileInfo> {
         if idx >= self.file_tab.len() / FILE_INFO_SIZE {
-            return None;
+            return None
         }
         let mut off = idx * FILE_INFO_SIZE;
         let directory = decode_uword(&self.file_tab[off..(off + 4)]);
@@ -262,10 +262,10 @@ pub fn find_address(ctx: &GsymContext, addr: u64) -> Option<usize> {
     let mut right = ctx.num_addresses();
 
     if right == 0 {
-        return None;
+        return None
     }
     if addr < ctx.addr_at(0)? {
-        return None;
+        return None
     }
 
     while (left + 1) < right {
@@ -273,7 +273,7 @@ pub fn find_address(ctx: &GsymContext, addr: u64) -> Option<usize> {
         let cur_addr = ctx.addr_at(v)?;
 
         if addr == cur_addr {
-            return Some(v);
+            return Some(v)
         }
         if addr < cur_addr {
             right = v;
@@ -314,9 +314,7 @@ pub fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
 
         #[allow(non_upper_case_globals)]
         match typ {
-            InfoTypeEndOfList => {
-                break;
-            }
+            InfoTypeEndOfList => break,
             InfoTypeLineTableInfo | InfoTypeInlineInfo => {}
             _ => {
                 #[cfg(debug_assertions)]
@@ -422,14 +420,14 @@ mod tests {
                 values[i] += 1;
                 if values[i] >= carry_out {
                     carry_out -= 1;
-                    continue;
+                    continue
                 }
                 // Make all values at right side minimal and strictly
                 // ascending.
                 for j in (i + 1)..values.len() {
                     values[j] = values[j - 1] + 1;
                 }
-                break;
+                break
             }
         };
 

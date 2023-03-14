@@ -233,13 +233,13 @@ impl X86_64StackSession {
 impl StackSession for X86_64StackSession {
     fn next_frame(&mut self) -> Option<&dyn StackFrame> {
         if self._is_at_bottom() {
-            return None;
+            return None
         }
 
         if self.frames.len() > self.current_frame_idx {
             let frame = &self.frames[self.current_frame_idx];
             self.current_frame_idx += 1;
-            return Some(frame);
+            return Some(frame)
         }
 
         let frame = X86_64StackFrame {
@@ -263,7 +263,7 @@ impl StackSession for X86_64StackSession {
 
     fn prev_frame(&mut self) -> Option<&dyn StackFrame> {
         if self.current_frame_idx == 0 {
-            return None;
+            return None
         }
 
         self.current_frame_idx -= 1;
@@ -320,7 +320,7 @@ impl KernelResolver {
                     kallsyms.display(),
                     kernel_image.display()
                 ),
-            ));
+            ))
         }
 
         Ok(KernelResolver {
@@ -483,20 +483,20 @@ impl ResolverMap {
 
         for entry in entries.iter() {
             if entry.path.as_path().components().next() != Some(Component::RootDir) {
-                continue;
+                continue
             }
             if (entry.mode & 0xa) != 0xa {
                 // r-x-
-                continue;
+                continue
             }
 
             if let Ok(filestat) = stat(&entry.path) {
                 if (filestat.st_mode & 0o170000) != 0o100000 {
                     // Not a regular file
-                    continue;
+                    continue
                 }
             } else {
-                continue;
+                continue
             }
             if let Ok(resolver) = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder)
             {
@@ -541,11 +541,11 @@ impl ResolverMap {
                         let kernel_image = loop {
                             let path = dirs[i].join(format!("{basename}{release}"));
                             if stat(&path).is_ok() {
-                                break path;
+                                break path
                             }
                             i += 1;
                             if i >= dirs.len() {
-                                break path;
+                                break path
                             }
                         };
                         kernel_image
@@ -755,9 +755,7 @@ impl BlazeSymbolizer {
 
         let resolver_map = match ResolverMap::new(sym_srcs, &self.cache_holder) {
             Ok(map) => map,
-            _ => {
-                return None;
-            }
+            _ => return None,
         };
         let mut syms = vec![];
         for (_, resolver) in &resolver_map.resolvers {
@@ -818,9 +816,7 @@ impl BlazeSymbolizer {
 
         let resolver_map = match ResolverMap::new(sym_srcs, &self.cache_holder) {
             Ok(map) => map,
-            _ => {
-                return vec![];
-            }
+            _ => return vec![],
         };
         let mut syms_list = vec![];
         for name in names {
@@ -881,7 +877,7 @@ impl BlazeSymbolizer {
         } else {
             #[cfg(debug_assertions)]
             eprintln!("Fail to build ResolverMap");
-            return vec![];
+            return vec![]
         };
 
         let info: Vec<Vec<SymbolizedResult>> = addresses
@@ -890,7 +886,7 @@ impl BlazeSymbolizer {
                 let resolver = if let Some(resolver) = resolver_map.find_resolver(*addr) {
                     resolver
                 } else {
-                    return vec![];
+                    return vec![]
                 };
 
                 let res_syms = resolver.find_symbols(*addr);

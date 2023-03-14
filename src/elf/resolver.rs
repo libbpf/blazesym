@@ -57,10 +57,10 @@ impl ElfResolver {
         if e_type == ET_DYN || e_type == ET_EXEC {
             for phdr in phdrs {
                 if phdr.p_type != PT_LOAD {
-                    continue;
+                    continue
                 }
                 if (phdr.p_flags & PF_X) != PF_X {
-                    continue;
+                    continue
                 }
                 let end_at = phdr.p_vaddr + phdr.p_memsz;
                 if max_addr < end_at {
@@ -72,7 +72,7 @@ impl ElfResolver {
                 }
             }
         } else {
-            return Err(Error::new(ErrorKind::InvalidData, "unknown e_type"));
+            return Err(Error::new(ErrorKind::InvalidData, "unknown e_type"))
         }
 
         let loaded_address = if e_type == ET_EXEC {
@@ -112,7 +112,7 @@ impl SymResolver for ElfResolver {
         let parser = if let Some(parser) = self.get_parser() {
             parser
         } else {
-            return vec![];
+            return vec![]
         };
 
         match parser.find_symbol(off, STT_FUNC) {
@@ -141,7 +141,7 @@ impl SymResolver for ElfResolver {
             ElfBackend::Elf(parser) => parser.find_address_regex(pattern, opts),
         };
         if syms.is_err() {
-            return None;
+            return None
         }
         let mut syms = syms.unwrap();
         for sym in &mut syms {

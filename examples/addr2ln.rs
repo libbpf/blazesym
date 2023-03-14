@@ -14,7 +14,7 @@ fn main() {
 
     if args.len() != 3 {
         show_usage();
-        return;
+        return
     }
 
     let bin_name = &args[1];

@@ -15,7 +15,7 @@ fn main() {
 
     if args.len() != 3 {
         show_usage();
-        return;
+        return
     }
 
     let pid = args[1].parse::<u32>().unwrap();

@@ -45,17 +45,17 @@ impl KSymResolver {
 
         while let Ok(sz) = reader.read_line(&mut line) {
             if sz == 0 {
-                break;
+                break
             }
             let tokens: Vec<&str> = line.split_whitespace().collect();
             if tokens.len() < 3 {
-                break;
+                break
             }
             let (addr, _symbol, func) = (tokens[0], tokens[1], tokens[2]);
             if let Ok(addr) = u64::from_str_radix(addr, 16) {
                 if addr == 0 {
                     line.truncate(0);
-                    continue;
+                    continue
                 }
                 let name = String::from(func);
                 self.syms.push(Ksym { addr, name });
@@ -77,7 +77,7 @@ impl KSymResolver {
 
     fn ensure_sym_to_addr(&self) {
         if self.sym_to_addr.borrow().len() > 0 {
-            return;
+            return
         }
         let mut sym_to_addr = self.sym_to_addr.borrow_mut();
         for Ksym { name, addr } in self.syms.iter() {
@@ -147,7 +147,7 @@ impl SymResolver for KSymResolver {
 
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         if let SymbolType::Variable = opts.sym_type {
-            return None;
+            return None
         }
         self.ensure_sym_to_addr();
 
@@ -158,14 +158,14 @@ impl SymResolver for KSymResolver {
                 size: 0,
                 sym_type: SymbolType::Function,
                 ..Default::default()
-            }]);
+            }])
         }
         None
     }
 
     fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         if let SymbolType::Variable = opts.sym_type {
-            return None;
+            return None
         }
         self.ensure_sym_to_addr();
 
@@ -221,7 +221,7 @@ impl KSymCache {
     pub fn get_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>, Error> {
         let mut resolvers = self.resolvers.borrow_mut();
         if let Some(resolver) = resolvers.get(path) {
-            return Ok(resolver.clone());
+            return Ok(resolver.clone())
         }
 
         let mut resolver = Rc::new(KSymResolver::new());

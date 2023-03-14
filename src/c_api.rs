@@ -269,9 +269,7 @@ unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<
 pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
     let symbolizer = match BlazeSymbolizer::new() {
         Ok(s) => s,
-        Err(_) => {
-            return ptr::null_mut();
-        }
+        Err(_) => return ptr::null_mut(),
     };
     let symbolizer_box = Box::new(symbolizer);
     let c_box = Box::new(blazesym {
@@ -315,9 +313,7 @@ pub unsafe extern "C" fn blazesym_new_opts(
 
     let symbolizer = match BlazeSymbolizer::new_opt(&features_r) {
         Ok(s) => s,
-        Err(_) => {
-            return ptr::null_mut();
-        }
+        Err(_) => return ptr::null_mut(),
     };
     let symbolizer_box = Box::new(symbolizer);
     let c_box = Box::new(blazesym {
@@ -362,7 +358,7 @@ unsafe fn convert_symbolizedresults_to_c(
     let raw_buf_with_sz =
         unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
     if raw_buf_with_sz.is_null() {
-        return ptr::null();
+        return ptr::null()
     }
 
     // prepend an u64 to keep the size of the buffer.
@@ -445,7 +441,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
         } else {
             #[cfg(debug_assertions)]
             eprintln!("Fail to transform configurations of symbolizer from C to Rust");
-            return ptr::null_mut();
+            return ptr::null_mut()
         };
 
     let symbolizer = unsafe { &*(*symbolizer).symbolizer };
@@ -458,7 +454,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
     if results.is_empty() {
         #[cfg(debug_assertions)]
         eprintln!("Empty result while request for {addr_cnt}");
-        return ptr::null();
+        return ptr::null()
     }
 
     unsafe { convert_symbolizedresults_to_c(results) }
@@ -475,7 +471,7 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
     if results.is_null() {
         #[cfg(debug_assertions)]
         eprintln!("blazesym_result_free(null)");
-        return;
+        return
     }
 
     let raw_buf_with_sz = unsafe { (results as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
@@ -786,7 +782,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
         } else {
             #[cfg(debug_assertions)]
             eprintln!("Fail to transform configurations of symbolizer from C to Rust");
-            return ptr::null_mut();
+            return ptr::null_mut()
         };
 
     let symbolizer = unsafe { &*(*symbolizer).symbolizer };
@@ -797,7 +793,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
         { symbolizer.find_address_regex_opt(&sym_srcs_rs, pattern.to_str().unwrap(), &features) };
 
     if syms.is_none() {
-        return ptr::null_mut();
+        return ptr::null_mut()
     }
 
     unsafe { convert_syms_to_c(syms.unwrap()) }
@@ -837,7 +833,7 @@ pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
     if syms.is_null() {
         #[cfg(debug_assertions)]
         eprintln!("blazesym_sym_info_free(null)");
-        return;
+        return
     }
 
     let raw_buf_with_sz = unsafe { (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
@@ -875,7 +871,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         } else {
             #[cfg(debug_assertions)]
             eprintln!("Fail to transform configurations of symbolizer from C to Rust");
-            return ptr::null_mut();
+            return ptr::null_mut()
         };
 
     let symbolizer = unsafe { &*(*symbolizer).symbolizer };
@@ -938,7 +934,7 @@ pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazes
     if syms_list.is_null() {
         #[cfg(debug_assertions)]
         eprintln!("blazesym_syms_list_free(null)");
-        return;
+        return
     }
 
     let raw_buf_with_sz =

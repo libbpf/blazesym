@@ -90,7 +90,7 @@ impl<'mmap> Cache<'mmap> {
 
     fn ensure_ehdr(&mut self) -> Result<&'mmap Elf64_Ehdr, Error> {
         if let Some(ehdr) = self.ehdr {
-            return Ok(ehdr);
+            return Ok(ehdr)
         }
 
         let mut elf_data = self.elf_data;
@@ -102,7 +102,7 @@ impl<'mmap> Cache<'mmap> {
             && ehdr.e_ident[2] == b'L'
             && ehdr.e_ident[3] == b'F')
         {
-            return Err(Error::new(ErrorKind::InvalidData, "e_ident is wrong"));
+            return Err(Error::new(ErrorKind::InvalidData, "e_ident is wrong"))
         }
         self.ehdr = Some(ehdr);
         Ok(ehdr)
@@ -110,7 +110,7 @@ impl<'mmap> Cache<'mmap> {
 
     fn ensure_shdrs(&mut self) -> Result<&'mmap [Elf64_Shdr], Error> {
         if let Some(shdrs) = self.shdrs {
-            return Ok(shdrs);
+            return Ok(shdrs)
         }
 
         let ehdr = self.ensure_ehdr()?;
@@ -126,7 +126,7 @@ impl<'mmap> Cache<'mmap> {
 
     fn ensure_phdrs(&mut self) -> Result<&'mmap [Elf64_Phdr], Error> {
         if let Some(phdrs) = self.phdrs {
-            return Ok(phdrs);
+            return Ok(phdrs)
         }
 
         let ehdr = self.ensure_ehdr()?;
@@ -142,7 +142,7 @@ impl<'mmap> Cache<'mmap> {
 
     fn ensure_shstrtab(&mut self) -> Result<&'mmap [u8], Error> {
         if let Some(shstrtab) = self.shstrtab {
-            return Ok(shstrtab);
+            return Ok(shstrtab)
         }
 
         let ehdr = self.ensure_ehdr()?;
@@ -216,7 +216,7 @@ impl<'mmap> Cache<'mmap> {
         let ehdr = self.ensure_ehdr()?;
         for i in 0..ehdr.e_shnum.into() {
             if self.section_name(i)? == name {
-                return Ok(i);
+                return Ok(i)
             }
         }
         Err(Error::new(
@@ -230,7 +230,7 @@ impl<'mmap> Cache<'mmap> {
     //       effectively prevent us from doing so.
     fn ensure_symtab(&mut self) -> Result<(), Error> {
         if self.symtab.is_some() {
-            return Ok(());
+            return Ok(())
         }
 
         let idx = if let Ok(idx) = self.find_section(".symtab") {
@@ -244,7 +244,7 @@ impl<'mmap> Cache<'mmap> {
             return Err(Error::new(
                 ErrorKind::InvalidData,
                 "size of symbol table section is invalid",
-            ));
+            ))
         }
 
         let count = symtab.len() / mem::size_of::<Elf64_Sym>();
@@ -266,7 +266,7 @@ impl<'mmap> Cache<'mmap> {
 
     fn ensure_strtab(&mut self) -> Result<&'mmap [u8], Error> {
         if let Some(strtab) = self.strtab {
-            return Ok(strtab);
+            return Ok(strtab)
         }
 
         let idx = if let Ok(idx) = self.find_section(".strtab") {
@@ -300,10 +300,7 @@ impl<'mmap> Cache<'mmap> {
                 let name = strtab
                     .get(sym.st_name as usize..)
                     .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::InvalidInput,
-                            "string table index out of bounds",
-                        )
+                        Error::new(ErrorKind::InvalidInput, "string table index out of bounds")
                     })?
                     .read_cstr()
                     .ok_or_else(|| {
@@ -313,9 +310,7 @@ impl<'mmap> Cache<'mmap> {
                         )
                     })?
                     .to_str()
-                    .map_err(|_| {
-                        Error::new(ErrorKind::InvalidInput, "invalid symbol name")
-                    })?;
+                    .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid symbol name"))?;
                 Ok((name, i))
             })
             .collect::<Result<Vec<_>, Error>>()?;
@@ -424,7 +419,7 @@ impl ElfParser {
             return Err(Error::new(
                 ErrorKind::NotFound,
                 "Does not found a symbol for the given address",
-            ));
+            ))
         }
         let idx = idx_r.unwrap();
 
@@ -435,7 +430,7 @@ impl ElfParser {
 
     pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
 
         let mut cache = self.cache.borrow_mut();
@@ -457,7 +452,7 @@ impl ElfParser {
                     let name_seek = str2symtab[idx].0;
                     if !name_seek.eq(name) {
                         idx += 1;
-                        break;
+                        break
                     }
                     idx -= 1;
                 }
@@ -465,7 +460,7 @@ impl ElfParser {
                 let mut found = vec![];
                 for (name_visit, sym_i) in str2symtab.iter().skip(idx) {
                     if !(*name_visit).eq(name) {
-                        break;
+                        break
                     }
                     let sym_ref = &symtab[*sym_i];
                     if sym_ref.st_shndx != SHN_UNDEF {
@@ -490,7 +485,7 @@ impl ElfParser {
         opts: &FindAddrOpts,
     ) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"));
+            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
 
 

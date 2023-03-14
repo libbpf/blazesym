@@ -45,7 +45,7 @@ impl SymResolver for GsymResolver {
     fn get_address_range(&self) -> (u64, u64) {
         let sz = self.ctx.num_addresses();
         if sz == 0 {
-            return (0, 0);
+            return (0, 0)
         }
 
         // TODO: Must not unwrap.
@@ -62,29 +62,29 @@ impl SymResolver for GsymResolver {
         let idx = if let Some(idx) = find_address(&self.ctx, addr) {
             idx
         } else {
-            return vec![];
+            return vec![]
         };
 
         let found = if let Some(addr) = self.ctx.addr_at(idx) {
             addr
         } else {
-            return vec![];
+            return vec![]
         };
 
         if addr < found {
-            return vec![];
+            return vec![]
         }
 
         let info = if let Some(info) = self.ctx.addr_info(idx) {
             info
         } else {
-            return Vec::new();
+            return Vec::new()
         };
 
         let name = if let Some(name) = self.ctx.get_str(info.name as usize) {
             name
         } else {
-            return Vec::new();
+            return Vec::new()
         };
 
         vec![(name, found + self.loaded_address)]
@@ -119,17 +119,17 @@ impl SymResolver for GsymResolver {
         let idx = find_address(&self.ctx, addr)?;
         let symaddr = self.ctx.addr_at(idx)?;
         if addr < symaddr {
-            return None;
+            return None
         }
         let addrinfo = self.ctx.addr_info(idx)?;
         if addr >= (symaddr + addrinfo.size as u64) {
-            return None;
+            return None
         }
 
         let addrdatas = parse_address_data(addrinfo.data);
         for adr_ent in addrdatas {
             if adr_ent.typ != InfoTypeLineTableInfo {
-                continue;
+                continue
             }
             // Continue to execute all GSYM line table operations
             // until the end of the buffer is reached or a row
@@ -151,22 +151,20 @@ impl SymResolver for GsymResolver {
                         if addr < lntab_row.address {
                             if row_cnt == 1 {
                                 // The address is lower than the first row.
-                                return None;
+                                return None
                             }
                             // Rollback to the last row.
                             lntab_row = last_lntab_row;
-                            break;
+                            break
                         }
                         last_lntab_row = lntab_row.clone();
                     }
-                    RunResult::End | RunResult::Err => {
-                        break;
-                    }
+                    RunResult::End | RunResult::Err => break,
                 }
             }
 
             if row_cnt == 0 {
-                continue;
+                continue
             }
 
             let finfo = self.ctx.file_info(lntab_row.file_idx as usize)?;
@@ -177,7 +175,7 @@ impl SymResolver for GsymResolver {
                 path,
                 line_no: lntab_row.file_line as usize,
                 column: 0,
-            });
+            })
         }
         None
     }
