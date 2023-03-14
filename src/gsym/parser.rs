@@ -83,92 +83,108 @@ impl<'a> GsymContext<'a> {
     ///
     /// Returns a GsymContext, which includes the Header and other important tables.
     pub fn parse_header(data: &[u8]) -> Result<GsymContext, Error> {
-        let mut off = 0;
-        // Parse Header
-        let magic = decode_uword(data);
-        if magic != GSYM_MAGIC {
-            return Err(Error::new(ErrorKind::InvalidData, "invalid magic number"))
-        }
-        off += 4;
-        let version = decode_uhalf(&data[off..]);
-        if version != GSYM_VERSION {
-            return Err(Error::new(ErrorKind::InvalidData, "unknown version number"))
-        }
-        off += 2;
-        let addr_off_size = data[off];
-        off += 1;
-        let uuid_size = data[off];
-        off += 1;
-        let base_address = decode_udword(&data[off..]);
-        off += 8;
-        let num_addrs = decode_uword(&data[off..]);
-        off += 4;
-        let strtab_offset = decode_uword(&data[off..]);
-        off += 4;
-        let strtab_size = decode_uword(&data[off..]);
-        off += 4;
-        let uuid: [u8; 20] = (&data[off..(off + 20)])
-            .try_into()
-            .expect("input data is too short");
-        off += 20;
+        fn parse_header_impl(data: &[u8]) -> Option<Result<GsymContext, Error>> {
+            let mut off = 0;
+            // Parse Header
+            let magic = decode_uword(data);
+            if magic != GSYM_MAGIC {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "invalid magic number",
+                )))
+            }
+            off += 4;
+            let version = decode_uhalf(&data[off..]);
+            if version != GSYM_VERSION {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "unknown version number",
+                )))
+            }
+            off += 2;
+            let addr_off_size = data[off];
+            off += 1;
+            let uuid_size = data[off];
+            off += 1;
+            let base_address = decode_udword(&data[off..]);
+            off += 8;
+            let num_addrs = decode_uword(&data[off..]);
+            off += 4;
+            let strtab_offset = decode_uword(&data[off..]);
+            off += 4;
+            let strtab_size = decode_uword(&data[off..]);
+            off += 4;
+            let uuid: [u8; 20] = (&data[off..(off + 20)])
+                .try_into()
+                .expect("input data is too short");
+            off += 20;
 
-        // Get the slices of the Address Table, Address Data Offset Table,
-        // and String table.
-        let end_off = off + num_addrs as usize * addr_off_size as usize;
-        if end_off > data.len() {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "the size of the file is smaller than expectation (address table)",
-            ))
-        }
-        let addr_tab = &data[off..end_off];
-        off = (end_off + 0x3) & !0x3;
-        let end_off = off + num_addrs as usize * ADDR_DATA_OFFSET_SIZE;
-        if end_off > data.len() {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "the size of the file is smaller than expectation (address data offset table)",
-            ))
-        }
-        let addr_data_off_tab = &data[off..end_off];
-        off += num_addrs as usize * ADDR_DATA_OFFSET_SIZE;
-        let file_num = decode_uword(&data[off..]);
-        off += 4;
-        let end_off = off + file_num as usize * FILE_INFO_SIZE;
-        if end_off > data.len() {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "the size of the file is smaller than expectation (file table)",
-            ))
-        }
-        let file_tab = &data[off..end_off];
-        let end_off = strtab_offset as usize + strtab_size as usize;
-        if end_off > data.len() {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                "the size of the file is smaller than expectation (string table)",
-            ))
-        }
-        let str_tab = &data[strtab_offset as usize..end_off];
+            // Get the slices of the Address Table, Address Data Offset Table,
+            // and String table.
+            let end_off = off + num_addrs as usize * addr_off_size as usize;
+            if end_off > data.len() {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "the size of the file is smaller than expectation (address table)",
+                )))
+            }
+            let addr_tab = &data[off..end_off];
+            off = (end_off + 0x3) & !0x3;
+            let end_off = off + num_addrs as usize * ADDR_DATA_OFFSET_SIZE;
+            if end_off > data.len() {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "the size of the file is smaller than expectation (address data offset table)",
+                )))
+            }
+            let addr_data_off_tab = &data[off..end_off];
+            off += num_addrs as usize * ADDR_DATA_OFFSET_SIZE;
+            let file_num = decode_uword(&data[off..]);
+            off += 4;
+            let end_off = off + file_num as usize * FILE_INFO_SIZE;
+            if end_off > data.len() {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "the size of the file is smaller than expectation (file table)",
+                )))
+            }
+            let file_tab = &data[off..end_off];
+            let end_off = strtab_offset as usize + strtab_size as usize;
+            if end_off > data.len() {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "the size of the file is smaller than expectation (string table)",
+                )))
+            }
+            let str_tab = &data[strtab_offset as usize..end_off];
 
-        Ok(GsymContext {
-            header: Header {
-                magic,
-                version,
-                addr_off_size,
-                uuid_size,
-                base_address,
-                num_addrs,
-                strtab_offset,
-                strtab_size,
-                uuid,
-            },
-            addr_tab,
-            addr_data_off_tab,
-            file_tab,
-            str_tab,
-            raw_data: data,
-        })
+            let slf = GsymContext {
+                header: Header {
+                    magic,
+                    version,
+                    addr_off_size,
+                    uuid_size,
+                    base_address,
+                    num_addrs,
+                    strtab_offset,
+                    strtab_size,
+                    uuid,
+                },
+                addr_tab,
+                addr_data_off_tab,
+                file_tab,
+                str_tab,
+                raw_data: data,
+            };
+            Some(Ok(slf))
+        }
+
+        parse_header_impl(data).ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidData,
+                "GSYM data does not contain sufficient bytes",
+            )
+        })?
     }
 
     pub fn num_addresses(&self) -> usize {
