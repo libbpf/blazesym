@@ -129,14 +129,14 @@ pub fn run_op(
             // including max_delta.
             let range = header.max_delta - header.min_delta + 1;
             if range == 0 {
-                return RunResult::Err;
+                return RunResult::Err
             }
             let line_delta = header.min_delta + (adjusted % range);
             let addr_delta = adjusted / range;
 
             let file_line = ctx.file_line as i32 + line_delta as i32;
             if file_line < 1 {
-                return RunResult::Err;
+                return RunResult::Err
             }
 
             ctx.file_line = file_line as u32;

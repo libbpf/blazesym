@@ -250,7 +250,7 @@ impl _ElfCache {
             let stat = fstat(file.as_raw_fd())?;
 
             if ent.is_valid(&stat) {
-                return Ok(ent.get_backend());
+                return Ok(ent.get_backend())
             }
 
             // Purge the entry and load it from the filesystem.

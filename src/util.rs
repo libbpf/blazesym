@@ -17,10 +17,10 @@ pub fn search_address_key<T, V: Ord>(
     let mut right = data.len();
 
     if right == 0 {
-        return None;
+        return None
     }
     if address < keyfn(&data[0]) {
-        return None;
+        return None
     }
 
     while (left + 1) < right {
@@ -28,7 +28,7 @@ pub fn search_address_key<T, V: Ord>(
         let key = keyfn(&data[v]);
 
         if key == address {
-            return Some(v);
+            return Some(v)
         }
         if address < key {
             right = v;
@@ -52,17 +52,17 @@ pub fn search_address_opt_key<T, V: Ord>(
     while left < right {
         let left_key = keyfn(&data[left]);
         if left_key.is_some() {
-            break;
+            break
         }
         left += 1;
     }
 
     if left == right {
-        return None;
+        return None
     }
 
     if address < keyfn(&data[left]).unwrap() {
-        return None;
+        return None
     }
 
     while (left + 1) < right {
@@ -73,7 +73,7 @@ pub fn search_address_opt_key<T, V: Ord>(
         while v < right {
             let key = keyfn(&data[v]);
             if key.is_some() {
-                break;
+                break
             }
             v += 1;
         }
@@ -81,13 +81,13 @@ pub fn search_address_opt_key<T, V: Ord>(
         // Shrink to the left side.
         if v == right {
             right = v_saved;
-            continue;
+            continue
         }
 
         let key = keyfn(&data[v]).unwrap();
 
         if key == address {
-            return Some(v);
+            return Some(v)
         }
         if address < key {
             right = v;
@@ -122,7 +122,7 @@ pub fn parse_maps(pid: u32) -> Result<Vec<LinuxMapsEntry>, Error> {
     );
     if re_ptn.is_err() {
         println!("{re_ptn:?}");
-        return Err(Error::new(ErrorKind::InvalidData, "Failed to build regex"));
+        return Err(Error::new(ErrorKind::InvalidData, "Failed to build regex"))
     }
     let re_ptn = re_ptn.unwrap();
 
@@ -328,7 +328,7 @@ pub(crate) trait ReadRaw<'data> {
                 value |= ((byte & 0b0111_1111) as u128) << shift;
                 shift += 7;
                 if (byte & 0b1000_0000) == 0 {
-                    return Some((value, shift / 7));
+                    return Some((value, shift / 7))
                 }
             } else {
                 unreachable!()
@@ -354,7 +354,7 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
     #[inline]
     fn ensure(&self, len: usize) -> Option<()> {
         if len > self.len() {
-            return None;
+            return None
         }
         Some(())
     }

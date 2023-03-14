@@ -151,7 +151,7 @@ fn parse_abbrev(data: &[u8]) -> Option<(Abbrev, usize)> {
                 parsed_attrs: vec![],
             },
             1,
-        ));
+        ))
     }
 
     let mut pos = bytes as usize;
@@ -166,10 +166,10 @@ fn parse_abbrev(data: &[u8]) -> Option<(Abbrev, usize)> {
             pos += bytes;
             parsed_attrs.push(AbbrevAttr { name, form, opt });
             if form == 0 {
-                break;
+                break
             }
         } else {
-            break;
+            break
         }
     }
 
@@ -392,7 +392,7 @@ fn parse_cu_abbrevs(data: &[u8]) -> Option<(Vec<Abbrev>, usize)> {
         let (abbrev, bytes) = parse_abbrev(&data[pos..])?;
         pos += bytes;
         if abbrev.abbrev_code == 0x0 {
-            return Some((abbrevs, pos));
+            return Some((abbrevs, pos))
         }
         abbrevs.push(abbrev);
     }
@@ -408,7 +408,7 @@ fn parse_cu_abbrevs(data: &[u8]) -> Option<(Vec<Abbrev>, usize)> {
 /// * `data` - is the data from the `.debug_info` section.
 fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
     if data.len() < 4 {
-        return None;
+        return None
     }
 
     let mut pos = 0;
@@ -418,14 +418,14 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
     let bits64 = init_length == 0xffffffff;
     if bits64 {
         if (pos + 8) > data.len() {
-            return None;
+            return None
         }
         init_length = decode_udword(&data[pos..]) as usize;
         pos += 8;
     }
 
     if (pos + 2) > data.len() {
-        return None;
+        return None
     }
     let version = decode_uhalf(&data[pos..]);
     pos += 2;
@@ -433,14 +433,14 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
     if version == 0x4 {
         let debug_abbrev_offset: u64 = if bits64 {
             if (pos + 8) > data.len() {
-                return None;
+                return None
             }
             let v = decode_udword(&data[pos..]);
             pos += 8;
             v
         } else {
             if (pos + 4) > data.len() {
-                return None;
+                return None
             }
             let v = decode_uword(&data[pos..]);
             pos += 4;
@@ -455,11 +455,11 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
             debug_abbrev_offset,
             address_size,
             hdr_size: pos,
-        }));
+        }))
     }
 
     if (pos + 1) > data.len() {
-        return None;
+        return None
     }
     let unit_type = data[pos];
     pos += 1;
@@ -467,21 +467,21 @@ fn parse_unit_header(data: &[u8]) -> Option<UnitHeader> {
     match unit_type {
         DW_UT_compile => {
             if (pos + 1) > data.len() {
-                return None;
+                return None
             }
             let address_size = data[pos];
             pos += 1;
 
             let debug_abbrev_offset: u64 = if bits64 {
                 if (pos + 8) > data.len() {
-                    return None;
+                    return None
                 }
                 let v = decode_udword(&data[pos..]);
                 pos += 8;
                 v
             } else {
                 if (pos + 4) > data.len() {
-                    return None;
+                    return None
                 }
                 let v = decode_uword(&data[pos..]);
                 pos += 4;
@@ -531,7 +531,7 @@ impl<'a> DIE<'a> {
         let abbrev_attrs = self.abbrev_attrs;
 
         if self.done {
-            return Ok(());
+            return Ok(())
         }
 
         while self.abbrev_attrs_idx < abbrev_attrs.len() {
@@ -539,7 +539,7 @@ impl<'a> DIE<'a> {
             self.abbrev_attrs_idx += 1;
 
             if attr.form == 0 {
-                continue;
+                continue
             }
             let (_value, bytes) = extract_attr_value(
                 &self.data[self.reading_offset..],
@@ -565,7 +565,7 @@ impl<'a> Iterator for DIE<'a> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
-            return None;
+            return None
         }
         self.abbrev?;
 
@@ -580,7 +580,7 @@ impl<'a> Iterator for DIE<'a> {
             if form == 0 {
                 self.dieiter.die_finish_reading(self.reading_offset);
                 self.done = true;
-                return None;
+                return None
             }
 
             let (value, bytes) = extract_attr_value(
@@ -634,7 +634,7 @@ impl<'a> DIEIter<'a> {
         let abbrev = self.abbrev.unwrap();
         for attr in abbrev.all_attrs() {
             if attr.form == 0 {
-                continue;
+                continue
             }
             let (_value, bytes) = extract_attr_value(
                 &self.data[self.off..],
@@ -660,7 +660,7 @@ impl<'a> Iterator for DIEIter<'a> {
             self.exhaust_die().unwrap();
         }
         if self.done {
-            return None;
+            return None
         }
 
         let (abbrev_idx, bytes) = decode_leb128_128(&self.data[self.off..])?;
