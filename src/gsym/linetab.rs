@@ -23,8 +23,6 @@ pub enum RunResult {
     NewRow(usize),
     /// The end of the program (the operator stream.)
     End,
-    /// Fails to run the operator at the position.
-    Err,
 }
 
 #[derive(Debug)]
@@ -84,37 +82,37 @@ pub fn run_op(
     header: &LineTableHeader,
     ops: &[u8],
     pc: usize,
-) -> RunResult {
+) -> Option<RunResult> {
     let mut off = pc;
     let op = ops[off];
     off += 1;
     match op {
-        END_SEQUENCE => RunResult::End,
+        END_SEQUENCE => Some(RunResult::End),
         SET_FILE => {
             if let Some((f, bytes)) = decode_leb128(&ops[off..]) {
                 off += bytes as usize;
                 ctx.file_idx = f as u32;
-                RunResult::Ok(off - pc)
+                Some(RunResult::Ok(off - pc))
             } else {
-                RunResult::Err
+                None
             }
         }
         ADVANCE_PC => {
             if let Some((adv, bytes)) = decode_leb128(&ops[off..]) {
                 off += bytes as usize;
                 ctx.address += adv;
-                RunResult::NewRow(off - pc)
+                Some(RunResult::NewRow(off - pc))
             } else {
-                RunResult::Err
+                None
             }
         }
         ADVANCE_LINE => {
             if let Some((adv, bytes)) = decode_leb128_s(&ops[off..]) {
                 off += bytes as usize;
                 ctx.file_line = (ctx.file_line as i64 + adv) as u32;
-                RunResult::Ok(off - pc)
+                Some(RunResult::Ok(off - pc))
             } else {
-                RunResult::Err
+                None
             }
         }
         // Special operators.
@@ -129,19 +127,19 @@ pub fn run_op(
             // including max_delta.
             let range = header.max_delta - header.min_delta + 1;
             if range == 0 {
-                return RunResult::Err
+                return None
             }
             let line_delta = header.min_delta + (adjusted % range);
             let addr_delta = adjusted / range;
 
             let file_line = ctx.file_line as i32 + line_delta as i32;
             if file_line < 1 {
-                return RunResult::Err
+                return None
             }
 
             ctx.file_line = file_line as u32;
             ctx.address = (ctx.address as i64 + addr_delta) as u64;
-            RunResult::NewRow(off - pc)
+            Some(RunResult::NewRow(off - pc))
         }
     }
 }
