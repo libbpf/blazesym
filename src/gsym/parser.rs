@@ -294,22 +294,18 @@ pub fn find_address(ctx: &GsymContext, addr: u64) -> Option<usize> {
 /// * `data` - is the slice from AddressInfo::data.
 ///
 /// Returns a vector of [`AddressData`].
-pub fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
+pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddressData>> {
     let mut data_objs = vec![];
 
-    let mut off = 0;
-    while off < data.len() {
-        let typ = decode_uword(&data[off..]);
-        off += 4;
-        let length = decode_uword(&data[off..]);
-        off += 4;
-        let d = &data[off..(off + length as usize)];
+    while !data.is_empty() {
+        let typ = data.read_u32()?;
+        let length = data.read_u32()?;
+        let d = data.read_slice(length as usize)?;
         data_objs.push(AddressData {
             typ,
             length,
             data: d,
         });
-        off += length as usize;
 
         #[allow(non_upper_case_globals)]
         match typ {
@@ -322,7 +318,7 @@ pub fn parse_address_data(data: &[u8]) -> Vec<AddressData> {
         }
     }
 
-    data_objs
+    Some(data_objs)
 }
 
 /// Parse AddressData of InfoTypeLineTableInfo.

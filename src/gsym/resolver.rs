@@ -126,7 +126,7 @@ impl SymResolver for GsymResolver {
             return None
         }
 
-        let addrdatas = parse_address_data(addrinfo.data);
+        let addrdatas = parse_address_data(addrinfo.data)?;
         for adr_ent in addrdatas {
             if adr_ent.typ != InfoTypeLineTableInfo {
                 continue
