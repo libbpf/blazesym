@@ -17,9 +17,9 @@ const FIRST_SPECIAL: u8 = 0x04;
 #[derive(Debug)]
 pub enum RunResult {
     /// Run the operator successfully.
-    Ok(usize),
+    Ok,
     /// This operator creates a new row.
-    NewRow(usize),
+    NewRow,
     /// The end of the program (the operator stream.)
     End,
 }
@@ -82,17 +82,17 @@ pub fn run_op(
         SET_FILE => {
             let (f, _bytes) = ops.read_u128_leb128()?;
             ctx.file_idx = f as u32;
-            Some(RunResult::Ok(0))
+            Some(RunResult::Ok)
         }
         ADVANCE_PC => {
             let (adv, _bytes) = ops.read_u128_leb128()?;
             ctx.address += adv as u64;
-            Some(RunResult::NewRow(0))
+            Some(RunResult::NewRow)
         }
         ADVANCE_LINE => {
             let (adv, _bytes) = ops.read_i128_leb128()?;
             ctx.file_line = (ctx.file_line as i64 + adv as i64) as u32;
-            Some(RunResult::Ok(0))
+            Some(RunResult::Ok)
         }
         // Special operators.
         //
@@ -118,7 +118,7 @@ pub fn run_op(
 
             ctx.file_line = file_line as u32;
             ctx.address = (ctx.address as i64 + addr_delta) as u64;
-            Some(RunResult::NewRow(0))
+            Some(RunResult::NewRow)
         }
     }
 }

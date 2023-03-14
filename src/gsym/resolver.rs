@@ -141,8 +141,8 @@ impl SymResolver for GsymResolver {
             let mut row_cnt = 0;
             while !ops.is_empty() {
                 match run_op(&mut lntab_row, &lntab_hdr, &mut ops) {
-                    Some(RunResult::Ok(_bytes)) => {}
-                    Some(RunResult::NewRow(_bytes)) => {
+                    Some(RunResult::Ok) => {}
+                    Some(RunResult::NewRow) => {
                         row_cnt += 1;
                         if addr < lntab_row.address {
                             if row_cnt == 1 {
