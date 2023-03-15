@@ -51,7 +51,6 @@ use super::types::Header;
 use super::types::InfoTypeEndOfList;
 use super::types::InfoTypeInlineInfo;
 use super::types::InfoTypeLineTableInfo;
-use super::types::ADDR_DATA_OFFSET_SIZE;
 use super::types::FILE_INFO_SIZE;
 use super::types::GSYM_MAGIC;
 use super::types::GSYM_VERSION;
@@ -68,7 +67,7 @@ use super::types::GSYM_VERSION;
 pub struct GsymContext<'a> {
     header: Header,
     addr_tab: &'a [u8],
-    addr_data_off_tab: &'a [u8],
+    addr_data_off_tab: &'a [u32],
     file_tab: &'a [u8],
     str_tab: &'a [u8],
     raw_data: &'a [u8],
@@ -112,7 +111,7 @@ impl<'a> GsymContext<'a> {
 
             let addr_tab = data.read_slice(num_addrs as usize * usize::from(addr_off_size))?;
             let () = data.align(align_of::<u32>())?;
-            let addr_data_off_tab = data.read_slice(num_addrs as usize * ADDR_DATA_OFFSET_SIZE)?;
+            let addr_data_off_tab = data.read_pod_slice_ref(num_addrs as usize)?;
 
             let file_num = data.read_u32()?;
             let file_tab = data.read_slice(file_num as usize * FILE_INFO_SIZE)?;
@@ -172,19 +171,11 @@ impl<'a> GsymContext<'a> {
 
     /// Get the AddressInfo of an address given by an index.
     pub fn addr_info(&self, idx: usize) -> Option<AddressInfo> {
-        if idx >= self.header.num_addrs as usize {
-            return None
-        }
-
-        let off = idx * ADDR_DATA_OFFSET_SIZE;
-        let ad_off = decode_uword(&self.addr_data_off_tab[off..]) as usize;
-        let size = decode_uword(&self.raw_data[ad_off..]);
-        let name = decode_uword(&self.raw_data[ad_off + 4..]);
-        let info = AddressInfo {
-            size,
-            name,
-            data: &self.raw_data[ad_off + 8..],
-        };
+        let offset = *self.addr_data_off_tab.get(idx)?;
+        let mut data = self.raw_data.get(offset as usize..)?;
+        let size = data.read_u32()?;
+        let name = data.read_u32()?;
+        let info = AddressInfo { size, name, data };
 
         Some(info)
     }
