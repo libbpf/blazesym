@@ -91,7 +91,7 @@ fn cc(src: &Path, dst: &str, options: &[&str]) {
 
 /// Convert debug information contained in `src` into GSYM in `dst` using
 /// `llvm-gsymutil`.
-fn gsym(src: &Path, dst: &str) {
+fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
@@ -152,6 +152,9 @@ fn unpack_xz(src: &Path, dst: &Path) {
     use std::io::copy;
     use xz2::read::XzDecoder;
 
+    println!("cargo:rerun-if-changed={}", src.display());
+    println!("cargo:rerun-if-changed={}", dst.display());
+
     let src_file = File::options().create(false).read(true).open(src).unwrap();
     let mut decoder = XzDecoder::new_multi_decoder(src_file);
 
@@ -171,18 +174,21 @@ fn unpack_xz(_src: &Path, _dst: &Path) {
     unimplemented!()
 }
 
-/// Unpack benchmark files.
-fn unpack_bench_files(crate_root: &Path) {
-    let src = Path::new(crate_root)
+/// Prepare benchmark files.
+fn prepare_bench_files(crate_root: &Path) {
+    let vmlinux = Path::new(crate_root)
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.xz");
-    println!("cargo:rerun-if-changed={}", src.display());
 
-    let mut dst = src.clone();
+    let mut dst = vmlinux.clone();
     assert!(dst.set_extension(""));
-    println!("cargo:rerun-if-changed={}", dst.display());
+    unpack_xz(&vmlinux, &dst);
 
-    unpack_xz(&src, &dst)
+    let src = dst.clone();
+    let mut dst = vmlinux;
+    assert!(dst.set_extension("gsym"));
+    let dst = dst.file_name().unwrap();
+    gsym(&src, dst);
 }
 
 fn main() {
@@ -193,7 +199,7 @@ fn main() {
     }
 
     if cfg!(feature = "generate-bench-files") {
-        unpack_bench_files(crate_dir.as_ref());
+        prepare_bench_files(crate_dir.as_ref());
     }
 
     #[cfg(feature = "generate-c-header")]
