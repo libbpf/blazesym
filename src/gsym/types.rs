@@ -1,8 +1,6 @@
 pub const GSYM_MAGIC: u32 = 0x4753594d;
 pub const GSYM_VERSION: u16 = 1;
 
-/// The size of address data offsets in GSYM.
-pub const ADDR_DATA_OFFSET_SIZE: usize = 4;
 /// The size of a GSYM `FileInfo` object.
 pub const FILE_INFO_SIZE: usize = 8;
 
