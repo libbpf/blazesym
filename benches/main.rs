@@ -1,4 +1,5 @@
 mod dwarf;
+mod gsym;
 
 use std::time::Duration;
 
@@ -18,6 +19,9 @@ fn benchmark(c: &mut Criterion) {
     });
     group.bench_function(stringify!(dwarf::symbolize_end_to_end), |b| {
         b.iter(dwarf::symbolize_end_to_end)
+    });
+    group.bench_function(stringify!(gsym::symbolize_end_to_end), |b| {
+        b.iter(gsym::symbolize_end_to_end)
     });
 }
 
