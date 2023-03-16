@@ -157,7 +157,8 @@ impl SymResolver for KSymResolver {
                 address: *addr,
                 size: 0,
                 sym_type: SymbolType::Function,
-                ..Default::default()
+                file_offset: 0,
+                obj_file_name: None,
             }])
         }
         None
@@ -178,7 +179,8 @@ impl SymResolver for KSymResolver {
                     address: *addr,
                     size: 0,
                     sym_type: SymbolType::Function,
-                    ..Default::default()
+                    file_offset: 0,
+                    obj_file_name: None,
                 });
             }
         }

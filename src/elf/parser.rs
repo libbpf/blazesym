@@ -469,7 +469,8 @@ impl ElfParser {
                             address: sym_ref.st_value,
                             size: sym_ref.st_size,
                             sym_type: SymbolType::Function,
-                            ..Default::default()
+                            file_offset: 0,
+                            obj_file_name: None,
                         });
                     }
                 }
@@ -515,7 +516,8 @@ impl ElfParser {
                         address: sym_ref.st_value,
                         size: sym_ref.st_size,
                         sym_type: SymbolType::Function,
-                        ..Default::default()
+                        file_offset: 0,
+                        obj_file_name: None,
                     });
                 }
             }
