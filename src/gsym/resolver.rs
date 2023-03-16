@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::{Error, Read};
 use std::mem;
@@ -188,11 +191,14 @@ impl SymResolver for GsymResolver {
     fn get_obj_file_name(&self) -> &Path {
         &self.file_name
     }
+}
 
-    fn repr(&self) -> String {
-        format!("GSYM {:?}", self.file_name)
+impl Debug for GsymResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "GSYM {}", self.file_name.display())
     }
 }
+
 
 #[cfg(test)]
 mod tests {

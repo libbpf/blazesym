@@ -13,8 +13,14 @@
 #[cfg(feature = "nightly")]
 extern crate test;
 
-use std::io::{Error, ErrorKind};
-use std::path::{Component, Path, PathBuf};
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
+use std::io::Error;
+use std::io::ErrorKind;
+use std::path::Component;
+use std::path::Path;
+use std::path::PathBuf;
 use std::ptr;
 use std::rc::Rc;
 use std::u64;
@@ -126,9 +132,12 @@ pub struct SymbolInfo {
 /// The trait of symbol resolvers.
 ///
 /// An symbol resolver usually provides information from one symbol
-/// source; e., a symbol file.
-trait SymResolver {
-    /// Return the range that this resolver serve in an address space.
+/// source; e.g., a symbol file.
+trait SymResolver
+where
+    Self: Debug,
+{
+    /// Return the range that this resolver serves in an address space.
     fn get_address_range(&self) -> (u64, u64);
     /// Find the names and the start addresses of a symbol found for
     /// the given address.
@@ -144,8 +153,6 @@ trait SymResolver {
     fn addr_file_off(&self, addr: u64) -> Option<u64>;
     /// Get the file name of the shared object.
     fn get_obj_file_name(&self) -> &Path;
-
-    fn repr(&self) -> String;
 }
 
 const REG_RBP: usize = 7;
@@ -350,15 +357,19 @@ impl SymResolver for KernelResolver {
     fn get_obj_file_name(&self) -> &Path {
         &self.kernel_image
     }
+}
 
-    fn repr(&self) -> String {
-        format!(
+impl Debug for KernelResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(
+            f,
             "KernelResolver {} {}",
             self.kallsyms.display(),
             self.kernel_image.display()
         )
     }
 }
+
 
 /// The description of a source of symbols and debug information.
 ///
@@ -968,7 +979,11 @@ mod tests {
         assert!(resolver_map.is_ok());
         let resolver_map = resolver_map.unwrap();
 
-        let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+        let signatures: Vec<_> = resolver_map
+            .resolvers
+            .iter()
+            .map(|(_, resolver)| format!("{resolver:?}"))
+            .collect();
         // ElfResolver for the binary itself.
         assert!(signatures.iter().any(|x| x.contains("/blazesym")));
         // ElfResolver for libc.
@@ -998,7 +1013,11 @@ mod tests {
         assert!(resolver_map.is_ok());
         let resolver_map = resolver_map.unwrap();
 
-        let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+        let signatures: Vec<_> = resolver_map
+            .resolvers
+            .iter()
+            .map(|(_, resolver)| format!("{resolver:?}"))
+            .collect();
         // ElfResolver for the binary itself.
         assert!(signatures.iter().any(|x| x.contains("/blazesym")));
         // ElfResolver for libc.
@@ -1026,7 +1045,11 @@ mod tests {
         assert!(resolver_map.is_ok());
         let resolver_map = resolver_map.unwrap();
 
-        let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
+        let signatures: Vec<_> = resolver_map
+            .resolvers
+            .iter()
+            .map(|(_, resolver)| format!("{resolver:?}"))
+            .collect();
         assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
 
         let kernel_image = Path::new("/dev/null");

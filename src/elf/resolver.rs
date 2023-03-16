@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
@@ -176,11 +179,13 @@ impl SymResolver for ElfResolver {
     fn get_obj_file_name(&self) -> &Path {
         &self.file_name
     }
+}
 
-    fn repr(&self) -> String {
+impl Debug for ElfResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self.backend {
-            ElfBackend::Dwarf(_) => format!("DWARF {}", self.file_name.display()),
-            ElfBackend::Elf(_) => format!("ELF {}", self.file_name.display()),
+            ElfBackend::Dwarf(_) => write!(f, "DWARF {}", self.file_name.display()),
+            ElfBackend::Elf(_) => write!(f, "ELF {}", self.file_name.display()),
         }
     }
 }

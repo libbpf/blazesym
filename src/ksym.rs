@@ -1,17 +1,22 @@
-use super::{FindAddrOpts, SymbolInfo, SymbolType};
-
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::default::Default;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Error};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::u64;
 
-use crate::SymResolver;
-
 use regex::Regex;
+
+use super::FindAddrOpts;
+use super::SymbolInfo;
+use super::SymbolType;
+
+use crate::SymResolver;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
@@ -26,7 +31,6 @@ pub struct Ksym {
 ///
 /// The users should provide the path of kallsyms, so you can provide
 /// a copy from other devices.
-#[derive(Debug)]
 pub struct KSymResolver {
     syms: Vec<Ksym>,
     sym_to_addr: RefCell<HashMap<&'static str, u64>>,
@@ -198,11 +202,14 @@ impl SymResolver for KSymResolver {
     fn get_obj_file_name(&self) -> &Path {
         &self.file_name
     }
+}
 
-    fn repr(&self) -> String {
-        String::from("KSymResolver")
+impl Debug for KSymResolver {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "KSymResolver")
     }
 }
+
 
 /// Cache of KSymResolver.
 ///
