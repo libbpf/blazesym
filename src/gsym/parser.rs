@@ -152,19 +152,19 @@ impl<'a> GsymContext<'a> {
 
     /// Get the address of an entry in the Address Table.
     pub fn addr_at(&self, idx: usize) -> Option<u64> {
-        if idx >= self.header.num_addrs as usize {
-            return None
-        }
+        let addr_off_size = self.header.addr_off_size as usize;
+        let (address, _shift) = self
+            .addr_tab
+            .get(idx * addr_off_size..)?
+            .read_slice(addr_off_size)?
+            .iter()
+            .fold((0, 0), |(mut address, mut shift), byte| {
+                address |= (*byte as u64) << shift;
+                shift += u8::BITS;
+                (address, shift)
+            });
 
-        let off = idx * self.header.addr_off_size as usize;
-        let mut addr = 0u64;
-        let mut shift = 0;
-        for d in &self.addr_tab[off..(off + self.header.addr_off_size as usize)] {
-            addr |= (*d as u64) << shift;
-            shift += 8;
-        }
-        addr += self.header.base_address;
-        Some(addr)
+        Some(self.header.base_address + address)
     }
 
     /// Get the AddressInfo of an address given by an index.
