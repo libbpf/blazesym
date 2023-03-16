@@ -35,7 +35,6 @@
 //!
 //! See <https://reviews.llvm.org/D53379>
 
-use std::ffi::CStr;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::mem::align_of;
@@ -180,27 +179,9 @@ impl<'a> GsymContext<'a> {
     }
 
     /// Get the string at the given offset from the String Table.
-    pub fn get_str(&self, off: usize) -> Option<&str> {
-        if off >= self.str_tab.len() {
-            return None
-        }
-
-        // Ensure there is a null byte.
-        let mut null_off = self.str_tab.len() - 1;
-        while null_off > off && self.str_tab[null_off] != 0 {
-            null_off -= 1;
-        }
-        if null_off == off {
-            return Some("")
-        }
-
-        // SAFETY: the lifetime of `CStr` can live as long as `self`.
-        // The returned reference can also live as long as `self`.
-        unsafe {
-            CStr::from_ptr(self.str_tab[off..].as_ptr().cast())
-                .to_str()
-                .ok()
-        }
+    #[inline]
+    pub fn get_str(&self, offset: usize) -> Option<&str> {
+        self.str_tab.get(offset..)?.read_cstr()?.to_str().ok()
     }
 
     #[inline]
