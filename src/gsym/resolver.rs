@@ -61,36 +61,22 @@ impl SymResolver for GsymResolver {
     }
 
     fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
-        let addr = addr - self.loaded_address;
-        let idx = if let Some(idx) = find_address(&self.ctx, addr) {
-            idx
-        } else {
-            return vec![]
-        };
+        fn find_address_impl(gsym: &GsymResolver, addr: u64) -> Option<Vec<(&str, u64)>> {
+            let addr = addr.checked_sub(gsym.loaded_address)?;
+            let idx = find_address(&gsym.ctx, addr)?;
 
-        let found = if let Some(addr) = self.ctx.addr_at(idx) {
-            addr
-        } else {
-            return vec![]
-        };
+            let found = gsym.ctx.addr_at(idx)?;
+            if addr < found {
+                return None
+            }
 
-        if addr < found {
-            return vec![]
+            let info = gsym.ctx.addr_info(idx)?;
+            let name = gsym.ctx.get_str(info.name as usize)?;
+
+            Some(vec![(name, found + gsym.loaded_address)])
         }
 
-        let info = if let Some(info) = self.ctx.addr_info(idx) {
-            info
-        } else {
-            return Vec::new()
-        };
-
-        let name = if let Some(name) = self.ctx.get_str(info.name as usize) {
-            name
-        } else {
-            return Vec::new()
-        };
-
-        vec![(name, found + self.loaded_address)]
+        find_address_impl(self, addr).unwrap_or_default()
     }
 
     fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
