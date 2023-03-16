@@ -219,6 +219,12 @@ pub(crate) trait ReadRaw<'data> {
     /// Ensure that `len` bytes are available for consumption.
     fn ensure(&self, len: usize) -> Option<()>;
 
+    /// Align the read pointer to the next multiple of `align_to`.
+    ///
+    /// # Panics
+    /// This method may panic if `align_to` is not a power of two.
+    fn align(&mut self, align_to: usize) -> Option<()>;
+
     /// Consume and return `len` bytes.
     fn read_slice(&mut self, len: usize) -> Option<&'data [u8]>;
 
@@ -360,6 +366,13 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
     }
 
     #[inline]
+    fn align(&mut self, align_to: usize) -> Option<()> {
+        let offset = self.as_ptr().align_offset(align_to);
+        let _slice = self.read_slice(offset)?;
+        Some(())
+    }
+
+    #[inline]
     fn read_slice(&mut self, len: usize) -> Option<&'data [u8]> {
         self.ensure(len)?;
         let (a, b) = self.split_at(len);
@@ -391,6 +404,47 @@ mod tests {
         assert_eq!(slice.ensure(0), Some(()));
         assert_eq!(slice.ensure(1), Some(()));
         assert_eq!(slice.ensure(2), None);
+    }
+
+    /// Check that we can align the read pointer on a `[u8]`.
+    #[test]
+    fn u8_slice_align() {
+        let mut buffer = [0u8; 64];
+        let ptr = buffer.as_mut_ptr();
+
+        // Make sure that we have an aligned pointer to begin with.
+        let aligned_ptr = match ptr.align_offset(align_of::<u64>()) {
+            offset if offset < size_of::<u64>() => unsafe { ptr.add(offset) },
+            _ => unreachable!(),
+        };
+
+        let aligned = unsafe { slice::from_raw_parts(aligned_ptr, 16) };
+        let mut data = aligned;
+
+        let () = data.align(1).unwrap();
+        assert_eq!(data.as_ptr(), aligned.as_ptr());
+
+        let () = data.align(2).unwrap();
+        assert_eq!(data.as_ptr(), aligned.as_ptr());
+
+        let () = data.align(4).unwrap();
+        assert_eq!(data.as_ptr(), aligned.as_ptr());
+
+        let () = data.align(8).unwrap();
+        assert_eq!(data.as_ptr(), aligned.as_ptr());
+
+        // After this read we are unaligned again.
+        let _byte = data.read_u8();
+
+        // Nothing should happen when attempting to align to 1 byte
+        // boundary.
+        let () = data.align(1).unwrap();
+        assert_eq!(data.as_ptr(), unsafe { aligned.as_ptr().add(1) });
+
+        // But once we align to a four byte boundary we the pointer
+        // should move.
+        let () = data.align(4).unwrap();
+        assert_eq!(data.as_ptr(), unsafe { aligned.as_ptr().add(4) });
     }
 
     /// Check that we can read various integers from a slice.
