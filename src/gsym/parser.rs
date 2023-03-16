@@ -178,6 +178,18 @@ impl<'a> GsymContext<'a> {
         Some(info)
     }
 
+    /// Retrieve the [start, end] address range
+    pub fn address_range(&self) -> Option<(u64, u64)> {
+        let len = self.num_addresses();
+        if len == 0 {
+            return Some((0, 0))
+        }
+
+        let start = self.addr_at(0)?;
+        let end = self.addr_at(len - 1)? + u64::from(self.addr_info(len - 1)?.size);
+        Some((start, end))
+    }
+
     /// Get the string at the given offset from the String Table.
     #[inline]
     pub fn get_str(&self, offset: usize) -> Option<&str> {

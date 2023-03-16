@@ -1,5 +1,7 @@
 use std::fs::File;
-use std::io::{Error, Read};
+use std::io::Error;
+use std::io::ErrorKind;
+use std::io::Read as _;
 use std::mem;
 use std::path::{Path, PathBuf};
 
@@ -20,6 +22,7 @@ pub struct GsymResolver {
     ctx: GsymContext<'static>,
     _data: Vec<u8>,
     loaded_address: u64,
+    range: (u64, u64),
 }
 
 impl GsymResolver {
@@ -28,6 +31,12 @@ impl GsymResolver {
         let mut data = vec![];
         fo.read_to_end(&mut data)?;
         let ctx = GsymContext::parse_header(&data)?;
+        let range = ctx.address_range().ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidData,
+                "failed to determine gsym resolver address range",
+            )
+        })?;
 
         Ok(GsymResolver {
             file_name,
@@ -37,24 +46,17 @@ impl GsymResolver {
             ctx: unsafe { mem::transmute(ctx) },
             _data: data,
             loaded_address,
+            range,
         })
     }
 }
 
 impl SymResolver for GsymResolver {
     fn get_address_range(&self) -> (u64, u64) {
-        let sz = self.ctx.num_addresses();
-        if sz == 0 {
-            return (0, 0)
-        }
-
-        // TODO: Must not unwrap.
-        let start = self.ctx.addr_at(0).unwrap() + self.loaded_address;
-        // TODO: Must not unwrap.
-        let end = self.ctx.addr_at(sz - 1).unwrap()
-            + self.ctx.addr_info(sz - 1).unwrap().size as u64
-            + self.loaded_address;
-        (start, end)
+        (
+            self.loaded_address + self.range.0,
+            self.loaded_address + self.range.1,
+        )
     }
 
     fn find_symbols(&self, addr: u64) -> Vec<(&str, u64)> {
