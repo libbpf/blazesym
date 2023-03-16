@@ -146,7 +146,8 @@ impl<'a> GsymContext<'a> {
         })?
     }
 
-    pub fn num_addresses(&self) -> usize {
+    #[inline]
+    fn num_addresses(&self) -> usize {
         self.header.num_addrs as usize
     }
 
