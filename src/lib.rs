@@ -122,18 +122,6 @@ pub struct SymbolInfo {
     pub obj_file_name: Option<PathBuf>,
 }
 
-impl Default for SymbolInfo {
-    fn default() -> Self {
-        SymbolInfo {
-            name: "".to_string(),
-            address: 0,
-            size: 0,
-            sym_type: SymbolType::Unknown,
-            file_offset: 0,
-            obj_file_name: None,
-        }
-    }
-}
 
 /// The trait of symbol resolvers.
 ///

@@ -199,7 +199,8 @@ impl DwarfResolver {
                 address,
                 size,
                 sym_type,
-                ..Default::default()
+                file_offset: 0,
+                obj_file_name: None,
             });
             idx += 1;
         }
@@ -249,7 +250,8 @@ impl DwarfResolver {
                     address: *address,
                     size: *size,
                     sym_type: *sym_type,
-                    ..Default::default()
+                    file_offset: 0,
+                    obj_file_name: None,
                 });
             }
         }
