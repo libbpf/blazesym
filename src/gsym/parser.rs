@@ -40,7 +40,6 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::mem::align_of;
 
-use crate::util::decode_uword;
 use crate::util::ReadRaw as _;
 
 use super::linetab::LineTableHeader;
@@ -51,7 +50,6 @@ use super::types::Header;
 use super::types::InfoTypeEndOfList;
 use super::types::InfoTypeInlineInfo;
 use super::types::InfoTypeLineTableInfo;
-use super::types::FILE_INFO_SIZE;
 use super::types::GSYM_MAGIC;
 use super::types::GSYM_VERSION;
 
@@ -68,7 +66,7 @@ pub struct GsymContext<'a> {
     header: Header,
     addr_tab: &'a [u8],
     addr_data_off_tab: &'a [u32],
-    file_tab: &'a [u8],
+    file_tab: &'a [FileInfo],
     str_tab: &'a [u8],
     raw_data: &'a [u8],
 }
@@ -114,7 +112,8 @@ impl<'a> GsymContext<'a> {
             let addr_data_off_tab = data.read_pod_slice_ref(num_addrs as usize)?;
 
             let file_num = data.read_u32()?;
-            let file_tab = data.read_slice(file_num as usize * FILE_INFO_SIZE)?;
+            let () = data.align(align_of::<FileInfo>())?;
+            let file_tab = data.read_pod_slice_ref(file_num as usize)?;
 
             let mut data = head.get(strtab_offset as usize..)?;
             let str_tab = data.read_slice(strtab_size as usize)?;
@@ -204,19 +203,9 @@ impl<'a> GsymContext<'a> {
         }
     }
 
-    pub fn file_info(&self, idx: usize) -> Option<FileInfo> {
-        if idx >= self.file_tab.len() / FILE_INFO_SIZE {
-            return None
-        }
-        let mut off = idx * FILE_INFO_SIZE;
-        let directory = decode_uword(&self.file_tab[off..(off + 4)]);
-        off += 4;
-        let filename = decode_uword(&self.file_tab[off..(off + 4)]);
-        let info = FileInfo {
-            directory,
-            filename,
-        };
-        Some(info)
+    #[inline]
+    pub fn file_info(&self, idx: usize) -> Option<&FileInfo> {
+        self.file_tab.get(idx)
     }
 }
 

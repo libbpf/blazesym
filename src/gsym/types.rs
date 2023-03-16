@@ -1,8 +1,8 @@
+use crate::util::Pod;
+
 pub const GSYM_MAGIC: u32 = 0x4753594d;
 pub const GSYM_VERSION: u16 = 1;
 
-/// The size of a GSYM `FileInfo` object.
-pub const FILE_INFO_SIZE: usize = 8;
 
 /// GSYM File Header
 pub struct Header {
@@ -17,10 +17,14 @@ pub struct Header {
     pub uuid: [u8; 20],
 }
 
+#[repr(C)]
 pub struct FileInfo {
     pub directory: u32,
     pub filename: u32,
 }
+
+// SAFETY: `FileInfo` is valid for any bit pattern.
+unsafe impl Pod for FileInfo {}
 
 pub struct AddressInfo<'a> {
     pub size: u32,
