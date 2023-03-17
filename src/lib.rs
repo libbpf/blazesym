@@ -530,7 +530,7 @@ impl ResolverMap {
                 } => {
                     let kallsyms = kallsyms
                         .as_deref()
-                        .unwrap_or_else(|| Path::new("/proc/kallsyms"));
+                        .unwrap_or_else(|| Path::new(ksym::KALLSYMS));
                     let kernel_image = if let Some(img) = kernel_image {
                         img.clone()
                     } else {
@@ -1033,7 +1033,7 @@ mod tests {
         let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
         assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
 
-        let kallsyms = Path::new("/proc/kallsyms");
+        let kallsyms = Path::new(ksym::KALLSYMS);
         let kernel_image = Path::new("/dev/null");
         let kresolver = KernelResolver::new(kallsyms, kernel_image, &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());
