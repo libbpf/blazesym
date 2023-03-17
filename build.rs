@@ -117,34 +117,6 @@ fn dwarf_mostly(src: &Path, dst: &str) {
     run("strip", ["--only-keep-debug".as_ref(), dst.as_os_str()]).expect("failed to run `strip`")
 }
 
-/// Build the various test binaries.
-fn build_test_bins(crate_root: &Path) {
-    let src = crate_root.join("data").join("test.c");
-    cc(&src, "test-no-debug.bin", &["-g0"]);
-    cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
-
-    let src = crate_root.join("data").join("test-stable-addresses.c");
-    let ld_script = crate_root.join("data").join("test-stable-addresses.ld");
-    let ld_script = ld_script.to_str().unwrap();
-    println!("cargo:rerun-if-changed={ld_script}");
-    cc(
-        &src,
-        "test-stable-addresses.bin",
-        &[
-            "-gdwarf-4",
-            "-T",
-            ld_script,
-            "-Wl,--build-id=none",
-            "-O0",
-            "-nostdlib",
-        ],
-    );
-
-    let src = crate_root.join("data").join("test-stable-addresses.bin");
-    gsym(&src, "test.gsym");
-    dwarf_mostly(&src, "test-dwarf.bin");
-}
-
 /// Unpack an xz compressed file.
 #[cfg(feature = "xz2")]
 fn unpack_xz(src: &Path, dst: &Path) {
@@ -172,6 +144,34 @@ fn unpack_xz(src: &Path, dst: &Path) {
 #[cfg(not(feature = "xz2"))]
 fn unpack_xz(_src: &Path, _dst: &Path) {
     unimplemented!()
+}
+
+/// Build the various test binaries.
+fn build_test_bins(crate_root: &Path) {
+    let src = crate_root.join("data").join("test.c");
+    cc(&src, "test-no-debug.bin", &["-g0"]);
+    cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
+
+    let src = crate_root.join("data").join("test-stable-addresses.c");
+    let ld_script = crate_root.join("data").join("test-stable-addresses.ld");
+    let ld_script = ld_script.to_str().unwrap();
+    println!("cargo:rerun-if-changed={ld_script}");
+    cc(
+        &src,
+        "test-stable-addresses.bin",
+        &[
+            "-gdwarf-4",
+            "-T",
+            ld_script,
+            "-Wl,--build-id=none",
+            "-O0",
+            "-nostdlib",
+        ],
+    );
+
+    let src = crate_root.join("data").join("test-stable-addresses.bin");
+    gsym(&src, "test.gsym");
+    dwarf_mostly(&src, "test-dwarf.bin");
 }
 
 /// Prepare benchmark files.
