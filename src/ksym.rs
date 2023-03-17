@@ -295,9 +295,12 @@ mod tests {
 
     #[test]
     fn ksym_cache() {
+        let kallsyms = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("kallsyms");
         let cache = KSymCache::new();
-        let resolver = cache.get_resolver(Path::new(KALLSYMS));
-        let resolver1 = cache.get_resolver(Path::new(KALLSYMS));
+        let resolver = cache.get_resolver(&kallsyms);
+        let resolver1 = cache.get_resolver(&kallsyms);
         assert!(resolver.is_ok());
         assert!(resolver1.is_ok());
     }

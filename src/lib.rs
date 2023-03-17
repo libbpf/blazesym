@@ -947,7 +947,7 @@ mod tests {
 
     #[test]
     fn hello_world_stack() {
-        // A stack sample from a Hello World proram.
+        // A stack sample from a Hello World program.
         let stack = vec![
             0xb0, 0xd5, 0xff, 0xff, 0xff, 0x7f, 0x0, 0x0, 0xaf, 0x5, 0x40, 0x0, 0x0, 0x0, 0x0, 0x0,
             0xd0, 0xd5, 0xff, 0xff, 0xff, 0x7f, 0x0, 0x0, 0xcb, 0x5, 0x40, 0x0, 0x0, 0x0, 0x0, 0x0,
@@ -989,12 +989,16 @@ mod tests {
 
     #[test]
     fn load_symbolfilecfg_processkernel() {
+        let kallsyms = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("kallsyms");
+
         // Check if SymbolSrcCfg::Process & SymbolSrcCfg::Kernel expands to
         // ELFResolvers and a KernelResolver.
         let srcs = vec![
             SymbolSrcCfg::Process { pid: None },
             SymbolSrcCfg::Kernel {
-                kallsyms: None,
+                kallsyms: Some(kallsyms),
                 kernel_image: None,
             },
         ];
@@ -1016,10 +1020,14 @@ mod tests {
 
     #[test]
     fn load_symbolfilecfg_invalid_kernel() {
+        let kallsyms = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("kallsyms");
+
         // Check if SymbolSrcCfg::Kernel expands to a KernelResolver
         // even if kernel_image is invalid.
         let srcs = vec![SymbolSrcCfg::Kernel {
-            kallsyms: None,
+            kallsyms: Some(kallsyms.clone()),
             kernel_image: Some(PathBuf::from("/dev/null")),
         }];
         let cache_holder = CacheHolder::new(CacheHolderOpts {
@@ -1033,9 +1041,8 @@ mod tests {
         let signatures: Vec<_> = resolver_map.resolvers.iter().map(|x| x.1.repr()).collect();
         assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
 
-        let kallsyms = Path::new(ksym::KALLSYMS);
         let kernel_image = Path::new("/dev/null");
-        let kresolver = KernelResolver::new(kallsyms, kernel_image, &cache_holder).unwrap();
+        let kresolver = KernelResolver::new(&kallsyms, kernel_image, &cache_holder).unwrap();
         assert!(kresolver.ksymresolver.is_some());
         assert!(kresolver.kernelresolver.is_none());
     }
