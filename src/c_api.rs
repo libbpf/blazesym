@@ -672,8 +672,6 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
 #[allow(non_camel_case_types, unused)]
 #[derive(Copy, Clone)]
 pub enum blazesym_sym_type {
-    /// Invalid type
-    BLAZESYM_SYM_T_INVALID,
     /// You want to find a symbol of any type.
     BLAZESYM_SYM_T_UNKNOWN,
     /// The returned symbol is a function, or you want to find a function.
@@ -686,8 +684,6 @@ pub enum blazesym_sym_type {
 #[repr(C)]
 #[allow(non_camel_case_types, unused)]
 pub enum blazesym_faf_type {
-    /// Invalid type
-    BLAZESYM_FAF_T_INVALID,
     /// Return the offset in the file. (enable)
     BLAZESYM_FAF_T_OFFSET_IN_FILE,
     /// Return the file name of the shared object. (enable)
@@ -732,9 +728,6 @@ unsafe fn convert_find_addr_features(
                     blazesym_sym_type::BLAZESYM_SYM_T_VAR => {
                         FindAddrFeature::SymbolType(SymbolType::Variable)
                     }
-                    _ => {
-                        panic!("Invalid symbol type");
-                    }
                 });
             }
             blazesym_faf_type::BLAZESYM_FAF_T_OFFSET_IN_FILE => {
@@ -746,9 +739,6 @@ unsafe fn convert_find_addr_features(
                 features_ret.push(FindAddrFeature::ObjFileName(unsafe {
                     (*feature).param.enable
                 }));
-            }
-            _ => {
-                panic!("Unknown find_address feature type");
             }
         }
         feature = unsafe { feature.add(1) };
