@@ -150,8 +150,8 @@ shows the addresses, symbol names, source filenames and line numbers.
 ```c
 	#include "blazesym.h"
 	
-	struct sym_src_cfg sym_srcs[] = {
-		{ SRC_T_PROCESS, .params = { .process { <pid> } } },
+	struct blazesym_sym_src_cfg sym_srcs[] = {
+		{ BLAZESYM_SRC_T_PROCESS, .params = { .process { <pid> } } },
 	};
 	const struct blazesym *symbolizer;
 	const struct blazesym_result * result;
@@ -197,10 +197,10 @@ shows the addresses, symbol names, source filenames and line numbers.
 	blazesym_free(symbolizer);
 ```
 
-`struct sym_src_cfg` describes a binary, symbol file, shared
-object, kernel, or process.  This example uses a `struct sym_src_cfg`
-instance with [`blazesym_src_type::SRC_T_PROCESS`] type to
-describe a process.  BlazeSym deciphers all the loaded
+`struct blazesym_sym_src_cfg` describes a binary, symbol file, shared
+object, kernel, or process. This example uses a `struct blazesym_sym_src_cfg`
+instance with [`blazesym_src_type::BLAZESYM_SRC_T_PROCESS`] type to
+describe a process. BlazeSym deciphers all the loaded
 ELF files of the process and loads symbols and DWARF information from
 them to perform symbolization.
 
@@ -219,35 +219,36 @@ You may want to link a shared library, i.e., `libblazesym.so`.
 
 ### With Linux Kernel
 
-[`blazesym_src_type::SRC_T_KERNEL`] is a variant of `struct sym_src_cfg` highlighting
-the kernel as a source of symbolization.
+[`blazesym_src_type::BLAZESYM_SRC_T_KERNEL`] is a variant of `struct
+blazesym_sym_src_cfg` highlighting the kernel as a source of
+symbolization.
 
 ```c
-	struct sym_src_cfg sym_srcs[] = {
-		{ SRC_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
-		                                        .kernel_image = "/boot/vmlinux-XXXXX" } } },
-	};
+struct blazesym_sym_src_cfg sym_srcs[] = {
+	{ BLAZESYM_SRC_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
+	                                     .kernel_image = "/boot/vmlinux-XXXXX" } } },
+};
 ```
 
 You can give `kallsyms` and `kernel_image` a `NULL`.  BlazeSym will
-locate them for the running kernel.  For example, by
-default, `kallsyms` is at `"/proc/kallsyms"`.  Accordingly, the kernel image of the
-current kernel will be in `"/boot/"` or `"/usr/lib/debug/boot/"`.
+locate them for the running kernel.  For example, by default, `kallsyms`
+is at `"/proc/kallsyms"`. Accordingly, the kernel image of the current
+kernel will be in `"/boot/"` or `"/usr/lib/debug/boot/"`.
 
 ### A list of ELF files
 
-The [`blazesym_src_type::SRC_T_ELF`] variant of `struct sym_src_cfg` provides the path of an
-ELF file and its base address.  You can specify a list of ELF files
-and where they are loaded.
+The [`blazesym_src_type::BLAZESYM_SRC_T_ELF`] variant of `struct
+blazesym_sym_src_cfg` provides the path of an ELF file and its base
+address. You can specify a list of ELF files and where they are loaded.
 
 
 ```c
-	struct sym_src_cfg sym_srcs[] = {
-		{ SRC_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
-		                                  .base_address = 0x7fff31000 } } },
-		{ SRC_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
-		                                  .base_address = 0x1ff329000 } } },
-	};
+struct blazesym_sym_src_cfg sym_srcs[] = {
+	{ BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
+	                                  .base_address = 0x7fff31000 } } },
+	{ BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
+	                                  .base_address = 0x1ff329000 } } },
+};
 ```
 
 The base address of an ELF file is where its executable segment(s) is loaded.

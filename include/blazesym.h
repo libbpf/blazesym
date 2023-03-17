@@ -13,19 +13,19 @@ typedef enum blazesym_faf_type {
   /**
    * Invalid type
    */
-  FAF_T_INVALID,
+  BLAZESYM_FAF_T_INVALID,
   /**
    * Return the offset in the file. (enable)
    */
-  FAF_T_OFFSET_IN_FILE,
+  BLAZESYM_FAF_T_OFFSET_IN_FILE,
   /**
    * Return the file name of the shared object. (enable)
    */
-  FAF_T_OBJ_FILE_NAME,
+  BLAZESYM_FAF_T_OBJ_FILE_NAME,
   /**
    * Return symbols having the given type. (sym_type)
    */
-  FAF_T_SYMBOL_TYPE,
+  BLAZESYM_FAF_T_SYMBOL_TYPE,
 } blazesym_faf_type;
 
 /**
@@ -38,14 +38,14 @@ typedef enum blazesym_feature_name {
    * Users should set `blazesym_feature.params.enable` to enabe or
    * disable the feature,
    */
-  LINE_NUMBER_INFO,
+  BLAZESYM_LINE_NUMBER_INFO,
   /**
    * Enable or disable loading symbols from DWARF.
    *
    * Users should `blazesym_feature.params.enable` to enable or
    * disable the feature.  This feature is disabled by default.
    */
-  DEBUG_INFO_SYMBOLS,
+  BLAZESYM_DEBUG_INFO_SYMBOLS,
 } blazesym_feature_name;
 
 /**
@@ -55,15 +55,15 @@ typedef enum blazesym_src_type {
   /**
    * Symbols and debug information from an ELF file.
    */
-  SRC_T_ELF,
+  BLAZESYM_SRC_T_ELF,
   /**
    * Symbols and debug information from a kernel image and its kallsyms.
    */
-  SRC_T_KERNEL,
+  BLAZESYM_SRC_T_KERNEL,
   /**
    * Symbols and debug information from a process, including loaded object files.
    */
-  SRC_T_PROCESS,
+  BLAZESYM_SRC_T_PROCESS,
 } blazesym_src_type;
 
 /**
@@ -76,19 +76,19 @@ typedef enum blazesym_sym_type {
   /**
    * Invalid type
    */
-  SYM_T_INVALID,
+  BLAZESYM_SYM_T_INVALID,
   /**
    * You want to find a symbol of any type.
    */
-  SYM_T_UNKNOWN,
+  BLAZESYM_SYM_T_UNKNOWN,
   /**
    * The returned symbol is a function, or you want to find a function.
    */
-  SYM_T_FUNC,
+  BLAZESYM_SYM_T_FUNC,
   /**
    * The returned symbol is a variable, or you want to find a variable.
    */
-  SYM_T_VAR,
+  BLAZESYM_SYM_T_VAR,
 } blazesym_sym_type;
 
 /**
@@ -203,7 +203,7 @@ typedef struct blazesym_result {
  * Describes the path and address of an ELF file loaded in a
  * process.
  */
-typedef struct ssc_elf {
+typedef struct blazesym_ssc_elf {
   /**
    * The file name of an ELF file.
    *
@@ -236,7 +236,7 @@ typedef struct ssc_elf {
    * permission of `r-xp`.
    */
   uint64_t base_address;
-} ssc_elf;
+} blazesym_ssc_elf;
 
 /**
  * The parameters to load symbols and debug information from a kernel.
@@ -244,7 +244,7 @@ typedef struct ssc_elf {
  * Use a kernel image and a snapshot of its kallsyms as a source of symbols and
  * debug information.
  */
-typedef struct ssc_kernel {
+typedef struct blazesym_ssc_kernel {
   /**
    * The path of a copy of kallsyms.
    *
@@ -263,7 +263,7 @@ typedef struct ssc_kernel {
    * `"/usr/lib/debug/boot/"`.
    */
   const char *kernel_image;
-} ssc_kernel;
+} blazesym_ssc_kernel;
 
 /**
  * The parameters to load symbols and debug information from a process.
@@ -271,7 +271,7 @@ typedef struct ssc_kernel {
  * Load all ELF files in a process as the sources of symbols and debug
  * information.
  */
-typedef struct ssc_process {
+typedef struct blazesym_ssc_process {
   /**
    * It is the PID of a process to symbolize.
    *
@@ -279,36 +279,36 @@ typedef struct ssc_process {
    * files.
    */
   uint32_t pid;
-} ssc_process;
+} blazesym_ssc_process;
 
 /**
  * Parameters of a symbol source.
  */
-typedef union ssc_params {
+typedef union blazesym_ssc_params {
   /**
    * The variant for SRC_T_ELF
    */
-  struct ssc_elf elf;
+  struct blazesym_ssc_elf elf;
   /**
    * The variant for SRC_T_KERNEL
    */
-  struct ssc_kernel kernel;
+  struct blazesym_ssc_kernel kernel;
   /**
    * The variant for SRC_T_PROCESS
    */
-  struct ssc_process process;
-} ssc_params;
+  struct blazesym_ssc_process process;
+} blazesym_ssc_params;
 
 /**
  * Description of a source of symbols and debug information for C API.
  */
-typedef struct sym_src_cfg {
+typedef struct blazesym_sym_src_cfg {
   /**
    * A type of symbol source.
    */
   enum blazesym_src_type src_type;
-  union ssc_params params;
-} sym_src_cfg;
+  union blazesym_ssc_params params;
+} blazesym_sym_src_cfg;
 
 typedef struct blazesym_sym_info {
   const uint8_t *name;
@@ -382,7 +382,7 @@ void blazesym_free(struct blazesym *aSymbolizer);
  *
  */
 const struct blazesym_result *blazesym_symbolize(struct blazesym *aSymbolizer,
-                                                 const struct sym_src_cfg *aSymSrcs,
+                                                 const struct blazesym_sym_src_cfg *aSymSrcs,
                                                  uint32_t aSymSrcsLen,
                                                  const uint64_t *aAddrs,
                                                  uintptr_t aAddrCnt);
@@ -413,7 +413,7 @@ void blazesym_result_free(const struct blazesym_result *aResults);
  *
  */
 const struct blazesym_sym_info *blazesym_find_address_regex_opt(struct blazesym *aSymbolizer,
-                                                                const struct sym_src_cfg *aSymSrcs,
+                                                                const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                 uint32_t aSymSrcsLen,
                                                                 const char *aPattern,
                                                                 const struct blazesym_faddr_feature *aFeatures,
@@ -432,7 +432,7 @@ const struct blazesym_sym_info *blazesym_find_address_regex_opt(struct blazesym 
  *
  */
 const struct blazesym_sym_info *blazesym_find_address_regex(struct blazesym *aSymbolizer,
-                                                            const struct sym_src_cfg *aSymSrcs,
+                                                            const struct blazesym_sym_src_cfg *aSymSrcs,
                                                             uint32_t aSymSrcsLen,
                                                             const char *aPattern);
 
@@ -464,7 +464,7 @@ void blazesym_syms_free(const struct blazesym_sym_info *aSyms);
  *
  */
 const struct blazesym_sym_info *const *blazesym_find_addresses_opt(struct blazesym *aSymbolizer,
-                                                                   const struct sym_src_cfg *aSymSrcs,
+                                                                   const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                    uint32_t aSymSrcsLen,
                                                                    const char *const *aNames,
                                                                    uintptr_t aNameCnt,
@@ -482,7 +482,7 @@ const struct blazesym_sym_info *const *blazesym_find_addresses_opt(struct blazes
  *
  */
 const struct blazesym_sym_info *const *blazesym_find_addresses(struct blazesym *aSymbolizer,
-                                                               const struct sym_src_cfg *aSymSrcs,
+                                                               const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                uint32_t aSymSrcsLen,
                                                                const char *const *aNames,
                                                                uintptr_t aNameCnt);
