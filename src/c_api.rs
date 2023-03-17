@@ -560,7 +560,7 @@ unsafe fn convert_syms_list_to_c(
                     sym_type: match sym_type {
                         SymbolType::Function => blazesym_sym_type::BLAZESYM_SYM_T_FUNC,
                         SymbolType::Variable => blazesym_sym_type::BLAZESYM_SYM_T_VAR,
-                        _ => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
+                        SymbolType::Unknown => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
                     },
                     file_offset,
                     obj_file_name,
@@ -642,7 +642,7 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
                 sym_type: match sym_type {
                     SymbolType::Function => blazesym_sym_type::BLAZESYM_SYM_T_FUNC,
                     SymbolType::Variable => blazesym_sym_type::BLAZESYM_SYM_T_VAR,
-                    _ => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
+                    SymbolType::Unknown => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
                 },
                 file_offset,
                 obj_file_name,
