@@ -11,10 +11,6 @@
  */
 typedef enum blazesym_faf_type {
   /**
-   * Invalid type
-   */
-  BLAZESYM_FAF_T_INVALID,
-  /**
    * Return the offset in the file. (enable)
    */
   BLAZESYM_FAF_T_OFFSET_IN_FILE,
@@ -73,10 +69,6 @@ typedef enum blazesym_src_type {
  * and indicate the types of symbols found.
  */
 typedef enum blazesym_sym_type {
-  /**
-   * Invalid type
-   */
-  BLAZESYM_SYM_T_INVALID,
   /**
    * You want to find a symbol of any type.
    */
