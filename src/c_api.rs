@@ -22,11 +22,11 @@ use crate::SymbolizerFeature;
 #[allow(non_camel_case_types, unused)]
 pub enum blazesym_src_type {
     /// Symbols and debug information from an ELF file.
-    SRC_T_ELF,
+    BLAZESYM_SRC_T_ELF,
     /// Symbols and debug information from a kernel image and its kallsyms.
-    SRC_T_KERNEL,
+    BLAZESYM_SRC_T_KERNEL,
     /// Symbols and debug information from a process, including loaded object files.
-    SRC_T_PROCESS,
+    BLAZESYM_SRC_T_PROCESS,
 }
 
 /// The parameters to load symbols and debug information from an ELF.
@@ -34,7 +34,7 @@ pub enum blazesym_src_type {
 /// Describes the path and address of an ELF file loaded in a
 /// process.
 #[repr(C)]
-pub struct ssc_elf {
+pub struct blazesym_ssc_elf {
     /// The file name of an ELF file.
     ///
     /// It can be an executable or shared object.
@@ -70,7 +70,7 @@ pub struct ssc_elf {
 /// Use a kernel image and a snapshot of its kallsyms as a source of symbols and
 /// debug information.
 #[repr(C)]
-pub struct ssc_kernel {
+pub struct blazesym_ssc_kernel {
     /// The path of a copy of kallsyms.
     ///
     /// It can be `"/proc/kallsyms"` for the running kernel on the
@@ -92,7 +92,7 @@ pub struct ssc_kernel {
 /// Load all ELF files in a process as the sources of symbols and debug
 /// information.
 #[repr(C)]
-pub struct ssc_process {
+pub struct blazesym_ssc_process {
     /// It is the PID of a process to symbolize.
     ///
     /// BlazeSym will parse `/proc/<pid>/maps` and load all the object
@@ -102,21 +102,21 @@ pub struct ssc_process {
 
 /// Parameters of a symbol source.
 #[repr(C)]
-pub union ssc_params {
+pub union blazesym_ssc_params {
     /// The variant for SRC_T_ELF
-    pub elf: mem::ManuallyDrop<ssc_elf>,
+    pub elf: mem::ManuallyDrop<blazesym_ssc_elf>,
     /// The variant for SRC_T_KERNEL
-    pub kernel: mem::ManuallyDrop<ssc_kernel>,
+    pub kernel: mem::ManuallyDrop<blazesym_ssc_kernel>,
     /// The variant for SRC_T_PROCESS
-    pub process: mem::ManuallyDrop<ssc_process>,
+    pub process: mem::ManuallyDrop<blazesym_ssc_process>,
 }
 
 /// Description of a source of symbols and debug information for C API.
 #[repr(C)]
-pub struct sym_src_cfg {
+pub struct blazesym_sym_src_cfg {
     /// A type of symbol source.
     pub src_type: blazesym_src_type,
-    pub params: ssc_params,
+    pub params: blazesym_ssc_params,
 }
 
 /// Names of the BlazeSym features.
@@ -127,12 +127,12 @@ pub enum blazesym_feature_name {
     ///
     /// Users should set `blazesym_feature.params.enable` to enabe or
     /// disable the feature,
-    LINE_NUMBER_INFO,
+    BLAZESYM_LINE_NUMBER_INFO,
     /// Enable or disable loading symbols from DWARF.
     ///
     /// Users should `blazesym_feature.params.enable` to enable or
     /// disable the feature.  This feature is disabled by default.
-    DEBUG_INFO_SYMBOLS,
+    BLAZESYM_DEBUG_INFO_SYMBOLS,
 }
 
 #[repr(C)]
@@ -219,19 +219,22 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
     PathBuf::from(unsafe { CStr::from_ptr(cstr) }.to_str().unwrap())
 }
 
-unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<Vec<SymbolSrcCfg>> {
+unsafe fn symbolsrccfg_to_rust(
+    cfg: *const blazesym_sym_src_cfg,
+    cfg_len: u32,
+) -> Option<Vec<SymbolSrcCfg>> {
     let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len as usize);
 
     for i in 0..cfg_len {
         let c = unsafe { cfg.offset(i as isize) };
         match unsafe { &(*c).src_type } {
-            blazesym_src_type::SRC_T_ELF => {
+            blazesym_src_type::BLAZESYM_SRC_T_ELF => {
                 cfg_rs.push(SymbolSrcCfg::Elf {
                     file_name: unsafe { from_cstr((*c).params.elf.file_name) },
                     base_address: unsafe { (*c).params.elf.base_address },
                 });
             }
-            blazesym_src_type::SRC_T_KERNEL => {
+            blazesym_src_type::BLAZESYM_SRC_T_KERNEL => {
                 let kallsyms = unsafe { (*c).params.kernel.kallsyms };
                 let kernel_image = unsafe { (*c).params.kernel.kernel_image };
                 cfg_rs.push(SymbolSrcCfg::Kernel {
@@ -247,7 +250,7 @@ unsafe fn symbolsrccfg_to_rust(cfg: *const sym_src_cfg, cfg_len: u32) -> Option<
                     },
                 });
             }
-            blazesym_src_type::SRC_T_PROCESS => {
+            blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
                 let pid = unsafe { (*c).params.process.pid };
                 cfg_rs.push(SymbolSrcCfg::Process {
                     pid: if pid > 0 { Some(pid) } else { None },
@@ -301,10 +304,10 @@ pub unsafe extern "C" fn blazesym_new_opts(
         .iter()
         .map(|x| -> SymbolizerFeature {
             match x.feature {
-                blazesym_feature_name::LINE_NUMBER_INFO => {
+                blazesym_feature_name::BLAZESYM_LINE_NUMBER_INFO => {
                     SymbolizerFeature::LineNumberInfo(unsafe { x.params.enable })
                 }
-                blazesym_feature_name::DEBUG_INFO_SYMBOLS => {
+                blazesym_feature_name::BLAZESYM_DEBUG_INFO_SYMBOLS => {
                     SymbolizerFeature::DebugInfoSymbols(unsafe { x.params.enable })
                 }
             }
@@ -430,7 +433,7 @@ unsafe fn convert_symbolizedresults_to_c(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_symbolize(
     symbolizer: *mut blazesym,
-    sym_srcs: *const sym_src_cfg,
+    sym_srcs: *const blazesym_sym_src_cfg,
     sym_srcs_len: u32,
     addrs: *const u64,
     addr_cnt: usize,
@@ -555,9 +558,9 @@ unsafe fn convert_syms_list_to_c(
                     address,
                     size,
                     sym_type: match sym_type {
-                        SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
-                        SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
-                        _ => blazesym_sym_type::SYM_T_UNKNOWN,
+                        SymbolType::Function => blazesym_sym_type::BLAZESYM_SYM_T_FUNC,
+                        SymbolType::Variable => blazesym_sym_type::BLAZESYM_SYM_T_VAR,
+                        _ => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
                     },
                     file_offset,
                     obj_file_name,
@@ -570,7 +573,7 @@ unsafe fn convert_syms_list_to_c(
                 name: ptr::null(),
                 address: 0,
                 size: 0,
-                sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
+                sym_type: blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
                 file_offset: 0,
                 obj_file_name: ptr::null(),
             }
@@ -637,9 +640,9 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
                 address,
                 size,
                 sym_type: match sym_type {
-                    SymbolType::Function => blazesym_sym_type::SYM_T_FUNC,
-                    SymbolType::Variable => blazesym_sym_type::SYM_T_VAR,
-                    _ => blazesym_sym_type::SYM_T_UNKNOWN,
+                    SymbolType::Function => blazesym_sym_type::BLAZESYM_SYM_T_FUNC,
+                    SymbolType::Variable => blazesym_sym_type::BLAZESYM_SYM_T_VAR,
+                    _ => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
                 },
                 file_offset,
                 obj_file_name,
@@ -652,7 +655,7 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
             name: ptr::null(),
             address: 0,
             size: 0,
-            sym_type: blazesym_sym_type::SYM_T_UNKNOWN,
+            sym_type: blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
             file_offset: 0,
             obj_file_name: ptr::null(),
         }
@@ -670,13 +673,13 @@ unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
 #[derive(Copy, Clone)]
 pub enum blazesym_sym_type {
     /// Invalid type
-    SYM_T_INVALID,
+    BLAZESYM_SYM_T_INVALID,
     /// You want to find a symbol of any type.
-    SYM_T_UNKNOWN,
+    BLAZESYM_SYM_T_UNKNOWN,
     /// The returned symbol is a function, or you want to find a function.
-    SYM_T_FUNC,
+    BLAZESYM_SYM_T_FUNC,
     /// The returned symbol is a variable, or you want to find a variable.
-    SYM_T_VAR,
+    BLAZESYM_SYM_T_VAR,
 }
 
 /// Feature names of looking up addresses of symbols.
@@ -684,13 +687,13 @@ pub enum blazesym_sym_type {
 #[allow(non_camel_case_types, unused)]
 pub enum blazesym_faf_type {
     /// Invalid type
-    FAF_T_INVALID,
+    BLAZESYM_FAF_T_INVALID,
     /// Return the offset in the file. (enable)
-    FAF_T_OFFSET_IN_FILE,
+    BLAZESYM_FAF_T_OFFSET_IN_FILE,
     /// Return the file name of the shared object. (enable)
-    FAF_T_OBJ_FILE_NAME,
+    BLAZESYM_FAF_T_OBJ_FILE_NAME,
     /// Return symbols having the given type. (sym_type)
-    FAF_T_SYMBOL_TYPE,
+    BLAZESYM_FAF_T_SYMBOL_TYPE,
 }
 
 /// The parameter parts of `blazesym_faddr_feature`.
@@ -718,15 +721,15 @@ unsafe fn convert_find_addr_features(
     let mut features_ret = vec![];
     for _ in 0..num_features {
         match unsafe { &(*feature).ftype } {
-            blazesym_faf_type::FAF_T_SYMBOL_TYPE => {
+            blazesym_faf_type::BLAZESYM_FAF_T_SYMBOL_TYPE => {
                 features_ret.push(match unsafe { (*feature).param.sym_type } {
-                    blazesym_sym_type::SYM_T_UNKNOWN => {
+                    blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN => {
                         FindAddrFeature::SymbolType(SymbolType::Unknown)
                     }
-                    blazesym_sym_type::SYM_T_FUNC => {
+                    blazesym_sym_type::BLAZESYM_SYM_T_FUNC => {
                         FindAddrFeature::SymbolType(SymbolType::Function)
                     }
-                    blazesym_sym_type::SYM_T_VAR => {
+                    blazesym_sym_type::BLAZESYM_SYM_T_VAR => {
                         FindAddrFeature::SymbolType(SymbolType::Variable)
                     }
                     _ => {
@@ -734,12 +737,12 @@ unsafe fn convert_find_addr_features(
                     }
                 });
             }
-            blazesym_faf_type::FAF_T_OFFSET_IN_FILE => {
+            blazesym_faf_type::BLAZESYM_FAF_T_OFFSET_IN_FILE => {
                 features_ret.push(FindAddrFeature::OffsetInFile(unsafe {
                     (*feature).param.enable
                 }));
             }
-            blazesym_faf_type::FAF_T_OBJ_FILE_NAME => {
+            blazesym_faf_type::BLAZESYM_FAF_T_OBJ_FILE_NAME => {
                 features_ret.push(FindAddrFeature::ObjFileName(unsafe {
                     (*feature).param.enable
                 }));
@@ -770,7 +773,7 @@ unsafe fn convert_find_addr_features(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     symbolizer: *mut blazesym,
-    sym_srcs: *const sym_src_cfg,
+    sym_srcs: *const blazesym_sym_src_cfg,
     sym_srcs_len: u32,
     pattern: *const c_char,
     features: *const blazesym_faddr_feature,
@@ -812,7 +815,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_address_regex(
     symbolizer: *mut blazesym,
-    sym_srcs: *const sym_src_cfg,
+    sym_srcs: *const blazesym_sym_src_cfg,
     sym_srcs_len: u32,
     pattern: *const c_char,
 ) -> *const blazesym_sym_info {
@@ -858,7 +861,7 @@ pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_addresses_opt(
     symbolizer: *mut blazesym,
-    sym_srcs: *const sym_src_cfg,
+    sym_srcs: *const blazesym_sym_src_cfg,
     sym_srcs_len: u32,
     names: *const *const c_char,
     name_cnt: usize,
@@ -905,7 +908,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_addresses(
     symbolizer: *mut blazesym,
-    sym_srcs: *const sym_src_cfg,
+    sym_srcs: *const blazesym_sym_src_cfg,
     sym_srcs_len: u32,
     names: *const *const c_char,
     name_cnt: usize,
