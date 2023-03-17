@@ -13,7 +13,7 @@ use crate::SymResolver;
 
 use regex::Regex;
 
-const KALLSYMS: &str = "/proc/kallsyms";
+pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
 
 #[derive(Debug)]
@@ -204,7 +204,7 @@ impl SymResolver for KSymResolver {
 
 /// Cache of KSymResolver.
 ///
-/// It returns the same isntance if path is the same.
+/// It returns the same instance if path is the same.
 #[derive(Debug)]
 pub struct KSymCache {
     resolvers: RefCell<HashMap<PathBuf, Rc<KSymResolver>>>,
@@ -248,7 +248,7 @@ mod tests {
 
         assert!(
             resolver.syms.len() > 10000,
-            "kallsyms seems to be unavailable or with all 0 addresses. (Check /proc/kallsyms)"
+            "kallsyms seems to be unavailable or with all 0 addresses. (Check {KALLSYMS})"
         );
 
         // Find the address of the symbol placed at the middle
