@@ -71,10 +71,6 @@ impl KSymResolver {
         Ok(())
     }
 
-    pub fn load(&mut self) -> Result<(), std::io::Error> {
-        self.load_file_name(PathBuf::from(KALLSYMS))
-    }
-
     fn ensure_sym_to_addr(&self) {
         if self.sym_to_addr.borrow().len() > 0 {
             return
@@ -244,7 +240,7 @@ mod tests {
     #[ignore = "system-dependent; may fail"]
     fn ksym_resolver_load_find() {
         let mut resolver = KSymResolver::new();
-        assert!(resolver.load().is_ok());
+        assert!(resolver.load_file_name(PathBuf::from(KALLSYMS)).is_ok());
 
         assert!(
             resolver.syms.len() > 10000,
