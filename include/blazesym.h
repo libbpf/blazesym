@@ -104,14 +104,6 @@ typedef enum blazesym_sym_type {
 typedef struct BlazeSymbolizer BlazeSymbolizer;
 
 /**
- * The symbol resolver for /proc/kallsyms.
- *
- * The users should provide the path of kallsyms, so you can provide
- * a copy from other devices.
- */
-typedef struct KSymResolver KSymResolver;
-
-/**
  * A placeholder symbolizer for C API.
  *
  * It is returned by [`blazesym_new()`] and should be free by
@@ -345,17 +337,6 @@ typedef struct blazesym_faddr_feature {
   enum blazesym_faf_type ftype;
   union blazesym_faf_param param;
 } blazesym_faddr_feature;
-
-/**
- * Create a KSymResolver
- *
- * # Safety
- *
- * This function is supposed to be used by C code.  The pointer
- * returned should be free with `sym_resolver_free()`.
- *
- */
-struct KSymResolver *sym_resolver_create(void);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.

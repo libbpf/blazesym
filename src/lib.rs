@@ -21,7 +21,6 @@ use std::io::ErrorKind;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
-use std::ptr;
 use std::rc::Rc;
 use std::u64;
 
@@ -271,25 +270,6 @@ impl StackSession for X86_64StackSession {
         self.current_frame_idx = 0;
     }
 }
-
-/// Create a KSymResolver
-///
-/// # Safety
-///
-/// This function is supposed to be used by C code.  The pointer
-/// returned should be free with `sym_resolver_free()`.
-///
-#[no_mangle]
-#[doc(hidden)]
-pub unsafe extern "C" fn sym_resolver_create() -> *mut KSymResolver {
-    let mut resolver = Box::new(KSymResolver::new());
-    if resolver.load().is_err() {
-        ptr::null_mut()
-    } else {
-        Box::leak(resolver)
-    }
-}
-
 
 struct KernelResolver {
     ksymresolver: Option<Rc<KSymResolver>>,
