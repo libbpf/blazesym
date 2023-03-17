@@ -146,8 +146,8 @@ fn unpack_xz(_src: &Path, _dst: &Path) {
     unimplemented!()
 }
 
-/// Build the various test binaries.
-fn build_test_bins(crate_root: &Path) {
+/// Prepare the various test files.
+fn prepare_test_files(crate_root: &Path) {
     let src = crate_root.join("data").join("test.c");
     cc(&src, "test-no-debug.bin", &["-g0"]);
     cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
@@ -172,6 +172,11 @@ fn build_test_bins(crate_root: &Path) {
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test.gsym");
     dwarf_mostly(&src, "test-dwarf.bin");
+
+    let src = crate_root.join("data").join("kallsyms.xz");
+    let mut dst = src.clone();
+    assert!(dst.set_extension(""));
+    unpack_xz(&src, &dst);
 }
 
 /// Prepare benchmark files.
@@ -195,7 +200,7 @@ fn main() {
     let crate_dir = env!("CARGO_MANIFEST_DIR");
 
     if cfg!(feature = "generate-test-files") && !cfg!(feature = "dont-generate-test-files") {
-        build_test_bins(crate_dir.as_ref());
+        prepare_test_files(crate_dir.as_ref());
     }
 
     if cfg!(feature = "generate-bench-files") {

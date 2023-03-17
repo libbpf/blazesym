@@ -6,7 +6,7 @@ authors = ["Kui-Feng <thinker.li@gmail.com>"]
 license-file = "LICENSE"
 repository = "https://github.com/libbpf/blazesym"
 edition = "2021"
-exclude = ["data/dwarf-example"]
+exclude = ["data/dwarf-example", "data/kallsyms.xz"]
 autobenches = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -44,7 +44,7 @@ xz2 = {version = "0.1.7", optional = true}
 generate-c-header = ["cbindgen"]
 # Enable this feature to opt in to the generation of test files. Having test
 # files created is necessary for running tests.
-generate-test-files = []
+generate-test-files = ["xz2"]
 # Enable this feature to opt in to the generation of benchmark files.
 # This feature is required for some of the benchmarks. Note that git-lfs
 # needs to be installed in this case.
