@@ -35,6 +35,56 @@ pub(crate) fn uname_release() -> Result<CString, Error> {
     Ok(release)
 }
 
+/// See `find_match_or_lower_bound`, but allow the user to pass in a comparison
+/// function for increased flexibility.
+pub(crate) fn find_match_or_lower_bound_by<T, U, F>(slice: &[T], item: U, mut f: F) -> Option<usize>
+where
+    U: Ord,
+    F: FnMut(&T) -> U,
+{
+    let idx = slice.partition_point(|e| f(e) < item);
+
+    // At this point `idx` references the first item greater or equal to the one
+    // we are looking for.
+
+    if let Some(e) = slice.get(idx) {
+        // If the item at `idx` is equal to what we were looking for, we are
+        // trivially done, as it's guaranteed to be the first one to match.
+        if f(e) == item {
+            return Some(idx)
+        }
+    }
+
+    // Otherwise `idx` points to a "greater" item. Hence, we pick the previous
+    // one, but then have to scan backwards for as long as we see this one item,
+    // so that we end up reporting the index of the first of all equal ones.
+    let idx = idx.checked_sub(1)?;
+    let cmp_e = f(slice.get(idx)?);
+
+    for i in (0..idx).rev() {
+        let e = slice.get(i)?;
+        if f(e) != cmp_e {
+            return Some(i + 1)
+        }
+    }
+    Some(idx)
+}
+
+/// Perform a binary search on a slice, returning the index of the match (if
+/// found) or the one of the previous item (if any), taking into account
+/// duplicates.
+///
+/// This functionality is useful for cases where we compare elements with a
+/// size, such as ranges, and an address to search for can be covered by a range
+/// whose start is before the item to search for.
+pub(crate) fn find_match_or_lower_bound<T>(slice: &[T], item: T) -> Option<usize>
+where
+    T: Copy + Ord,
+{
+    find_match_or_lower_bound_by(slice, item, |e| *e)
+}
+
+
 pub fn search_address_key<T, V: Ord>(
     data: &[T],
     address: V,
@@ -513,5 +563,42 @@ mod tests {
         // No terminating NUL byte.
         let mut slice = b"abc".as_slice();
         assert_eq!(slice.read_cstr(), None);
+    }
+
+    /// Test that we correctly binary search for a lower bound.
+    #[test]
+    fn search_lower_bound() {
+        let data = [];
+        assert_eq!(find_match_or_lower_bound(&data, &0), None);
+
+        let data = [5];
+        assert_eq!(find_match_or_lower_bound(&data, 0), None);
+        assert_eq!(find_match_or_lower_bound(&data, 1), None);
+        assert_eq!(find_match_or_lower_bound(&data, 4), None);
+        assert_eq!(find_match_or_lower_bound(&data, 5), Some(0));
+        assert_eq!(find_match_or_lower_bound(&data, 6), Some(0));
+
+        let data = [5, 5];
+        assert_eq!(find_match_or_lower_bound(&data, 5), Some(0));
+
+        let data = [5, 5, 5];
+        assert_eq!(find_match_or_lower_bound(&data, 5), Some(0));
+
+        let data = [5, 5, 5, 5];
+        assert_eq!(find_match_or_lower_bound(&data, 5), Some(0));
+
+        let data = [4, 5, 5, 5, 5];
+        assert_eq!(find_match_or_lower_bound(&data, 5), Some(1));
+
+        let data = [1, 4, 42, 43, 99];
+        assert_eq!(find_match_or_lower_bound(&data, 0), None);
+        assert_eq!(find_match_or_lower_bound(&data, 1), Some(0));
+        assert_eq!(find_match_or_lower_bound(&data, 4), Some(1));
+        assert_eq!(find_match_or_lower_bound(&data, 5), Some(1));
+        assert_eq!(find_match_or_lower_bound(&data, 41), Some(1));
+        assert_eq!(find_match_or_lower_bound(&data, 98), Some(3));
+        assert_eq!(find_match_or_lower_bound(&data, 99), Some(4));
+        assert_eq!(find_match_or_lower_bound(&data, 100), Some(4));
+        assert_eq!(find_match_or_lower_bound(&data, 1337), Some(4));
     }
 }
