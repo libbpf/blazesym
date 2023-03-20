@@ -18,7 +18,6 @@ use crate::SymbolInfo;
 use super::linetab::run_op;
 use super::linetab::LineTableRow;
 use super::linetab::RunResult;
-use super::parser::find_address;
 use super::parser::parse_address_data;
 use super::parser::parse_line_table_header;
 use super::parser::GsymContext;
@@ -70,7 +69,7 @@ impl SymResolver for GsymResolver {
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         fn find_address_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
             let addr = addr.checked_sub(gsym.loaded_address)?;
-            let idx = find_address(&gsym.ctx, addr)?;
+            let idx = gsym.ctx.find_address(addr)?;
 
             let found = gsym.ctx.addr_at(idx)?;
             if addr < found {
@@ -112,7 +111,7 @@ impl SymResolver for GsymResolver {
     /// The `AddressLineInfo` corresponding to the address or `None`.
     fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
         let addr = addr.checked_sub(self.loaded_address)?;
-        let idx = find_address(&self.ctx, addr)?;
+        let idx = self.ctx.find_address(addr)?;
         let symaddr = self.ctx.addr_at(idx)?;
         if addr < symaddr {
             return None
