@@ -154,17 +154,14 @@ impl<'a> GsymContext<'a> {
     /// Get the address of an entry in the Address Table.
     pub fn addr_at(&self, idx: usize) -> Option<u64> {
         let addr_off_size = self.header.addr_off_size as usize;
-        let (address, _shift) = self
-            .addr_tab
-            .get(idx * addr_off_size..)?
-            .read_slice(addr_off_size)?
-            .iter()
-            .fold((0, 0), |(mut address, mut shift), byte| {
-                address |= (*byte as u64) << shift;
-                shift += u8::BITS;
-                (address, shift)
-            });
-
+        let mut data = self.addr_tab.get(idx * addr_off_size..)?;
+        let address = match addr_off_size {
+            1 => data.read_u8()?.into(),
+            2 => data.read_u16()?.into(),
+            4 => data.read_u32()?.into(),
+            8 => data.read_u64()?,
+            _ => return None,
+        };
         Some(self.header.base_address + address)
     }
 
