@@ -149,7 +149,7 @@ impl DwarfResolver {
             if dis_ref.is_some() {
                 return Ok(())
             }
-            let mut debug_info_syms = debug_info_parse_symbols(&self.parser, None, 1)?;
+            let mut debug_info_syms = debug_info_parse_symbols(&self.parser, None)?;
             debug_info_syms.sort_by_key(|v: &DWSymInfo| -> &str { v.name });
             *dis_ref = Some(unsafe { mem::transmute(debug_info_syms) });
         }

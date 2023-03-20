@@ -9,10 +9,6 @@ use std::io::ErrorKind;
 use std::mem;
 #[cfg(test)]
 use std::path::Path;
-use std::sync::mpsc;
-use std::thread;
-
-use crossbeam_channel::unbounded;
 
 use crate::elf::ElfParser;
 use crate::util::decode_leb128;
@@ -792,18 +788,6 @@ fn debug_info_parse_symbols_cu<'a>(
     }
 }
 
-/// The parse result of the `.debug_info` section.
-///
-/// This type is used by the worker threads to pass results to the
-/// coordinator after finishing an Unit.  `Stop` is used to nofity the
-/// coordinator that a matching condition is met.  It could be that
-/// the given symbol is already found, so that the coordinator should
-/// stop producing more tasks.
-enum DIParseResult<'a> {
-    Symbols(Vec<DWSymInfo<'a>>),
-    Stop,
-}
-
 /// Parse the addresses of symbols from the `.debug_info` section.
 ///
 /// # Arguments
@@ -812,12 +796,9 @@ enum DIParseResult<'a> {
 /// * `cond` - is a function to check if we have found the information
 ///            we need.  The function will stop earlier if the
 ///            condition is met.
-/// * `nthreads` - is the number of worker threads to create. 0 or 1
-///                means single thread.
 pub(crate) fn debug_info_parse_symbols<'a>(
     parser: &'a ElfParser,
     cond: Option<&(dyn Fn(&DWSymInfo<'a>) -> bool + Send + Sync)>,
-    nthreads: usize,
 ) -> Result<Vec<DWSymInfo<'a>>, Error> {
     let info_sect_idx = parser.find_section(".debug_info")?;
     let info_data = parser.section_data(info_sect_idx)?;
@@ -829,72 +810,7 @@ pub(crate) fn debug_info_parse_symbols<'a>(
 
     let mut syms = Vec::<DWSymInfo>::new();
 
-    if nthreads > 1 {
-        thread::scope(|s| {
-            // Create worker threads to process tasks (Units) in a work
-            // queue.
-            let mut handles = vec![];
-            let (qsend, qrecv) = unbounded::<debug_info::DIEIter<'a>>();
-            let (result_tx, result_rx) = mpsc::channel::<DIParseResult>();
-
-            for _ in 0..nthreads {
-                let result_tx = result_tx.clone();
-                let qrecv = qrecv.clone();
-
-                let handle = s.spawn(move || {
-                    let mut syms: Vec<DWSymInfo> = vec![];
-                    if let Some(cond) = cond {
-                        while let Ok(dieiterholder) = qrecv.recv() {
-                            let saved_sz = syms.len();
-                            debug_info_parse_symbols_cu(dieiterholder, str_data, &mut syms);
-                            for sym in &syms[saved_sz..] {
-                                if !cond(sym) {
-                                    result_tx.send(DIParseResult::Stop).unwrap();
-                                }
-                            }
-                        }
-                    } else {
-                        while let Ok(dieiterholder) = qrecv.recv() {
-                            debug_info_parse_symbols_cu(dieiterholder, str_data, &mut syms);
-                        }
-                    }
-                    result_tx.send(DIParseResult::Symbols(syms)).unwrap();
-                });
-
-                handles.push(handle);
-            }
-
-            for (uhdr, dieiter) in units {
-                if let debug_info::UnitHeader::CompileV4(_) = uhdr {
-                    qsend.send(dieiter).unwrap();
-                }
-
-                if let Ok(result) = result_rx.try_recv() {
-                    if let DIParseResult::Stop = result {
-                        break
-                    } else {
-                        return Err(Error::new(
-                            ErrorKind::UnexpectedEof,
-                            "Receive an unexpected result",
-                        ))
-                    }
-                }
-            }
-
-            drop(qsend);
-
-            drop(result_tx);
-            while let Ok(result) = result_rx.recv() {
-                if let DIParseResult::Symbols(mut thread_syms) = result {
-                    syms.append(&mut thread_syms);
-                }
-            }
-            for handle in handles {
-                handle.join().unwrap();
-            }
-            Ok(())
-        })?;
-    } else if let Some(cond) = cond {
+    if let Some(cond) = cond {
         'outer: for (uhdr, dieiter) in units {
             if let debug_info::UnitHeader::CompileV4(_) = uhdr {
                 let saved_sz = syms.len();
@@ -1161,7 +1077,7 @@ mod tests {
             .join("test-dwarf-v4.bin");
 
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let syms = debug_info_parse_symbols(&parser, None, 4).unwrap();
+        let syms = debug_info_parse_symbols(&parser, None).unwrap();
         assert!(syms.iter().any(|sym| sym.name == "fibonacci"))
     }
 
@@ -1172,6 +1088,6 @@ mod tests {
         let bin_name = env::args().next().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
 
-        let () = b.iter(|| debug_info_parse_symbols(&parser, None, 1).unwrap());
+        let () = b.iter(|| debug_info_parse_symbols(&parser, None).unwrap());
     }
 }
