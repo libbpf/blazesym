@@ -24,7 +24,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::u64;
 
-use nix::sys::stat::stat;
 use nix::sys::utsname;
 
 mod c_api;
@@ -470,8 +469,8 @@ impl ResolverMap {
                 continue
             }
 
-            if let Ok(filestat) = stat(&entry.path) {
-                if (filestat.st_mode & 0o170000) != 0o100000 {
+            if let Ok(meta_data) = entry.path.metadata() {
+                if !meta_data.is_file() {
                     // Not a regular file
                     continue
                 }
@@ -520,7 +519,7 @@ impl ResolverMap {
                         let mut i = 0;
                         let kernel_image = loop {
                             let path = dirs[i].join(format!("{basename}{release}"));
-                            if stat(&path).is_ok() {
+                            if path.exists() {
                                 break path
                             }
                             i += 1;
