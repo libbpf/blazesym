@@ -1,4 +1,5 @@
 use std::ffi::CStr;
+use std::ffi::CString;
 use std::fs;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -22,6 +23,21 @@ pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat, Error> {
 
     // SAFETY: The object is initialized on success of `fstat`.
     Ok(unsafe { dst.assume_init() })
+}
+
+pub(crate) fn uname_release() -> Result<CString, Error> {
+    let mut dst = MaybeUninit::uninit();
+    let rc = unsafe { libc::uname(dst.as_mut_ptr()) };
+    if rc < 0 {
+        return Err(Error::last_os_error())
+    }
+
+    // SAFETY: The object is initialized on success of `uname`.
+    let uname = unsafe { dst.assume_init() };
+    // SAFETY: `uname` ensures a NUL terminated string in `uname.release` on
+    //         success.
+    let release = unsafe { CStr::from_ptr(uname.release.as_ptr()) }.to_owned();
+    Ok(release)
 }
 
 pub fn search_address_key<T, V: Ord>(
