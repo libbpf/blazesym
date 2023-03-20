@@ -6,10 +6,23 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::mem::align_of;
 use std::mem::size_of;
+use std::mem::MaybeUninit;
+use std::os::unix::io::RawFd;
 use std::path::PathBuf;
 use std::slice;
 
 use regex::Regex;
+
+pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat, Error> {
+    let mut dst = MaybeUninit::uninit();
+    let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
+    if rc < 0 {
+        return Err(Error::last_os_error())
+    }
+
+    // SAFETY: The object is initialized on success of `fstat`.
+    Ok(unsafe { dst.assume_init() })
+}
 
 pub fn search_address_key<T, V: Ord>(
     data: &[T],

@@ -9,10 +9,8 @@ use std::rc::Rc;
 
 use lru::LruCache;
 
-use nix::sys::stat::fstat;
-use nix::sys::stat::FileStat;
-
 use crate::dwarf::DwarfResolver;
+use crate::util::fstat;
 
 use super::ElfParser;
 
@@ -79,7 +77,7 @@ impl ElfCacheEntry {
         })
     }
 
-    fn is_valid(&self, stat: &FileStat) -> bool {
+    fn is_valid(&self, stat: &libc::stat) -> bool {
         stat.st_dev == self.dev
             && stat.st_ino == self.inode
             && stat.st_size == self.size
