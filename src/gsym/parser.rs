@@ -39,6 +39,8 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::mem::align_of;
 
+use crate::util::find_match_or_lower_bound;
+use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Addr;
 
@@ -201,36 +203,32 @@ impl<'a> GsymContext<'a> {
     }
 }
 
-/// Find the index of an entry in the address table most likely
-/// containing the given address.
+/// Find the index of an entry in the address table potentially containing the
+/// given address.
 ///
-/// The callers should check the respective `AddressInfo` to make sure
-/// it is what they request for.
+/// Callers should check the `AddressInfo` object at the returned index to see
+/// whether the symbol actually covers the provided address.
 pub fn find_address(ctx: &GsymContext, addr: Addr) -> Option<usize> {
-    let mut left = 0;
-    let mut right = ctx.num_addresses();
-
-    if right == 0 {
-        return None
+    fn find_address_impl<T>(mut addr_tab: &[u8], num_addrs: usize, address: Addr) -> Option<usize>
+    where
+        T: Copy + Ord + TryFrom<Addr> + Pod + 'static,
+    {
+        let address = T::try_from(address).ok()?;
+        let table = addr_tab.read_pod_slice_ref::<T>(num_addrs)?;
+        find_match_or_lower_bound(table, address)
     }
-    if addr < ctx.addr_at(0)? {
-        return None
-    }
 
-    while (left + 1) < right {
-        let v = (left + right) / 2;
-        let cur_addr = ctx.addr_at(v)?;
 
-        if addr == cur_addr {
-            return Some(v)
-        }
-        if addr < cur_addr {
-            right = v;
-        } else {
-            left = v;
-        }
+    let relative_addr = addr.checked_sub(ctx.header.base_address as Addr)?;
+    let num_addrs = ctx.header.num_addrs as usize;
+
+    match ctx.header.addr_off_size {
+        1 => find_address_impl::<u8>(ctx.addr_tab, num_addrs, relative_addr),
+        2 => find_address_impl::<u16>(ctx.addr_tab, num_addrs, relative_addr),
+        4 => find_address_impl::<u32>(ctx.addr_tab, num_addrs, relative_addr),
+        8 => find_address_impl::<u64>(ctx.addr_tab, num_addrs, relative_addr),
+        _ => None,
     }
-    Some(left)
 }
 
 /// Parse AddressData.
