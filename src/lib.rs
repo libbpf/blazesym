@@ -24,8 +24,6 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::u64;
 
-use nix::sys::utsname;
-
 mod c_api;
 mod dwarf;
 mod elf;
@@ -38,6 +36,7 @@ use elf::ElfResolver;
 use gsym::GsymResolver;
 use ksym::KSymCache;
 use ksym::KSymResolver;
+use util::uname_release;
 
 #[cfg(doc)]
 pub use c_api::*;
@@ -513,7 +512,7 @@ impl ResolverMap {
                     let kernel_image = if let Some(img) = kernel_image {
                         img.clone()
                     } else {
-                        let release = utsname::uname()?.release().to_str().unwrap().to_string();
+                        let release = uname_release()?.to_str().unwrap().to_string();
                         let basename = "vmlinux-";
                         let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
                         let mut i = 0;
