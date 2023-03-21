@@ -29,6 +29,7 @@ mod dwarf;
 mod elf;
 mod gsym;
 mod ksym;
+mod maps;
 mod mmap;
 mod util;
 
@@ -330,7 +331,7 @@ impl ResolverMap {
         resolvers: &mut ResolverList,
         cache_holder: &CacheHolder,
     ) -> Result<(), Error> {
-        let entries = util::parse_maps(pid)?;
+        let entries = maps::parse(pid)?;
 
         for entry in entries.iter() {
             if entry.path.as_path().components().next() != Some(Component::RootDir) {
