@@ -12,7 +12,7 @@ use std::rc::Rc;
 use regex::Regex;
 
 use crate::elf::ElfParser;
-use crate::util::search_address_key;
+use crate::util::find_match_or_lower_bound_by;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
@@ -112,7 +112,7 @@ impl DwarfResolver {
 
     fn find_dlcu_index(&self, address: Addr) -> Option<usize> {
         let a2a = &self.addr_to_dlcu;
-        let a2a_idx = search_address_key(a2a, address, &|x: &(Addr, u32)| -> Addr { x.0 })?;
+        let a2a_idx = find_match_or_lower_bound_by(a2a, address, |a2dlcu| a2dlcu.0)?;
         let dlcu_idx = a2a[a2a_idx].1 as usize;
 
         Some(dlcu_idx)

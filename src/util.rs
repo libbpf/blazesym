@@ -85,38 +85,6 @@ where
 }
 
 
-pub fn search_address_key<T, V: Ord>(
-    data: &[T],
-    address: V,
-    keyfn: &dyn Fn(&T) -> V,
-) -> Option<usize> {
-    let mut left = 0;
-    let mut right = data.len();
-
-    if right == 0 {
-        return None
-    }
-    if address < keyfn(&data[0]) {
-        return None
-    }
-
-    while (left + 1) < right {
-        let v = (left + right) / 2;
-        let key = keyfn(&data[v]);
-
-        if key == address {
-            return Some(v)
-        }
-        if address < key {
-            right = v;
-        } else {
-            left = v;
-        }
-    }
-
-    Some(left)
-}
-
 /// Do binary search but skip entries not having a key.
 pub fn search_address_opt_key<T, V: Ord>(
     data: &[T],
