@@ -38,6 +38,7 @@ use elf::ElfResolver;
 use gsym::GsymResolver;
 use ksym::KSymCache;
 use ksym::KSymResolver;
+use maps::Pid;
 use util::uname_release;
 
 #[cfg(doc)]
@@ -331,6 +332,7 @@ impl ResolverMap {
         resolvers: &mut ResolverList,
         cache_holder: &CacheHolder,
     ) -> Result<(), Error> {
+        let pid = if pid == 0 { Pid::Slf } else { Pid::Pid(pid) };
         let entries = maps::parse(pid)?;
 
         for entry in entries.iter() {
