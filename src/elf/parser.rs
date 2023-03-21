@@ -1,4 +1,7 @@
 use std::cell::RefCell;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -26,7 +29,6 @@ use super::types::SHN_UNDEF;
 use super::types::STT_FUNC;
 
 
-#[derive(Debug)]
 struct Cache<'mmap> {
     /// A slice of the raw ELF data that we are about to parse.
     elf_data: &'mmap [u8],
@@ -319,6 +321,12 @@ impl<'mmap> Cache<'mmap> {
 
         self.str2symtab = Some(str2symtab);
         Ok(())
+    }
+}
+
+impl Debug for Cache<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "Cache")
     }
 }
 
