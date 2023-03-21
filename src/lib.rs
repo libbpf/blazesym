@@ -439,12 +439,7 @@ impl ResolverMap {
     }
 
     pub fn find_resolver(&self, address: Addr) -> Option<&dyn SymResolver> {
-        let idx =
-            util::search_address_key(&self.resolvers, address, &|map: &(
-                (Addr, Addr),
-                Box<dyn SymResolver>,
-            )|
-             -> Addr { map.0 .0 })?;
+        let idx = util::find_match_or_lower_bound_by(&self.resolvers, address, |x| x.0 .0)?;
         let (loaded_begin, loaded_end) = self.resolvers[idx].0;
         if loaded_begin != loaded_end && address >= loaded_end {
             // `begin == end` means this ELF file may have only
