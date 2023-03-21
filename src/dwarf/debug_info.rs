@@ -21,7 +21,8 @@
 //! It will walk through the data in the `.debug_info` and
 //! `.debug_abbrev` section to return Units.
 
-use std::io::{Error, ErrorKind};
+use std::io::Error;
+use std::io::ErrorKind;
 use std::iter::Iterator;
 use std::mem;
 

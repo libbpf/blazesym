@@ -1,6 +1,7 @@
 extern crate blazesym;
 
-use blazesym::{BlazeSymbolizer, SymbolSrcCfg};
+use blazesym::BlazeSymbolizer;
+use blazesym::SymbolSrcCfg;
 use std::env;
 use std::path;
 

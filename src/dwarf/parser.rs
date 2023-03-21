@@ -4,7 +4,8 @@ use std::ffi::CStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::io::{Error, ErrorKind};
+use std::io::Error;
+use std::io::ErrorKind;
 use std::mem;
 #[cfg(test)]
 use std::path::Path;

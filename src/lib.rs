@@ -37,7 +37,8 @@ mod util;
 use elf::ElfCache;
 use elf::ElfResolver;
 use gsym::GsymResolver;
-use ksym::{KSymCache, KSymResolver};
+use ksym::KSymCache;
+use ksym::KSymResolver;
 
 #[cfg(doc)]
 pub use c_api::*;

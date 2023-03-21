@@ -1,6 +1,8 @@
 extern crate blazesym;
 
-use blazesym::{BlazeSymbolizer, SymbolSrcCfg, SymbolizedResult};
+use blazesym::BlazeSymbolizer;
+use blazesym::SymbolSrcCfg;
+use blazesym::SymbolizedResult;
 use std::env;
 
 fn show_usage() {

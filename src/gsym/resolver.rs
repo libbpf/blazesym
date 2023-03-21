@@ -6,9 +6,13 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read as _;
 use std::mem;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::path::PathBuf;
 
-use crate::{AddressLineInfo, FindAddrOpts, SymResolver, SymbolInfo};
+use crate::AddressLineInfo;
+use crate::FindAddrOpts;
+use crate::SymResolver;
+use crate::SymbolInfo;
 
 use super::linetab::run_op;
 use super::linetab::LineTableRow;

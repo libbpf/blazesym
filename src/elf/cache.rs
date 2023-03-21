@@ -9,7 +9,8 @@ use std::rc::Rc;
 
 use lru::LruCache;
 
-use nix::sys::stat::{fstat, FileStat};
+use nix::sys::stat::fstat;
+use nix::sys::stat::FileStat;
 
 use crate::dwarf::DwarfResolver;
 

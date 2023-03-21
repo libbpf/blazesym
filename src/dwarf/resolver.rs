@@ -2,7 +2,8 @@ use std::cell::RefCell;
 #[cfg(test)]
 use std::env;
 use std::fmt::Debug;
-use std::io::{Error, ErrorKind};
+use std::io::Error;
+use std::io::ErrorKind;
 use std::mem;
 #[cfg(test)]
 use std::path::Path;
