@@ -5,8 +5,11 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Error};
-use std::path::{Path, PathBuf};
+use std::io::BufRead;
+use std::io::BufReader;
+use std::io::Error;
+use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::u64;
 

@@ -1,4 +1,6 @@
-use std::alloc::{alloc, dealloc, Layout};
+use std::alloc::alloc;
+use std::alloc::dealloc;
+use std::alloc::Layout;
 use std::ffi::CStr;
 use std::ffi::OsStr;
 use std::mem;
