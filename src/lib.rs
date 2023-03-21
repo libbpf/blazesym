@@ -70,17 +70,6 @@ impl CacheHolder {
     }
 }
 
-trait StackFrame {
-    fn get_ip(&self) -> u64;
-    fn get_frame_pointer(&self) -> u64;
-}
-
-trait StackSession {
-    fn next_frame(&mut self) -> Option<&dyn StackFrame>;
-    fn prev_frame(&mut self) -> Option<&dyn StackFrame>;
-    fn go_top(&mut self);
-}
-
 struct AddressLineInfo {
     pub path: String,
     pub line_no: usize,
@@ -152,123 +141,6 @@ where
     fn addr_file_off(&self, addr: u64) -> Option<u64>;
     /// Get the file name of the shared object.
     fn get_obj_file_name(&self) -> &Path;
-}
-
-const REG_RBP: usize = 7;
-const REG_RIP: usize = 16;
-
-struct X86_64StackFrame {
-    rip: u64,
-    rbp: u64,
-}
-
-impl StackFrame for X86_64StackFrame {
-    fn get_ip(&self) -> u64 {
-        self.rip
-    }
-    fn get_frame_pointer(&self) -> u64 {
-        self.rbp
-    }
-}
-
-/// Do stacking unwind for x86_64
-///
-/// Parse a block of memory that is a copy of stack of thread to get frames.
-///
-struct X86_64StackSession {
-    frames: Vec<X86_64StackFrame>,
-    stack: Vec<u8>,
-    stack_base: u64, // The base address of the stack
-    registers: [u64; 17],
-    current_rbp: u64,
-    current_rip: u64,
-    current_frame_idx: usize,
-}
-
-impl X86_64StackSession {
-    fn _get_rbp_rel(&self) -> usize {
-        (self.current_rbp - self.stack_base) as usize
-    }
-
-    fn _mark_at_bottom(&mut self) {
-        self.current_rbp = 0;
-    }
-
-    fn _is_at_bottom(&self) -> bool {
-        self.current_rbp == 0
-    }
-
-    fn _get_u64(&self, off: usize) -> u64 {
-        let stack = &self.stack;
-        (stack[off] as u64)
-            | ((stack[off + 1] as u64) << 8)
-            | ((stack[off + 2] as u64) << 16)
-            | ((stack[off + 3] as u64) << 24)
-            | ((stack[off + 4] as u64) << 32)
-            | ((stack[off + 5] as u64) << 40)
-            | ((stack[off + 6] as u64) << 48)
-            | ((stack[off + 7] as u64) << 56)
-    }
-
-    #[cfg(test)]
-    pub fn new(stack: Vec<u8>, stack_base: u64, registers: [u64; 17]) -> X86_64StackSession {
-        X86_64StackSession {
-            frames: Vec::new(),
-            stack,
-            stack_base,
-            registers,
-            current_rbp: registers[REG_RBP],
-            current_rip: registers[REG_RIP],
-            current_frame_idx: 0,
-        }
-    }
-}
-
-impl StackSession for X86_64StackSession {
-    fn next_frame(&mut self) -> Option<&dyn StackFrame> {
-        if self._is_at_bottom() {
-            return None
-        }
-
-        if self.frames.len() > self.current_frame_idx {
-            let frame = &self.frames[self.current_frame_idx];
-            self.current_frame_idx += 1;
-            return Some(frame)
-        }
-
-        let frame = X86_64StackFrame {
-            rip: self.current_rip,
-            rbp: self.current_rbp,
-        };
-        self.frames.push(frame);
-
-        if self._get_rbp_rel() <= (self.stack.len() - 16) {
-            let new_rbp = self._get_u64(self._get_rbp_rel());
-            let new_rip = self._get_u64(self._get_rbp_rel() + 8);
-            self.current_rbp = new_rbp;
-            self.current_rip = new_rip;
-        } else {
-            self._mark_at_bottom();
-        }
-
-        self.current_frame_idx += 1;
-        Some(self.frames.last().unwrap() as &dyn StackFrame)
-    }
-
-    fn prev_frame(&mut self) -> Option<&dyn StackFrame> {
-        if self.current_frame_idx == 0 {
-            return None
-        }
-
-        self.current_frame_idx -= 1;
-        Some(&self.frames[self.current_frame_idx] as &dyn StackFrame)
-    }
-
-    fn go_top(&mut self) {
-        self.current_rip = self.registers[REG_RIP];
-        self.current_rbp = self.registers[REG_RBP];
-        self.current_frame_idx = 0;
-    }
 }
 
 struct KernelResolver {
@@ -923,29 +795,6 @@ mod tests {
 
     use std::path::Path;
 
-
-    #[test]
-    fn hello_world_stack() {
-        // A stack sample from a Hello World program.
-        let stack = vec![
-            0xb0, 0xd5, 0xff, 0xff, 0xff, 0x7f, 0x0, 0x0, 0xaf, 0x5, 0x40, 0x0, 0x0, 0x0, 0x0, 0x0,
-            0xd0, 0xd5, 0xff, 0xff, 0xff, 0x7f, 0x0, 0x0, 0xcb, 0x5, 0x40, 0x0, 0x0, 0x0, 0x0, 0x0,
-        ];
-        let expected_rips = vec![0x000000000040058a, 0x00000000004005af, 0x00000000004005cb];
-        let base = 0x7fffffffd5a0;
-        let mut registers: [u64; 17] = [0; 17];
-
-        registers[crate::REG_RIP] = expected_rips[0];
-        registers[crate::REG_RBP] = 0x7fffffffd5a0;
-
-        let mut session = crate::X86_64StackSession::new(stack, base, registers);
-        let frame = session.next_frame().unwrap();
-        assert_eq!(frame.get_ip(), expected_rips[0]);
-        let frame = session.next_frame().unwrap();
-        assert_eq!(frame.get_ip(), expected_rips[1]);
-        let frame = session.next_frame().unwrap();
-        assert_eq!(frame.get_ip(), expected_rips[2]);
-    }
 
     #[test]
     fn load_symbolfilecfg_process() {
