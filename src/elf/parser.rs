@@ -10,10 +10,9 @@ use std::ops::Deref as _;
 #[cfg(test)]
 use std::path::Path;
 
-use memmap::Mmap;
-
 use regex::Regex;
 
+use crate::mmap::Mmap;
 use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
 use crate::FindAddrOpts;
@@ -346,7 +345,7 @@ pub struct ElfParser {
 
 impl ElfParser {
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
-        let mmap = unsafe { Mmap::map(&file) }?;
+        let mmap = Mmap::map(&file)?;
         // We transmute the mmap's lifetime to static here as that is a
         // necessity for self-referentiality.
         // SAFETY: We never hand out any 'static references to cache
