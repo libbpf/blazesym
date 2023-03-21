@@ -24,12 +24,12 @@ required-features = ["generate-bench-files"]
 crossbeam-channel = "0.5"
 libc = "0.2.137"
 lru = "0.10"
-memmap = "0.7"
 regex = "1.6"
 
 [dev-dependencies]
 blazesym = {path = ".", features = ["generate-test-files"]}
 criterion = "0.4"
+tempfile = "3.4"
 
 [build-dependencies]
 anyhow = "1.0.68"

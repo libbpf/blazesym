@@ -29,6 +29,7 @@ mod dwarf;
 mod elf;
 mod gsym;
 mod ksym;
+mod mmap;
 mod util;
 
 use elf::ElfCache;
