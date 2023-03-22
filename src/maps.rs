@@ -10,7 +10,6 @@ use std::io::Read;
 use std::io::Result;
 use std::num::NonZeroU32;
 use std::ops::Range;
-use std::path::Component;
 use std::path::PathBuf;
 
 use crate::Addr;
@@ -39,13 +38,68 @@ impl From<u32> for Pid {
 }
 
 
+#[derive(Debug, Eq, Hash, PartialEq)]
+pub(crate) struct EntryPath {
+    /// The path of the file backing the maps entry via a
+    /// `/proc/<xxx>/map_files/` component.
+    ///
+    /// This path should generally be used on the local system, unless perhaps
+    /// for reporting purposes (for which `path` below may be more appropriate).
+    pub maps_file: PathBuf,
+    /// The path to the file backing the proc maps entry as found directly in
+    /// the `/proc/<xxx>/maps` file. This path should generally only be used for
+    /// reporting matters or outside of the system on which proc maps was
+    /// parsed. This path has been sanitized and no longer contains any
+    /// `(deleted)` suffixes.
+    pub symbolic_path: PathBuf,
+}
+
+
+/// The "pathname" component in a proc maps entry. See `proc(5)` section
+/// `/proc/[pid]/maps`.
+#[derive(Debug, PartialEq)]
+pub(crate) enum PathName {
+    Path(EntryPath),
+    Component(String),
+}
+
+impl PathName {
+    #[cfg(test)]
+    pub fn as_path(&self) -> Option<&EntryPath> {
+        match self {
+            Self::Path(path) => Some(path),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    pub fn as_component(&self) -> Option<&str> {
+        match self {
+            Self::Component(comp) => Some(comp),
+            _ => None,
+        }
+    }
+}
+
+
 #[derive(Debug)]
 pub(crate) struct MapsEntry {
     /// The virtual address range covered by this entry.
     pub range: Range<Addr>,
     pub mode: u8,
     pub offset: u64,
-    pub path: PathBuf,
+    pub path_name: Option<PathName>,
+}
+
+
+/// An already filtered `MapsEntry` that is guaranteed to contain a path.
+#[derive(Debug)]
+pub(crate) struct PathMapsEntry {
+    /// The virtual address range covered by this entry.
+    pub range: Range<Addr>,
+    pub _mode: u8,
+    pub offset: u64,
+    pub path: EntryPath,
 }
 
 
@@ -108,17 +162,30 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     let path_str = split_once(line, "inode component")
         .map(|(_inode, line)| line.trim())
         .unwrap_or("");
-    let path = if path_str.ends_with(" (deleted)") {
-        PathBuf::from(format!("/proc/{pid}/map_files/{address_str}"))
-    } else {
-        PathBuf::from(path_str)
+
+    let path_name = match path_str.as_bytes() {
+        [] => None,
+        [b'/', ..] => {
+            let symbolic_path =
+                PathBuf::from(path_str.strip_suffix(" (deleted)").unwrap_or(path_str));
+            let maps_file = PathBuf::from(format!("/proc/{pid}/map_files/{address_str}"));
+            Some(PathName::Path(EntryPath {
+                maps_file,
+                symbolic_path,
+            }))
+        }
+        // This variant would typically capture components such as `[vdso]` or
+        // `[heap]`, but we can't rely on square brackets being present
+        // unconditionally, as variants such as `anon_inode:bpf-map` are also
+        // possible.
+        [..] => Some(PathName::Component(path_str.to_string())),
     };
 
     let entry = MapsEntry {
         range: (loaded_address..end_address),
         mode,
         offset,
-        path,
+        path_name,
     };
     Ok(entry)
 }
@@ -182,31 +249,30 @@ pub(crate) fn parse(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>>
     Ok(iter)
 }
 
-/// A helper function checking whether a `MapsEntry` has relevant to
-/// symbolization efforts. If that is not the case, it may be possible to ignore
-/// it altogether.
-pub(crate) fn is_symbolization_relevant(entry: &MapsEntry) -> bool {
-    // Only entries with actual paths are of relevance.
-    if entry.path.as_path().components().next() != Some(Component::RootDir) {
-        return false
+/// A helper function checking whether a `MapsEntry` has relevance to
+/// symbolization efforts and converting it accordingly.
+pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<PathMapsEntry> {
+    let MapsEntry {
+        range,
+        mode,
+        offset,
+        path_name,
+    } = entry;
+
+    // Only entries that are executable (--x-) are of relevance.
+    if (mode & 0b0010) != 0b0010 {
+        return None
     }
 
-    // Only entries that are executable and readable (r-x-) are of relevance.
-    if (entry.mode & 0b1010) != 0b1010 {
-        return false
+    match path_name {
+        Some(PathName::Path(path)) => Some(PathMapsEntry {
+            range,
+            _mode: mode,
+            offset,
+            path,
+        }),
+        _ => None,
     }
-
-    if let Ok(meta_data) = entry.path.metadata() {
-        if !meta_data.is_file() {
-            return false
-        }
-    } else {
-        // TODO: We probably should handle errors more gracefully. It's not
-        //       clear that silently ignoring them is the right thing to do.
-        return false
-    }
-
-    true
 }
 
 
@@ -256,6 +322,10 @@ mod tests {
 7fa7bb783000-7fa7bb78e000 r--p 00029000 00:20 12023220                   /usr/lib64/ld-linux-x86-64.so.2
 7fa7bb78f000-7fa7bb791000 r--p 00034000 00:20 12023220                   /usr/lib64/ld-linux-x86-64.so.2
 7fa7bb791000-7fa7bb793000 rw-p 00036000 00:20 12023220                   /usr/lib64/ld-linux-x86-64.so.2
+7ff8d9eab000-7ff8d9ecc000 rw-s 00000000 00:0e 2057                       anon_inode:[perf_event]
+7ff8d9ecc000-7ff8d9eed000 rw-s 00000000 00:0e 2057                       anon_inode:[perf_event]
+7ff8d9f2d000-7ff8d9f2e000 r--s 00000000 00:0e 2057                       anon_inode:bpf-map
+7ff8d9f6f000-7ff8d9f70000 r--s 00000000 00:0e 2057                       anon_inode:bpf-map
 7ffd03212000-7ffd03234000 rw-p 00000000 00:00 0                          [stack]
 7ffd033a7000-7ffd033ab000 r--p 00000000 00:00 0                          [vvar]
 7ffd033ab000-7ffd033ad000 r-xp 00000000 00:00 0                          [vdso]
@@ -268,14 +338,40 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         });
 
         // Parse the first (actual) line.
-        let entry = parse_maps_line(lines.lines().nth(1).unwrap(), Pid::Slf).unwrap();
-        assert_eq!(entry.range.start, 0x55f4a95c9000);
-        assert_eq!(entry.range.end, 0x55f4a95cb000);
-        assert_eq!(entry.path, Path::new("/usr/bin/cat"));
+        let entry = parse_maps_line(lines.lines().nth(2).unwrap(), Pid::Slf).unwrap();
+        assert_eq!(entry.range.start, 0x55f4a95cb000);
+        assert_eq!(entry.range.end, 0x55f4a95cf000);
+        assert_eq!(entry.mode, 0b1011);
+        assert_eq!(
+            entry
+                .path_name
+                .as_ref()
+                .unwrap()
+                .as_path()
+                .unwrap()
+                .maps_file,
+            Path::new("/proc/self/map_files/55f4a95cb000-55f4a95cf000")
+        );
+
+        let entry = parse_maps_line(lines.lines().nth(6).unwrap(), Pid::Slf).unwrap();
+        assert_eq!(entry.range.start, 0x55f4aa379000);
+        assert_eq!(entry.range.end, 0x55f4aa39a000);
+        assert_eq!(entry.mode, 0b1101);
+        assert_eq!(
+            entry.path_name.as_ref().unwrap().as_component().unwrap(),
+            "[heap]",
+        );
 
         let entry = parse_maps_line(lines.lines().nth(8).unwrap(), Pid::Slf).unwrap();
+        assert_eq!(entry.mode, 0b1001);
         assert_eq!(
-            entry.path,
+            entry
+                .path_name
+                .as_ref()
+                .unwrap()
+                .as_path()
+                .unwrap()
+                .maps_file,
             Path::new("/proc/self/map_files/7f2321e00000-7f2321e37000")
         );
     }

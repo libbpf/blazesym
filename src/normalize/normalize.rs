@@ -11,7 +11,7 @@ use crate::elf::types::Elf64_Nhdr;
 use crate::elf::ElfParser;
 use crate::log::warn;
 use crate::maps;
-use crate::maps::MapsEntry;
+use crate::maps::PathMapsEntry;
 use crate::maps::Pid;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -109,10 +109,10 @@ fn read_build_id(path: &Path) -> Result<Option<Vec<u8>>> {
 
 
 /// Normalize a virtual address belonging to an ELF file represented by the
-/// provided [`MapsEntry`].
-fn normalize_elf_addr(virt_addr: Addr, entry: &MapsEntry) -> Result<Addr> {
+/// provided [`PathMapsEntry`].
+fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
     let file_off = virt_addr - entry.range.start + entry.offset as usize;
-    let parser = ElfParser::open(&entry.path)?;
+    let parser = ElfParser::open(&entry.path.maps_file)?;
     let phdrs = parser.program_headers()?;
     let addr = phdrs
         .iter()
@@ -129,7 +129,7 @@ fn normalize_elf_addr(virt_addr: Addr, entry: &MapsEntry) -> Result<Addr> {
                 ErrorKind::InvalidInput,
                 format!(
                     "failed to find ELF segment in {} that contains file offset 0x{:x}",
-                    entry.path.display(),
+                    entry.path.symbolic_path.display(),
                     entry.offset,
                 ),
             )
@@ -189,12 +189,9 @@ impl NormalizedUserAddrs {
 pub fn normalize_user_addrs(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAddrs> {
     let pid = Pid::from(pid);
 
-    let mut entries = maps::parse(pid)?.filter_map(|result| {
-        if let Ok(entry) = result {
-            maps::is_symbolization_relevant(&entry).then(|| Ok(entry))
-        } else {
-            Some(result)
-        }
+    let mut entries = maps::parse(pid)?.filter_map(|result| match result {
+        Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
+        Err(err) => Some(Err(err)),
     });
     let mut entry = entries.next().ok_or_else(|| {
         Error::new(
@@ -250,18 +247,18 @@ pub fn normalize_user_addrs(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAd
             };
         }
 
-        let meta_idx = if let Some(meta_idx) = meta_lookup.get(&entry.path) {
+        let meta_idx = if let Some(meta_idx) = meta_lookup.get(&entry.path.symbolic_path) {
             *meta_idx
         } else {
             let binary = Binary {
-                path: entry.path.to_path_buf(),
-                build_id: read_build_id(&entry.path)?,
+                path: entry.path.symbolic_path.to_path_buf(),
+                build_id: read_build_id(&entry.path.maps_file)?,
                 _non_exhaustive: (),
             };
 
             let meta_idx = normalized.meta.len();
             let () = normalized.meta.push(UserAddrMeta::Binary(binary));
-            let _ref = meta_lookup.insert(entry.path.to_path_buf(), meta_idx);
+            let _ref = meta_lookup.insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
             meta_idx
         };
 
