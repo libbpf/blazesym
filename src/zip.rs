@@ -303,3 +303,49 @@ impl Archive {
         })
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::io::Write as _;
+
+    use tempfile::tempfile;
+
+    use crate::elf::ElfParser;
+
+
+    /// Check that we can properly open a zip archive.
+    #[test]
+    fn zip_opening() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let _archive = Archive::open(zip).unwrap();
+    }
+
+    /// Check that we can find archive entries by name.
+    #[test]
+    fn zip_entry_reading() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(zip).unwrap();
+
+        let err = archive.find_entry("non-existent").unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        let entry = archive.find_entry("test-dwarf.bin").unwrap();
+        assert_eq!(entry.compression, 0);
+        assert_eq!(entry.name, OsStr::new("test-dwarf.bin"));
+
+        // Sanity check that the entry actually references a valid ELF binary,
+        // which is what we expect.
+        let mut file = tempfile().unwrap();
+        let () = file.write_all(entry.data).unwrap();
+
+        let elf = ElfParser::open_file(file).unwrap();
+        assert!(elf.find_section(".text").is_ok());
+    }
+}
