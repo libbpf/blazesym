@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use std::fs::copy;
 use std::ops::Deref as _;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 
@@ -146,6 +147,42 @@ fn unpack_xz(_src: &Path, _dst: &Path) {
     unimplemented!()
 }
 
+
+/// Put files in a zip archive, uncompressed.
+#[cfg(feature = "zip")]
+fn zip(files: &[PathBuf], dst: &Path) {
+    use std::fs::read as read_file;
+    use std::fs::File;
+    use std::io::Write as _;
+    use zip::write::FileOptions;
+    use zip::CompressionMethod;
+    use zip::ZipWriter;
+
+    let dst_file = File::options()
+        .create(true)
+        .truncate(true)
+        .read(false)
+        .write(true)
+        .open(dst)
+        .unwrap();
+
+    let options = FileOptions::default().compression_method(CompressionMethod::Stored);
+    let mut zip = ZipWriter::new(dst_file);
+    for file in files {
+        let contents = read_file(file).unwrap();
+        let () = zip
+            .start_file(file.file_name().unwrap().to_str().unwrap(), options)
+            .unwrap();
+        let _count = zip.write(&contents).unwrap();
+    }
+}
+
+#[cfg(not(feature = "zip"))]
+fn zip(_files: &[PathBuf], _dst: &Path) {
+    unimplemented!()
+}
+
+
 /// Prepare the various test files.
 fn prepare_test_files(crate_root: &Path) {
     let src = crate_root.join("data").join("test.c");
@@ -177,6 +214,13 @@ fn prepare_test_files(crate_root: &Path) {
     let mut dst = src.clone();
     assert!(dst.set_extension(""));
     unpack_xz(&src, &dst);
+
+    let files = [
+        crate_root.join("data").join("test-dwarf.bin"),
+        crate_root.join("data").join("test-no-debug.bin"),
+    ];
+    let dst = crate_root.join("data").join("test.zip");
+    zip(files.as_slice(), &dst);
 }
 
 /// Prepare benchmark files.
