@@ -31,6 +31,9 @@ mod ksym;
 mod maps;
 mod mmap;
 mod util;
+// TODO: Remove `allow`.
+#[allow(unused)]
+mod zip;
 
 use elf::ElfCache;
 use elf::ElfResolver;
