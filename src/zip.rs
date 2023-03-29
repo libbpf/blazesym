@@ -125,6 +125,109 @@ pub struct Entry<'archive> {
 }
 
 
+/// An iterator over the entries of an [`Archive`].
+pub struct EntryIter<'archive> {
+    /// The data of the archive.
+    archive_data: &'archive [u8],
+    /// Pointer to the central directory records.
+    ///
+    /// This read pointer will be advanced as entries are read.
+    cd_record_data: &'archive [u8],
+    /// The number of remaining records.
+    remaining_records: u16,
+}
+
+impl<'archive> EntryIter<'archive> {
+    fn parse_entry_at_offset(data: &[u8], offset: u32) -> Result<Entry<'_>> {
+        fn entry_impl(data: &[u8], offset: u32) -> Option<Result<Entry<'_>>> {
+            let mut data = data.get(offset as usize..)?;
+
+            let lfh = data.read_pod::<LocalFileHeader>()?;
+            if lfh.magic != LOCAL_FILE_HEADER_MAGIC {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "local file header contains invalid magic number",
+                )))
+            }
+
+            if (lfh.flags & FLAG_ENCRYPTED) != 0 || (lfh.flags & FLAG_HAS_DATA_DESCRIPTOR) != 0 {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "attempted lookup of unsupported entry",
+                )))
+            }
+
+            let name = data.read_slice(lfh.file_name_length.into())?;
+            let name = OsStr::from_bytes(name);
+
+            let _extra = data.read_slice(lfh.extra_field_length.into())?;
+            let data = data.read_slice(lfh.compressed_size as usize)?;
+
+            let entry = Entry {
+                compression: lfh.compression,
+                name,
+                data,
+            };
+
+            Some(Ok(entry))
+        }
+
+        entry_impl(data, offset).unwrap_or_else(|| {
+            Err(Error::new(
+                ErrorKind::InvalidData,
+                "failed to read archive entry",
+            ))
+        })
+    }
+
+    fn parse_next_entry(&mut self) -> Result<Entry<'archive>> {
+        fn entry_impl<'archive>(iter: &mut EntryIter<'archive>) -> Option<Result<Entry<'archive>>> {
+            let cdfh = iter.cd_record_data.read_pod::<CdFileHeader>()?;
+
+            if cdfh.magic != CD_FILE_HEADER_MAGIC {
+                return Some(Err(Error::new(
+                    ErrorKind::InvalidData,
+                    "central directory file header contains invalid magic number",
+                )))
+            }
+
+            let name = iter
+                .cd_record_data
+                .read_slice(cdfh.file_name_length.into())?;
+            let name = OsStr::from_bytes(name);
+
+            let _extra = iter
+                .cd_record_data
+                .read_slice(cdfh.extra_field_length.into())?;
+            let _comment = iter
+                .cd_record_data
+                .read_slice(cdfh.file_comment_length.into())?;
+
+            Some(EntryIter::parse_entry_at_offset(
+                iter.archive_data,
+                cdfh.offset,
+            ))
+        }
+
+        entry_impl(self).unwrap_or_else(|| {
+            Err(Error::new(
+                ErrorKind::InvalidData,
+                "failed to read central directory record data",
+            ))
+        })
+    }
+}
+
+impl<'archive> Iterator for EntryIter<'archive> {
+    type Item = Result<Entry<'archive>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.remaining_records = self.remaining_records.checked_sub(1)?;
+        Some(self.parse_next_entry())
+    }
+}
+
+
 /// An open zip archive.
 ///
 /// Only basic ZIP files are supported, in particular the following are not
@@ -218,89 +321,18 @@ impl Archive {
         ))
     }
 
-    fn parse_entry_at_offset(data: &[u8], offset: u32) -> Result<Entry<'_>> {
-        fn entry_impl(data: &[u8], offset: u32) -> Option<Result<Entry<'_>>> {
-            let mut data = data.get(offset as usize..)?;
+    /// Create an iterator over the entries of the archive.
+    pub fn entries(&self) -> Option<EntryIter<'_>> {
+        let archive_data = &self.mmap;
+        let cd_record_data = self.mmap.get(self.cd_offset as usize..)?;
+        let remaining_records = self.cd_records;
 
-            let lfh = data.read_pod::<LocalFileHeader>()?;
-            if lfh.magic != LOCAL_FILE_HEADER_MAGIC {
-                return Some(Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "local file header contains invalid magic number",
-                )))
-            }
-
-            if (lfh.flags & FLAG_ENCRYPTED) != 0 || (lfh.flags & FLAG_HAS_DATA_DESCRIPTOR) != 0 {
-                return Some(Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "attempted lookup of unsupported entry",
-                )))
-            }
-
-            let name = data.read_slice(lfh.file_name_length.into())?;
-            let name = OsStr::from_bytes(name);
-
-            let _extra = data.read_slice(lfh.extra_field_length.into())?;
-            let data = data.read_slice(lfh.compressed_size as usize)?;
-
-            let entry = Entry {
-                compression: lfh.compression,
-                name,
-                data,
-            };
-
-            Some(Ok(entry))
-        }
-
-        entry_impl(data, offset).unwrap_or_else(|| {
-            Err(Error::new(
-                ErrorKind::InvalidData,
-                "failed to read archive entry",
-            ))
-        })
-    }
-
-    /// Look up an entry corresponding to a file in given zip archive.
-    pub fn find_entry(&self, file_name: &str) -> Result<Entry<'_>> {
-        fn entry_impl<'archive>(
-            archive: &'archive Archive,
-            file_name: &str,
-        ) -> Option<Result<Entry<'archive>>> {
-            let mut data = archive.mmap.get(archive.cd_offset as usize..)?;
-
-            for _ in 0..archive.cd_records {
-                let cdfh = data.read_pod::<CdFileHeader>()?;
-
-                if cdfh.magic != CD_FILE_HEADER_MAGIC {
-                    return Some(Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "central directory file header contains invalid magic number",
-                    )))
-                }
-
-                let name = data.read_slice(cdfh.file_name_length.into())?;
-                let name = OsStr::from_bytes(name);
-
-                let _extra = data.read_slice(cdfh.extra_field_length.into())?;
-                let _comment = data.read_slice(cdfh.file_comment_length.into())?;
-
-                if (cdfh.flags & FLAG_ENCRYPTED) == 0
-                    && (cdfh.flags & FLAG_HAS_DATA_DESCRIPTOR) == 0
-                    && name == OsStr::new(file_name)
-                {
-                    return Some(Archive::parse_entry_at_offset(&archive.mmap, cdfh.offset))
-                }
-            }
-
-            None
-        }
-
-        entry_impl(self, file_name).unwrap_or_else(|| {
-            Err(Error::new(
-                ErrorKind::NotFound,
-                "failed to find archive entry",
-            ))
-        })
+        let iter = EntryIter {
+            archive_data,
+            cd_record_data,
+            remaining_records,
+        };
+        Some(iter)
     }
 }
 
@@ -325,6 +357,23 @@ mod tests {
         let _archive = Archive::open(zip).unwrap();
     }
 
+    /// Check that we can iterate over the entries of a zip archive.
+    #[test]
+    fn zip_entry_iteration() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(zip).unwrap();
+        assert_eq!(
+            archive
+                .entries()
+                .unwrap()
+                .inspect(|result| assert!(result.is_ok(), "{result:?}"))
+                .count(),
+            2
+        );
+    }
+
     /// Check that we can find archive entries by name.
     #[test]
     fn zip_entry_reading() {
@@ -333,10 +382,18 @@ mod tests {
             .join("test.zip");
         let archive = Archive::open(zip).unwrap();
 
-        let err = archive.find_entry("non-existent").unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
+        let result = archive
+            .entries()
+            .unwrap()
+            .find(|entry| entry.as_ref().unwrap().name == "non-existent");
+        assert!(result.is_none());
 
-        let entry = archive.find_entry("test-dwarf.bin").unwrap();
+        let entry = archive
+            .entries()
+            .unwrap()
+            .find(|entry| entry.as_ref().unwrap().name == "test-dwarf.bin")
+            .unwrap()
+            .unwrap();
         assert_eq!(entry.compression, 0);
         assert_eq!(entry.name, OsStr::new("test-dwarf.bin"));
 
