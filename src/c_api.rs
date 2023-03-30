@@ -452,17 +452,24 @@ pub unsafe extern "C" fn blazesym_symbolize(
     let symbolizer = unsafe { &*(*symbolizer).symbolizer };
     let addresses = unsafe { Vec::from_raw_parts(addrs as *mut _, addr_cnt, addr_cnt) };
 
-    let results = symbolizer.symbolize(&sym_srcs_rs, &addresses);
+    let result = symbolizer.symbolize(&sym_srcs_rs, &addresses);
 
     addresses.leak();
 
-    if results.is_empty() {
-        #[cfg(debug_assertions)]
-        eprintln!("Empty result while request for {addr_cnt}");
-        return ptr::null()
+    match result {
+        Ok(results) if results.is_empty() => {
+            #[cfg(debug_assertions)]
+            eprintln!("Empty result while request for {addr_cnt}");
+            ptr::null()
+        }
+        Ok(results) => unsafe { convert_symbolizedresults_to_c(results) },
+        Err(_err) => {
+            // TODO: Errors should probably be surfaced.
+            #[cfg(debug_assertions)]
+            eprintln!("failed to symbolize {addr_cnt} addresses: {_err}");
+            ptr::null()
+        }
     }
-
-    unsafe { convert_symbolizedresults_to_c(results) }
 }
 
 /// Free an array returned by blazesym_symbolize.
