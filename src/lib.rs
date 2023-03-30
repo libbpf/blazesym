@@ -344,7 +344,7 @@ impl ResolverMap {
             if entry.path.as_path().components().next() != Some(Component::RootDir) {
                 continue
             }
-            if (entry.mode & 0xa) != 0xa {
+            if (entry.mode & 0b1010) != 0b1010 {
                 // r-x-
                 continue
             }
@@ -357,13 +357,9 @@ impl ResolverMap {
             } else {
                 continue
             }
-            if let Ok(resolver) = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder)
-            {
-                resolvers.push((resolver.get_address_range(), Box::new(resolver)));
-            } else {
-                #[cfg(debug_assertions)]
-                eprintln!("Fail to create ElfResolver for {}", entry.path.display());
-            }
+
+            let resolver = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder)?;
+            let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
         }
 
         Ok(())
@@ -409,30 +405,20 @@ impl ResolverMap {
                         };
                         kernel_image
                     };
-                    if let Ok(resolver) = KernelResolver::new(kallsyms, &kernel_image, cache_holder)
-                    {
-                        resolvers.push((resolver.get_address_range(), Box::new(resolver)));
-                    } else {
-                        #[cfg(debug_assertions)]
-                        eprintln!("fail to load the kernel image {}", kernel_image.display());
-                    }
+
+                    let resolver = KernelResolver::new(kallsyms, &kernel_image, cache_holder)?;
+                    let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Process { pid } => {
                     let pid = if let Some(p) = pid { *p } else { 0 };
-
-                    if let Err(_e) =
-                        Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder)
-                    {
-                        #[cfg(debug_assertions)]
-                        eprintln!("Fail to load symbols for the process {pid}: {_e:?}");
-                    }
+                    let () = Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder)?;
                 }
                 SymbolSrcCfg::Gsym {
                     file_name,
                     base_address,
                 } => {
                     let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
-                    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+                    let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
             };
         }
