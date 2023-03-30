@@ -1,9 +1,34 @@
+use std::io::ErrorKind;
 use std::path::Path;
 
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
 use blazesym::SymbolizerFeature;
 
+
+/// Make sure that we fail symbolization when providing a non-existent source.
+#[test]
+fn error_on_non_existent_source() {
+    let non_existent = Path::new("/does-not-exists");
+    let srcs = vec![
+        SymbolSrcCfg::Gsym {
+            file_name: non_existent.to_path_buf(),
+            base_address: 0,
+        },
+        SymbolSrcCfg::Elf {
+            file_name: non_existent.to_path_buf(),
+            base_address: 0,
+        },
+    ];
+    let symbolizer = BlazeSymbolizer::new().unwrap();
+
+    for src in srcs {
+        let err = symbolizer
+            .symbolize([src].as_slice(), &[0x2000100])
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+}
 
 /// Check that we can correctly symbolize an address using GSYM.
 #[test]
