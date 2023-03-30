@@ -41,7 +41,7 @@ sources, and line numbers of addresses involved in a process.
 
 	let stack: [Addr; 2] = [0xff023, 0x17ff93b];		// Addresses of instructions
 	let symlist = symbolizer.symbolize(&sym_srcs,		// Pass this configuration every time
-	                                   &stack);
+	                                   &stack).unwrap();
 	for i in 0..stack.len() {
 		let address = stack[i];
 

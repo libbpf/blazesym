@@ -33,7 +33,7 @@ fn main() {
 
     let sym_files = [SymbolSrcCfg::Process { pid: Some(pid) }];
     let resolver = BlazeSymbolizer::new().unwrap();
-    let symlist = resolver.symbolize(&sym_files, &[addr]);
+    let symlist = resolver.symbolize(&sym_files, &[addr]).unwrap();
     if !symlist[0].is_empty() {
         let SymbolizedResult {
             symbol,

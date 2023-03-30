@@ -709,14 +709,8 @@ impl BlazeSymbolizer {
         &self,
         sym_srcs: &[SymbolSrcCfg],
         addresses: &[Addr],
-    ) -> Vec<Vec<SymbolizedResult>> {
-        let resolver_map = if let Ok(map) = ResolverMap::new(sym_srcs, &self.cache_holder) {
-            map
-        } else {
-            #[cfg(debug_assertions)]
-            eprintln!("Fail to build ResolverMap");
-            return vec![]
-        };
+    ) -> Result<Vec<Vec<SymbolizedResult>>> {
+        let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder)?;
 
         let info: Vec<Vec<SymbolizedResult>> = addresses
             .iter()
@@ -772,7 +766,8 @@ impl BlazeSymbolizer {
                 }
             })
             .collect();
-        info
+
+        Ok(info)
     }
 }
 

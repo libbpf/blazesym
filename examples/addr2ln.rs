@@ -33,7 +33,7 @@ fn main() {
     }
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
-    let results = resolver.symbolize(&sym_srcs, &[addr]);
+    let results = resolver.symbolize(&sym_srcs, &[addr]).unwrap();
     if results.len() == 1 && !results[0].is_empty() {
         let result = &results[0][0];
         println!(

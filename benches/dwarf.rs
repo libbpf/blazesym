@@ -22,6 +22,7 @@ pub fn symbolize_end_to_end() {
 
     let results = symbolizer
         .symbolize(&sources, &[0xffffffff8110ecb0])
+        .unwrap()
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();

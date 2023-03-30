@@ -21,6 +21,7 @@ fn symbolize_gsym() {
 
     let results = symbolizer
         .symbolize(&srcs, &[0x2000100])
+        .unwrap()
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
@@ -47,6 +48,7 @@ fn symbolize_dwarf() {
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .symbolize(&srcs, &[0x2000100])
+        .unwrap()
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
@@ -56,7 +58,7 @@ fn symbolize_dwarf() {
     assert_eq!(result.symbol, "factorial");
 }
 
-/// Check that we can symbolize an address using DWARF.
+/// Check that we can look up an address using DWARF.
 #[test]
 fn lookup_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
