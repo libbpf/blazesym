@@ -18,6 +18,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
@@ -162,7 +163,7 @@ impl KernelResolver {
         kallsyms: &Path,
         kernel_image: &Path,
         cache_holder: &CacheHolder,
-    ) -> Result<KernelResolver, Error> {
+    ) -> Result<KernelResolver> {
         let ksymresolver = cache_holder.get_ksym_cache().get_resolver(kallsyms);
         let kernelresolver = ElfResolver::new(kernel_image, 0, cache_holder);
 
@@ -336,7 +337,7 @@ impl ResolverMap {
         pid: u32,
         resolvers: &mut ResolverList,
         cache_holder: &CacheHolder,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let pid = if pid == 0 { Pid::Slf } else { Pid::Pid(pid) };
         let entries = maps::parse(pid)?;
 
@@ -365,10 +366,7 @@ impl ResolverMap {
         Ok(())
     }
 
-    pub fn new(
-        sym_srcs: &[SymbolSrcCfg],
-        cache_holder: &CacheHolder,
-    ) -> Result<ResolverMap, Error> {
+    pub fn new(sym_srcs: &[SymbolSrcCfg], cache_holder: &CacheHolder) -> Result<ResolverMap> {
         let mut resolvers = ResolverList::new();
         for cfg in sym_srcs {
             match cfg {
@@ -505,7 +503,7 @@ pub struct BlazeSymbolizer {
 
 impl BlazeSymbolizer {
     /// Create and return an instance of BlazeSymbolizer.
-    pub fn new() -> Result<BlazeSymbolizer, Error> {
+    pub fn new() -> Result<BlazeSymbolizer> {
         let opts = CacheHolderOpts {
             line_number_info: true,
             debug_info_symbols: false,
@@ -522,7 +520,7 @@ impl BlazeSymbolizer {
     ///
     /// `new_opt()` works like [`BlazeSymbolizer::new()`] except it receives a list of
     /// [`SymbolizerFeature`] to turn on or off some features.
-    pub fn new_opt(features: &[SymbolizerFeature]) -> Result<BlazeSymbolizer, Error> {
+    pub fn new_opt(features: &[SymbolizerFeature]) -> Result<BlazeSymbolizer> {
         let mut line_number_info = true;
         let mut debug_info_symbols = false;
 
