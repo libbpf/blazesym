@@ -49,6 +49,7 @@ pub fn lookup_end_to_end() {
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .find_addresses(&sources, &["abort_creds"])
+        .unwrap()
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();

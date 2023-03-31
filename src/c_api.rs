@@ -878,22 +878,23 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
 
     let symbolizer = unsafe { &*(*symbolizer).symbolizer };
 
-    let mut names_cstr = vec![];
+    let mut names_r = Vec::with_capacity(name_cnt);
     for i in 0..name_cnt {
         let name_c = unsafe { *names.add(i) };
         let name_r = unsafe { CStr::from_ptr(name_c) };
-        names_cstr.push(name_r);
+        names_r.push(name_r.to_str().unwrap());
     }
     let features = unsafe { convert_find_addr_features(features, num_features) };
-    let syms = {
-        let mut names_r = vec![];
-        for name in names_cstr.iter().take(name_cnt) {
-            names_r.push(name.to_str().unwrap());
+    let result = symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, &features);
+    match result {
+        Ok(syms) => unsafe { convert_syms_list_to_c(syms) },
+        Err(_err) => {
+            // TODO: Errors should probably be surfaced.
+            #[cfg(debug_assertions)]
+            eprintln!("failed to find {name_cnt} symbols: {_err}");
+            ptr::null()
         }
-        symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, &features)
-    };
-
-    unsafe { convert_syms_list_to_c(syms) }
+    }
 }
 
 /// Find addresses of a symbol name.

@@ -648,13 +648,10 @@ impl BlazeSymbolizer {
         sym_srcs: &[SymbolSrcCfg],
         names: &[&str],
         features: &[FindAddrFeature],
-    ) -> Vec<Vec<SymbolInfo>> {
+    ) -> Result<Vec<Vec<SymbolInfo>>> {
         let ctx = Self::find_addr_features_context(features);
 
-        let resolver_map = match ResolverMap::new(sym_srcs, &self.cache_holder) {
-            Ok(map) => map,
-            _ => return vec![],
-        };
+        let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder)?;
         let mut syms_list = vec![];
         for name in names {
             let mut found = vec![];
@@ -675,7 +672,7 @@ impl BlazeSymbolizer {
             }
             syms_list.push(found);
         }
-        syms_list
+        Ok(syms_list)
     }
 
     /// Find the addresses of a list of symbol names.
@@ -691,7 +688,7 @@ impl BlazeSymbolizer {
         &self,
         sym_srcs: &[SymbolSrcCfg],
         names: &[&str],
-    ) -> Vec<Vec<SymbolInfo>> {
+    ) -> Result<Vec<Vec<SymbolInfo>>> {
         self.find_addresses_opt(sym_srcs, names, &[])
     }
 
