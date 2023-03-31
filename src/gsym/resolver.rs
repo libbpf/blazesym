@@ -194,6 +194,7 @@ mod tests {
 
     use std::env;
 
+    use test_log::test;
 
     /// Make sure that we can find file line information for a function, if available.
     #[test]

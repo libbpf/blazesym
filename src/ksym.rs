@@ -232,7 +232,11 @@ impl KSymCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
     use std::cmp::Ordering;
+
+    use test_log::test;
+
 
     // This test case is skipped by default for /proc/kallsyms may
     // not available in some environment.

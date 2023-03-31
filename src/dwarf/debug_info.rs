@@ -774,9 +774,14 @@ impl<'a> Iterator for UnitIter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::elf::ElfParser;
+
     use std::env;
     use std::path::Path;
+
+    use test_log::test;
+
+    use crate::elf::ElfParser;
+
 
     #[test]
     fn test_parse_abbrev() {

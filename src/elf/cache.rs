@@ -157,6 +157,8 @@ mod tests {
     use std::env;
     use std::ptr;
 
+    use test_log::test;
+
     #[test]
     fn test_cache() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
