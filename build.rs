@@ -175,6 +175,11 @@ fn zip(files: &[PathBuf], dst: &Path) {
             .unwrap();
         let _count = zip.write(&contents).unwrap();
     }
+
+    for file in files {
+        println!("cargo:rerun-if-changed={}", file.display());
+    }
+    println!("cargo:rerun-if-changed={}", dst.display());
 }
 
 #[cfg(not(feature = "zip"))]
