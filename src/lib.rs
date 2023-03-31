@@ -47,6 +47,35 @@ pub use c_api::*;
 pub type Addr = usize;
 
 
+#[cfg(feature = "log")]
+#[macro_use]
+mod log {
+    pub use log::debug;
+    pub use log::error;
+    pub use log::info;
+    pub use log::trace;
+    pub use log::warn;
+}
+#[cfg(not(feature = "log"))]
+#[macro_use]
+mod log {
+    #[macro_export]
+    macro_rules! debug {
+        ($($args:tt)*) => {{
+          if false {
+            // Make sure to use `args` to prevent any warnings about
+            // unused variables.
+            let _args = format_args!($($args)*);
+          }
+        }};
+    }
+    pub use debug as error;
+    pub use debug as info;
+    pub use debug as trace;
+    pub use debug as warn;
+}
+
+
 #[derive(Debug)]
 struct CacheHolder {
     ksym: KSymCache,
@@ -690,6 +719,8 @@ mod tests {
     use super::*;
 
     use std::path::Path;
+
+    use test_log::test;
 
 
     #[test]

@@ -310,6 +310,8 @@ mod tests {
     use std::io::Write;
     use std::path::Path;
 
+    use test_log::test;
+
 
     #[test]
     fn test_parse_context() {

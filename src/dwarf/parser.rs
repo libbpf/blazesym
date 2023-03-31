@@ -835,6 +835,8 @@ pub(crate) fn debug_info_parse_symbols<'a>(
 mod tests {
     use super::*;
 
+    use test_log::test;
+
     #[cfg(feature = "nightly")]
     use test::Bencher;
 

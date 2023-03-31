@@ -577,6 +577,8 @@ mod tests {
 
     use std::env;
 
+    use test_log::test;
+
 
     #[test]
     fn test_elf64_parser() {

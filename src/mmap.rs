@@ -66,6 +66,7 @@ mod tests {
     use std::io::Write;
 
     use tempfile::tempfile;
+    use test_log::test;
 
     use crate::util::ReadRaw;
 

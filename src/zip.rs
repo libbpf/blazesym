@@ -344,6 +344,7 @@ mod tests {
     use std::io::Write as _;
 
     use tempfile::tempfile;
+    use test_log::test;
 
     use crate::elf::ElfParser;
 

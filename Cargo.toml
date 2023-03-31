@@ -22,13 +22,16 @@ required-features = ["generate-bench-files"]
 
 [dependencies]
 libc = "0.2.137"
+log = {version = "0.4.17", optional = true}
 lru = "0.10"
 regex = "1.6"
 
 [dev-dependencies]
-blazesym = {path = ".", features = ["generate-test-files"]}
+blazesym = {path = ".", features = ["generate-test-files", "log"]}
 criterion = "0.4"
+env_logger = "0.10"
 tempfile = "3.4"
+test-log = "0.2"
 
 [build-dependencies]
 anyhow = "1.0.68"

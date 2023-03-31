@@ -279,6 +279,9 @@ impl DwarfResolver {
 mod tests {
     use super::*;
 
+    use test_log::test;
+
+
     #[test]
     fn test_dwarf_resolver() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))

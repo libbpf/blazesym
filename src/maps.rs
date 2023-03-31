@@ -147,6 +147,8 @@ mod tests {
 
     use std::path::Path;
 
+    use test_log::test;
+
 
     /// Check that we can parse `/proc/self/maps`.
     #[test]
