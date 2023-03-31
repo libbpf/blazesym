@@ -436,7 +436,11 @@ impl ElfParser {
         Ok((name, sym.st_value as Addr))
     }
 
-    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
+    pub(crate) fn find_address(
+        &self,
+        name: &str,
+        opts: &FindAddrOpts,
+    ) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
@@ -488,7 +492,7 @@ impl ElfParser {
         }
     }
 
-    pub fn find_address_regex(
+    pub(crate) fn find_address_regex(
         &self,
         pattern: &str,
         opts: &FindAddrOpts,

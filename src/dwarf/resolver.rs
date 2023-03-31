@@ -163,7 +163,11 @@ impl DwarfResolver {
     ///
     /// * `name` - is the symbol name to find.
     /// * `opts` - is the context giving additional parameters.
-    pub fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymbolInfo>, Error> {
+    pub(crate) fn find_address(
+        &self,
+        name: &str,
+        opts: &FindAddrOpts,
+    ) -> Result<Vec<SymbolInfo>, Error> {
         if let SymbolType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
@@ -217,7 +221,7 @@ impl DwarfResolver {
     /// * `opts` - is the context giving additional parameters.
     ///
     /// Return a list of symbols including addresses and other information.
-    pub fn find_address_regex(
+    pub(crate) fn find_address_regex(
         &self,
         pattern: &str,
         opts: &FindAddrOpts,
