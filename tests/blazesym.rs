@@ -100,6 +100,7 @@ fn lookup_dwarf() {
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .find_addresses(&srcs, &["factorial"])
+        .unwrap()
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
