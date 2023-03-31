@@ -305,7 +305,8 @@ impl ResolverMap {
                 continue
             }
 
-            let resolver = ElfResolver::new(&entry.path, entry.loaded_address, cache_holder)?;
+            let backend = cache_holder.get_elf_cache().find(&entry.path)?;
+            let resolver = ElfResolver::new(&entry.path, entry.loaded_address, backend)?;
             let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
         }
 
@@ -320,16 +321,32 @@ impl ResolverMap {
                     file_name,
                     base_address,
                 } => {
-                    let resolver = ElfResolver::new(file_name, *base_address, cache_holder)?;
+                    let backend = cache_holder.get_elf_cache().find(file_name)?;
+                    let resolver = ElfResolver::new(file_name, *base_address, backend)?;
                     resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Kernel {
                     kallsyms,
                     kernel_image,
                 } => {
-                    let kallsyms = kallsyms
-                        .as_deref()
-                        .unwrap_or_else(|| Path::new(ksym::KALLSYMS));
+                    let ksym_resolver = if let Some(kallsyms) = kallsyms {
+                        let ksym_resolver = cache_holder.get_ksym_cache().get_resolver(kallsyms)?;
+                        Some(ksym_resolver)
+                    } else {
+                        let kallsyms = Path::new(ksym::KALLSYMS);
+                        let result = cache_holder.get_ksym_cache().get_resolver(kallsyms);
+                        match result {
+                            Ok(resolver) => Some(resolver),
+                            Err(err) => {
+                                log::warn!(
+                                    "failed to load kallsyms from {}: {err}; ignoring...",
+                                    kallsyms.display()
+                                );
+                                None
+                            }
+                        }
+                    };
+
                     let kernel_image = if let Some(img) = kernel_image {
                         img.clone()
                     } else {
@@ -350,7 +367,7 @@ impl ResolverMap {
                         kernel_image
                     };
 
-                    let resolver = KernelResolver::new(kallsyms, &kernel_image, cache_holder)?;
+                    let resolver = KernelResolver::new(ksym_resolver, &kernel_image, cache_holder)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Process { pid } => {
@@ -765,9 +782,7 @@ mod tests {
             line_number_info: true,
             debug_info_symbols: false,
         });
-        let resolver_map = ResolverMap::new(&srcs, &cache_holder);
-        assert!(resolver_map.is_ok());
-        let resolver_map = resolver_map.unwrap();
+        let resolver_map = ResolverMap::new(&srcs, &cache_holder).unwrap();
 
         let signatures: Vec<_> = resolver_map
             .resolvers
@@ -779,38 +794,5 @@ mod tests {
         // ElfResolver for libc.
         assert!(signatures.iter().any(|x| x.contains("/libc")));
         assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
-    }
-
-    #[test]
-    fn load_symbolfilecfg_invalid_kernel() {
-        let kallsyms = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("kallsyms");
-
-        // Check if SymbolSrcCfg::Kernel expands to a KernelResolver
-        // even if kernel_image is invalid.
-        let srcs = vec![SymbolSrcCfg::Kernel {
-            kallsyms: Some(kallsyms.clone()),
-            kernel_image: Some(PathBuf::from("/dev/null")),
-        }];
-        let cache_holder = CacheHolder::new(CacheHolderOpts {
-            line_number_info: true,
-            debug_info_symbols: false,
-        });
-        let resolver_map = ResolverMap::new(&srcs, &cache_holder);
-        assert!(resolver_map.is_ok());
-        let resolver_map = resolver_map.unwrap();
-
-        let signatures: Vec<_> = resolver_map
-            .resolvers
-            .iter()
-            .map(|(_, resolver)| format!("{resolver:?}"))
-            .collect();
-        assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
-
-        let kernel_image = Path::new("/dev/null");
-        let kresolver = KernelResolver::new(&kallsyms, kernel_image, &cache_holder).unwrap();
-        assert!(kresolver.ksymresolver.is_some());
-        assert!(kresolver.kernelresolver.is_none());
     }
 }

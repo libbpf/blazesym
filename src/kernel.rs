@@ -19,36 +19,33 @@ use crate::SymbolInfo;
 
 
 pub(crate) struct KernelResolver {
-    pub ksymresolver: Option<Rc<KSymResolver>>,
+    pub ksym_resolver: Option<Rc<KSymResolver>>,
     pub kernelresolver: Option<ElfResolver>,
-    kallsyms: PathBuf,
     kernel_image: PathBuf,
 }
 
 impl KernelResolver {
     pub fn new(
-        kallsyms: &Path,
+        ksym_resolver: Option<Rc<KSymResolver>>,
         kernel_image: &Path,
         cache_holder: &CacheHolder,
     ) -> Result<KernelResolver> {
-        let ksymresolver = cache_holder.get_ksym_cache().get_resolver(kallsyms);
-        let kernelresolver = ElfResolver::new(kernel_image, 0, cache_holder);
+        let backend = cache_holder.get_elf_cache().find(kernel_image)?;
+        let kernelresolver = ElfResolver::new(kernel_image, 0, backend);
 
-        if ksymresolver.is_err() && kernelresolver.is_err() {
+        if ksym_resolver.is_none() && kernelresolver.is_err() {
             return Err(Error::new(
                 ErrorKind::NotFound,
                 format!(
-                    "can not load {} and {}",
-                    kallsyms.display(),
+                    "failed to load {} and no ksym resolver is present",
                     kernel_image.display()
                 ),
             ))
         }
 
         Ok(KernelResolver {
-            ksymresolver: ksymresolver.ok(),
+            ksym_resolver,
             kernelresolver: kernelresolver.ok(),
-            kallsyms: kallsyms.to_path_buf(),
             kernel_image: kernel_image.to_path_buf(),
         })
     }
@@ -60,8 +57,8 @@ impl SymResolver for KernelResolver {
     }
 
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
-        if self.ksymresolver.is_some() {
-            self.ksymresolver.as_ref().unwrap().find_symbols(addr)
+        if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
+            ksym_resolver.find_symbols(addr)
         } else {
             self.kernelresolver.as_ref().unwrap().find_symbols(addr)
         }
@@ -73,8 +70,9 @@ impl SymResolver for KernelResolver {
         None
     }
     fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
-        self.kernelresolver.as_ref()?;
-        self.kernelresolver.as_ref().unwrap().find_line_info(addr)
+        self.kernelresolver
+            .as_ref()
+            .and_then(|resolver| resolver.find_line_info(addr))
     }
 
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
@@ -91,7 +89,11 @@ impl Debug for KernelResolver {
         write!(
             f,
             "KernelResolver {} {}",
-            self.kallsyms.display(),
+            self.ksym_resolver
+                .as_ref()
+                .map(|resolver| resolver.get_obj_file_name().to_path_buf())
+                .unwrap_or_default()
+                .display(),
             self.kernel_image.display()
         )
     }
