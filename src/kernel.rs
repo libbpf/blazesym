@@ -4,15 +4,14 @@ use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::ops::Deref as _;
 use std::path::Path;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::elf::ElfResolver;
 use crate::ksym::KSymResolver;
 use crate::Addr;
 use crate::AddressLineInfo;
-use crate::CacheHolder;
 use crate::FindAddrOpts;
 use crate::SymResolver;
 use crate::SymbolInfo;
@@ -20,33 +19,24 @@ use crate::SymbolInfo;
 
 pub(crate) struct KernelResolver {
     pub ksym_resolver: Option<Rc<KSymResolver>>,
-    pub kernelresolver: Option<ElfResolver>,
-    kernel_image: PathBuf,
+    pub elf_resolver: Option<ElfResolver>,
 }
 
 impl KernelResolver {
     pub fn new(
         ksym_resolver: Option<Rc<KSymResolver>>,
-        kernel_image: &Path,
-        cache_holder: &CacheHolder,
+        elf_resolver: Option<ElfResolver>,
     ) -> Result<KernelResolver> {
-        let backend = cache_holder.get_elf_cache().find(kernel_image)?;
-        let kernelresolver = ElfResolver::new(kernel_image, 0, backend);
-
-        if ksym_resolver.is_none() && kernelresolver.is_err() {
+        if ksym_resolver.is_none() && elf_resolver.is_none() {
             return Err(Error::new(
                 ErrorKind::NotFound,
-                format!(
-                    "failed to load {} and no ksym resolver is present",
-                    kernel_image.display()
-                ),
+                    "failed to create kernel resolver: neither ksym resolver nor kernel image ELF resolver are present",
             ))
         }
 
         Ok(KernelResolver {
             ksym_resolver,
-            kernelresolver: kernelresolver.ok(),
-            kernel_image: kernel_image.to_path_buf(),
+            elf_resolver,
         })
     }
 }
@@ -60,7 +50,7 @@ impl SymResolver for KernelResolver {
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
             ksym_resolver.find_symbols(addr)
         } else {
-            self.kernelresolver.as_ref().unwrap().find_symbols(addr)
+            self.elf_resolver.as_ref().unwrap().find_symbols(addr)
         }
     }
     fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
@@ -70,7 +60,7 @@ impl SymResolver for KernelResolver {
         None
     }
     fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
-        self.kernelresolver
+        self.elf_resolver
             .as_ref()
             .and_then(|resolver| resolver.find_line_info(addr))
     }
@@ -80,7 +70,19 @@ impl SymResolver for KernelResolver {
     }
 
     fn get_obj_file_name(&self) -> &Path {
-        &self.kernel_image
+        let ksym_resolver = self
+            .ksym_resolver
+            .as_ref()
+            .map(|resolver| resolver.deref() as &dyn SymResolver);
+        let elf_resolver = self
+            .elf_resolver
+            .as_ref()
+            .map(|resolver| resolver as &dyn SymResolver);
+
+        ksym_resolver
+            .or(elf_resolver)
+            .map(|resolver| resolver.get_obj_file_name())
+            .unwrap_or_else(|| Path::new(""))
     }
 }
 
@@ -94,7 +96,11 @@ impl Debug for KernelResolver {
                 .map(|resolver| resolver.get_obj_file_name().to_path_buf())
                 .unwrap_or_default()
                 .display(),
-            self.kernel_image.display()
+            self.elf_resolver
+                .as_ref()
+                .map(|resolver| resolver.get_obj_file_name().to_path_buf())
+                .unwrap_or_default()
+                .display(),
         )
     }
 }
