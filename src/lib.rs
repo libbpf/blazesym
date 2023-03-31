@@ -95,9 +95,8 @@ pub enum SymbolType {
 /// The context of an address finding request.
 ///
 /// This type passes additional parameters to resolvers.
-#[doc(hidden)]
 #[derive(Debug)]
-pub struct FindAddrOpts {
+pub(crate) struct FindAddrOpts {
     /// Return the offset of the symbol from the first byte of the
     /// object file if it is true. (False by default)
     offset_in_file: bool,
