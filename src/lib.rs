@@ -347,27 +347,46 @@ impl ResolverMap {
                         }
                     };
 
-                    let kernel_image = if let Some(img) = kernel_image {
-                        img.clone()
+                    let elf_resolver = if let Some(image) = kernel_image {
+                        let backend = cache_holder.get_elf_cache().find(image)?;
+                        let elf_resolver = ElfResolver::new(image, 0, backend)?;
+                        Some(elf_resolver)
                     } else {
                         let release = uname_release()?.to_str().unwrap().to_string();
                         let basename = "vmlinux-";
                         let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
-                        let mut i = 0;
-                        let kernel_image = loop {
-                            let path = dirs[i].join(format!("{basename}{release}"));
-                            if path.exists() {
-                                break path
+                        let kernel_image = dirs.iter().find_map(|dir| {
+                            let path = dir.join(format!("{basename}{release}"));
+                            path.exists().then_some(path)
+                        });
+
+                        if let Some(image) = kernel_image {
+                            let result = cache_holder.get_elf_cache().find(&image);
+                            match result {
+                                Ok(backend) => {
+                                    let result = ElfResolver::new(&image, 0, backend);
+                                    match result {
+                                        Ok(resolver) => Some(resolver),
+                                        Err(err) => {
+                                            log::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
+                                            None
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    log::warn!(
+                                        "failed to load kernel image {}: {err}; ignoring...",
+                                        image.display()
+                                    );
+                                    None
+                                }
                             }
-                            i += 1;
-                            if i >= dirs.len() {
-                                break path
-                            }
-                        };
-                        kernel_image
+                        } else {
+                            None
+                        }
                     };
 
-                    let resolver = KernelResolver::new(ksym_resolver, &kernel_image, cache_holder)?;
+                    let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Process { pid } => {
