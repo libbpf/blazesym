@@ -7,7 +7,6 @@ use std::path::PathBuf;
 
 use crate::Addr;
 use crate::AddressLineInfo;
-use crate::CacheHolder;
 use crate::Error;
 use crate::FindAddrOpts;
 use crate::SymResolver;
@@ -43,9 +42,8 @@ impl ElfResolver {
     pub(crate) fn new(
         file_name: &Path,
         loaded_address: Addr,
-        cache_holder: &CacheHolder,
+        backend: ElfBackend,
     ) -> Result<ElfResolver, Error> {
-        let backend = cache_holder.get_elf_cache().find(file_name)?;
         let parser = match &backend {
             ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
             ElfBackend::Elf(parser) => parser,
