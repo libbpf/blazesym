@@ -9,6 +9,8 @@ use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 use std::ptr;
 
+use crate::log::error;
+use crate::log::warn;
 use crate::Addr;
 use crate::BlazeSymbolizer;
 use crate::FindAddrFeature;
@@ -444,8 +446,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
         if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
             sym_srcs_rs
         } else {
-            #[cfg(debug_assertions)]
-            eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+            error!("failed to transform configurations of symbolizer from C to Rust");
             return ptr::null_mut()
         };
 
@@ -458,15 +459,12 @@ pub unsafe extern "C" fn blazesym_symbolize(
 
     match result {
         Ok(results) if results.is_empty() => {
-            #[cfg(debug_assertions)]
-            eprintln!("Empty result while request for {addr_cnt}");
+            warn!("empty result while request for {addr_cnt}");
             ptr::null()
         }
         Ok(results) => unsafe { convert_symbolizedresults_to_c(results) },
         Err(_err) => {
-            // TODO: Errors should probably be surfaced.
-            #[cfg(debug_assertions)]
-            eprintln!("failed to symbolize {addr_cnt} addresses: {_err}");
+            error!("failed to symbolize {addr_cnt} addresses: {_err}");
             ptr::null()
         }
     }
@@ -481,8 +479,6 @@ pub unsafe extern "C" fn blazesym_symbolize(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
     if results.is_null() {
-        #[cfg(debug_assertions)]
-        eprintln!("blazesym_result_free(null)");
         return
     }
 
@@ -782,8 +778,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
         if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
             sym_srcs_rs
         } else {
-            #[cfg(debug_assertions)]
-            eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+            error!("failed to transform configurations of symbolizer from C to Rust");
             return ptr::null_mut()
         };
 
@@ -833,8 +828,6 @@ pub unsafe extern "C" fn blazesym_find_address_regex(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
     if syms.is_null() {
-        #[cfg(debug_assertions)]
-        eprintln!("blazesym_sym_info_free(null)");
         return
     }
 
@@ -871,8 +864,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
             sym_srcs_rs
         } else {
-            #[cfg(debug_assertions)]
-            eprintln!("Fail to transform configurations of symbolizer from C to Rust");
+            error!("failed to transform configurations of symbolizer from C to Rust");
             return ptr::null_mut()
         };
 
@@ -935,8 +927,6 @@ pub unsafe extern "C" fn blazesym_find_addresses(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazesym_sym_info) {
     if syms_list.is_null() {
-        #[cfg(debug_assertions)]
-        eprintln!("blazesym_syms_list_free(null)");
         return
     }
 

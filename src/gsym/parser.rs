@@ -39,6 +39,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::mem::align_of;
 
+use crate::log::warn;
 use crate::util::find_match_or_lower_bound;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
@@ -263,8 +264,7 @@ pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddressData>> {
             InfoTypeEndOfList => break,
             InfoTypeLineTableInfo | InfoTypeInlineInfo => {}
             _ => {
-                #[cfg(debug_assertions)]
-                eprintln!("unknown info type");
+                warn!("unknown info type");
             }
         }
     }
