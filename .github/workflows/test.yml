@@ -36,6 +36,29 @@ jobs:
     - name: Build ${{ matrix.profile }}
       run: |
         cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
+  nop-rebuilds:
+    name: No-op rebuilds
+    runs-on: ubuntu-22.04
+    env:
+       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        profile: minimal
+        override: true
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14
+    - name: Check incremental rebuilds
+      run: |
+        cargo check --features=generate-test-files --quiet --tests
+        # We need another build here to have the reference `output` file
+        # present. As long as we converge eventually it's probably good
+        # enough...
+        cargo check --features=generate-test-files --quiet --tests
+        output=$(CARGO_LOG=cargo::core::compiler::fingerprint=info cargo check --features=generate-test-files --quiet --tests 2>&1)
+        [ -z "${output}" ] || (echo "!!!! cargo check --tests rebuild was not a no-op: ${output} !!!!" && false)
   test-coverage:
     name: Test and coverage
     runs-on: ubuntu-22.04
