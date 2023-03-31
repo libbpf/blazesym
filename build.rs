@@ -1,3 +1,5 @@
+#![allow(clippy::let_unit_value)]
+
 use std::env;
 use std::ffi::OsStr;
 use std::ffi::OsString;
@@ -94,20 +96,54 @@ where
     }
 }
 
+fn adjust_mtime(path: &Path) -> Result<()> {
+    // Note that `OUT_DIR` is only present at runtime.
+    let out_dir = env::var("OUT_DIR").unwrap();
+    // The $OUT_DIR/output file is (in current versions of Cargo [as of
+    // 1.69]) the file containing the reference time stamp that Cargo
+    // checks to determine whether something is considered outdated and
+    // in need to be rebuild. It's an implementation detail, yes, but we
+    // don't rely on it for anything essential.
+    let output = Path::new(&out_dir)
+        .parent()
+        .ok_or_else(|| Error::new(ErrorKind::Other, "OUT_DIR has no parent"))?
+        .join("output");
+
+    if !output.exists() {
+        // The file may not exist for legitimate reasons, e.g., when we
+        // build for the very first time. If there is not reference there
+        // is nothing for us to do, so just bail.
+        return Ok(())
+    }
+
+    let () = run(
+        "touch",
+        [
+            "-m".as_ref(),
+            "--reference".as_ref(),
+            output.as_os_str(),
+            path.as_os_str(),
+        ],
+    )?;
+    Ok(())
+}
+
 /// Compile `src` into `dst` using the provided compiler.
 fn compile(compiler: &str, src: &Path, dst: &str, options: &[&str]) {
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
 
-    run(
+    let () = run(
         compiler,
         options
             .iter()
             .map(OsStr::new)
             .chain([src.as_os_str(), "-o".as_ref(), dst.as_os_str()]),
     )
-    .unwrap_or_else(|err| panic!("failed to run `{compiler}`: {err}"))
+    .unwrap_or_else(|err| panic!("failed to run `{compiler}`: {err}"));
+
+    let () = adjust_mtime(&dst).unwrap();
 }
 
 /// Compile `src` into `dst` using `cc`.
@@ -124,11 +160,13 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
 
     let gsymutil = env::var_os("LLVM_GSYMUTIL").unwrap_or_else(|| OsString::from("llvm-gsymutil"));
 
-    run(
+    let () = run(
         gsymutil,
         ["--convert".as_ref(), src, "--out-file".as_ref(), &dst],
     )
-    .expect("failed to run `llvm-gsymutil`")
+    .expect("failed to run `llvm-gsymutil`");
+
+    let () = adjust_mtime(&dst).unwrap();
 }
 
 /// Strip all non-debug information from an ELF binary, in an attempt to
@@ -140,7 +178,9 @@ fn dwarf_mostly(src: &Path, dst: &str) {
 
     let _bytes = copy(src, &dst).expect("failed to copy file");
 
-    run("strip", ["--only-keep-debug".as_ref(), dst.as_os_str()]).expect("failed to run `strip`")
+    let () = run("strip", ["--only-keep-debug".as_ref(), dst.as_os_str()])
+        .expect("failed to run `strip`");
+    let () = adjust_mtime(&dst).unwrap();
 }
 
 /// Unpack an xz compressed file.
@@ -164,7 +204,8 @@ fn unpack_xz(src: &Path, dst: &Path) {
         .open(dst)
         .unwrap();
 
-    copy(&mut decoder, &mut dst_file).unwrap();
+    let _bytes = copy(&mut decoder, &mut dst_file).unwrap();
+    let () = adjust_mtime(dst).unwrap();
 }
 
 #[cfg(not(feature = "xz2"))]
@@ -183,37 +224,40 @@ fn zip(files: &[PathBuf], dst: &Path) {
     use zip::CompressionMethod;
     use zip::ZipWriter;
 
-    let dst_file = File::options()
-        .create(true)
-        .truncate(true)
-        .read(false)
-        .write(true)
-        .open(dst)
-        .unwrap();
-    let dst_dir = dst.parent().unwrap();
-
-    let page_size = page_size().unwrap();
-    let options = FileOptions::default().compression_method(CompressionMethod::Stored);
-    let mut zip = ZipWriter::new(dst_file);
-    for file in files {
-        let contents = read_file(file).unwrap();
-        let path = file.strip_prefix(dst_dir).unwrap();
-        // Ensure that members are page aligned so that they can be
-        // mmap'ed directly.
-        let _align = zip
-            .start_file_aligned(
-                path.to_str().unwrap(),
-                options,
-                page_size.try_into().unwrap(),
-            )
+    {
+        let dst_file = File::options()
+            .create(true)
+            .truncate(true)
+            .read(false)
+            .write(true)
+            .open(dst)
             .unwrap();
-        let _count = zip.write(&contents).unwrap();
+        let dst_dir = dst.parent().unwrap();
+
+        let page_size = page_size().unwrap();
+        let options = FileOptions::default().compression_method(CompressionMethod::Stored);
+        let mut zip = ZipWriter::new(dst_file);
+        for file in files {
+            let contents = read_file(file).unwrap();
+            let path = file.strip_prefix(dst_dir).unwrap();
+            // Ensure that members are page aligned so that they can be
+            // mmap'ed directly.
+            let _align = zip
+                .start_file_aligned(
+                    path.to_str().unwrap(),
+                    options,
+                    page_size.try_into().unwrap(),
+                )
+                .unwrap();
+            let _count = zip.write(&contents).unwrap();
+        }
     }
 
     for file in files {
         println!("cargo:rerun-if-changed={}", file.display());
     }
     println!("cargo:rerun-if-changed={}", dst.display());
+    let () = adjust_mtime(dst).unwrap();
 }
 
 #[cfg(not(feature = "zip"))]
