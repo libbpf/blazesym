@@ -64,6 +64,7 @@ mod log {
           }
         }};
     }
+    pub use debug;
     pub use debug as error;
     pub use debug as info;
     pub use debug as trace;

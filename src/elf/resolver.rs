@@ -80,7 +80,7 @@ impl ElfResolver {
         let loaded_address = if e_type == ET_EXEC {
             low_addr as Addr
         } else {
-            loaded_address
+            loaded_address + low_off as usize
         };
         let loaded_to_virt = low_addr;
         let foff_to_virt = low_addr - low_off;

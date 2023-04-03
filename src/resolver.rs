@@ -1,9 +1,16 @@
+use std::ffi::OsStr;
 use std::fmt::Debug;
+use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Result;
 use std::path::Path;
+use std::path::PathBuf;
+use std::rc::Rc;
 
 use crate::cfg;
+use crate::elf::ElfBackend;
 use crate::elf::ElfCache;
+use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::gsym::GsymResolver;
 use crate::kernel::KernelResolver;
@@ -14,11 +21,34 @@ use crate::maps;
 use crate::maps::Pid;
 use crate::util;
 use crate::util::uname_release;
+use crate::zip;
 use crate::Addr;
 use crate::AddressLineInfo;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
 use crate::SymbolSrcCfg;
+
+
+fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
+    let mut extension = apk
+        .extension()
+        .unwrap_or_else(|| OsStr::new("apk"))
+        .to_os_string();
+    // Append '!' to indicate separation from archive internal contents
+    // that follow. This is an Android convention.
+    let () = extension.push("!");
+
+    let mut apk = apk.to_path_buf();
+    if !apk.set_extension(extension) {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!("path {} is not valid", apk.display()),
+        ))
+    }
+
+    let path = apk.join(elf);
+    Ok(path)
+}
 
 
 /// The trait of symbol resolvers.
@@ -65,9 +95,19 @@ impl ResolverMap {
         for entry in entries {
             let entry = entry?;
             if maps::is_symbolization_relevant(&entry) {
-                let backend = elf_cache.find(&entry.path)?;
-                let resolver = ElfResolver::new(&entry.path, entry.range.start, backend)?;
-                let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+                let extension = entry.path.extension().unwrap_or_else(|| OsStr::new(""));
+                log::trace!("processing proc maps entry: {entry:#x?}");
+                if extension == OsStr::new("apk") || extension == OsStr::new("zip") {
+                    let () = Self::create_apk_resolvers(
+                        &entry.path,
+                        entry.range.start - entry.offset as usize,
+                        resolvers,
+                    )?;
+                } else {
+                    let backend = elf_cache.find(&entry.path)?;
+                    let resolver = ElfResolver::new(&entry.path, entry.range.start, backend)?;
+                    let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+                }
             }
         }
 
@@ -156,6 +196,44 @@ impl ResolverMap {
         Ok(resolver)
     }
 
+    fn create_apk_resolvers(
+        path: &Path,
+        base_address: Addr,
+        resolvers: &mut ResolverList,
+    ) -> Result<()> {
+        // An APK is nothing but a fancy zip archive.
+        let apk = zip::Archive::open(path)?;
+
+        let () = apk.entries().try_for_each(|entry| {
+            let entry = entry?;
+            let parser = ElfParser::from_mmap(apk.mmap(), entry.data_offset)?;
+            let backend = ElfBackend::Elf(Rc::new(parser));
+            let path = create_apk_elf_path(path, entry.path)?;
+            let result = ElfResolver::new(&path, base_address + entry.data_offset, backend);
+            // TODO: This kind of eager processing of APK entries is a
+            //       kludge, but required by the current library design.
+            //       Once we decouple of resolvers from the base address
+            //       and make everything work with normalized addresses
+            //       we should only need to symbolize files in which
+            //       addresses were recorded, which eliminates this
+            //       weird ignoring of errors.
+            match result {
+                Ok(resolver) => {
+                    let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+                }
+                Err(err) => {
+                    log::debug!(
+                        "ignoring entry {} of {}: {err}",
+                        entry.path.display(),
+                        path.display()
+                    );
+                }
+            }
+            Result::Ok(())
+        })?;
+        Ok(())
+    }
+
     pub fn new(
         sym_srcs: &[SymbolSrcCfg],
         ksym_cache: &KSymCache,
@@ -187,6 +265,7 @@ impl ResolverMap {
         }
         resolvers.sort_by_key(|x| x.0 .0); // sorted by the loaded addresses
 
+        log::debug!("built resolver list: {resolvers:#x?}");
         Ok(ResolverMap { resolvers })
     }
 
@@ -202,5 +281,96 @@ impl ResolverMap {
         } else {
             Some(self.resolvers[idx].1.as_ref())
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::mem::transmute;
+
+    use test_log::test;
+
+    use crate::elf::ElfParser;
+    use crate::mmap::Mmap;
+    use crate::zip;
+    use crate::BlazeSymbolizer;
+    use crate::SymbolType;
+
+
+    /// Check that we can create a path to an ELF inside an APK as expected.
+    #[test]
+    fn elf_apk_path_creation() {
+        let apk = Path::new("/root/test.apk");
+        let elf = Path::new("subdir/libc.so");
+        let path = create_apk_elf_path(apk, elf).unwrap();
+        assert_eq!(path, Path::new("/root/test.apk!/subdir/libc.so"));
+    }
+
+    /// Check that we can symbolize an address using DWARF.
+    #[test]
+    fn symbolize_apk() {
+        let test_apk = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+
+        let mmap = Mmap::builder().exec().open(test_apk).unwrap();
+        let mmap = Rc::new(mmap);
+        let archive = zip::Archive::with_mmap(mmap.clone()).unwrap();
+        let so = archive
+            .entries()
+            .find_map(|entry| {
+                let entry = entry.unwrap();
+                (entry.path == Path::new("libtest-so.so")).then_some(entry)
+            })
+            .unwrap();
+
+        // We found the ELF shared object inside the archive. Now look
+        // up the address of the `the_answer` function inside of it.
+        let elf_parser = ElfParser::from_mmap(mmap.clone(), so.data_offset).unwrap();
+        let opts = FindAddrOpts {
+            sym_type: SymbolType::Function,
+            ..Default::default()
+        };
+        let symbols = elf_parser.find_address("the_answer", &opts).unwrap();
+        // There is only one symbol with this address in the shared
+        // object.
+        assert_eq!(symbols.len(), 1);
+        let symbol = symbols.first().unwrap();
+
+        let the_answer_addr = unsafe {
+            mmap.as_ptr()
+                .add(so.data_offset)
+                // The address as reported by ELF is just an offset for
+                // our intents and purposes, because the symbol is
+                // relative to the beginning of the file.
+                .add(symbol.address)
+        };
+
+        // Now just double check that everything worked out and the function
+        // is actually where it was meant to be.
+        let the_answer_fn =
+            unsafe { transmute::<_, extern "C" fn() -> libc::c_int>(the_answer_addr) };
+        let answer = the_answer_fn();
+        assert_eq!(answer, 42);
+
+        // Now symbolize the address we just looked up. It should be
+        // correctly mapped to the `the_answer` function within our
+        // process.
+        let srcs = [SymbolSrcCfg::Process(cfg::Process { pid: None })];
+        let symbolizer = BlazeSymbolizer::new().unwrap();
+        let results = symbolizer
+            .symbolize(&srcs, &[the_answer_addr as usize])
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
+
+        let result = results.first().unwrap();
+        assert_eq!(result.symbol, "the_answer");
+        assert_eq!(result.start_address, the_answer_addr as Addr);
     }
 }
