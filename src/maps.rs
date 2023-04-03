@@ -36,7 +36,7 @@ impl From<u32> for Pid {
 }
 
 
-pub(crate) struct LinuxMapsEntry {
+pub(crate) struct MapsEntry {
     pub loaded_address: Addr,
     pub _end_address: Addr,
     pub mode: u8,
@@ -45,7 +45,7 @@ pub(crate) struct LinuxMapsEntry {
 }
 
 /// Parse a line of a proc maps file.
-fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<LinuxMapsEntry, Error> {
+fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry, Error> {
     let full_line = line;
 
     let split_once = |line: &'line str, component| -> Result<(&'line str, &'line str), Error> {
@@ -109,7 +109,7 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<LinuxMapsEntry, 
         PathBuf::from(path_str)
     };
 
-    let entry = LinuxMapsEntry {
+    let entry = MapsEntry {
         loaded_address,
         _end_address: end_address,
         mode,
@@ -119,13 +119,13 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<LinuxMapsEntry, 
     Ok(entry)
 }
 
-fn parse_file<R>(reader: R, pid: Pid) -> Result<Vec<LinuxMapsEntry>, Error>
+fn parse_file<R>(reader: R, pid: Pid) -> Result<Vec<MapsEntry>, Error>
 where
     R: Read,
 {
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
-    let mut entries = Vec::<LinuxMapsEntry>::new();
+    let mut entries = Vec::<MapsEntry>::new();
     while reader.read_line(&mut line)? > 0 {
         let line_str = line.trim();
         // There shouldn't be any empty lines, but we'd just ignore them. We
@@ -141,7 +141,7 @@ where
 }
 
 /// Parse the maps file for the process with the given PID.
-pub(crate) fn parse(pid: Pid) -> Result<Vec<LinuxMapsEntry>, Error> {
+pub(crate) fn parse(pid: Pid) -> Result<Vec<MapsEntry>, Error> {
     let path = format!("/proc/{pid}/maps");
     let file = File::open(path)?;
     parse_file(file, pid)
