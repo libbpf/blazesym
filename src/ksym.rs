@@ -1,13 +1,12 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::default::Default;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Error;
+use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -41,20 +40,18 @@ pub struct KSymResolver {
 }
 
 impl KSymResolver {
-    pub fn new() -> KSymResolver {
-        Default::default()
-    }
-
-    pub fn load_file_name(&mut self, filename: PathBuf) -> Result<(), std::io::Error> {
+    pub fn load_file_name(filename: PathBuf) -> Result<Self> {
         let f = File::open(&filename)?;
         let mut reader = BufReader::new(f);
         let mut line = String::new();
+        let mut syms = Vec::with_capacity(DFL_KSYM_CAP);
 
-        while let Ok(sz) = reader.read_line(&mut line) {
+        loop {
+            let sz = reader.read_line(&mut line)?;
             if sz == 0 {
                 break
             }
-            let tokens: Vec<&str> = line.split_whitespace().collect();
+            let tokens = line.split_whitespace().collect::<Vec<_>>();
             if tokens.len() < 3 {
                 break
             }
@@ -65,17 +62,20 @@ impl KSymResolver {
                     continue
                 }
                 let name = String::from(func);
-                self.syms.push(Ksym { addr, name });
+                syms.push(Ksym { addr, name });
             }
 
             line.truncate(0);
         }
 
-        self.syms.sort_by(|a, b| a.addr.cmp(&b.addr));
+        syms.sort_by(|a, b| a.addr.cmp(&b.addr));
 
-        self.file_name = filename;
-
-        Ok(())
+        let slf = Self {
+            syms,
+            sym_to_addr: RefCell::default(),
+            file_name: filename,
+        };
+        Ok(slf)
     }
 
     fn ensure_sym_to_addr(&self) {
@@ -124,16 +124,6 @@ impl KSymResolver {
             .iter()
             .rev()
             .take_while(move |x| x.addr == self.syms[i - 1].addr)
-    }
-}
-
-impl Default for KSymResolver {
-    fn default() -> Self {
-        KSymResolver {
-            syms: Vec::with_capacity(DFL_KSYM_CAP),
-            sym_to_addr: RefCell::new(HashMap::new()),
-            file_name: PathBuf::from(""),
-        }
     }
 }
 
@@ -226,16 +216,14 @@ impl KSymCache {
     }
 
     /// Find an instance of KSymResolver from the cache or create a new one.
-    pub fn get_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>, Error> {
+    pub fn get_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>> {
         let mut resolvers = self.resolvers.borrow_mut();
         if let Some(resolver) = resolvers.get(path) {
             return Ok(resolver.clone())
         }
 
-        let mut resolver = Rc::new(KSymResolver::new());
-        Rc::get_mut(&mut resolver)
-            .unwrap()
-            .load_file_name(path.to_path_buf())?;
+        let resolver = KSymResolver::load_file_name(path.to_path_buf())?;
+        let resolver = Rc::new(resolver);
         resolvers.insert(path.to_path_buf(), resolver.clone());
         Ok(resolver)
     }
@@ -251,8 +239,7 @@ mod tests {
     #[test]
     #[ignore = "system-dependent; may fail"]
     fn ksym_resolver_load_find() {
-        let mut resolver = KSymResolver::new();
-        assert!(resolver.load_file_name(PathBuf::from(KALLSYMS)).is_ok());
+        let resolver = KSymResolver::load_file_name(PathBuf::from(KALLSYMS)).unwrap();
 
         assert!(
             resolver.syms.len() > 10000,
@@ -315,25 +302,28 @@ mod tests {
 
     #[test]
     fn find_addresses_ksym() {
-        let mut resolver = KSymResolver::new();
-        resolver.syms = vec![
-            Ksym {
-                addr: 0x123,
-                name: "1".to_string(),
-            },
-            Ksym {
-                addr: 0x123,
-                name: "1.5".to_string(),
-            },
-            Ksym {
-                addr: 0x1234,
-                name: "2".to_string(),
-            },
-            Ksym {
-                addr: 0x12345,
-                name: "3".to_string(),
-            },
-        ];
+        let resolver = KSymResolver {
+            syms: vec![
+                Ksym {
+                    addr: 0x123,
+                    name: "1".to_string(),
+                },
+                Ksym {
+                    addr: 0x123,
+                    name: "1.5".to_string(),
+                },
+                Ksym {
+                    addr: 0x1234,
+                    name: "2".to_string(),
+                },
+                Ksym {
+                    addr: 0x12345,
+                    name: "3".to_string(),
+                },
+            ],
+            sym_to_addr: RefCell::default(),
+            file_name: PathBuf::new(),
+        };
 
         // The address is less than the smallest address of all symbols.
         assert!(resolver.find_addresses_ksym(1).next().is_none());
@@ -382,13 +372,17 @@ mod tests {
     #[test]
     fn find_addresses_ksym_exhaust() {
         let syms_sz = 10;
-        let mut resolver = KSymResolver::new();
-        resolver.syms = (0..syms_sz)
-            .map(|x| Ksym {
-                addr: 1,
-                name: x.to_string(),
-            })
-            .collect();
+        let mut resolver = KSymResolver {
+            syms: (0..syms_sz)
+                .map(|x| Ksym {
+                    addr: 1,
+                    name: x.to_string(),
+                })
+                .collect(),
+            sym_to_addr: RefCell::default(),
+            file_name: PathBuf::new(),
+        };
+
         // A full-adder has a carry-out signal, right?
         // Yes! Here it is.
         let raised_carry_out = |addr| addr > syms_sz;
