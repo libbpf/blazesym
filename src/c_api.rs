@@ -435,11 +435,11 @@ pub unsafe extern "C" fn blazesym_symbolize(
 
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
-    let addresses = unsafe { Vec::from_raw_parts(addrs as *mut _, addr_cnt, addr_cnt) };
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
+    let addresses = unsafe { slice::from_raw_parts(addrs, addr_cnt) };
 
-    let result = symbolizer.symbolize(&sym_srcs_rs, &addresses);
-
-    addresses.leak();
+    let result = symbolizer.symbolize(&sym_srcs_rs, addresses);
 
     match result {
         Ok(results) if results.is_empty() => {
