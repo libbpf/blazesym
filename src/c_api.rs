@@ -225,12 +225,12 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 
 unsafe fn symbolsrccfg_to_rust(
     cfg: *const blazesym_sym_src_cfg,
-    cfg_len: u32,
+    cfg_len: usize,
 ) -> Option<Vec<SymbolSrcCfg>> {
-    let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len as usize);
+    let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len);
 
     for i in 0..cfg_len {
-        let c = unsafe { cfg.offset(i as isize) };
+        let c = unsafe { cfg.add(i) };
         match unsafe { &(*c).src_type } {
             blazesym_src_type::BLAZESYM_SRC_T_ELF => {
                 cfg_rs.push(SymbolSrcCfg::Elf {
@@ -438,7 +438,7 @@ unsafe fn convert_symbolizedresults_to_c(
 pub unsafe extern "C" fn blazesym_symbolize(
     symbolizer: *mut blazesym,
     sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: u32,
+    sym_srcs_len: usize,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
@@ -769,7 +769,7 @@ unsafe fn convert_find_addr_features(
 pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     symbolizer: *mut blazesym,
     sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: u32,
+    sym_srcs_len: usize,
     pattern: *const c_char,
     features: *const blazesym_faddr_feature,
     num_features: usize,
@@ -810,7 +810,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
 pub unsafe extern "C" fn blazesym_find_address_regex(
     symbolizer: *mut blazesym,
     sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: u32,
+    sym_srcs_len: usize,
     pattern: *const c_char,
 ) -> *const blazesym_sym_info {
     unsafe {
@@ -854,7 +854,7 @@ pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
 pub unsafe extern "C" fn blazesym_find_addresses_opt(
     symbolizer: *mut blazesym,
     sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: u32,
+    sym_srcs_len: usize,
     names: *const *const c_char,
     name_cnt: usize,
     features: *const blazesym_faddr_feature,
@@ -901,7 +901,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
 pub unsafe extern "C" fn blazesym_find_addresses(
     symbolizer: *mut blazesym,
     sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: u32,
+    sym_srcs_len: usize,
     names: *const *const c_char,
     name_cnt: usize,
 ) -> *const *const blazesym_sym_info {

@@ -376,7 +376,7 @@ void blazesym_free(struct blazesym *aSymbolizer);
  */
 const struct blazesym_result *blazesym_symbolize(struct blazesym *aSymbolizer,
                                                  const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                 uint32_t aSymSrcsLen,
+                                                 size_t aSymSrcsLen,
                                                  const uintptr_t *aAddrs,
                                                  size_t aAddrCnt);
 
@@ -407,7 +407,7 @@ void blazesym_result_free(const struct blazesym_result *aResults);
  */
 const struct blazesym_sym_info *blazesym_find_address_regex_opt(struct blazesym *aSymbolizer,
                                                                 const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                                uint32_t aSymSrcsLen,
+                                                                size_t aSymSrcsLen,
                                                                 const char *aPattern,
                                                                 const struct blazesym_faddr_feature *aFeatures,
                                                                 size_t aNumFeatures);
@@ -426,7 +426,7 @@ const struct blazesym_sym_info *blazesym_find_address_regex_opt(struct blazesym 
  */
 const struct blazesym_sym_info *blazesym_find_address_regex(struct blazesym *aSymbolizer,
                                                             const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                            uint32_t aSymSrcsLen,
+                                                            size_t aSymSrcsLen,
                                                             const char *aPattern);
 
 /**
@@ -458,7 +458,7 @@ void blazesym_syms_free(const struct blazesym_sym_info *aSyms);
  */
 const struct blazesym_sym_info *const *blazesym_find_addresses_opt(struct blazesym *aSymbolizer,
                                                                    const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                                   uint32_t aSymSrcsLen,
+                                                                   size_t aSymSrcsLen,
                                                                    const char *const *aNames,
                                                                    size_t aNameCnt,
                                                                    const struct blazesym_faddr_feature *aFeatures,
@@ -476,7 +476,7 @@ const struct blazesym_sym_info *const *blazesym_find_addresses_opt(struct blazes
  */
 const struct blazesym_sym_info *const *blazesym_find_addresses(struct blazesym *aSymbolizer,
                                                                const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                               uint32_t aSymSrcsLen,
+                                                               size_t aSymSrcsLen,
                                                                const char *const *aNames,
                                                                size_t aNameCnt);
 
