@@ -141,7 +141,7 @@ pub enum blazesym_feature_name {
 
 #[repr(C)]
 pub union blazesym_feature_params {
-    enable: bool,
+    pub enable: bool,
 }
 
 /// Setting of the blazesym features.

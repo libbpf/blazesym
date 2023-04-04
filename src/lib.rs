@@ -20,6 +20,7 @@ use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 
+#[allow(missing_debug_implementations)]
 mod c_api;
 mod dwarf;
 mod elf;
@@ -41,7 +42,6 @@ use ksym::KSymCache;
 use maps::Pid;
 use util::uname_release;
 
-#[cfg(doc)]
 pub use c_api::*;
 
 pub type Addr = usize;
