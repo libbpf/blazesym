@@ -8,6 +8,7 @@ use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 use std::ptr;
+use std::slice;
 
 use crate::log::error;
 use crate::log::warn;
@@ -289,15 +290,10 @@ pub unsafe extern "C" fn blazesym_new_opts(
     features: *const blazesym_feature,
     nfeatures: usize,
 ) -> *mut blazesym {
-    let features_v = unsafe {
-        Vec::<blazesym_feature>::from_raw_parts(
-            features as *mut blazesym_feature,
-            nfeatures,
-            nfeatures,
-        )
-    };
-    let features_v = mem::ManuallyDrop::new(features_v);
-    let features_r: Vec<_> = features_v
+    // SAFETY: The caller needs to ensure that `features` is a valid pointer and
+    //         that it points to `nfeatures` elements.
+    let features_v = unsafe { slice::from_raw_parts(features as *mut blazesym_feature, nfeatures) };
+    let features_r = features_v
         .iter()
         .map(|x| -> SymbolizerFeature {
             match x.feature {
@@ -309,7 +305,7 @@ pub unsafe extern "C" fn blazesym_new_opts(
                 }
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     let symbolizer = match BlazeSymbolizer::new_opt(&features_r) {
         Ok(s) => s,
