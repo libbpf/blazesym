@@ -3,6 +3,7 @@
 
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -144,8 +145,8 @@ typedef struct blazesym_csym {
   /**
    * The instruction of the address is in the line number of the source code.
    */
-  uintptr_t line_no;
-  uintptr_t column;
+  size_t line_no;
+  size_t column;
 } blazesym_csym;
 
 /**
@@ -158,7 +159,7 @@ typedef struct blazesym_entry {
   /**
    * The number of symbols found for an address.
    */
-  uintptr_t size;
+  size_t size;
   /**
    * All symbols found.
    *
@@ -178,7 +179,7 @@ typedef struct blazesym_result {
   /**
    * The number of addresses being symbolized.
    */
-  uintptr_t size;
+  size_t size;
   /**
    * The entries for addresses.
    *
@@ -349,7 +350,7 @@ struct blazesym *blazesym_new(void);
  *
  */
 struct blazesym *blazesym_new_opts(const struct blazesym_feature *aFeatures,
-                                   uintptr_t aNfeatures);
+                                   size_t aNfeatures);
 
 /**
  * Free an instance of blazesym a symbolizer for C API.
@@ -377,7 +378,7 @@ const struct blazesym_result *blazesym_symbolize(struct blazesym *aSymbolizer,
                                                  const struct blazesym_sym_src_cfg *aSymSrcs,
                                                  uint32_t aSymSrcsLen,
                                                  const uintptr_t *aAddrs,
-                                                 uintptr_t aAddrCnt);
+                                                 size_t aAddrCnt);
 
 /**
  * Free an array returned by blazesym_symbolize.
@@ -409,7 +410,7 @@ const struct blazesym_sym_info *blazesym_find_address_regex_opt(struct blazesym 
                                                                 uint32_t aSymSrcsLen,
                                                                 const char *aPattern,
                                                                 const struct blazesym_faddr_feature *aFeatures,
-                                                                uintptr_t aNumFeatures);
+                                                                size_t aNumFeatures);
 
 /**
  * Find the addresses of symbols matching a pattern.
@@ -459,9 +460,9 @@ const struct blazesym_sym_info *const *blazesym_find_addresses_opt(struct blazes
                                                                    const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                    uint32_t aSymSrcsLen,
                                                                    const char *const *aNames,
-                                                                   uintptr_t aNameCnt,
+                                                                   size_t aNameCnt,
                                                                    const struct blazesym_faddr_feature *aFeatures,
-                                                                   uintptr_t aNumFeatures);
+                                                                   size_t aNumFeatures);
 
 /**
  * Find addresses of a symbol name.
@@ -477,7 +478,7 @@ const struct blazesym_sym_info *const *blazesym_find_addresses(struct blazesym *
                                                                const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                uint32_t aSymSrcsLen,
                                                                const char *const *aNames,
-                                                               uintptr_t aNameCnt);
+                                                               size_t aNameCnt);
 
 /**
  * Free an array returned by blazesym_find_addresses.

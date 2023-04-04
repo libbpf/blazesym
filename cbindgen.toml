@@ -1,5 +1,6 @@
 language = "C"
 include_guard = "__blazesym_h_"
+usize_is_size_t = true
 
 [export]
 item_types = ["globals", "enums", "structs", "unions", "typedefs", "opaque", "functions"]
