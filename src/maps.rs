@@ -8,6 +8,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::num::NonZeroU32;
+use std::path::Component;
 use std::path::PathBuf;
 
 use crate::Addr;
@@ -119,9 +120,15 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry, Error
     Ok(entry)
 }
 
-fn parse_file<R>(reader: R, pid: Pid) -> Result<Vec<MapsEntry>, Error>
+/// Parse a proc maps file from the provided reader.
+///
+/// `filter` is a filter function (similar to those usable on iterators)
+/// that determines which entries we keep (those for which it returned
+/// `true`) and which we discard (anything `false`).
+fn parse_file<R, F>(reader: R, pid: Pid, mut filter: F) -> Result<Vec<MapsEntry>, Error>
 where
     R: Read,
+    F: FnMut(&MapsEntry) -> bool,
 {
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
@@ -132,7 +139,9 @@ where
         // need to trim anyway.
         if !line_str.is_empty() {
             let entry = parse_maps_line(line_str, pid)?;
-            entries.push(entry);
+            if filter(&entry) {
+                let () = entries.push(entry);
+            }
         }
         line.clear();
     }
@@ -141,10 +150,40 @@ where
 }
 
 /// Parse the maps file for the process with the given PID.
-pub(crate) fn parse(pid: Pid) -> Result<Vec<MapsEntry>, Error> {
+pub(crate) fn parse<F>(pid: Pid, filter: F) -> Result<Vec<MapsEntry>, Error>
+where
+    F: FnMut(&MapsEntry) -> bool,
+{
     let path = format!("/proc/{pid}/maps");
     let file = File::open(path)?;
-    parse_file(file, pid)
+    parse_file(file, pid, filter)
+}
+
+/// A helper function checking whether a `MapsEntry` has relevant to
+/// symbolization efforts. If that is not the case, it may be possible to ignore
+/// it altogether.
+pub(crate) fn is_symbolization_relevant(entry: &MapsEntry) -> bool {
+    // Only entries with actual paths are of relevance.
+    if entry.path.as_path().components().next() != Some(Component::RootDir) {
+        return false
+    }
+
+    // Only entries that are executable and readable (r-x-) are of relevance.
+    if (entry.mode & 0b1010) != 0b1010 {
+        return false
+    }
+
+    if let Ok(meta_data) = entry.path.metadata() {
+        if !meta_data.is_file() {
+            return false
+        }
+    } else {
+        // TODO: We probably should handle errors more gracefully. It's not
+        //       clear that silently ignoring them is the right thing to do.
+        return false
+    }
+
+    true
 }
 
 
@@ -160,7 +199,7 @@ mod tests {
     /// Check that we can parse `/proc/self/maps`.
     #[test]
     fn self_map_parsing() {
-        let maps = parse(Pid::Slf).unwrap();
+        let maps = parse(Pid::Slf, |_entry| true).unwrap();
         assert!(!maps.is_empty(), "{}", maps.len());
     }
 
@@ -199,7 +238,7 @@ mod tests {
 ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]
 "#;
 
-        let _entries = parse_file(lines.as_bytes(), Pid::Slf).unwrap();
+        let _entries = parse_file(lines.as_bytes(), Pid::Slf, is_symbolization_relevant).unwrap();
 
         // Parse the first (actual) line.
         let entry = parse_maps_line(lines.lines().nth(1).unwrap(), Pid::Slf).unwrap();

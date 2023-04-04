@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::io::Result;
-use std::path::Component;
 use std::path::Path;
 
 use crate::cfg;
@@ -62,26 +61,9 @@ impl ResolverMap {
         resolvers: &mut ResolverList,
         elf_cache: &ElfCache,
     ) -> Result<()> {
-        let entries = maps::parse(pid)?;
+        let entries = maps::parse(pid, maps::is_symbolization_relevant)?;
 
-        for entry in entries.iter() {
-            if entry.path.as_path().components().next() != Some(Component::RootDir) {
-                continue
-            }
-            if (entry.mode & 0b1010) != 0b1010 {
-                // r-x-
-                continue
-            }
-
-            if let Ok(meta_data) = entry.path.metadata() {
-                if !meta_data.is_file() {
-                    // Not a regular file
-                    continue
-                }
-            } else {
-                continue
-            }
-
+        for entry in entries {
             let backend = elf_cache.find(&entry.path)?;
             let resolver = ElfResolver::new(&entry.path, entry.loaded_address, backend)?;
             let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
