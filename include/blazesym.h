@@ -32,15 +32,15 @@ typedef enum blazesym_feature_name {
   /**
    * Enable or disable returning line numbers of addresses.
    *
-   * Users should set `blazesym_feature.params.enable` to enabe or
-   * disable the feature,
+   * Users should set `blazesym_feature.params.enable` to enable or
+   * disable the feature.
    */
   BLAZESYM_LINE_NUMBER_INFO,
   /**
    * Enable or disable loading symbols from DWARF.
    *
-   * Users should `blazesym_feature.params.enable` to enable or
-   * disable the feature.  This feature is disabled by default.
+   * Users should set `blazesym_feature.params.enable` to enable or
+   * disable the feature. This feature is disabled by default.
    */
   BLAZESYM_DEBUG_INFO_SYMBOLS,
 } blazesym_feature_name;
@@ -102,9 +102,7 @@ typedef struct BlazeSymbolizer BlazeSymbolizer;
  * It is returned by [`blazesym_new()`] and should be free by
  * [`blazesym_free()`].
  */
-typedef struct blazesym {
-  struct BlazeSymbolizer *symbolizer;
-} blazesym;
+typedef struct BlazeSymbolizer blazesym;
 
 typedef union blazesym_feature_params {
   bool enable;
@@ -339,7 +337,7 @@ typedef struct blazesym_faddr_feature {
  * Free the pointer with [`blazesym_free()`].
  *
  */
-struct blazesym *blazesym_new(void);
+blazesym *blazesym_new(void);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.
@@ -347,10 +345,9 @@ struct blazesym *blazesym_new(void);
  * # Safety
  *
  * Free the pointer with [`blazesym_free()`].
- *
  */
-struct blazesym *blazesym_new_opts(const struct blazesym_feature *aFeatures,
-                                   size_t aNfeatures);
+blazesym *blazesym_new_opts(const struct blazesym_feature *aFeatures,
+                            size_t aNfeatures);
 
 /**
  * Free an instance of blazesym a symbolizer for C API.
@@ -360,7 +357,7 @@ struct blazesym *blazesym_new_opts(const struct blazesym_feature *aFeatures,
  * The pointer must be returned by [`blazesym_new()`].
  *
  */
-void blazesym_free(struct blazesym *aSymbolizer);
+void blazesym_free(blazesym *aSymbolizer);
 
 /**
  * Symbolize addresses with the sources of symbols and debug info.
@@ -372,9 +369,8 @@ void blazesym_free(struct blazesym *aSymbolizer);
  * # Safety
  *
  * The returned pointer should be freed by [`blazesym_result_free()`].
- *
  */
-const struct blazesym_result *blazesym_symbolize(struct blazesym *aSymbolizer,
+const struct blazesym_result *blazesym_symbolize(blazesym *aSymbolizer,
                                                  const struct blazesym_sym_src_cfg *aSymSrcs,
                                                  size_t aSymSrcsLen,
                                                  const uintptr_t *aAddrs,
@@ -403,9 +399,8 @@ void blazesym_result_free(const struct blazesym_result *aResults);
  * # Safety
  *
  * The returned pointer should be free by [`blazesym_syms_free()`].
- *
  */
-const struct blazesym_sym_info *blazesym_find_address_regex_opt(struct blazesym *aSymbolizer,
+const struct blazesym_sym_info *blazesym_find_address_regex_opt(blazesym *aSymbolizer,
                                                                 const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                 size_t aSymSrcsLen,
                                                                 const char *aPattern,
@@ -422,9 +417,8 @@ const struct blazesym_sym_info *blazesym_find_address_regex_opt(struct blazesym 
  * # Safety
  *
  * The returned pointer should be free by [`blazesym_syms_free()`].
- *
  */
-const struct blazesym_sym_info *blazesym_find_address_regex(struct blazesym *aSymbolizer,
+const struct blazesym_sym_info *blazesym_find_address_regex(blazesym *aSymbolizer,
                                                             const struct blazesym_sym_src_cfg *aSymSrcs,
                                                             size_t aSymSrcsLen,
                                                             const char *aPattern);
@@ -454,9 +448,8 @@ void blazesym_syms_free(const struct blazesym_sym_info *aSyms);
  * # Safety
  *
  * The returned pointer should be free by [`blazesym_syms_list_free()`].
- *
  */
-const struct blazesym_sym_info *const *blazesym_find_addresses_opt(struct blazesym *aSymbolizer,
+const struct blazesym_sym_info *const *blazesym_find_addresses_opt(blazesym *aSymbolizer,
                                                                    const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                    size_t aSymSrcsLen,
                                                                    const char *const *aNames,
@@ -472,9 +465,8 @@ const struct blazesym_sym_info *const *blazesym_find_addresses_opt(struct blazes
  * # Safety
  *
  * The returned data should be free by [`blazesym_syms_list_free()`].
- *
  */
-const struct blazesym_sym_info *const *blazesym_find_addresses(struct blazesym *aSymbolizer,
+const struct blazesym_sym_info *const *blazesym_find_addresses(blazesym *aSymbolizer,
                                                                const struct blazesym_sym_src_cfg *aSymSrcs,
                                                                size_t aSymSrcsLen,
                                                                const char *const *aNames,

@@ -129,13 +129,13 @@ pub struct blazesym_sym_src_cfg {
 pub enum blazesym_feature_name {
     /// Enable or disable returning line numbers of addresses.
     ///
-    /// Users should set `blazesym_feature.params.enable` to enabe or
-    /// disable the feature,
+    /// Users should set `blazesym_feature.params.enable` to enable or
+    /// disable the feature.
     BLAZESYM_LINE_NUMBER_INFO,
     /// Enable or disable loading symbols from DWARF.
     ///
-    /// Users should `blazesym_feature.params.enable` to enable or
-    /// disable the feature.  This feature is disabled by default.
+    /// Users should set `blazesym_feature.params.enable` to enable or
+    /// disable the feature. This feature is disabled by default.
     BLAZESYM_DEBUG_INFO_SYMBOLS,
 }
 
@@ -157,10 +157,8 @@ pub struct blazesym_feature {
 ///
 /// It is returned by [`blazesym_new()`] and should be free by
 /// [`blazesym_free()`].
-#[repr(C)]
-pub struct blazesym {
-    symbolizer: *mut BlazeSymbolizer,
-}
+#[allow(non_camel_case_types)]
+type blazesym = BlazeSymbolizer;
 
 /// The result of symbolization of an address for C API.
 ///
@@ -218,7 +216,6 @@ pub struct blazesym_result {
 /// # Safety
 ///
 /// C string should be terminated with a null byte.
-///
 unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
     PathBuf::from(unsafe { CStr::from_ptr(cstr) }.to_str().unwrap())
 }
@@ -279,10 +276,7 @@ pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
         Err(_) => return ptr::null_mut(),
     };
     let symbolizer_box = Box::new(symbolizer);
-    let c_box = Box::new(blazesym {
-        symbolizer: Box::into_raw(symbolizer_box),
-    });
-    Box::into_raw(c_box)
+    Box::into_raw(symbolizer_box)
 }
 
 /// Create an instance of blazesym a symbolizer for C API.
@@ -290,7 +284,6 @@ pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
 /// # Safety
 ///
 /// Free the pointer with [`blazesym_free()`].
-///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_new_opts(
     features: *const blazesym_feature,
@@ -323,10 +316,7 @@ pub unsafe extern "C" fn blazesym_new_opts(
         Err(_) => return ptr::null_mut(),
     };
     let symbolizer_box = Box::new(symbolizer);
-    let c_box = Box::new(blazesym {
-        symbolizer: Box::into_raw(symbolizer_box),
-    });
-    Box::into_raw(c_box)
+    Box::into_raw(symbolizer_box)
 }
 
 /// Free an instance of blazesym a symbolizer for C API.
@@ -338,7 +328,6 @@ pub unsafe extern "C" fn blazesym_new_opts(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
     if !symbolizer.is_null() {
-        drop(unsafe { Box::from_raw((*symbolizer).symbolizer) });
         drop(unsafe { Box::from_raw(symbolizer) });
     }
 }
@@ -348,7 +337,6 @@ pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
 /// # Safety
 ///
 /// The returned pointer should be freed by [`blazesym_result_free()`].
-///
 unsafe fn convert_symbolizedresults_to_c(
     results: Vec<Vec<SymbolizedResult>>,
 ) -> *const blazesym_result {
@@ -433,7 +421,6 @@ unsafe fn convert_symbolizedresults_to_c(
 /// # Safety
 ///
 /// The returned pointer should be freed by [`blazesym_result_free()`].
-///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_symbolize(
     symbolizer: *mut blazesym,
@@ -450,7 +437,8 @@ pub unsafe extern "C" fn blazesym_symbolize(
             return ptr::null_mut()
         };
 
-    let symbolizer = unsafe { &*(*symbolizer).symbolizer };
+    // SAFETY: The caller ensures that the pointer is valid.
+    let symbolizer = unsafe { &*symbolizer };
     let addresses = unsafe { Vec::from_raw_parts(addrs as *mut _, addr_cnt, addr_cnt) };
 
     let result = symbolizer.symbolize(&sym_srcs_rs, &addresses);
@@ -764,7 +752,6 @@ unsafe fn convert_find_addr_features(
 /// # Safety
 ///
 /// The returned pointer should be free by [`blazesym_syms_free()`].
-///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     symbolizer: *mut blazesym,
@@ -782,7 +769,8 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
             return ptr::null_mut()
         };
 
-    let symbolizer = unsafe { &*(*symbolizer).symbolizer };
+    // SAFETY: The caller ensures that the pointer is valid.
+    let symbolizer = unsafe { &*symbolizer };
 
     let pattern = unsafe { CStr::from_ptr(pattern) };
     let features = unsafe { convert_find_addr_features(features, num_features) };
@@ -805,7 +793,6 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
 /// # Safety
 ///
 /// The returned pointer should be free by [`blazesym_syms_free()`].
-///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_address_regex(
     symbolizer: *mut blazesym,
@@ -849,7 +836,6 @@ pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
 /// # Safety
 ///
 /// The returned pointer should be free by [`blazesym_syms_list_free()`].
-///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_addresses_opt(
     symbolizer: *mut blazesym,
@@ -868,7 +854,8 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
             return ptr::null_mut()
         };
 
-    let symbolizer = unsafe { &*(*symbolizer).symbolizer };
+    // SAFETY: The caller ensures that the pointer is valid.
+    let symbolizer = unsafe { &*symbolizer };
 
     let mut names_r = Vec::with_capacity(name_cnt);
     for i in 0..name_cnt {
@@ -896,7 +883,6 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
 /// # Safety
 ///
 /// The returned data should be free by [`blazesym_syms_list_free()`].
-///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_addresses(
     symbolizer: *mut blazesym,
