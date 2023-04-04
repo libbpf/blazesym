@@ -49,6 +49,38 @@ jobs:
       uses: codecov/codecov-action@v3
       with:
         files: lcov.info
+  test-sanitizers:
+    name: Test with ${{ matrix.sanitizer }} sanitizer
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitizer: [address, leak]
+    runs-on: ubuntu-latest
+    env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true
+    - name: Enable debug symbols
+      run: |
+          # to get the symbolizer for debug symbol resolution
+          sudo apt-get install -y llvm-14
+          # to fix buggy leak analyzer:
+          # https://github.com/japaric/rust-san#unrealiable-leaksanitizer
+          sed -i '/\[features\]/i [profile.dev]' Cargo.toml
+          sed -i '/profile.dev/a opt-level = 1' Cargo.toml
+          cat Cargo.toml
+    - name: cargo test -Zsanitizer=${{ matrix.sanitizer }}
+      env:
+        CFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
+        CXXFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
+        RUSTFLAGS: "-Zsanitizer=${{ matrix.sanitizer }}"
+        ASAN_OPTIONS: "detect_odr_violation=0:detect_leaks=0"
+        LSAN_OPTIONS: "suppressions=lsan-suppressions.txt"
+      run: cargo test --lib --tests --target x86_64-unknown-linux-gnu
   test-release:
     name: Test with release build
     runs-on: ubuntu-22.04
