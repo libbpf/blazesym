@@ -576,7 +576,7 @@ fn convert_syms_list_to_c(
 }
 
 /// Convert SymbolInfos returned by BlazeSymbolizer::find_address_regex() to a C array.
-unsafe fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
+fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
     let mut str_buf_sz = 0;
 
     for sym in &syms {
@@ -777,7 +777,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
         return ptr::null_mut()
     }
 
-    unsafe { convert_syms_to_c(syms.unwrap()) }
+    convert_syms_to_c(syms.unwrap())
 }
 
 /// Find the addresses of symbols matching a pattern.
