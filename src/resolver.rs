@@ -61,12 +61,14 @@ impl ResolverMap {
         resolvers: &mut ResolverList,
         elf_cache: &ElfCache,
     ) -> Result<()> {
-        let entries = maps::parse(pid, maps::is_symbolization_relevant)?;
-
+        let entries = maps::parse(pid)?;
         for entry in entries {
-            let backend = elf_cache.find(&entry.path)?;
-            let resolver = ElfResolver::new(&entry.path, entry.loaded_address, backend)?;
-            let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+            let entry = entry?;
+            if maps::is_symbolization_relevant(&entry) {
+                let backend = elf_cache.find(&entry.path)?;
+                let resolver = ElfResolver::new(&entry.path, entry.loaded_address, backend)?;
+                let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+            }
         }
 
         Ok(())
