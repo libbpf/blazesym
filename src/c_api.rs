@@ -833,13 +833,16 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
     //         matches.
     let sym_srcs = unsafe { slice::from_raw_parts(sym_srcs, sym_srcs_len) };
     let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
-
-    let mut names_r = Vec::with_capacity(name_cnt);
-    for i in 0..name_cnt {
-        let name_c = unsafe { *names.add(i) };
-        let name_r = unsafe { CStr::from_ptr(name_c) };
-        names_r.push(name_r.to_str().unwrap());
-    }
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
+    let names = unsafe { slice::from_raw_parts(names, name_cnt) };
+    let names = names
+        .iter()
+        .map(|&p| {
+            // SAFETY: The caller ensures that the pointer is valid.
+            unsafe { CStr::from_ptr(p) }.to_str().unwrap()
+        })
+        .collect::<Vec<_>>();
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
     let features = unsafe { slice::from_raw_parts(features, num_features) };
@@ -847,7 +850,8 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         .iter()
         .map(FindAddrFeature::from)
         .collect::<Vec<_>>();
-    let result = symbolizer.find_addresses_opt(&sym_srcs, &names_r, &features);
+
+    let result = symbolizer.find_addresses_opt(&sym_srcs, &names, &features);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
         Err(_err) => {
