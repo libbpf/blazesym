@@ -468,12 +468,12 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
 
 #[repr(C)]
 pub struct blazesym_sym_info {
-    name: *const u8,
+    name: *const c_char,
     address: Addr,
     size: u64,
     sym_type: blazesym_sym_type,
     file_offset: u64,
-    obj_file_name: *const u8,
+    obj_file_name: *const c_char,
 }
 
 /// Convert SymbolInfos returned by BlazeSymbolizer::find_addresses() to a C array.
@@ -504,7 +504,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
     let mut syms_ptr = raw_buf as *mut *mut blazesym_sym_info;
     let mut sym_ptr = unsafe { raw_buf.add(array_sz) } as *mut blazesym_sym_info;
-    let mut str_ptr = unsafe { raw_buf.add(array_sz + sym_buf_sz) } as *mut u8;
+    let mut str_ptr = unsafe { raw_buf.add(array_sz + sym_buf_sz) } as *mut c_char;
 
     for syms in syms_list {
         unsafe { *syms_ptr = sym_ptr };
@@ -517,15 +517,15 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
             obj_file_name,
         } in syms
         {
-            let name_ptr = str_ptr as *const u8;
-            unsafe { ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len()) };
+            let name_ptr = str_ptr.cast();
+            unsafe { ptr::copy_nonoverlapping(name.as_ptr().cast(), str_ptr, name.len()) };
             str_ptr = unsafe { str_ptr.add(name.len()) };
             unsafe { *str_ptr = 0 };
             str_ptr = unsafe { str_ptr.add(1) };
             let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
                 let fname = AsRef::<OsStr>::as_ref(fname).as_bytes();
                 let obj_fname_ptr = str_ptr;
-                unsafe { ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len()) };
+                unsafe { ptr::copy_nonoverlapping(fname.as_ptr().cast(), str_ptr, fname.len()) };
                 str_ptr = unsafe { str_ptr.add(fname.len()) };
                 unsafe { *str_ptr = 0 };
                 str_ptr = unsafe { str_ptr.add(1) };
@@ -588,7 +588,7 @@ fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
 
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
     let mut sym_ptr = raw_buf as *mut blazesym_sym_info;
-    let mut str_ptr = unsafe { raw_buf.add(sym_buf_sz) } as *mut u8;
+    let mut str_ptr = unsafe { raw_buf.add(sym_buf_sz) } as *mut c_char;
 
     for sym in syms {
         let SymbolInfo {
@@ -599,15 +599,15 @@ fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
             file_offset,
             obj_file_name,
         } = sym;
-        let name_ptr = str_ptr as *const u8;
-        unsafe { ptr::copy_nonoverlapping(name.as_ptr(), str_ptr, name.len()) };
+        let name_ptr = str_ptr as *const c_char;
+        unsafe { ptr::copy_nonoverlapping(name.as_ptr().cast(), str_ptr, name.len()) };
         str_ptr = unsafe { str_ptr.add(name.len()) };
         unsafe { *str_ptr = 0 };
         str_ptr = unsafe { str_ptr.add(1) };
         let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
             let fname = AsRef::<OsStr>::as_ref(fname).as_bytes();
             let obj_fname_ptr = str_ptr;
-            unsafe { ptr::copy_nonoverlapping(fname.as_ptr(), str_ptr, fname.len()) };
+            unsafe { ptr::copy_nonoverlapping(fname.as_ptr().cast(), str_ptr, fname.len()) };
             str_ptr = unsafe { str_ptr.add(fname.len()) };
             unsafe { *str_ptr = 0 };
             str_ptr = unsafe { str_ptr.add(1) };
@@ -807,9 +807,8 @@ pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
 
 /// Find the addresses of a list of symbols.
 ///
-/// Return an array of `*const u64` with the same size as the
-/// input names.  The caller should free the returned array by calling
-/// [`blazesym_syms_list_free()`].
+/// Return an array with the same size as the input names. The caller should
+/// free the returned array by calling [`blazesym_syms_list_free()`].
 ///
 /// Every name in the input name list may have more than one address.
 /// The respective entry in the returned array is an array containing
