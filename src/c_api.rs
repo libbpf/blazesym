@@ -468,12 +468,12 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
 
 #[repr(C)]
 pub struct blazesym_sym_info {
-    name: *const c_char,
-    address: Addr,
-    size: u64,
-    sym_type: blazesym_sym_type,
-    file_offset: u64,
-    obj_file_name: *const c_char,
+    pub name: *const c_char,
+    pub address: Addr,
+    pub size: u64,
+    pub sym_type: blazesym_sym_type,
+    pub file_offset: u64,
+    pub obj_file_name: *const c_char,
 }
 
 /// Convert SymbolInfos returned by BlazeSymbolizer::find_addresses() to a C array.
