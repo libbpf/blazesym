@@ -8,6 +8,7 @@ use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 use std::ptr;
+use std::ptr::NonNull;
 use std::slice;
 
 use crate::log::error;
@@ -21,6 +22,18 @@ use crate::SymbolType;
 use crate::SymbolizedResult;
 use crate::SymbolizerFeature;
 
+
+/// "Safely" create a slice from a user provided array.
+unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: usize) -> &'t [T] {
+    let items = if items.is_null() {
+        // `slice::from_raw_parts` requires a properly aligned non-NULL pointer.
+        // Craft one.
+        NonNull::dangling().as_ptr()
+    } else {
+        items
+    };
+    unsafe { slice::from_raw_parts(items, num_items) }
+}
 
 /// Types of symbol sources and debug information for C API.
 #[repr(C)]
@@ -291,7 +304,7 @@ pub unsafe extern "C" fn blazesym_new_opts(
 ) -> *mut blazesym {
     // SAFETY: The caller needs to ensure that `features` is a valid pointer and
     //         that it points to `nfeatures` elements.
-    let features_v = unsafe { slice::from_raw_parts(features as *mut blazesym_feature, nfeatures) };
+    let features_v = unsafe { slice_from_user_array(features, nfeatures) };
     let features_r = features_v
         .iter()
         .map(|x| -> SymbolizerFeature {
@@ -428,11 +441,11 @@ pub unsafe extern "C" fn blazesym_symbolize(
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let sym_srcs = unsafe { slice::from_raw_parts(sym_srcs, sym_srcs_len) };
+    let sym_srcs = unsafe { slice_from_user_array(sym_srcs, sym_srcs_len) };
     let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let addresses = unsafe { slice::from_raw_parts(addrs, addr_cnt) };
+    let addresses = unsafe { slice_from_user_array(addrs, addr_cnt) };
 
     let result = symbolizer.symbolize(&sym_srcs, addresses);
 
@@ -746,13 +759,13 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let sym_srcs = unsafe { slice::from_raw_parts(sym_srcs, sym_srcs_len) };
+    let sym_srcs = unsafe { slice_from_user_array(sym_srcs, sym_srcs_len) };
     let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
 
     let pattern = unsafe { CStr::from_ptr(pattern) };
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let features = unsafe { slice::from_raw_parts(features, num_features) };
+    let features = unsafe { slice_from_user_array(features, num_features) };
     let features = features
         .iter()
         .map(FindAddrFeature::from)
@@ -831,11 +844,11 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let sym_srcs = unsafe { slice::from_raw_parts(sym_srcs, sym_srcs_len) };
+    let sym_srcs = unsafe { slice_from_user_array(sym_srcs, sym_srcs_len) };
     let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let names = unsafe { slice::from_raw_parts(names, name_cnt) };
+    let names = unsafe { slice_from_user_array(names, name_cnt) };
     let names = names
         .iter()
         .map(|&p| {
@@ -845,7 +858,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         .collect::<Vec<_>>();
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let features = unsafe { slice::from_raw_parts(features, num_features) };
+    let features = unsafe { slice_from_user_array(features, num_features) };
     let features = features
         .iter()
         .map(FindAddrFeature::from)
