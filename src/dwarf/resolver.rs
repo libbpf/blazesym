@@ -142,8 +142,7 @@ impl DwarfResolver {
         Some((String::from(dir), String::from(file), line_no))
     }
 
-    /// Extract the symbol information from DWARf if having not did it
-    /// before.
+    /// Extract the symbol information from DWARf if having not done it before.
     fn ensure_debug_info_syms(&self) -> Result<(), Error> {
         if self.enable_debug_info_syms {
             let mut dis_ref = self.debug_info_syms.borrow_mut();
@@ -153,8 +152,13 @@ impl DwarfResolver {
             let mut debug_info_syms = debug_info_parse_symbols(&self.parser, None)?;
             debug_info_syms.sort_by_key(|v: &DWSymInfo| -> &str { v.name });
             *dis_ref = Some(unsafe { mem::transmute(debug_info_syms) });
+            Ok(())
+        } else {
+            Err(Error::new(
+                ErrorKind::Unsupported,
+                "debug info symbol information has been disabled",
+            ))
         }
-        Ok(())
     }
 
     /// Find the address of a symbol from DWARF.

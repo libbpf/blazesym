@@ -109,3 +109,28 @@ fn lookup_dwarf() {
     let result = results.first().unwrap();
     assert_eq!(result.address, 0x2000100);
 }
+
+/// Check that we cannot lookup a symbol from DWARF information when the debug
+/// info feature is turned off.
+#[test]
+fn lookup_dwarf_no_debug_info() {
+    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-dwarf.bin");
+    let features = [
+        SymbolizerFeature::LineNumberInfo(true),
+        SymbolizerFeature::DebugInfoSymbols(false),
+    ];
+    let srcs = [SymbolSrcCfg::Elf {
+        file_name: test_dwarf,
+        base_address: 0,
+    }];
+    let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
+    let results = symbolizer
+        .find_addresses(&srcs, &["factorial"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 0);
+}
