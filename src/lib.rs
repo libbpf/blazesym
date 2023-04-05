@@ -20,7 +20,6 @@ use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 
-#[allow(missing_debug_implementations)]
 mod c_api;
 mod dwarf;
 mod elf;
