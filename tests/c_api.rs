@@ -16,6 +16,7 @@ use blazesym::blazesym_new_opts;
 use blazesym::blazesym_result_free;
 use blazesym::blazesym_src_type;
 use blazesym::blazesym_ssc_elf;
+use blazesym::blazesym_ssc_gsym;
 use blazesym::blazesym_ssc_params;
 use blazesym::blazesym_sym_src_cfg;
 use blazesym::blazesym_symbolize;
@@ -98,7 +99,21 @@ fn symbolize_from_file() {
         src_type: blazesym_src_type::BLAZESYM_SRC_T_ELF,
         params: blazesym_ssc_params { elf: elf_src },
     };
-    test(cfg)
+    test(cfg);
+
+    let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test.gsym");
+    let test_gsym_c = CString::new(test_gsym.to_str().unwrap()).unwrap();
+    let gsym_src = ManuallyDrop::new(blazesym_ssc_gsym {
+        file_name: test_gsym_c.as_ptr(),
+        base_address: 0,
+    });
+    let cfg = blazesym_sym_src_cfg {
+        src_type: blazesym_src_type::BLAZESYM_SRC_T_GSYM,
+        params: blazesym_ssc_params { gsym: gsym_src },
+    };
+    test(cfg);
 }
 
 
