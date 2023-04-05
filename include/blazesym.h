@@ -302,12 +302,12 @@ typedef struct blazesym_sym_src_cfg {
 } blazesym_sym_src_cfg;
 
 typedef struct blazesym_sym_info {
-  const uint8_t *name;
+  const char *name;
   uintptr_t address;
   uint64_t size;
   enum blazesym_sym_type sym_type;
   uint64_t file_offset;
-  const uint8_t *obj_file_name;
+  const char *obj_file_name;
 } blazesym_sym_info;
 
 /**
@@ -437,9 +437,8 @@ void blazesym_syms_free(const struct blazesym_sym_info *aSyms);
 /**
  * Find the addresses of a list of symbols.
  *
- * Return an array of `*const u64` with the same size as the
- * input names.  The caller should free the returned array by calling
- * [`blazesym_syms_list_free()`].
+ * Return an array with the same size as the input names. The caller should
+ * free the returned array by calling [`blazesym_syms_list_free()`].
  *
  * Every name in the input name list may have more than one address.
  * The respective entry in the returned array is an array containing
