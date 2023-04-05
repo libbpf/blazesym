@@ -482,7 +482,7 @@ pub struct blazesym_sym_info {
 }
 
 /// Convert SymbolInfos returned by BlazeSymbolizer::find_addresses() to a C array.
-unsafe fn convert_syms_list_to_c(
+fn convert_syms_list_to_c(
     syms_list: Vec<Vec<SymbolInfo>>,
 ) -> *const *const blazesym_sym_info {
     let mut sym_cnt = 0;
@@ -862,7 +862,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
     let features = unsafe { convert_find_addr_features(features, num_features) };
     let result = symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, &features);
     match result {
-        Ok(syms) => unsafe { convert_syms_list_to_c(syms) },
+        Ok(syms) => convert_syms_list_to_c(syms),
         Err(_err) => {
             // TODO: Errors should probably be surfaced.
             #[cfg(debug_assertions)]
