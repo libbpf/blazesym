@@ -3,6 +3,9 @@ use std::alloc::dealloc;
 use std::alloc::Layout;
 use std::ffi::CStr;
 use std::ffi::OsStr;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::mem;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
@@ -38,6 +41,7 @@ unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: usize) -> &'t
 /// Types of symbol sources and debug information for C API.
 #[repr(C)]
 #[allow(non_camel_case_types, unused)]
+#[derive(Debug)]
 pub enum blazesym_src_type {
     /// Symbols and debug information from an ELF file.
     BLAZESYM_SRC_T_ELF,
@@ -54,6 +58,7 @@ pub enum blazesym_src_type {
 /// Describes the path and address of an ELF file loaded in a
 /// process.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_ssc_elf {
     /// The file name of an ELF file.
     ///
@@ -90,6 +95,7 @@ pub struct blazesym_ssc_elf {
 /// Use a kernel image and a snapshot of its kallsyms as a source of symbols and
 /// debug information.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_ssc_kernel {
     /// The path of a copy of kallsyms.
     ///
@@ -112,6 +118,7 @@ pub struct blazesym_ssc_kernel {
 /// Load all ELF files in a process as the sources of symbols and debug
 /// information.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_ssc_process {
     /// It is the PID of a process to symbolize.
     ///
@@ -122,6 +129,7 @@ pub struct blazesym_ssc_process {
 
 /// The parameters to load symbols and debug information from a gsym file.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_ssc_gsym {
     /// The file name of a gsym file.
     pub file_name: *const c_char,
@@ -142,9 +150,16 @@ pub union blazesym_ssc_params {
     pub gsym: mem::ManuallyDrop<blazesym_ssc_gsym>,
 }
 
+impl Debug for blazesym_ssc_params {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct(stringify!(blazesym_ssc_params)).finish()
+    }
+}
+
 
 /// Description of a source of symbols and debug information for C API.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_sym_src_cfg {
     /// A type of symbol source.
     pub src_type: blazesym_src_type,
@@ -203,6 +218,7 @@ impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
 /// Names of the BlazeSym features.
 #[repr(C)]
 #[allow(non_camel_case_types, unused)]
+#[derive(Debug)]
 pub enum blazesym_feature_name {
     /// Enable or disable returning line numbers of addresses.
     ///
@@ -221,10 +237,20 @@ pub union blazesym_feature_params {
     pub enable: bool,
 }
 
+impl Debug for blazesym_feature_params {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct(stringify!(blazesym_feature_params))
+            // SAFETY: There is only one variant.
+            .field("enable", &unsafe { self.enable })
+            .finish()
+    }
+}
+
 /// Setting of the blazesym features.
 ///
 /// Contain parameters to enable, disable, or customize a feature.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_feature {
     pub feature: blazesym_feature_name,
     pub params: blazesym_feature_params,
@@ -242,6 +268,7 @@ type blazesym = BlazeSymbolizer;
 /// A `blazesym_csym` is the information of a symbol found for an
 /// address.  One address may result in several symbols.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_csym {
     /// The symbol name is where the given address should belong to.
     pub symbol: *const c_char,
@@ -262,6 +289,7 @@ pub struct blazesym_csym {
 /// Every address has an `blazesym_entry` in
 /// [`blazesym_result::entries`] to collect symbols found by BlazeSym.
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_entry {
     /// The number of symbols found for an address.
     pub size: usize,
@@ -277,6 +305,7 @@ pub struct blazesym_entry {
 /// [`blazesym_symbolize()`].  They should be free by calling
 /// [`blazesym_result_free()`].
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_result {
     /// The number of addresses being symbolized.
     pub size: usize,
@@ -501,6 +530,7 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
 }
 
 #[repr(C)]
+#[derive(Debug)]
 pub struct blazesym_sym_info {
     pub name: *const c_char,
     pub address: Addr,
@@ -686,7 +716,7 @@ fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
 /// and indicate the types of symbols found.
 #[repr(C)]
 #[allow(non_camel_case_types, unused)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum blazesym_sym_type {
     /// You want to find a symbol of any type.
     BLAZESYM_SYM_T_UNKNOWN,
@@ -699,6 +729,7 @@ pub enum blazesym_sym_type {
 /// Feature names of looking up addresses of symbols.
 #[repr(C)]
 #[allow(non_camel_case_types, unused)]
+#[derive(Debug)]
 pub enum blazesym_faf_type {
     /// Return the offset in the file. (enable)
     BLAZESYM_FAF_T_OFFSET_IN_FILE,
@@ -715,6 +746,13 @@ pub union blazesym_faf_param {
     sym_type: blazesym_sym_type,
 }
 
+impl Debug for blazesym_faf_param {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct(stringify!(blazesym_faf_param)).finish()
+    }
+}
+
+
 /// Switches and settings of features of looking up addresses of
 /// symbols.
 ///
@@ -723,6 +761,14 @@ pub union blazesym_faf_param {
 pub struct blazesym_faddr_feature {
     ftype: blazesym_faf_type,
     param: blazesym_faf_param,
+}
+
+impl Debug for blazesym_faddr_feature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        f.debug_struct(stringify!(blazesym_faddr_feature))
+            .field("ftype", &self.ftype)
+            .finish()
+    }
 }
 
 impl From<&blazesym_faddr_feature> for FindAddrFeature {
