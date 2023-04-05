@@ -61,6 +61,10 @@ typedef enum blazesym_src_type {
    * Symbols and debug information from a process, including loaded object files.
    */
   BLAZESYM_SRC_T_PROCESS,
+  /**
+   * Symbols and debug information from a gsym file.
+   */
+  BLAZESYM_SRC_T_GSYM,
 } blazesym_src_type;
 
 /**
@@ -273,21 +277,39 @@ typedef struct blazesym_ssc_process {
 } blazesym_ssc_process;
 
 /**
+ * The parameters to load symbols and debug information from a gsym file.
+ */
+typedef struct blazesym_ssc_gsym {
+  /**
+   * The file name of a gsym file.
+   */
+  const char *file_name;
+  /**
+   * The base address is where the file's executable segment(s) is loaded.
+   */
+  uintptr_t base_address;
+} blazesym_ssc_gsym;
+
+/**
  * Parameters of a symbol source.
  */
 typedef union blazesym_ssc_params {
   /**
-   * The variant for SRC_T_ELF
+   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_ELF`].
    */
   struct blazesym_ssc_elf elf;
   /**
-   * The variant for SRC_T_KERNEL
+   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_KERNEL`].
    */
   struct blazesym_ssc_kernel kernel;
   /**
-   * The variant for SRC_T_PROCESS
+   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_PROCESS`].
    */
   struct blazesym_ssc_process process;
+  /**
+   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_GSYM`].
+   */
+  struct blazesym_ssc_gsym gsym;
 } blazesym_ssc_params;
 
 /**
@@ -472,11 +494,11 @@ const struct blazesym_sym_info *const *blazesym_find_addresses(blazesym *aSymbol
                                                                size_t aNameCnt);
 
 /**
- * Free an array returned by blazesym_find_addresses.
+ * Free an array returned by [`blazesym_find_addresses`].
  *
  * # Safety
  *
- * The pointer must be returned by [`blazesym_find_addresses()`].
+ * The pointer must be returned by [`blazesym_find_addresses`].
  *
  */
 void blazesym_syms_list_free(const struct blazesym_sym_info *const *aSymsList);

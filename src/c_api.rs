@@ -45,6 +45,8 @@ pub enum blazesym_src_type {
     BLAZESYM_SRC_T_KERNEL,
     /// Symbols and debug information from a process, including loaded object files.
     BLAZESYM_SRC_T_PROCESS,
+    /// Symbols and debug information from a gsym file.
+    BLAZESYM_SRC_T_GSYM,
 }
 
 /// The parameters to load symbols and debug information from an ELF.
@@ -118,15 +120,26 @@ pub struct blazesym_ssc_process {
     pub pid: u32,
 }
 
+/// The parameters to load symbols and debug information from a gsym file.
+#[repr(C)]
+pub struct blazesym_ssc_gsym {
+    /// The file name of a gsym file.
+    pub file_name: *const c_char,
+    /// The base address is where the file's executable segment(s) is loaded.
+    pub base_address: Addr,
+}
+
 /// Parameters of a symbol source.
 #[repr(C)]
 pub union blazesym_ssc_params {
-    /// The variant for SRC_T_ELF
+    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_ELF`].
     pub elf: mem::ManuallyDrop<blazesym_ssc_elf>,
-    /// The variant for SRC_T_KERNEL
+    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_KERNEL`].
     pub kernel: mem::ManuallyDrop<blazesym_ssc_kernel>,
-    /// The variant for SRC_T_PROCESS
+    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_PROCESS`].
     pub process: mem::ManuallyDrop<blazesym_ssc_process>,
+    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_GSYM`].
+    pub gsym: mem::ManuallyDrop<blazesym_ssc_gsym>,
 }
 
 
@@ -172,6 +185,14 @@ impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
                 let pid = unsafe { cfg.params.process.pid };
                 SymbolSrcCfg::Process {
                     pid: if pid > 0 { Some(pid) } else { None },
+                }
+            }
+            blazesym_src_type::BLAZESYM_SRC_T_GSYM => {
+                // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.
+                let gsym = unsafe { &cfg.params.gsym };
+                SymbolSrcCfg::Gsym {
+                    file_name: unsafe { from_cstr(gsym.file_name) },
+                    base_address: gsym.base_address,
                 }
             }
         }
@@ -904,11 +925,11 @@ pub unsafe extern "C" fn blazesym_find_addresses(
     }
 }
 
-/// Free an array returned by blazesym_find_addresses.
+/// Free an array returned by [`blazesym_find_addresses`].
 ///
 /// # Safety
 ///
-/// The pointer must be returned by [`blazesym_find_addresses()`].
+/// The pointer must be returned by [`blazesym_find_addresses`].
 ///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazesym_sym_info) {
