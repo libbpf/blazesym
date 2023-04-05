@@ -224,7 +224,7 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 unsafe fn symbolsrccfg_to_rust(
     cfg: *const blazesym_sym_src_cfg,
     cfg_len: usize,
-) -> Option<Vec<SymbolSrcCfg>> {
+) -> Vec<SymbolSrcCfg> {
     let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len);
 
     for i in 0..cfg_len {
@@ -261,7 +261,7 @@ unsafe fn symbolsrccfg_to_rust(
         }
     }
 
-    Some(cfg_rs)
+    cfg_rs
 }
 
 /// Create an instance of blazesym a symbolizer for C API.
@@ -425,14 +425,7 @@ pub unsafe extern "C" fn blazesym_symbolize(
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
-    let sym_srcs_rs =
-        if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
-            sym_srcs_rs
-        } else {
-            error!("failed to transform configurations of symbolizer from C to Rust");
-            return ptr::null_mut()
-        };
-
+    let sym_srcs_rs = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) };
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid and the count
@@ -747,14 +740,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     features: *const blazesym_faddr_feature,
     num_features: usize,
 ) -> *const blazesym_sym_info {
-    let sym_srcs_rs =
-        if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
-            sym_srcs_rs
-        } else {
-            error!("failed to transform configurations of symbolizer from C to Rust");
-            return ptr::null_mut()
-        };
-
+    let sym_srcs_rs = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) };
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
 
@@ -838,14 +824,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
     features: *const blazesym_faddr_feature,
     num_features: usize,
 ) -> *const *const blazesym_sym_info {
-    let sym_srcs_rs =
-        if let Some(sym_srcs_rs) = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) } {
-            sym_srcs_rs
-        } else {
-            error!("failed to transform configurations of symbolizer from C to Rust");
-            return ptr::null_mut()
-        };
-
+    let sym_srcs_rs = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) };
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
 
