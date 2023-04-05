@@ -482,9 +482,7 @@ pub struct blazesym_sym_info {
 }
 
 /// Convert SymbolInfos returned by BlazeSymbolizer::find_addresses() to a C array.
-fn convert_syms_list_to_c(
-    syms_list: Vec<Vec<SymbolInfo>>,
-) -> *const *const blazesym_sym_info {
+fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blazesym_sym_info {
     let mut sym_cnt = 0;
     let mut str_buf_sz = 0;
 
@@ -698,16 +696,12 @@ pub struct blazesym_faddr_feature {
     param: blazesym_faf_param,
 }
 
-unsafe fn convert_find_addr_features(
-    features: *const blazesym_faddr_feature,
-    num_features: usize,
-) -> Vec<FindAddrFeature> {
-    let mut feature = features;
-    let mut features_ret = vec![];
-    for _ in 0..num_features {
-        match unsafe { &(*feature).ftype } {
+impl From<&blazesym_faddr_feature> for FindAddrFeature {
+    fn from(feature: &blazesym_faddr_feature) -> Self {
+        match feature.ftype {
             blazesym_faf_type::BLAZESYM_FAF_T_SYMBOL_TYPE => {
-                features_ret.push(match unsafe { (*feature).param.sym_type } {
+                // SAFETY: `sym_type` is the union variant used for `BLAZESYM_FAF_T_SYMBOL_TYPE`.
+                match unsafe { feature.param.sym_type } {
                     blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN => {
                         FindAddrFeature::SymbolType(SymbolType::Unknown)
                     }
@@ -717,24 +711,20 @@ unsafe fn convert_find_addr_features(
                     blazesym_sym_type::BLAZESYM_SYM_T_VAR => {
                         FindAddrFeature::SymbolType(SymbolType::Variable)
                     }
-                });
+                }
             }
             blazesym_faf_type::BLAZESYM_FAF_T_OFFSET_IN_FILE => {
-                features_ret.push(FindAddrFeature::OffsetInFile(unsafe {
-                    (*feature).param.enable
-                }));
+                // SAFETY: `enable` is the union variant used for `BLAZESYM_FAF_T_OFFSET_IN_FILE`.
+                FindAddrFeature::OffsetInFile(unsafe { feature.param.enable })
             }
             blazesym_faf_type::BLAZESYM_FAF_T_OBJ_FILE_NAME => {
-                features_ret.push(FindAddrFeature::ObjFileName(unsafe {
-                    (*feature).param.enable
-                }));
+                // SAFETY: `enable` is the union variant used for `BLAZESYM_FAF_T_OBJ_FILE_NAME`.
+                FindAddrFeature::ObjFileName(unsafe { feature.param.enable })
             }
         }
-        feature = unsafe { feature.add(1) };
     }
-
-    features_ret
 }
+
 
 /// Find the addresses of symbols matching a pattern.
 ///
@@ -769,7 +759,13 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     let symbolizer = unsafe { &*symbolizer };
 
     let pattern = unsafe { CStr::from_ptr(pattern) };
-    let features = unsafe { convert_find_addr_features(features, num_features) };
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
+    let features = unsafe { slice::from_raw_parts(features, num_features) };
+    let features = features
+        .iter()
+        .map(FindAddrFeature::from)
+        .collect::<Vec<_>>();
     let syms =
         { symbolizer.find_address_regex_opt(&sym_srcs_rs, pattern.to_str().unwrap(), &features) };
 
@@ -859,7 +855,13 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         let name_r = unsafe { CStr::from_ptr(name_c) };
         names_r.push(name_r.to_str().unwrap());
     }
-    let features = unsafe { convert_find_addr_features(features, num_features) };
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
+    let features = unsafe { slice::from_raw_parts(features, num_features) };
+    let features = features
+        .iter()
+        .map(FindAddrFeature::from)
+        .collect::<Vec<_>>();
     let result = symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, &features);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
