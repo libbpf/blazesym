@@ -116,6 +116,7 @@ pub union blazesym_ssc_params {
     pub process: mem::ManuallyDrop<blazesym_ssc_process>,
 }
 
+
 /// Description of a source of symbols and debug information for C API.
 #[repr(C)]
 pub struct blazesym_sym_src_cfg {
@@ -123,6 +124,47 @@ pub struct blazesym_sym_src_cfg {
     pub src_type: blazesym_src_type,
     pub params: blazesym_ssc_params,
 }
+
+impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
+    fn from(cfg: &blazesym_sym_src_cfg) -> Self {
+        match cfg.src_type {
+            blazesym_src_type::BLAZESYM_SRC_T_ELF => {
+                // SAFETY: `elf` is the union variant used for `BLAZESYM_SRC_T_ELF`.
+                let elf = unsafe { &cfg.params.elf };
+                SymbolSrcCfg::Elf {
+                    file_name: unsafe { from_cstr(elf.file_name) },
+                    base_address: elf.base_address,
+                }
+            }
+            blazesym_src_type::BLAZESYM_SRC_T_KERNEL => {
+                // SAFETY: `kernel` is the union variant used for `BLAZESYM_SRC_T_KERNEL`.
+                let kernel = unsafe { &cfg.params.kernel };
+                let kallsyms = kernel.kallsyms;
+                let kernel_image = kernel.kernel_image;
+                SymbolSrcCfg::Kernel {
+                    kallsyms: if !kallsyms.is_null() {
+                        Some(unsafe { from_cstr(kallsyms) })
+                    } else {
+                        None
+                    },
+                    kernel_image: if !kernel_image.is_null() {
+                        Some(unsafe { from_cstr(kernel_image) })
+                    } else {
+                        None
+                    },
+                }
+            }
+            blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
+                // SAFETY: `process` is the union variant used for `BLAZESYM_SRC_T_PROCESS`.
+                let pid = unsafe { cfg.params.process.pid };
+                SymbolSrcCfg::Process {
+                    pid: if pid > 0 { Some(pid) } else { None },
+                }
+            }
+        }
+    }
+}
+
 
 /// Names of the BlazeSym features.
 #[repr(C)]
@@ -219,49 +261,6 @@ pub struct blazesym_result {
 /// C string should be terminated with a null byte.
 unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
     PathBuf::from(unsafe { CStr::from_ptr(cstr) }.to_str().unwrap())
-}
-
-unsafe fn symbolsrccfg_to_rust(
-    cfg: *const blazesym_sym_src_cfg,
-    cfg_len: usize,
-) -> Vec<SymbolSrcCfg> {
-    let mut cfg_rs = Vec::<SymbolSrcCfg>::with_capacity(cfg_len);
-
-    for i in 0..cfg_len {
-        let c = unsafe { cfg.add(i) };
-        match unsafe { &(*c).src_type } {
-            blazesym_src_type::BLAZESYM_SRC_T_ELF => {
-                cfg_rs.push(SymbolSrcCfg::Elf {
-                    file_name: unsafe { from_cstr((*c).params.elf.file_name) },
-                    base_address: unsafe { (*c).params.elf.base_address },
-                });
-            }
-            blazesym_src_type::BLAZESYM_SRC_T_KERNEL => {
-                let kallsyms = unsafe { (*c).params.kernel.kallsyms };
-                let kernel_image = unsafe { (*c).params.kernel.kernel_image };
-                cfg_rs.push(SymbolSrcCfg::Kernel {
-                    kallsyms: if !kallsyms.is_null() {
-                        Some(unsafe { from_cstr(kallsyms) })
-                    } else {
-                        None
-                    },
-                    kernel_image: if !kernel_image.is_null() {
-                        Some(unsafe { from_cstr(kernel_image) })
-                    } else {
-                        None
-                    },
-                });
-            }
-            blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
-                let pid = unsafe { (*c).params.process.pid };
-                cfg_rs.push(SymbolSrcCfg::Process {
-                    pid: if pid > 0 { Some(pid) } else { None },
-                });
-            }
-        }
-    }
-
-    cfg_rs
 }
 
 /// Create an instance of blazesym a symbolizer for C API.
@@ -425,14 +424,17 @@ pub unsafe extern "C" fn blazesym_symbolize(
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
-    let sym_srcs_rs = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) };
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
+    let sym_srcs = unsafe { slice::from_raw_parts(sym_srcs, sym_srcs_len) };
+    let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
     let addresses = unsafe { slice::from_raw_parts(addrs, addr_cnt) };
 
-    let result = symbolizer.symbolize(&sym_srcs_rs, addresses);
+    let result = symbolizer.symbolize(&sym_srcs, addresses);
 
     match result {
         Ok(results) if results.is_empty() => {
@@ -740,9 +742,12 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     features: *const blazesym_faddr_feature,
     num_features: usize,
 ) -> *const blazesym_sym_info {
-    let sym_srcs_rs = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) };
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
+    let sym_srcs = unsafe { slice::from_raw_parts(sym_srcs, sym_srcs_len) };
+    let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
 
     let pattern = unsafe { CStr::from_ptr(pattern) };
     // SAFETY: The caller ensures that the pointer is valid and the count
@@ -752,8 +757,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
         .iter()
         .map(FindAddrFeature::from)
         .collect::<Vec<_>>();
-    let syms =
-        { symbolizer.find_address_regex_opt(&sym_srcs_rs, pattern.to_str().unwrap(), &features) };
+    let syms = symbolizer.find_address_regex_opt(&sym_srcs, pattern.to_str().unwrap(), &features);
 
     if syms.is_none() {
         return ptr::null_mut()
@@ -824,9 +828,12 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
     features: *const blazesym_faddr_feature,
     num_features: usize,
 ) -> *const *const blazesym_sym_info {
-    let sym_srcs_rs = unsafe { symbolsrccfg_to_rust(sym_srcs, sym_srcs_len) };
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
+    let sym_srcs = unsafe { slice::from_raw_parts(sym_srcs, sym_srcs_len) };
+    let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
 
     let mut names_r = Vec::with_capacity(name_cnt);
     for i in 0..name_cnt {
@@ -841,7 +848,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         .iter()
         .map(FindAddrFeature::from)
         .collect::<Vec<_>>();
-    let result = symbolizer.find_addresses_opt(&sym_srcs_rs, &names_r, &features);
+    let result = symbolizer.find_addresses_opt(&sym_srcs, &names_r, &features);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
         Err(_err) => {
