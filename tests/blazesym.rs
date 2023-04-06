@@ -1,6 +1,7 @@
 use std::io::ErrorKind;
 use std::path::Path;
 
+use blazesym::cfg;
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
 use blazesym::SymbolizerFeature;
@@ -11,14 +12,14 @@ use blazesym::SymbolizerFeature;
 fn error_on_non_existent_source() {
     let non_existent = Path::new("/does-not-exists");
     let srcs = vec![
-        SymbolSrcCfg::Gsym {
+        SymbolSrcCfg::Gsym(cfg::Gsym {
             file_name: non_existent.to_path_buf(),
             base_address: 0,
-        },
-        SymbolSrcCfg::Elf {
+        }),
+        SymbolSrcCfg::Elf(cfg::Elf {
             file_name: non_existent.to_path_buf(),
             base_address: 0,
-        },
+        }),
     ];
     let symbolizer = BlazeSymbolizer::new().unwrap();
 
@@ -38,10 +39,10 @@ fn symbolize_gsym() {
         .join("test.gsym");
 
     let features = vec![SymbolizerFeature::LineNumberInfo(true)];
-    let srcs = vec![SymbolSrcCfg::Gsym {
+    let srcs = vec![SymbolSrcCfg::Gsym(cfg::Gsym {
         file_name: test_gsym,
         base_address: 0,
-    }];
+    })];
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
 
     let results = symbolizer
@@ -66,10 +67,10 @@ fn symbolize_dwarf() {
         SymbolizerFeature::LineNumberInfo(true),
         SymbolizerFeature::DebugInfoSymbols(true),
     ];
-    let srcs = [SymbolSrcCfg::Elf {
+    let srcs = [SymbolSrcCfg::Elf(cfg::Elf {
         file_name: test_dwarf,
         base_address: 0,
-    }];
+    })];
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .symbolize(&srcs, &[0x2000100])
@@ -93,10 +94,10 @@ fn lookup_dwarf() {
         SymbolizerFeature::LineNumberInfo(true),
         SymbolizerFeature::DebugInfoSymbols(true),
     ];
-    let srcs = [SymbolSrcCfg::Elf {
+    let srcs = [SymbolSrcCfg::Elf(cfg::Elf {
         file_name: test_dwarf,
         base_address: 0,
-    }];
+    })];
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .find_addresses(&srcs, &["factorial"])
@@ -121,10 +122,10 @@ fn lookup_dwarf_no_debug_info() {
         SymbolizerFeature::LineNumberInfo(true),
         SymbolizerFeature::DebugInfoSymbols(false),
     ];
-    let srcs = [SymbolSrcCfg::Elf {
+    let srcs = [SymbolSrcCfg::Elf(cfg::Elf {
         file_name: test_dwarf,
         base_address: 0,
-    }];
+    })];
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .find_addresses(&srcs, &["factorial"])

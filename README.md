@@ -32,11 +32,17 @@ The following code makes use of BlazeSym to access symbol names, filenames of
 sources, and line numbers of addresses involved in a process.
 
 ```rust,no_run
-	use blazesym::{Addr, BlazeSymbolizer, SymbolSrcCfg, SymbolizedResult};
+	use blazesym::cfg;
+	use blazesym::Addr;
+  use blazesym::BlazeSymbolizer;
+  use blazesym::SymbolSrcCfg;
+  use blazesym::SymbolizedResult;
 
 	let process_id: u32 = std::process::id(); // <some process id>
 	// load all symbols of loaded files of the given process.
-	let sym_srcs = [SymbolSrcCfg::Process { pid: Some(process_id) }];
+	let sym_srcs = [
+    SymbolSrcCfg::Process(cfg::Process { pid: Some(process_id) })
+  ];
 	let symbolizer = BlazeSymbolizer::new().unwrap();
 
 	let stack: [Addr; 2] = [0xff023, 0x17ff93b];		// Addresses of instructions
@@ -85,10 +91,10 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 `SymbolSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
 
 ```rust,ignore,compile_fail
-	let sym_srcs = [SymbolSrcCfg::Kernel {
+	let sym_srcs = [SymbolSrcCfg::Kernel(cfg::Kernel {
 		kallsyms: Some(PathBuf::from("/proc/kallsyms")),
 		kernel_image: Some(PathBuf::from("/boot/vmlinux-xxxxx")),
-	}];
+	})];
 ```
 
 In this case, you give the path of kallsyms and the path of a kernel image.
@@ -101,7 +107,9 @@ kallsyms and find the kernel image of the running kernel from several
 potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
 ```rust,ignore,compile_fail
-	let sym_srcs = [SymbolSrcCfg::Kernel { kallsyms: None, kernel_image: None }];
+	let sym_srcs = [
+    SymbolSrcCfg::Kernel(cfg::Kernel { kallsyms: None, kernel_image: None })
+  ];
 ```
 
 ### A list of ELF files
@@ -109,11 +117,15 @@ potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 You can still provide a list of ELF files and their base addresses if necessary.
 
 ```rust,ignore,compile_fail
-	let sym_srcs = [SymbolSrcCfg::Elf { file_name: PathBuf::from("/lib/libc.so.xxx"),
-	                                    base_address: 0x1f005d },
-	                SymbolSrcCfg::Elf { fie_name: PathBuf::from("/path/to/my/binary"),
-	                                    base_address: 0x77777 },
-	                ......
+	let sym_srcs = [
+    SymbolSrcCfg::Elf(cfg::Elf {
+      file_name: PathBuf::from("/lib/libc.so.xxx"),
+	    base_address: 0x1f005d,
+    }),
+	  SymbolSrcCfg::Elf(cfg::Elf {
+      fie_name: PathBuf::from("/path/to/my/binary"),
+	    base_address: 0x77777,
+    }),
 	];
 ```
 

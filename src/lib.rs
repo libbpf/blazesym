@@ -177,23 +177,22 @@ where
 }
 
 
-/// The description of a source of symbols and debug information.
-///
-/// The source of symbols and debug information can be an ELF file, kernel
-/// image, or process.
-#[derive(Clone, Debug)]
-pub enum SymbolSrcCfg {
-    /// A single ELF file
-    ///
-    /// You should provide the name of an ELF file and its base address.
-    ///
-    Elf {
-        /// The name of ELF files.
+pub mod cfg {
+    use std::path::PathBuf;
+
+    use super::Addr;
+    use super::SymbolSrcCfg;
+
+
+    /// A single ELF file.
+    #[derive(Clone, Debug)]
+    pub struct Elf {
+        /// The name of ELF file.
         ///
         /// It can be an executable or shared object.
         /// For example, passing `"/bin/sh"` will load symbols and debug information from `sh`.
         /// Whereas passing `"/lib/libc.so.xxx"` will load symbols and debug information from the libc.
-        file_name: PathBuf,
+        pub file_name: PathBuf,
         /// The address where the executable segment loaded.
         ///
         /// The address in the process should be the executable segment's
@@ -214,10 +213,19 @@ pub enum SymbolSrcCfg {
         /// A loader would load an executable segment with the permission of
         /// `x`.  For example, the first block is with the permission of
         /// `r-xp`.
-        base_address: Addr,
-    },
+        pub base_address: Addr,
+    }
+
+    impl From<Elf> for SymbolSrcCfg {
+        fn from(elf: Elf) -> Self {
+            SymbolSrcCfg::Elf(elf)
+        }
+    }
+
+
     /// Linux Kernel's binary image and a copy of /proc/kallsyms
-    Kernel {
+    #[derive(Clone, Debug)]
+    pub struct Kernel {
         /// The path of a kallsyms copy.
         ///
         /// For the running kernel on the device, it can be
@@ -225,23 +233,68 @@ pub enum SymbolSrcCfg {
         /// In that situation, you should give the path of the
         /// copy.  Passing `None`, by default, will be
         /// `"/proc/kallsyms"`.
-        kallsyms: Option<PathBuf>,
+        pub kallsyms: Option<PathBuf>,
         /// The path of a kernel image.
         ///
         /// This should be the path of a kernel image.  For example,
         /// `"/boot/vmlinux-xxxx"`.  A `None` value will find the
         /// kernel image of the running kernel in `"/boot/"` or
         /// `"/usr/lib/debug/boot/"`.
-        kernel_image: Option<PathBuf>,
-    },
+        pub kernel_image: Option<PathBuf>,
+    }
+
+    impl From<Kernel> for SymbolSrcCfg {
+        fn from(kernel: Kernel) -> Self {
+            SymbolSrcCfg::Kernel(kernel)
+        }
+    }
+
+
     /// This one will be expended into all ELF files in a process.
     ///
-    /// With a `None` value, it would means a process calling BlazeSym.
-    Process { pid: Option<u32> },
-    Gsym {
-        file_name: PathBuf,
-        base_address: Addr,
-    },
+    /// With a `None` value, it would mean a process calling BlazeSym.
+    #[derive(Clone, Debug)]
+    pub struct Process {
+        pub pid: Option<u32>,
+    }
+
+    impl From<Process> for SymbolSrcCfg {
+        fn from(process: Process) -> Self {
+            SymbolSrcCfg::Process(process)
+        }
+    }
+
+
+    /// A gsym file.
+    #[derive(Clone, Debug)]
+    pub struct Gsym {
+        /// The path to the gsym file.
+        pub file_name: PathBuf,
+        /// The base address.
+        pub base_address: Addr,
+    }
+
+    impl From<Gsym> for SymbolSrcCfg {
+        fn from(gsym: Gsym) -> Self {
+            SymbolSrcCfg::Gsym(gsym)
+        }
+    }
+}
+
+/// The description of a source of symbols and debug information.
+///
+/// The source of symbols and debug information can be an ELF file, kernel
+/// image, or process.
+#[derive(Clone, Debug)]
+pub enum SymbolSrcCfg {
+    /// A single ELF file
+    Elf(cfg::Elf),
+    /// Information about the Linux kernel.
+    Kernel(cfg::Kernel),
+    /// Information about a process.
+    Process(cfg::Process),
+    /// A gsym file.
+    Gsym(cfg::Gsym),
 }
 
 /// The result of symbolization by BlazeSymbolizer.
@@ -317,18 +370,18 @@ impl ResolverMap {
         let mut resolvers = ResolverList::new();
         for cfg in sym_srcs {
             match cfg {
-                SymbolSrcCfg::Elf {
+                SymbolSrcCfg::Elf(cfg::Elf {
                     file_name,
                     base_address,
-                } => {
+                }) => {
                     let backend = cache_holder.get_elf_cache().find(file_name)?;
                     let resolver = ElfResolver::new(file_name, *base_address, backend)?;
                     resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
-                SymbolSrcCfg::Kernel {
+                SymbolSrcCfg::Kernel(cfg::Kernel {
                     kallsyms,
                     kernel_image,
-                } => {
+                }) => {
                     let ksym_resolver = if let Some(kallsyms) = kallsyms {
                         let ksym_resolver = cache_holder.get_ksym_cache().get_resolver(kallsyms)?;
                         Some(ksym_resolver)
@@ -389,14 +442,14 @@ impl ResolverMap {
                     let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
-                SymbolSrcCfg::Process { pid } => {
+                SymbolSrcCfg::Process(cfg::Process { pid }) => {
                     let pid = if let Some(p) = pid { *p } else { 0 };
                     let () = Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder)?;
                 }
-                SymbolSrcCfg::Gsym {
+                SymbolSrcCfg::Gsym(cfg::Gsym {
                     file_name,
                     base_address,
-                } => {
+                }) => {
                     let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
@@ -762,7 +815,7 @@ mod tests {
     #[test]
     fn load_symbolfilecfg_process() {
         // Check if SymbolSrcCfg::Process expands to ELFResolvers.
-        let cfg = vec![SymbolSrcCfg::Process { pid: None }];
+        let cfg = vec![SymbolSrcCfg::Process(cfg::Process { pid: None })];
         let cache_holder = CacheHolder::new(CacheHolderOpts {
             line_number_info: true,
             debug_info_symbols: false,
@@ -791,11 +844,11 @@ mod tests {
         // Check if SymbolSrcCfg::Process & SymbolSrcCfg::Kernel expands to
         // ELFResolvers and a KernelResolver.
         let srcs = vec![
-            SymbolSrcCfg::Process { pid: None },
-            SymbolSrcCfg::Kernel {
+            SymbolSrcCfg::Process(cfg::Process { pid: None }),
+            SymbolSrcCfg::Kernel(cfg::Kernel {
                 kallsyms: Some(kallsyms),
                 kernel_image: None,
-            },
+            }),
         ];
         let cache_holder = CacheHolder::new(CacheHolderOpts {
             line_number_info: true,

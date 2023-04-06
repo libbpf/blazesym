@@ -1,5 +1,6 @@
 extern crate blazesym;
 
+use blazesym::cfg;
 use blazesym::Addr;
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
@@ -21,10 +22,10 @@ fn main() {
 
     let bin_name = &args[1];
     let mut addr_str = &args[2][..];
-    let sym_srcs = [SymbolSrcCfg::Elf {
+    let sym_srcs = [SymbolSrcCfg::Elf(cfg::Elf {
         file_name: path::PathBuf::from(bin_name),
         base_address: 0x0,
-    }];
+    })];
     let resolver = BlazeSymbolizer::new().unwrap();
 
     if &addr_str[0..2] == "0x" {
