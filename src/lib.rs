@@ -75,34 +75,6 @@ mod log {
 }
 
 
-#[derive(Debug)]
-struct CacheHolder {
-    ksym: KSymCache,
-    elf: ElfCache,
-}
-
-struct CacheHolderOpts {
-    line_number_info: bool,
-    debug_info_symbols: bool,
-}
-
-impl CacheHolder {
-    fn new(opts: CacheHolderOpts) -> CacheHolder {
-        CacheHolder {
-            ksym: ksym::KSymCache::new(),
-            elf: ElfCache::new(opts.line_number_info, opts.debug_info_symbols),
-        }
-    }
-
-    fn get_ksym_cache(&self) -> &KSymCache {
-        &self.ksym
-    }
-
-    fn get_elf_cache(&self) -> &ElfCache {
-        &self.elf
-    }
-}
-
 struct AddressLineInfo {
     pub path: String,
     pub line_no: usize,
@@ -335,7 +307,7 @@ impl ResolverMap {
     fn build_resolvers_proc_maps(
         pid: u32,
         resolvers: &mut ResolverList,
-        cache_holder: &CacheHolder,
+        elf_cache: &ElfCache,
     ) -> Result<()> {
         let pid = if pid == 0 { Pid::Slf } else { Pid::Pid(pid) };
         let entries = maps::parse(pid)?;
@@ -358,7 +330,7 @@ impl ResolverMap {
                 continue
             }
 
-            let backend = cache_holder.get_elf_cache().find(&entry.path)?;
+            let backend = elf_cache.find(&entry.path)?;
             let resolver = ElfResolver::new(&entry.path, entry.loaded_address, backend)?;
             let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
         }
@@ -366,20 +338,21 @@ impl ResolverMap {
         Ok(())
     }
 
-    fn create_elf_resolver(cfg: &cfg::Elf, cache_holder: &CacheHolder) -> Result<ElfResolver> {
+    fn create_elf_resolver(cfg: &cfg::Elf, elf_cache: &ElfCache) -> Result<ElfResolver> {
         let cfg::Elf {
             file_name,
             base_address,
         } = cfg;
 
-        let backend = cache_holder.get_elf_cache().find(file_name)?;
+        let backend = elf_cache.find(file_name)?;
         let resolver = ElfResolver::new(file_name, *base_address, backend)?;
         Ok(resolver)
     }
 
     fn create_kernel_resolver(
         cfg: &cfg::Kernel,
-        cache_holder: &CacheHolder,
+        ksym_cache: &KSymCache,
+        elf_cache: &ElfCache,
     ) -> Result<KernelResolver> {
         let cfg::Kernel {
             kallsyms,
@@ -387,11 +360,11 @@ impl ResolverMap {
         } = cfg;
 
         let ksym_resolver = if let Some(kallsyms) = kallsyms {
-            let ksym_resolver = cache_holder.get_ksym_cache().get_resolver(kallsyms)?;
+            let ksym_resolver = ksym_cache.get_resolver(kallsyms)?;
             Some(ksym_resolver)
         } else {
             let kallsyms = Path::new(ksym::KALLSYMS);
-            let result = cache_holder.get_ksym_cache().get_resolver(kallsyms);
+            let result = ksym_cache.get_resolver(kallsyms);
             match result {
                 Ok(resolver) => Some(resolver),
                 Err(err) => {
@@ -405,7 +378,7 @@ impl ResolverMap {
         };
 
         let elf_resolver = if let Some(image) = kernel_image {
-            let backend = cache_holder.get_elf_cache().find(image)?;
+            let backend = elf_cache.find(image)?;
             let elf_resolver = ElfResolver::new(image, 0, backend)?;
             Some(elf_resolver)
         } else {
@@ -418,7 +391,7 @@ impl ResolverMap {
             });
 
             if let Some(image) = kernel_image {
-                let result = cache_holder.get_elf_cache().find(&image);
+                let result = elf_cache.find(&image);
                 match result {
                     Ok(backend) => {
                         let result = ElfResolver::new(&image, 0, backend);
@@ -447,21 +420,25 @@ impl ResolverMap {
         Ok(resolver)
     }
 
-    pub fn new(sym_srcs: &[SymbolSrcCfg], cache_holder: &CacheHolder) -> Result<ResolverMap> {
+    pub fn new(
+        sym_srcs: &[SymbolSrcCfg],
+        ksym_cache: &KSymCache,
+        elf_cache: &ElfCache,
+    ) -> Result<ResolverMap> {
         let mut resolvers = ResolverList::new();
         for cfg in sym_srcs {
             match cfg {
                 SymbolSrcCfg::Elf(elf) => {
-                    let resolver = Self::create_elf_resolver(elf, cache_holder)?;
+                    let resolver = Self::create_elf_resolver(elf, elf_cache)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Kernel(kernel) => {
-                    let resolver = Self::create_kernel_resolver(kernel, cache_holder)?;
+                    let resolver = Self::create_kernel_resolver(kernel, ksym_cache, elf_cache)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Process(cfg::Process { pid }) => {
                     let pid = if let Some(p) = pid { *p } else { 0 };
-                    let () = Self::build_resolvers_proc_maps(pid, &mut resolvers, cache_holder)?;
+                    let () = Self::build_resolvers_proc_maps(pid, &mut resolvers, elf_cache)?;
                 }
                 SymbolSrcCfg::Gsym(cfg::Gsym {
                     file_name,
@@ -548,23 +525,24 @@ pub enum FindAddrFeature {
 /// uses information from these sources to symbolize addresses.
 #[derive(Debug)]
 pub struct BlazeSymbolizer {
-    cache_holder: CacheHolder,
-
+    ksym_cache: KSymCache,
+    elf_cache: ElfCache,
     line_number_info: bool,
 }
 
 impl BlazeSymbolizer {
     /// Create and return an instance of BlazeSymbolizer.
     pub fn new() -> Result<BlazeSymbolizer> {
-        let opts = CacheHolderOpts {
-            line_number_info: true,
-            debug_info_symbols: false,
-        };
-        let cache_holder = CacheHolder::new(opts);
+        let ksym_cache = ksym::KSymCache::new();
+
+        let line_number_info = true;
+        let debug_info_symbols = false;
+        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
 
         Ok(BlazeSymbolizer {
-            cache_holder,
-            line_number_info: true,
+            ksym_cache,
+            elf_cache,
+            line_number_info,
         })
     }
 
@@ -587,13 +565,12 @@ impl BlazeSymbolizer {
             }
         }
 
-        let cache_holder = CacheHolder::new(CacheHolderOpts {
-            line_number_info,
-            debug_info_symbols,
-        });
+        let ksym_cache = ksym::KSymCache::new();
+        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
 
         Ok(BlazeSymbolizer {
-            cache_holder,
+            ksym_cache,
+            elf_cache,
             line_number_info,
         })
     }
@@ -643,7 +620,7 @@ impl BlazeSymbolizer {
     ) -> Option<Vec<SymbolInfo>> {
         let ctx = Self::find_addr_features_context(features);
 
-        let resolver_map = match ResolverMap::new(sym_srcs, &self.cache_holder) {
+        let resolver_map = match ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache) {
             Ok(map) => map,
             _ => return None,
         };
@@ -704,7 +681,7 @@ impl BlazeSymbolizer {
     ) -> Result<Vec<Vec<SymbolInfo>>> {
         let ctx = Self::find_addr_features_context(features);
 
-        let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder)?;
+        let resolver_map = ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache)?;
         let mut syms_list = vec![];
         for name in names {
             let mut found = vec![];
@@ -759,7 +736,7 @@ impl BlazeSymbolizer {
         sym_srcs: &[SymbolSrcCfg],
         addresses: &[Addr],
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
-        let resolver_map = ResolverMap::new(sym_srcs, &self.cache_holder)?;
+        let resolver_map = ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache)?;
 
         let info: Vec<Vec<SymbolizedResult>> = addresses
             .iter()
@@ -833,11 +810,11 @@ mod tests {
     fn load_symbolfilecfg_process() {
         // Check if SymbolSrcCfg::Process expands to ELFResolvers.
         let cfg = vec![SymbolSrcCfg::Process(cfg::Process { pid: None })];
-        let cache_holder = CacheHolder::new(CacheHolderOpts {
-            line_number_info: true,
-            debug_info_symbols: false,
-        });
-        let resolver_map = ResolverMap::new(&cfg, &cache_holder);
+        let line_number_info = true;
+        let debug_info_symbols = false;
+        let ksym_cache = ksym::KSymCache::new();
+        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
+        let resolver_map = ResolverMap::new(&cfg, &ksym_cache, &elf_cache);
         assert!(resolver_map.is_ok());
         let resolver_map = resolver_map.unwrap();
 
@@ -867,11 +844,11 @@ mod tests {
                 kernel_image: None,
             }),
         ];
-        let cache_holder = CacheHolder::new(CacheHolderOpts {
-            line_number_info: true,
-            debug_info_symbols: false,
-        });
-        let resolver_map = ResolverMap::new(&srcs, &cache_holder).unwrap();
+        let line_number_info = true;
+        let debug_info_symbols = false;
+        let ksym_cache = ksym::KSymCache::new();
+        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
+        let resolver_map = ResolverMap::new(&srcs, &ksym_cache, &elf_cache).unwrap();
 
         let signatures: Vec<_> = resolver_map
             .resolvers
