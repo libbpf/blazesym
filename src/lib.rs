@@ -109,7 +109,7 @@ struct AddressLineInfo {
     pub column: usize,
 }
 
-/// Types of symbols..
+/// Types of symbols.
 #[derive(Clone, Copy, Debug)]
 pub enum SymbolType {
     Unknown,
@@ -127,7 +127,8 @@ pub(crate) struct FindAddrOpts {
     offset_in_file: bool,
     /// Return the name of the object file if it is true. (False by default)
     obj_file_name: bool,
-    /// Return the symbol(s) matching a given type. Unknown, by default, mean all types.
+    /// Return the symbol(s) matching a given type. Unknown, by default,
+    /// means all types.
     sym_type: SymbolType,
 }
 
@@ -451,7 +452,7 @@ pub enum FindAddrFeature {
     OffsetInFile(bool),
     /// Return the file name of the shared object.
     ///
-    /// The name of the executiable or object file will be returned as
+    /// The name of the executable or object file will be returned as
     /// the value of `SymbolInfo::obj_file_name`.
     /// (Off by default)
     ObjFileName(bool),
