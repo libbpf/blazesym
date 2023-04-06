@@ -333,7 +333,7 @@ impl Debug for Cache<'_> {
 
 /// A parser for ELF64 files.
 #[derive(Debug)]
-pub struct ElfParser {
+pub(crate) struct ElfParser {
     /// A cache for relevant parts of the ELF file.
     /// SAFETY: We must not hand out references with a 'static lifetime to
     ///         this member. Rather, they should never outlive `self`.

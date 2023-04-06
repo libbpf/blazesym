@@ -5,4 +5,4 @@ mod debug_info;
 mod parser;
 mod resolver;
 
-pub use self::resolver::DwarfResolver;
+pub(crate) use self::resolver::DwarfResolver;
