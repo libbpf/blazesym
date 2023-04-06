@@ -1,5 +1,6 @@
 extern crate blazesym;
 
+use blazesym::cfg;
 use blazesym::Addr;
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
@@ -31,7 +32,7 @@ fn main() {
     }
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
-    let sym_files = [SymbolSrcCfg::Process { pid: Some(pid) }];
+    let sym_files = [SymbolSrcCfg::Process(cfg::Process { pid: Some(pid) })];
     let resolver = BlazeSymbolizer::new().unwrap();
     let symlist = resolver.symbolize(&sym_files, &[addr]).unwrap();
     if !symlist[0].is_empty() {

@@ -14,6 +14,7 @@ use std::ptr;
 use std::ptr::NonNull;
 use std::slice;
 
+use crate::cfg;
 use crate::log::error;
 use crate::log::warn;
 use crate::Addr;
@@ -172,17 +173,17 @@ impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
             blazesym_src_type::BLAZESYM_SRC_T_ELF => {
                 // SAFETY: `elf` is the union variant used for `BLAZESYM_SRC_T_ELF`.
                 let elf = unsafe { &cfg.params.elf };
-                SymbolSrcCfg::Elf {
+                SymbolSrcCfg::Elf(cfg::Elf {
                     file_name: unsafe { from_cstr(elf.file_name) },
                     base_address: elf.base_address,
-                }
+                })
             }
             blazesym_src_type::BLAZESYM_SRC_T_KERNEL => {
                 // SAFETY: `kernel` is the union variant used for `BLAZESYM_SRC_T_KERNEL`.
                 let kernel = unsafe { &cfg.params.kernel };
                 let kallsyms = kernel.kallsyms;
                 let kernel_image = kernel.kernel_image;
-                SymbolSrcCfg::Kernel {
+                SymbolSrcCfg::Kernel(cfg::Kernel {
                     kallsyms: if !kallsyms.is_null() {
                         Some(unsafe { from_cstr(kallsyms) })
                     } else {
@@ -193,22 +194,22 @@ impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
                     } else {
                         None
                     },
-                }
+                })
             }
             blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
                 // SAFETY: `process` is the union variant used for `BLAZESYM_SRC_T_PROCESS`.
                 let pid = unsafe { cfg.params.process.pid };
-                SymbolSrcCfg::Process {
+                SymbolSrcCfg::Process(cfg::Process {
                     pid: if pid > 0 { Some(pid) } else { None },
-                }
+                })
             }
             blazesym_src_type::BLAZESYM_SRC_T_GSYM => {
                 // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.
                 let gsym = unsafe { &cfg.params.gsym };
-                SymbolSrcCfg::Gsym {
+                SymbolSrcCfg::Gsym(cfg::Gsym {
                     file_name: unsafe { from_cstr(gsym.file_name) },
                     base_address: gsym.base_address,
-                }
+                })
             }
         }
     }
