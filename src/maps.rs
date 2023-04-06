@@ -9,6 +9,7 @@ use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result;
 use std::num::NonZeroU32;
+use std::ops::Range;
 use std::path::Component;
 use std::path::PathBuf;
 
@@ -39,8 +40,8 @@ impl From<u32> for Pid {
 
 
 pub(crate) struct MapsEntry {
-    pub loaded_address: Addr,
-    pub _end_address: Addr,
+    /// The virtual address range covered by this entry.
+    pub range: Range<Addr>,
     pub mode: u8,
     pub _offset: u64,
     pub path: PathBuf,
@@ -113,8 +114,7 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     };
 
     let entry = MapsEntry {
-        loaded_address,
-        _end_address: end_address,
+        range: (loaded_address..end_address),
         mode,
         _offset: offset,
         path,
@@ -268,8 +268,8 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
 
         // Parse the first (actual) line.
         let entry = parse_maps_line(lines.lines().nth(1).unwrap(), Pid::Slf).unwrap();
-        assert_eq!(entry.loaded_address, 0x55f4a95c9000);
-        assert_eq!(entry._end_address, 0x55f4a95cb000);
+        assert_eq!(entry.range.start, 0x55f4a95c9000);
+        assert_eq!(entry.range.end, 0x55f4a95cb000);
         assert_eq!(entry.path, Path::new("/usr/bin/cat"));
 
         let entry = parse_maps_line(lines.lines().nth(8).unwrap(), Pid::Slf).unwrap();
