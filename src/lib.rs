@@ -366,80 +366,97 @@ impl ResolverMap {
         Ok(())
     }
 
+    fn create_elf_resolver(cfg: &cfg::Elf, cache_holder: &CacheHolder) -> Result<ElfResolver> {
+        let cfg::Elf {
+            file_name,
+            base_address,
+        } = cfg;
+
+        let backend = cache_holder.get_elf_cache().find(file_name)?;
+        let resolver = ElfResolver::new(file_name, *base_address, backend)?;
+        Ok(resolver)
+    }
+
+    fn create_kernel_resolver(
+        cfg: &cfg::Kernel,
+        cache_holder: &CacheHolder,
+    ) -> Result<KernelResolver> {
+        let cfg::Kernel {
+            kallsyms,
+            kernel_image,
+        } = cfg;
+
+        let ksym_resolver = if let Some(kallsyms) = kallsyms {
+            let ksym_resolver = cache_holder.get_ksym_cache().get_resolver(kallsyms)?;
+            Some(ksym_resolver)
+        } else {
+            let kallsyms = Path::new(ksym::KALLSYMS);
+            let result = cache_holder.get_ksym_cache().get_resolver(kallsyms);
+            match result {
+                Ok(resolver) => Some(resolver),
+                Err(err) => {
+                    log::warn!(
+                        "failed to load kallsyms from {}: {err}; ignoring...",
+                        kallsyms.display()
+                    );
+                    None
+                }
+            }
+        };
+
+        let elf_resolver = if let Some(image) = kernel_image {
+            let backend = cache_holder.get_elf_cache().find(image)?;
+            let elf_resolver = ElfResolver::new(image, 0, backend)?;
+            Some(elf_resolver)
+        } else {
+            let release = uname_release()?.to_str().unwrap().to_string();
+            let basename = "vmlinux-";
+            let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
+            let kernel_image = dirs.iter().find_map(|dir| {
+                let path = dir.join(format!("{basename}{release}"));
+                path.exists().then_some(path)
+            });
+
+            if let Some(image) = kernel_image {
+                let result = cache_holder.get_elf_cache().find(&image);
+                match result {
+                    Ok(backend) => {
+                        let result = ElfResolver::new(&image, 0, backend);
+                        match result {
+                            Ok(resolver) => Some(resolver),
+                            Err(err) => {
+                                log::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
+                                None
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        log::warn!(
+                            "failed to load kernel image {}: {err}; ignoring...",
+                            image.display()
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        };
+
+        let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
+        Ok(resolver)
+    }
+
     pub fn new(sym_srcs: &[SymbolSrcCfg], cache_holder: &CacheHolder) -> Result<ResolverMap> {
         let mut resolvers = ResolverList::new();
         for cfg in sym_srcs {
             match cfg {
-                SymbolSrcCfg::Elf(cfg::Elf {
-                    file_name,
-                    base_address,
-                }) => {
-                    let backend = cache_holder.get_elf_cache().find(file_name)?;
-                    let resolver = ElfResolver::new(file_name, *base_address, backend)?;
-                    resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+                SymbolSrcCfg::Elf(elf) => {
+                    let resolver = Self::create_elf_resolver(elf, cache_holder)?;
+                    let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
-                SymbolSrcCfg::Kernel(cfg::Kernel {
-                    kallsyms,
-                    kernel_image,
-                }) => {
-                    let ksym_resolver = if let Some(kallsyms) = kallsyms {
-                        let ksym_resolver = cache_holder.get_ksym_cache().get_resolver(kallsyms)?;
-                        Some(ksym_resolver)
-                    } else {
-                        let kallsyms = Path::new(ksym::KALLSYMS);
-                        let result = cache_holder.get_ksym_cache().get_resolver(kallsyms);
-                        match result {
-                            Ok(resolver) => Some(resolver),
-                            Err(err) => {
-                                log::warn!(
-                                    "failed to load kallsyms from {}: {err}; ignoring...",
-                                    kallsyms.display()
-                                );
-                                None
-                            }
-                        }
-                    };
-
-                    let elf_resolver = if let Some(image) = kernel_image {
-                        let backend = cache_holder.get_elf_cache().find(image)?;
-                        let elf_resolver = ElfResolver::new(image, 0, backend)?;
-                        Some(elf_resolver)
-                    } else {
-                        let release = uname_release()?.to_str().unwrap().to_string();
-                        let basename = "vmlinux-";
-                        let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
-                        let kernel_image = dirs.iter().find_map(|dir| {
-                            let path = dir.join(format!("{basename}{release}"));
-                            path.exists().then_some(path)
-                        });
-
-                        if let Some(image) = kernel_image {
-                            let result = cache_holder.get_elf_cache().find(&image);
-                            match result {
-                                Ok(backend) => {
-                                    let result = ElfResolver::new(&image, 0, backend);
-                                    match result {
-                                        Ok(resolver) => Some(resolver),
-                                        Err(err) => {
-                                            log::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
-                                            None
-                                        }
-                                    }
-                                }
-                                Err(err) => {
-                                    log::warn!(
-                                        "failed to load kernel image {}: {err}; ignoring...",
-                                        image.display()
-                                    );
-                                    None
-                                }
-                            }
-                        } else {
-                            None
-                        }
-                    };
-
-                    let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
+                SymbolSrcCfg::Kernel(kernel) => {
+                    let resolver = Self::create_kernel_resolver(kernel, cache_holder)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Process(cfg::Process { pid }) => {
@@ -453,7 +470,7 @@ impl ResolverMap {
                     let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
-            };
+            }
         }
         resolvers.sort_by_key(|x| x.0 .0); // sorted by the loaded addresses
 
