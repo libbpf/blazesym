@@ -4,6 +4,6 @@ mod resolver;
 #[allow(non_camel_case_types)]
 mod types;
 
-pub use cache::ElfCache;
-pub use parser::ElfParser;
-pub use resolver::ElfResolver;
+pub(crate) use cache::ElfCache;
+pub(crate) use parser::ElfParser;
+pub(crate) use resolver::ElfResolver;
