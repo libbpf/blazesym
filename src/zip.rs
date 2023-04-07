@@ -317,7 +317,19 @@ impl Archive {
             let result = Self::try_parse_end_of_cd(data.get(offset..).unwrap());
             match result {
                 None => continue,
-                Some(Ok((cd_offset, cd_records))) => return Ok((cd_offset, cd_records)),
+                Some(Ok((cd_offset, cd_records))) => {
+                    // Validate the offset and records quickly to eliminate
+                    // potential error cases later on.
+                    let cd_range = cd_offset as usize
+                        ..cd_offset as usize + usize::from(cd_records) * size_of::<CdFileHeader>();
+                    let _cd = data.get(cd_range).ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::UnexpectedEof,
+                            "failed to retrieve central directory entries; archive is corrupted",
+                        )
+                    })?;
+                    return Ok((cd_offset, cd_records))
+                }
                 Some(Err(err)) => return Err(err),
             }
         }
@@ -329,9 +341,10 @@ impl Archive {
     }
 
     /// Create an iterator over the entries of the archive.
-    pub fn entries(&self) -> Option<EntryIter<'_>> {
+    pub fn entries(&self) -> EntryIter<'_> {
         let archive_data = &self.mmap;
-        let cd_record_data = self.mmap.get(self.cd_offset as usize..)?;
+        // SANITY: The offset has been validated during construction.
+        let cd_record_data = self.mmap.get(self.cd_offset as usize..).unwrap();
         let remaining_records = self.cd_records;
 
         let iter = EntryIter {
@@ -339,7 +352,7 @@ impl Archive {
             cd_record_data,
             remaining_records,
         };
-        Some(iter)
+        iter
     }
 }
 
@@ -348,9 +361,13 @@ impl Archive {
 mod tests {
     use super::*;
 
+    use std::io::copy;
     use std::io::Write as _;
+    use std::ops::Deref as _;
 
     use tempfile::tempfile;
+    use tempfile::NamedTempFile;
+
     use test_log::test;
 
     use crate::elf::ElfParser;
@@ -375,7 +392,6 @@ mod tests {
         assert_eq!(
             archive
                 .entries()
-                .unwrap()
                 .inspect(|result| assert!(result.is_ok(), "{result:?}"))
                 .count(),
             2
@@ -392,13 +408,11 @@ mod tests {
 
         let result = archive
             .entries()
-            .unwrap()
             .find(|entry| entry.as_ref().unwrap().path == Path::new("non-existent"));
         assert!(result.is_none());
 
         let entry = archive
             .entries()
-            .unwrap()
             .find(|entry| entry.as_ref().unwrap().path == Path::new("zip-dir/test-no-debug.bin"))
             .unwrap()
             .unwrap();
@@ -419,5 +433,32 @@ mod tests {
 
         let elf = ElfParser::open_file(file).unwrap();
         assert!(elf.find_section(".text").is_ok());
+    }
+
+    /// Check that we fail `Archive` creation for corrupted archives.
+    #[test]
+    fn zip_creation_corrupted() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+
+        let archive = Archive::open(zip).unwrap();
+
+        let mut corrupted_zip = NamedTempFile::new().unwrap();
+        let mut partial_data = archive
+            .mmap
+            .deref()
+            .get(
+                ..archive.cd_offset as usize
+                    + usize::from(archive.cd_records) * size_of::<CdFileHeader>()
+                    - 1,
+            )
+            .unwrap();
+        copy(&mut partial_data, &mut corrupted_zip);
+
+        // The archive only contains a corrupted central directory and no end of
+        // central directory marker at all.
+        let err = Archive::open(corrupted_zip.path()).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
     }
 }
