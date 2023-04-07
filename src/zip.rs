@@ -120,6 +120,8 @@ pub struct Entry<'archive> {
     pub compression: u16,
     /// Name of the file.
     pub name: &'archive OsStr,
+    /// The offset of the data from the beginning of the archive.
+    pub data_offset: usize,
     /// Pointer to the file data.
     pub data: &'archive [u8],
 }
@@ -141,6 +143,7 @@ impl<'archive> EntryIter<'archive> {
     fn parse_entry_at_offset(data: &[u8], offset: u32) -> Result<Entry<'_>> {
         fn entry_impl(data: &[u8], offset: u32) -> Option<Result<Entry<'_>>> {
             let mut data = data.get(offset as usize..)?;
+            let start = data.as_ptr();
 
             let lfh = data.read_pod::<LocalFileHeader>()?;
             if lfh.magic != LOCAL_FILE_HEADER_MAGIC {
@@ -161,11 +164,15 @@ impl<'archive> EntryIter<'archive> {
             let name = OsStr::from_bytes(name);
 
             let _extra = data.read_slice(lfh.extra_field_length.into())?;
+            // SAFETY: Both pointers point into the same underlying byte array.
+            let data_offset = offset as usize
+                + usize::try_from(unsafe { data.as_ptr().offset_from(start) }).unwrap();
             let data = data.read_slice(lfh.compressed_size as usize)?;
 
             let entry = Entry {
                 compression: lfh.compression,
                 name,
+                data_offset,
                 data,
             };
 
@@ -397,6 +404,13 @@ mod tests {
             .unwrap();
         assert_eq!(entry.compression, 0);
         assert_eq!(entry.name, OsStr::new("test-dwarf.bin"));
+        assert_eq!(
+            entry.data,
+            archive
+                .mmap
+                .get(entry.data_offset..entry.data_offset + entry.data.len())
+                .unwrap()
+        );
 
         // Sanity check that the entry actually references a valid ELF binary,
         // which is what we expect.
