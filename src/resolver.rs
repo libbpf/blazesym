@@ -58,11 +58,10 @@ pub(crate) struct ResolverMap {
 
 impl ResolverMap {
     fn build_resolvers_proc_maps(
-        pid: u32,
+        pid: Pid,
         resolvers: &mut ResolverList,
         elf_cache: &ElfCache,
     ) -> Result<()> {
-        let pid = if pid == 0 { Pid::Slf } else { Pid::Pid(pid) };
         let entries = maps::parse(pid)?;
 
         for entry in entries.iter() {
@@ -190,7 +189,7 @@ impl ResolverMap {
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Process(cfg::Process { pid }) => {
-                    let pid = if let Some(p) = pid { *p } else { 0 };
+                    let pid = Pid::from(pid.unwrap_or(0));
                     let () = Self::build_resolvers_proc_maps(pid, &mut resolvers, elf_cache)?;
                 }
                 SymbolSrcCfg::Gsym(cfg::Gsym {

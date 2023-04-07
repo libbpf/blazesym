@@ -7,6 +7,7 @@ use std::io::BufReader;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read;
+use std::num::NonZeroU32;
 use std::path::PathBuf;
 
 use crate::Addr;
@@ -16,7 +17,7 @@ use crate::Addr;
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Pid {
     Slf,
-    Pid(u32),
+    Pid(NonZeroU32),
 }
 
 impl Display for Pid {
@@ -25,6 +26,12 @@ impl Display for Pid {
             Self::Slf => write!(f, "self"),
             Self::Pid(pid) => write!(f, "{pid}"),
         }
+    }
+}
+
+impl From<u32> for Pid {
+    fn from(pid: u32) -> Self {
+        NonZeroU32::new(pid).map(Pid::Pid).unwrap_or(Pid::Slf)
     }
 }
 
