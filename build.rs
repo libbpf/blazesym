@@ -2,6 +2,9 @@ use std::env;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fs::copy;
+use std::fs::create_dir_all;
+use std::fs::hard_link;
+use std::io::ErrorKind;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::path::PathBuf;
@@ -165,14 +168,14 @@ fn zip(files: &[PathBuf], dst: &Path) {
         .write(true)
         .open(dst)
         .unwrap();
+    let dst_dir = dst.parent().unwrap();
 
     let options = FileOptions::default().compression_method(CompressionMethod::Stored);
     let mut zip = ZipWriter::new(dst_file);
     for file in files {
         let contents = read_file(file).unwrap();
-        let () = zip
-            .start_file(file.file_name().unwrap().to_str().unwrap(), options)
-            .unwrap();
+        let path = file.strip_prefix(dst_dir).unwrap();
+        let () = zip.start_file(path.to_str().unwrap(), options).unwrap();
         let _count = zip.write(&contents).unwrap();
     }
 
@@ -220,9 +223,29 @@ fn prepare_test_files(crate_root: &Path) {
     assert!(dst.set_extension(""));
     unpack_xz(&src, &dst);
 
+    let () = create_dir_all(crate_root.join("data").join("zip-dir")).unwrap();
+    let () = hard_link(
+        crate_root.join("data").join("test-no-debug.bin"),
+        crate_root
+            .join("data")
+            .join("zip-dir")
+            .join("test-no-debug.bin"),
+    )
+    .or_else(|err| {
+        if err.kind() == ErrorKind::AlreadyExists {
+            Ok(())
+        } else {
+            Err(err)
+        }
+    })
+    .unwrap();
+
     let files = [
         crate_root.join("data").join("test-dwarf.bin"),
-        crate_root.join("data").join("test-no-debug.bin"),
+        crate_root
+            .join("data")
+            .join("zip-dir")
+            .join("test-no-debug.bin"),
     ];
     let dst = crate_root.join("data").join("test.zip");
     zip(files.as_slice(), &dst);

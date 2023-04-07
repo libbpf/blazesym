@@ -112,14 +112,14 @@ struct LocalFileHeader {
 unsafe impl Pod for LocalFileHeader {}
 
 
-/// Carries information on name, compression method, and data corresponding to a
+/// Carries information on path, compression method, and data corresponding to a
 /// file in a zip archive.
 #[derive(Debug)]
 pub struct Entry<'archive> {
     /// Compression method as defined in pkzip spec. 0 means data is uncompressed.
     pub compression: u16,
-    /// Name of the file.
-    pub name: &'archive OsStr,
+    /// The path to the file inside the archive.
+    pub path: &'archive Path,
     /// The offset of the data from the beginning of the archive.
     pub data_offset: usize,
     /// Pointer to the file data.
@@ -160,8 +160,8 @@ impl<'archive> EntryIter<'archive> {
                 )))
             }
 
-            let name = data.read_slice(lfh.file_name_length.into())?;
-            let name = OsStr::from_bytes(name);
+            let path = data.read_slice(lfh.file_name_length.into())?;
+            let path = Path::new(OsStr::from_bytes(path));
 
             let _extra = data.read_slice(lfh.extra_field_length.into())?;
             // SAFETY: Both pointers point into the same underlying byte array.
@@ -171,7 +171,7 @@ impl<'archive> EntryIter<'archive> {
 
             let entry = Entry {
                 compression: lfh.compression,
-                name,
+                path,
                 data_offset,
                 data,
             };
@@ -393,17 +393,17 @@ mod tests {
         let result = archive
             .entries()
             .unwrap()
-            .find(|entry| entry.as_ref().unwrap().name == "non-existent");
+            .find(|entry| entry.as_ref().unwrap().path == Path::new("non-existent"));
         assert!(result.is_none());
 
         let entry = archive
             .entries()
             .unwrap()
-            .find(|entry| entry.as_ref().unwrap().name == "test-dwarf.bin")
+            .find(|entry| entry.as_ref().unwrap().path == Path::new("zip-dir/test-no-debug.bin"))
             .unwrap()
             .unwrap();
         assert_eq!(entry.compression, 0);
-        assert_eq!(entry.name, OsStr::new("test-dwarf.bin"));
+        assert_eq!(entry.path, Path::new("zip-dir/test-no-debug.bin"));
         assert_eq!(
             entry.data,
             archive
