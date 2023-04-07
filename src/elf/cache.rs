@@ -18,7 +18,7 @@ use super::ElfParser;
 const DFL_CACHE_MAX: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1024) };
 
 #[derive(Clone, Debug)]
-pub enum ElfBackend {
+pub(crate) enum ElfBackend {
     Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
     Elf(Rc<ElfParser>),       // ELF w/o DWARF
 }
@@ -133,7 +133,7 @@ impl _ElfCache {
 }
 
 #[derive(Debug)]
-pub struct ElfCache {
+pub(crate) struct ElfCache {
     cache: RefCell<_ElfCache>,
 }
 

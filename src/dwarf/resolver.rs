@@ -26,7 +26,7 @@ use super::parser::DebugLineCU;
 
 /// DwarfResolver provides abilities to query DWARF information of binaries.
 #[derive(Debug)]
-pub struct DwarfResolver {
+pub(crate) struct DwarfResolver {
     parser: Rc<ElfParser>,
     debug_line_cus: Vec<DebugLineCU>,
     addr_to_dlcu: Vec<(Addr, u32)>,

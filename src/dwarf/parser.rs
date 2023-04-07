@@ -584,7 +584,7 @@ fn run_debug_line_stmts(
 }
 
 /// If addresses is empty, it returns a full version of debug_line matrix.
-/// If addresses is not empty, return only data needed to resolve given addresses .
+/// If addresses is not empty, return only data needed to resolve given addresses.
 pub(crate) fn parse_debug_line_elf_parser(
     parser: &ElfParser,
     addresses: &[Addr],
