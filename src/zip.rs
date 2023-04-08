@@ -15,6 +15,7 @@ use std::io::Result;
 use std::mem::size_of;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
+use std::rc::Rc;
 
 use crate::mmap::Mmap;
 use crate::util::Pod;
@@ -244,8 +245,8 @@ impl<'archive> Iterator for EntryIter<'archive> {
 /// - multi-part ZIP files
 /// - ZIP64
 #[derive(Debug)]
-pub struct Archive {
-    mmap: Mmap,
+pub(crate) struct Archive {
+    mmap: Rc<Mmap>,
     cd_offset: u32,
     cd_records: u16,
 }
@@ -256,22 +257,21 @@ impl Archive {
     where
         P: AsRef<Path>,
     {
-        fn open_impl(path: &Path) -> Result<Archive> {
-            let file = File::open(path)?;
-            let mmap = Mmap::map(&file)?;
+        let mmap = Rc::new(Mmap::builder().open(path)?);
+        Self::with_mmap(mmap)
+    }
 
-            // Check that a central directory is present as at least some form
-            // of validation that we are in fact dealing with a valid zip file.
-            let (cd_offset, cd_records) = Archive::find_cd(&mmap)?;
-            let slf = Archive {
-                mmap,
-                cd_offset,
-                cd_records,
-            };
-            Ok(slf)
-        }
-
-        open_impl(path.as_ref())
+    /// Create an `Archive` instance using the provided `Mmap`.
+    pub fn with_mmap(mmap: Rc<Mmap>) -> Result<Self> {
+        // Check that a central directory is present as at least some form
+        // of validation that we are in fact dealing with a valid zip file.
+        let (cd_offset, cd_records) = Archive::find_cd(&mmap)?;
+        let slf = Archive {
+            mmap,
+            cd_offset,
+            cd_records,
+        };
+        Ok(slf)
     }
 
     fn try_parse_end_of_cd(mut data: &[u8]) -> Option<Result<(u32, u16)>> {
@@ -353,6 +353,12 @@ impl Archive {
             remaining_records,
         };
         iter
+    }
+
+    /// Retrieve the [`Mmap`] object used by this `Archive`.
+    #[inline]
+    pub fn mmap(&self) -> Rc<Mmap> {
+        Rc::clone(&self.mmap)
     }
 }
 

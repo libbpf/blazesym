@@ -4,6 +4,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::Deref;
 use std::os::unix::io::AsRawFd;
+use std::path::Path;
 use std::ptr::null_mut;
 use std::slice;
 
@@ -19,6 +20,15 @@ impl Builder {
         Self {
             protection: libc::PROT_READ,
         }
+    }
+
+    /// Memory map the file at the provided `path`.
+    pub fn open<P>(self, path: P) -> Result<Mmap>
+    where
+        P: AsRef<Path>,
+    {
+        let file = File::open(path)?;
+        self.map(&file)
     }
 
     /// Map the provided file into memory, in its entirety.
