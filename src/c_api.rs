@@ -536,9 +536,9 @@ pub struct blazesym_sym_info {
     pub name: *const c_char,
     pub address: Addr,
     pub size: u64,
-    pub sym_type: blazesym_sym_type,
     pub file_offset: u64,
     pub obj_file_name: *const c_char,
+    pub sym_type: blazesym_sym_type,
 }
 
 /// Convert SymbolInfos returned by BlazeSymbolizer::find_addresses() to a C array.
