@@ -78,8 +78,9 @@ struct AddressLineInfo {
 }
 
 /// Types of symbols.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum SymbolType {
+    #[default]
     Unknown,
     Function,
     Variable,
@@ -88,7 +89,7 @@ pub enum SymbolType {
 /// The context of an address finding request.
 ///
 /// This type passes additional parameters to resolvers.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub(crate) struct FindAddrOpts {
     /// Return the offset of the symbol from the first byte of the
     /// object file if it is true. (False by default)
