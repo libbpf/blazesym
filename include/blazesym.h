@@ -327,9 +327,9 @@ typedef struct blazesym_sym_info {
   const char *name;
   uintptr_t address;
   uint64_t size;
-  enum blazesym_sym_type sym_type;
   uint64_t file_offset;
   const char *obj_file_name;
+  enum blazesym_sym_type sym_type;
 } blazesym_sym_info;
 
 /**
