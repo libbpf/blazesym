@@ -32,44 +32,44 @@ The following code makes use of BlazeSym to access symbol names, filenames of
 sources, and line numbers of addresses involved in a process.
 
 ```rust,no_run
-	use blazesym::cfg;
-	use blazesym::Addr;
+  use blazesym::cfg;
+  use blazesym::Addr;
   use blazesym::BlazeSymbolizer;
   use blazesym::SymbolSrcCfg;
   use blazesym::SymbolizedResult;
 
-	let process_id: u32 = std::process::id(); // <some process id>
-	// load all symbols of loaded files of the given process.
-	let sym_srcs = [
+  let process_id: u32 = std::process::id(); // <some process id>
+  // load all symbols of loaded files of the given process.
+  let sym_srcs = [
     SymbolSrcCfg::Process(cfg::Process { pid: Some(process_id) })
   ];
-	let symbolizer = BlazeSymbolizer::new().unwrap();
+  let symbolizer = BlazeSymbolizer::new().unwrap();
 
-	let stack: [Addr; 2] = [0xff023, 0x17ff93b];		// Addresses of instructions
-	let symlist = symbolizer.symbolize(&sym_srcs,		// Pass this configuration every time
-	                                   &stack).unwrap();
-	for i in 0..stack.len() {
-		let address = stack[i];
+  let stack: [Addr; 2] = [0xff023, 0x17ff93b];    // Addresses of instructions
+  let symlist = symbolizer.symbolize(&sym_srcs,   // Pass this configuration every time
+                                     &stack).unwrap();
+  for i in 0..stack.len() {
+    let address = stack[i];
 
-		if symlist.len() <= i || symlist[i].len() == 0 {	// Unknown address
-			println!("0x{:016x}", address);
-			continue;
-		}
+    if symlist.len() <= i || symlist[i].len() == 0 {  // Unknown address
+      println!("0x{:016x}", address);
+      continue;
+    }
 
-		let sym_results = &symlist[i];
-		if sym_results.len() > 1 {
-			// One address may get several results (ex, inline code)
-			println!("0x{:016x} ({} entries)", address, sym_results.len());
-			
-			for result in sym_results {
-				let SymbolizedResult {symbol, start_address, path, line_no, column} = result;
-				println!("    {}@0x{:016x} {}:{}", symbol, start_address, path, line_no);
-			}
-		} else {
-			let SymbolizedResult {symbol, start_address, path, line_no, column} = &sym_results[0];
-			println!("0x{:016x} {}@0x{:016x} {}:{}", address, symbol, start_address, path, line_no);
-		}
-	}
+    let sym_results = &symlist[i];
+    if sym_results.len() > 1 {
+      // One address may get several results (ex, inline code)
+      println!("0x{:016x} ({} entries)", address, sym_results.len());
+
+      for result in sym_results {
+        let SymbolizedResult {symbol, start_address, path, line_no, column} = result;
+        println!("    {}@0x{:016x} {}:{}", symbol, start_address, path, line_no);
+      }
+    } else {
+      let SymbolizedResult {symbol, start_address, path, line_no, column} = &sym_results[0];
+      println!("0x{:016x} {}@0x{:016x} {}:{}", address, symbol, start_address, path, line_no);
+    }
+  }
 ```
 
 `sym_srcs` is a list of symbol sources in a process.
@@ -91,10 +91,10 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 `SymbolSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
 
 ```rust,ignore,compile_fail
-	let sym_srcs = [SymbolSrcCfg::Kernel(cfg::Kernel {
-		kallsyms: Some(PathBuf::from("/proc/kallsyms")),
-		kernel_image: Some(PathBuf::from("/boot/vmlinux-xxxxx")),
-	})];
+  let sym_srcs = [SymbolSrcCfg::Kernel(cfg::Kernel {
+    kallsyms: Some(PathBuf::from("/proc/kallsyms")),
+    kernel_image: Some(PathBuf::from("/boot/vmlinux-xxxxx")),
+  })];
 ```
 
 In this case, you give the path of kallsyms and the path of a kernel image.
@@ -107,7 +107,7 @@ kallsyms and find the kernel image of the running kernel from several
 potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
 ```rust,ignore,compile_fail
-	let sym_srcs = [
+  let sym_srcs = [
     SymbolSrcCfg::Kernel(cfg::Kernel { kallsyms: None, kernel_image: None })
   ];
 ```
@@ -117,16 +117,16 @@ potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 You can still provide a list of ELF files and their base addresses if necessary.
 
 ```rust,ignore,compile_fail
-	let sym_srcs = [
+  let sym_srcs = [
     SymbolSrcCfg::Elf(cfg::Elf {
       file_name: PathBuf::from("/lib/libc.so.xxx"),
-	    base_address: 0x1f005d,
+      base_address: 0x1f005d,
     }),
-	  SymbolSrcCfg::Elf(cfg::Elf {
+    SymbolSrcCfg::Elf(cfg::Elf {
       fie_name: PathBuf::from("/path/to/my/binary"),
-	    base_address: 0x77777,
+      base_address: 0x77777,
     }),
-	];
+  ];
 ```
 
 At the base address of an ELF file, its executable segment(s) is
@@ -138,10 +138,10 @@ examples/addr2ln_pid.rs is an example performing symbolization for an
 address in a process.
 
 ```text
-	$ ./target/debug/examples/addr2ln_pid 1234 7f0c41ade000
-	PID: 1234
-	0x7f0c41ade000 wcsxfrm_l@0x7f0c41addd10+752 src/foo.c:0
-	$
+  $ ./target/debug/examples/addr2ln_pid 1234 7f0c41ade000
+  PID: 1234
+  0x7f0c41ade000 wcsxfrm_l@0x7f0c41addd10+752 src/foo.c:0
+  $
 ```
 
 The above command will display the symbol names, sources' file names,
@@ -151,7 +151,7 @@ Users should build examples using the following command at the root of the
 source.
 
 ```text
-	$ cargo build --examples
+  $ cargo build --examples
 ```
 
 ## C API
@@ -160,53 +160,53 @@ The following code symbolizes a list of addresses of a process.  It
 shows the addresses, symbol names, source filenames and line numbers.
 
 ```c
-	#include "blazesym.h"
-	
-	struct blazesym_sym_src_cfg sym_srcs[] = {
-		{ BLAZESYM_SRC_T_PROCESS, .params = { .process { <pid> } } },
-	};
-	const struct blazesym *symbolizer;
-	const struct blazesym_result * result;
-	const struct blazesym_csym *sym;
-	uint64_t stack[] = { 0x12345, 0x7ff992, ..};
-	int stack_sz = sizeof(stack) / sizeof(stack[0]);
-	uint64_t addr;
-	int i, j;
-	
-	symbolizer = blazesym_new();
-	/* sym_srcs should be passed every time doing symbolization */
-	result = blazesym_symbolize(symbolizer,
-	                            sym_srcs, 1,
-	                            stack, stack_sz);
-	
-	for (i = 0; i < stack_sz; i++) {
-		addr = stack[i];
-		
-		if (!result || i >= result->size || result->entries[i].size == 0) {
-			/* not found */
-			printf("[<%016llx>]\n", addr);
-			continue;
-		}
-		
-		if (result->entries[i].size == 1) {
-			/* found one result */
-			sym = &result->entries[i].syms[0];
-			printf("[<%016llx>] %s@0x%llx %s:%ld\n", addr, sym->symbol, sym->start_address,
-			        sym->path, sym->line_no);
-			continue;
-		}
-		
-		/* Found multiple results */
-		printf("[<%016llx>] (%d entries)\n", addr, result->entries[i].size);
-		for (j = 0; j < result->entries[i].size; j++) {
-			sym = &result->entries[i].syms[j];
-			printf("    %s@0x$llx %s:%ld\n", sym->symbol, sym->start_address,
-			       sym->path, sym->line_no);
-		}
-	}
-	
-	blazesym_result_free(result);
-	blazesym_free(symbolizer);
+  #include "blazesym.h"
+
+  struct blazesym_sym_src_cfg sym_srcs[] = {
+    { BLAZESYM_SRC_T_PROCESS, .params = { .process { <pid> } } },
+  };
+  const struct blazesym *symbolizer;
+  const struct blazesym_result * result;
+  const struct blazesym_csym *sym;
+  uint64_t stack[] = { 0x12345, 0x7ff992, ..};
+  int stack_sz = sizeof(stack) / sizeof(stack[0]);
+  uint64_t addr;
+  int i, j;
+
+  symbolizer = blazesym_new();
+  /* sym_srcs should be passed every time doing symbolization */
+  result = blazesym_symbolize(symbolizer,
+                              sym_srcs, 1,
+                              stack, stack_sz);
+
+  for (i = 0; i < stack_sz; i++) {
+    addr = stack[i];
+
+    if (!result || i >= result->size || result->entries[i].size == 0) {
+      /* not found */
+      printf("[<%016llx>]\n", addr);
+      continue;
+    }
+
+    if (result->entries[i].size == 1) {
+      /* found one result */
+      sym = &result->entries[i].syms[0];
+      printf("[<%016llx>] %s@0x%llx %s:%ld\n", addr, sym->symbol, sym->start_address,
+              sym->path, sym->line_no);
+      continue;
+    }
+
+    /* Found multiple results */
+    printf("[<%016llx>] (%d entries)\n", addr, result->entries[i].size);
+    for (j = 0; j < result->entries[i].size; j++) {
+      sym = &result->entries[i].syms[j];
+      printf("    %s@0x$llx %s:%ld\n", sym->symbol, sym->start_address,
+             sym->path, sym->line_no);
+    }
+  }
+
+  blazesym_result_free(result);
+  blazesym_free(symbolizer);
 ```
 
 `struct blazesym_sym_src_cfg` describes a binary, symbol file, shared
@@ -224,7 +224,7 @@ BlazeSym.  Refer to the “Build” section to generate `"blazesym.h"`.
 You also need the following arguments to link against BlazeSym.
 
 ```text
-	libblazesym.a -lrt -ldl -lpthread -lm
+  libblazesym.a -lrt -ldl -lpthread -lm
 ```
 
 You may want to link a shared library, i.e., `libblazesym.so`.
@@ -237,8 +237,8 @@ symbolization.
 
 ```c
 struct blazesym_sym_src_cfg sym_srcs[] = {
-	{ BLAZESYM_SRC_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
-	                                     .kernel_image = "/boot/vmlinux-XXXXX" } } },
+  { BLAZESYM_SRC_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
+                                       .kernel_image = "/boot/vmlinux-XXXXX" } } },
 };
 ```
 
@@ -256,10 +256,10 @@ address. You can specify a list of ELF files and where they are loaded.
 
 ```c
 struct blazesym_sym_src_cfg sym_srcs[] = {
-	{ BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
-	                                  .base_address = 0x7fff31000 } } },
-	{ BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
-	                                  .base_address = 0x1ff329000 } } },
+  { BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
+                                    .base_address = 0x7fff31000 } } },
+  { BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
+                                    .base_address = 0x1ff329000 } } },
 };
 ```
 
