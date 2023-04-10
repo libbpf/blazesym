@@ -4,6 +4,7 @@ use std::ffi::OsString;
 use std::fs::copy;
 use std::fs::create_dir_all;
 use std::fs::hard_link;
+use std::io::Error;
 use std::io::ErrorKind;
 use std::ops::Deref as _;
 use std::path::Path;
@@ -14,6 +15,18 @@ use std::process::Stdio;
 use anyhow::bail;
 use anyhow::Context as _;
 use anyhow::Result;
+
+
+/// Retrieve the system's page size.
+fn page_size() -> Result<usize> {
+    // SAFETY: `sysconf` is always safe to call.
+    let rc = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
+    if rc < 0 {
+        return Err(Error::last_os_error()).context("failed to retrieve page size")
+    }
+    Ok(usize::try_from(rc).unwrap())
+}
+
 
 /// Format a command with the given list of arguments as a string.
 fn format_command<C, A, S>(command: C, args: A) -> String
@@ -170,12 +183,21 @@ fn zip(files: &[PathBuf], dst: &Path) {
         .unwrap();
     let dst_dir = dst.parent().unwrap();
 
+    let page_size = page_size().unwrap();
     let options = FileOptions::default().compression_method(CompressionMethod::Stored);
     let mut zip = ZipWriter::new(dst_file);
     for file in files {
         let contents = read_file(file).unwrap();
         let path = file.strip_prefix(dst_dir).unwrap();
-        let () = zip.start_file(path.to_str().unwrap(), options).unwrap();
+        // Ensure that members are page aligned so that they can be
+        // mmap'ed directly.
+        let _align = zip
+            .start_file_aligned(
+                path.to_str().unwrap(),
+                options,
+                page_size.try_into().unwrap(),
+            )
+            .unwrap();
         let _count = zip.write(&contents).unwrap();
     }
 
@@ -187,12 +209,16 @@ fn zip(files: &[PathBuf], dst: &Path) {
 
 #[cfg(not(feature = "zip"))]
 fn zip(_files: &[PathBuf], _dst: &Path) {
+    let _page_size = page_size();
     unimplemented!()
 }
 
 
 /// Prepare the various test files.
 fn prepare_test_files(crate_root: &Path) {
+    let src = crate_root.join("data").join("test-so.c");
+    cc(&src, "libtest-so.so", &["-shared", "-fPIC"]);
+
     let src = crate_root.join("data").join("test-exe.c");
     cc(&src, "test-no-debug.bin", &["-g0"]);
     cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
@@ -247,6 +273,7 @@ fn prepare_test_files(crate_root: &Path) {
             .join("data")
             .join("zip-dir")
             .join("test-no-debug.bin"),
+        crate_root.join("data").join("libtest-so.so"),
     ];
     let dst = crate_root.join("data").join("test.zip");
     zip(files.as_slice(), &dst);

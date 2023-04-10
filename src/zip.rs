@@ -400,7 +400,7 @@ mod tests {
                 .entries()
                 .inspect(|result| assert!(result.is_ok(), "{result:?}"))
                 .count(),
-            2
+            3
         );
     }
 
