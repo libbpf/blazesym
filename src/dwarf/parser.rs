@@ -649,7 +649,7 @@ pub(crate) fn parse_debug_line_elf_parser(
 pub(crate) struct DWSymInfo<'a> {
     pub name: &'a str,
     pub address: Addr,
-    pub size: u64,
+    pub size: usize,
     pub sym_type: SymbolType, // A function or a variable.
 }
 
@@ -741,7 +741,7 @@ fn parse_die_subprogram<'a>(
         (Some(address), Some(name)) => Ok(Some(DWSymInfo {
             name,
             address,
-            size,
+            size: size as usize,
             sym_type: SymbolType::Function,
         })),
         _ => Ok(None),

@@ -479,7 +479,7 @@ impl ElfParser {
                         found.push(SymbolInfo {
                             name: name.to_string(),
                             address: sym_ref.st_value as Addr,
-                            size: sym_ref.st_size,
+                            size: sym_ref.st_size as usize,
                             sym_type: SymbolType::Function,
                             file_offset: 0,
                             obj_file_name: None,
@@ -526,7 +526,7 @@ impl ElfParser {
                     syms.push(SymbolInfo {
                         name: sname.to_string(),
                         address: sym_ref.st_value as Addr,
-                        size: sym_ref.st_size,
+                        size: sym_ref.st_size as usize,
                         sym_type: SymbolType::Function,
                         file_offset: 0,
                         obj_file_name: None,
