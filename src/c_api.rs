@@ -535,7 +535,7 @@ pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
 pub struct blazesym_sym_info {
     pub name: *const c_char,
     pub address: Addr,
-    pub size: u64,
+    pub size: usize,
     pub file_offset: u64,
     pub obj_file_name: *const c_char,
     pub sym_type: blazesym_sym_type,

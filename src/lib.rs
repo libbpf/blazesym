@@ -108,7 +108,7 @@ pub struct SymbolInfo {
     /// Start address (the first byte) of the symbol
     pub address: Addr,
     /// The size of the symbol. The size of a function for example.
-    pub size: u64,
+    pub size: usize,
     /// A function or a variable.
     pub sym_type: SymbolType,
     /// The offset in the object file.
