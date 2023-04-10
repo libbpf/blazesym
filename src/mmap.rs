@@ -1,19 +1,28 @@
 use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::ops::Deref;
 use std::os::unix::io::AsRawFd;
 use std::ptr::null_mut;
 use std::slice;
 
+
 #[derive(Debug)]
-pub(crate) struct Mmap {
-    ptr: *mut libc::c_void,
-    len: usize,
+pub(crate) struct Builder {
+    /// The protection flags to use.
+    protection: libc::c_int,
 }
 
-impl Mmap {
-    pub fn map(file: &File) -> Result<Self, Error> {
+impl Builder {
+    fn new() -> Self {
+        Self {
+            protection: libc::PROT_READ,
+        }
+    }
+
+    /// Map the provided file into memory, in its entirety.
+    pub fn map(self, file: &File) -> Result<Mmap> {
         let len = libc::size_t::try_from(file.metadata()?.len())
             .map_err(|_err| Error::new(ErrorKind::InvalidData, "file is too large to mmap"))?;
         let offset = 0;
@@ -23,7 +32,7 @@ impl Mmap {
             libc::mmap(
                 null_mut(),
                 len,
-                libc::PROT_READ,
+                self.protection,
                 libc::MAP_SHARED,
                 file.as_raw_fd(),
                 offset,
@@ -34,8 +43,27 @@ impl Mmap {
             return Err(Error::last_os_error())
         }
 
-        let slf = Mmap { ptr, len };
-        Ok(slf)
+        let mmap = Mmap { ptr, len };
+        Ok(mmap)
+    }
+}
+
+
+#[derive(Debug)]
+pub(crate) struct Mmap {
+    ptr: *mut libc::c_void,
+    len: usize,
+}
+
+impl Mmap {
+    /// Create [`Builder`] for creating a customizable memory mapping.
+    pub fn builder() -> Builder {
+        Builder::new()
+    }
+
+    /// Map the provided file into memory, in its entirety.
+    pub fn map(file: &File) -> Result<Self> {
+        Self::builder().map(file)
     }
 }
 
