@@ -98,7 +98,7 @@ typedef enum blazesym_sym_type {
  * kallsyms (`SymbolSrcCfg::Kernel`).  Additionally, BlazeSymbolizer
  * uses information from these sources to symbolize addresses.
  */
-typedef struct BlazeSymbolizer BlazeSymbolizer;
+typedef struct blazesym blazesym;
 
 /**
  * A placeholder symbolizer for C API.
@@ -106,7 +106,7 @@ typedef struct BlazeSymbolizer BlazeSymbolizer;
  * It is returned by [`blazesym_new()`] and should be free by
  * [`blazesym_free()`].
  */
-typedef struct BlazeSymbolizer blazesym;
+typedef struct blazesym blazesym;
 
 typedef union blazesym_feature_params {
   bool enable;
