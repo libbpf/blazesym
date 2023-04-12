@@ -8,6 +8,7 @@ exclude = ["Addr"]
 
 [export.rename]
 "Addr" = "uintptr_t"
+"BlazeSymbolizer" = "blazesym"
 
 [fn]
 args = "Vertical"
