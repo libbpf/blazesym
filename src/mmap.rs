@@ -43,7 +43,7 @@ impl Builder {
                 null_mut(),
                 len,
                 self.protection,
-                libc::MAP_SHARED,
+                libc::MAP_PRIVATE,
                 file.as_raw_fd(),
                 offset,
             )
