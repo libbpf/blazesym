@@ -7,6 +7,7 @@ use std::io::BufReader;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read;
+use std::io::Result;
 use std::num::NonZeroU32;
 use std::path::Component;
 use std::path::PathBuf;
@@ -45,11 +46,12 @@ pub(crate) struct MapsEntry {
     pub path: PathBuf,
 }
 
+
 /// Parse a line of a proc maps file.
-fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry, Error> {
+fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     let full_line = line;
 
-    let split_once = |line: &'line str, component| -> Result<(&'line str, &'line str), Error> {
+    let split_once = |line: &'line str, component| -> Result<(&'line str, &'line str)> {
         line.split_once(|c: char| c.is_ascii_whitespace())
             .ok_or_else(|| {
                 Error::new(
@@ -120,43 +122,63 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry, Error
     Ok(entry)
 }
 
+
+#[derive(Debug)]
+struct MapsEntryIter<R> {
+    reader: R,
+    line: String,
+    pid: Pid,
+}
+
+impl<R> Iterator for MapsEntryIter<R>
+where
+    R: BufRead,
+{
+    type Item = Result<MapsEntry>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let () = self.line.clear();
+            match self.reader.read_line(&mut self.line) {
+                Err(err) => return Some(Err(err)),
+                Ok(0) => break None,
+                Ok(_) => {
+                    let line_str = self.line.trim();
+                    // There shouldn't be any empty lines, but we'd just ignore them. We
+                    // need to trim anyway.
+                    if !line_str.is_empty() {
+                        let result = parse_maps_line(line_str, self.pid);
+                        break Some(result)
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 /// Parse a proc maps file from the provided reader.
 ///
 /// `filter` is a filter function (similar to those usable on iterators)
 /// that determines which entries we keep (those for which it returned
 /// `true`) and which we discard (anything `false`).
-fn parse_file<R, F>(reader: R, pid: Pid, mut filter: F) -> Result<Vec<MapsEntry>, Error>
+fn parse_file<R>(reader: R, pid: Pid) -> impl Iterator<Item = Result<MapsEntry>>
 where
     R: Read,
-    F: FnMut(&MapsEntry) -> bool,
 {
-    let mut reader = BufReader::new(reader);
-    let mut line = String::new();
-    let mut entries = Vec::<MapsEntry>::new();
-    while reader.read_line(&mut line)? > 0 {
-        let line_str = line.trim();
-        // There shouldn't be any empty lines, but we'd just ignore them. We
-        // need to trim anyway.
-        if !line_str.is_empty() {
-            let entry = parse_maps_line(line_str, pid)?;
-            if filter(&entry) {
-                let () = entries.push(entry);
-            }
-        }
-        line.clear();
+    MapsEntryIter {
+        reader: BufReader::new(reader),
+        line: String::new(),
+        pid,
     }
-
-    Ok(entries)
 }
 
 /// Parse the maps file for the process with the given PID.
-pub(crate) fn parse<F>(pid: Pid, filter: F) -> Result<Vec<MapsEntry>, Error>
-where
-    F: FnMut(&MapsEntry) -> bool,
-{
+pub(crate) fn parse(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>> {
     let path = format!("/proc/{pid}/maps");
     let file = File::open(path)?;
-    parse_file(file, pid, filter)
+    let iter = parse_file(file, pid);
+    Ok(iter)
 }
 
 /// A helper function checking whether a `MapsEntry` has relevant to
@@ -199,8 +221,8 @@ mod tests {
     /// Check that we can parse `/proc/self/maps`.
     #[test]
     fn self_map_parsing() {
-        let maps = parse(Pid::Slf, |_entry| true).unwrap();
-        assert!(!maps.is_empty(), "{}", maps.len());
+        let maps = parse(Pid::Slf).unwrap();
+        assert_ne!(maps.count(), 0);
     }
 
     #[test]
@@ -238,7 +260,10 @@ mod tests {
 ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsyscall]
 "#;
 
-        let _entries = parse_file(lines.as_bytes(), Pid::Slf, is_symbolization_relevant).unwrap();
+        let entries = parse_file(lines.as_bytes(), Pid::Slf);
+        let () = entries.for_each(|entry| {
+            let _entry = entry.unwrap();
+        });
 
         // Parse the first (actual) line.
         let entry = parse_maps_line(lines.lines().nth(1).unwrap(), Pid::Slf).unwrap();
