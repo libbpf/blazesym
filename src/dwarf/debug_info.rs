@@ -26,6 +26,7 @@ use std::io::ErrorKind;
 use std::iter::Iterator;
 use std::mem;
 
+use crate::log;
 use crate::util::decode_leb128_128;
 use crate::util::decode_udword;
 use crate::util::decode_uhalf;
@@ -402,7 +403,7 @@ fn parse_cu_abbrevs(data: &[u8]) -> Option<(Vec<Abbrev>, usize)> {
 
 /// Parse an Unit Header from a buffer.
 ///
-/// An Unit Header is the header of a compile unit, at leat for v4.
+/// An Unit Header is the header of a compile unit, at least for v4.
 ///
 /// # Arguments
 ///
@@ -736,37 +737,40 @@ impl<'a> Iterator for UnitIter<'a> {
     type Item = (UnitHeader, DIEIter<'a>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        let off = self.off;
-        let uh = parse_unit_header(&self.info_data[off..])?;
-        let hdr_sz = uh.header_size();
-        self.off += uh.unit_size();
+        loop {
+            let off = self.off;
+            let uh = parse_unit_header(&self.info_data[off..])?;
+            let hdr_sz = uh.header_size();
+            self.off += uh.unit_size();
 
-        match uh {
-            UnitHeader::CompileV4(ref cuh) => {
-                let dwarf_sz = if cuh.bits64 { 8 } else { 4 };
-                let addr_sz = cuh.address_size as usize;
-                let (abbrevs, _) =
-                    parse_cu_abbrevs(&self.abbrev_data[cuh.debug_abbrev_offset as usize..])?;
-                Some((
-                    uh,
-                    DIEIter {
-                        data: &self.info_data[off + hdr_sz..],
-                        dwarf_sz,
-                        addr_sz,
-                        off: 0,
-                        off_delta: hdr_sz,
-                        cur_depth: 0,
-                        abbrevs,
-                        abbrev: None,
-                        die_reading_done: true,
-                        done: false,
-                    },
-                ))
+            match uh {
+                UnitHeader::CompileV4(ref cuh) => {
+                    let dwarf_sz = if cuh.bits64 { 8 } else { 4 };
+                    let addr_sz = cuh.address_size as usize;
+                    let (abbrevs, _) =
+                        parse_cu_abbrevs(&self.abbrev_data[cuh.debug_abbrev_offset as usize..])?;
+                    break Some((
+                        uh,
+                        DIEIter {
+                            data: &self.info_data[off + hdr_sz..],
+                            dwarf_sz,
+                            addr_sz,
+                            off: 0,
+                            off_delta: hdr_sz,
+                            cur_depth: 0,
+                            abbrevs,
+                            abbrev: None,
+                            die_reading_done: true,
+                            done: false,
+                        },
+                    ))
+                }
+                // BlazeSym supports only v4 so far.
+                UnitHeader::CompileV5(ref _cuh) => {
+                    log::warn!("ignoring unsupported DWARF v5 unit header");
+                }
+                UnitHeader::Unknown(ref _cuh) => (),
             }
-            UnitHeader::CompileV5(ref _cuh) => {
-                todo!(); // BlazeSym supports only v4 so far.
-            }
-            _ => self.next(),
         }
     }
 }
@@ -871,5 +875,22 @@ mod tests {
         assert_eq!(die_cnt, 78752);
         assert_eq!(subprog_cnt, 12451);
         assert_eq!(attr_cnt, 275310);
+    }
+
+    /// Make sure check we do not panic when handling DWARFv5 (which is not
+    /// currently supported).
+    #[test]
+    fn test_unititer_v5() {
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-dwarf-v5.bin");
+        let elfparser = ElfParser::open(&bin_name).unwrap();
+        let abbrev_idx = elfparser.find_section(".debug_abbrev").unwrap();
+        let abbrev = elfparser.read_section_raw(abbrev_idx).unwrap();
+        let info_idx = elfparser.find_section(".debug_info").unwrap();
+        let info = elfparser.read_section_raw(info_idx).unwrap();
+
+        let iter = UnitIter::new(info, abbrev);
+        let () = iter.for_each(|(_header, _die)| ());
     }
 }

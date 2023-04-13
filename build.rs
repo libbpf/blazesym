@@ -196,6 +196,7 @@ fn prepare_test_files(crate_root: &Path) {
     let src = crate_root.join("data").join("test.c");
     cc(&src, "test-no-debug.bin", &["-g0"]);
     cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
+    cc(&src, "test-dwarf-v5.bin", &["-gdwarf-5"]);
 
     let src = crate_root.join("data").join("test-stable-addresses.c");
     let ld_script = crate_root.join("data").join("test-stable-addresses.ld");
