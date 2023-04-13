@@ -385,7 +385,7 @@ impl ElfParser {
         }
     }
 
-    pub fn get_elf_file_type(&self) -> Result<u16, Error> {
+    pub fn file_type(&self) -> Result<u16, Error> {
         let mut cache = self.cache.borrow_mut();
         let ehdr = cache.ensure_ehdr()?;
 
@@ -558,7 +558,7 @@ impl ElfParser {
         Ok(name)
     }
 
-    pub(crate) fn get_all_program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
+    pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
         let mut cache = self.cache.borrow_mut();
         let phdrs = cache.ensure_phdrs()?;
         Ok(phdrs)
