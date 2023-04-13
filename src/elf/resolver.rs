@@ -48,8 +48,8 @@ impl ElfResolver {
             ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
             ElfBackend::Elf(parser) => parser,
         };
-        let e_type = parser.get_elf_file_type()?;
-        let phdrs = parser.get_all_program_headers()?;
+        let e_type = parser.file_type()?;
+        let phdrs = parser.program_headers()?;
 
         // Find the size of the block where the ELF file is/was
         // mapped.
