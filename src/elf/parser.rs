@@ -545,7 +545,7 @@ impl ElfParser {
         Ok(name)
     }
 
-    pub fn get_all_program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
+    pub(crate) fn get_all_program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
         let mut cache = self.cache.borrow_mut();
         let phdrs = cache.ensure_phdrs()?;
         Ok(phdrs)
