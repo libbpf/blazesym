@@ -12,11 +12,12 @@ env:
 
 jobs:
   build:
-    name: Build [${{ matrix.rust }}, ${{ matrix.profile }}]
-    runs-on: ubuntu-latest
+    name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}]
+    runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
       matrix:
+        runs-on: [ubuntu-latest, macos-latest]
         rust: [1.63.0, stable]
         profile: [dev, release]
         include:
