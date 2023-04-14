@@ -887,9 +887,9 @@ where
     _backend: B::ObjTy,
 }
 
+#[cfg(test)]
 impl ElfParser<File> {
-    #[cfg(test)]
-    pub(crate) fn open_file_io<P>(file: File, path: P) -> Self
+    fn open_file_io<P>(file: File, path: P) -> Self
     where
         P: Into<PathBuf>,
     {
@@ -902,6 +902,23 @@ impl ElfParser<File> {
             _backend,
         };
         parser
+    }
+
+    /// Create an `ElfParser` from an open file.
+    pub(crate) fn open_non_mmap<P>(path: P) -> Result<Self>
+    where
+        P: Into<PathBuf>,
+    {
+        let path = path.into();
+        let file =
+            File::open(&path).with_context(|| format!("failed to open `{}`", path.display()))?;
+        let slf = Self::open_file_io(file, path);
+        Ok(slf)
+    }
+
+    /// Retrieve a reference to the backend in use.
+    pub(crate) fn backend(&self) -> &File {
+        &self._backend
     }
 }
 
