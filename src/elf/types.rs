@@ -217,7 +217,8 @@ impl ElfN_Ehdr<'_> {
 }
 
 
-pub(crate) const PT_LOAD: u32 = 1;
+pub(crate) const PT_LOAD: u32 = 1; /* Loadable program segment */
+pub(crate) const PT_NOTE: u32 = 4; /* Auxiliary information */
 
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -274,6 +275,32 @@ impl Has32BitTy for Elf64_Phdr {
 
 pub(crate) type ElfN_Phdr<'elf> = ElfN<'elf, Elf64_Phdr>;
 pub(crate) type ElfN_Phdrs<'elf> = ElfNSlice<'elf, Elf64_Phdr>;
+
+impl ElfN_Phdr<'_> {
+    #[inline]
+    pub fn type_(&self) -> Elf64_Word {
+        match self {
+            ElfN::B32(phdr) => phdr.p_type,
+            ElfN::B64(phdr) => phdr.p_type,
+        }
+    }
+
+    #[inline]
+    pub fn offset(&self) -> Elf64_Off {
+        match self {
+            ElfN::B32(phdr) => phdr.p_offset.into(),
+            ElfN::B64(phdr) => phdr.p_offset,
+        }
+    }
+
+    #[inline]
+    pub fn file_size(&self) -> Elf64_Xword {
+        match self {
+            ElfN::B32(phdr) => phdr.p_filesz.into(),
+            ElfN::B64(phdr) => phdr.p_filesz,
+        }
+    }
+}
 
 
 pub(crate) const PF_X: Elf64_Word = 1;
@@ -707,6 +734,17 @@ mod tests {
         let shdr = ElfN_Shdr::B32(Cow::Borrowed(&shdr32));
         let _val = shdr.addr();
         let _val = shdr.link();
+
+        let phdr32 = Elf32_Phdr::default();
+        let phdr64 = Elf64_Phdr::default();
+        for phdr in [
+            ElfN_Phdr::B32(Cow::Borrowed(&phdr32)),
+            ElfN_Phdr::B64(Cow::Borrowed(&phdr64)),
+        ] {
+            let _val = phdr.type_();
+            let _val = phdr.offset();
+            let _val = phdr.file_size();
+        }
 
         let sym32 = Elf32_Sym::default();
         let sym = ElfN_Sym::B32(Cow::Borrowed(&sym32));
