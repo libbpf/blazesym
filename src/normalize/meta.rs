@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 
-/// A GNU build ID.
-type BuildId = String;
+/// A GNU build ID, as raw bytes.
+type BuildId = Vec<u8>;
 
 
 /// Meta information about a user space binary (executable, shared object, APK,

@@ -217,10 +217,14 @@ fn zip(_files: &[PathBuf], _dst: &Path) {
 /// Prepare the various test files.
 fn prepare_test_files(crate_root: &Path) {
     let src = crate_root.join("data").join("test-so.c");
-    cc(&src, "libtest-so.so", &["-shared", "-fPIC"]);
+    cc(
+        &src,
+        "libtest-so.so",
+        &["-shared", "-fPIC", "-Wl,--build-id=sha1"],
+    );
 
     let src = crate_root.join("data").join("test-exe.c");
-    cc(&src, "test-no-debug.bin", &["-g0"]);
+    cc(&src, "test-no-debug.bin", &["-g0", "-Wl,--build-id=none"]);
     cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
     cc(&src, "test-dwarf-v5.bin", &["-gdwarf-5"]);
 

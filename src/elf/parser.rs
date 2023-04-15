@@ -557,6 +557,12 @@ impl ElfParser {
         Ok(name)
     }
 
+    pub(crate) fn section_headers(&self) -> Result<&[Elf64_Shdr], Error> {
+        let mut cache = self.cache.borrow_mut();
+        let phdrs = cache.ensure_shdrs()?;
+        Ok(phdrs)
+    }
+
     pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
         let mut cache = self.cache.borrow_mut();
         let phdrs = cache.ensure_phdrs()?;

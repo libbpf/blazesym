@@ -1,14 +1,19 @@
 use std::collections::HashMap;
+use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::elf;
+use crate::elf::types::Elf64_Nhdr;
 use crate::elf::ElfParser;
+use crate::log::warn;
 use crate::maps;
 use crate::maps::MapsEntry;
 use crate::maps::Pid;
+use crate::util::ReadRaw as _;
 use crate::Addr;
 
 use super::meta::Binary;
@@ -35,6 +40,72 @@ pub struct NormalizedAddrs<M> {
 
 /// A type representing normalized user addresses.
 pub type NormalizedUserAddrs = NormalizedAddrs<UserAddrMeta>;
+
+
+/// A type representing a build ID note.
+///
+/// In the ELF file, this header is typically followed by the variable sized
+/// build ID.
+#[repr(C)]
+struct BuildIdNote {
+    /// ELF note header.
+    header: Elf64_Nhdr,
+    /// NUL terminated string representing the name.
+    name: [u8; 4],
+}
+
+// SAFETY: `BuildIdNote` is valid for any bit pattern.
+unsafe impl crate::util::Pod for BuildIdNote {}
+
+
+/// Attempt to read an ELF binary's build ID.
+// TODO: Currently look up is always performed based on section name, but there
+//       is also the possibility of iterating notes and checking checking
+//       Elf64_Nhdr.n_type for NT_GNU_BUILD_ID, specifically.
+fn read_build_id(path: &Path) -> Result<Option<Vec<u8>>> {
+    let build_id_section = ".note.gnu.build-id";
+    let file = File::open(path)?;
+    let parser = ElfParser::open_file(file)?;
+
+    // The build ID is contained in the `.note.gnu.build-id` section. See
+    // elf(5).
+    if let Ok(idx) = parser.find_section(build_id_section) {
+        // SANITY: We just found the index so the section should always be
+        //         found.
+        let shdr = parser.section_headers()?.get(idx).unwrap();
+        if shdr.sh_type != elf::types::SHT_NOTE {
+            warn!(
+                "build ID section {build_id_section} of {} is of unsupported type ({})",
+                path.display(),
+                shdr.sh_type
+            );
+            return Ok(None)
+        }
+
+        // SANITY: We just found the index so the section should always be
+        //         found.
+        let mut bytes = parser.section_data(idx).unwrap();
+        let header = bytes.read_pod_ref::<BuildIdNote>().ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidData,
+                "failed to read build ID section header",
+            )
+        })?;
+        if &header.name != b"GNU\0" {
+            warn!(
+                "encountered unsupported build ID type {:?}; ignoring",
+                header.name
+            );
+            Ok(None)
+        } else {
+            // Every byte following the header is part of the build ID.
+            let build_id = bytes.to_vec();
+            Ok(Some(build_id))
+        }
+    } else {
+        Ok(None)
+    }
+}
 
 
 /// Normalize a virtual address belonging to an ELF file represented by the
@@ -184,8 +255,7 @@ pub fn normalize_user_addrs(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAd
         } else {
             let binary = Binary {
                 path: entry.path.to_path_buf(),
-                // TODO: Need to find actual build ID.
-                build_id: None,
+                build_id: read_build_id(&entry.path)?,
                 _non_exhaustive: (),
             };
 
@@ -200,4 +270,30 @@ pub fn normalize_user_addrs(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAd
     }
 
     Ok(normalized)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Check that we can read a binary's build ID.
+    #[test]
+    fn build_id_reading() {
+        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("libtest-so.so");
+
+        let build_id = read_build_id(&elf).unwrap().unwrap();
+        // The file contains a sha1 build ID, which is always 40 hex digits.
+        assert_eq!(build_id.len(), 20, "'{build_id:?}'");
+
+        // The shared object is explicitly built without build ID.
+        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-debug.bin");
+        let build_id = read_build_id(&elf).unwrap();
+        assert_eq!(build_id, None);
+    }
 }

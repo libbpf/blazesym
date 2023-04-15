@@ -68,6 +68,8 @@ unsafe impl crate::util::Pod for Elf64_Shdr {}
 
 pub(crate) const SHN_UNDEF: u16 = 0;
 
+pub(crate) const SHT_NOTE: Elf64_Word = 7;
+
 pub(crate) const STT_FUNC: u8 = 2;
 
 #[derive(Clone)]
@@ -83,3 +85,13 @@ pub(crate) struct Elf64_Sym {
 
 // SAFETY: `Elf64_Sym` is valid for any bit pattern.
 unsafe impl crate::util::Pod for Elf64_Sym {}
+
+#[repr(C)]
+pub(crate) struct Elf64_Nhdr {
+    pub n_namesz: Elf64_Word,
+    pub n_descsz: Elf64_Word,
+    pub n_type: Elf64_Word,
+}
+
+// SAFETY: `Elf64_Nhdr` is valid for any bit pattern.
+unsafe impl crate::util::Pod for Elf64_Nhdr {}
