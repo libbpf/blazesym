@@ -7,7 +7,6 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::mem;
 use std::ops::Deref as _;
-#[cfg(test)]
 use std::path::Path;
 use std::rc::Rc;
 
@@ -374,7 +373,7 @@ impl ElfParser {
         Ok(parser)
     }
 
-    #[cfg(test)]
+    /// Create an `ElfParser` for a path.
     pub fn open(filename: &Path) -> Result<ElfParser, Error> {
         let file = File::open(filename)?;
         let parser = Self::open_file(file);
