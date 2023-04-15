@@ -39,11 +39,12 @@ impl From<u32> for Pid {
 }
 
 
+#[derive(Debug)]
 pub(crate) struct MapsEntry {
     /// The virtual address range covered by this entry.
     pub range: Range<Addr>,
     pub mode: u8,
-    pub _offset: u64,
+    pub offset: u64,
     pub path: PathBuf,
 }
 
@@ -116,7 +117,7 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     let entry = MapsEntry {
         range: (loaded_address..end_address),
         mode,
-        _offset: offset,
+        offset,
         path,
     };
     Ok(entry)
