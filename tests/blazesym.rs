@@ -1,7 +1,12 @@
+use std::ffi::CString;
+use std::io::Error;
 use std::io::ErrorKind;
+use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
 use blazesym::cfg;
+use blazesym::normalize::normalize_user_addrs;
+use blazesym::Addr;
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
 use blazesym::SymbolizerFeature;
@@ -134,4 +139,47 @@ fn lookup_dwarf_no_debug_info() {
         .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 0);
+}
+
+/// Check that we can normalize user addresses in our own shared object.
+#[test]
+fn normalize_user_address() {
+    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so.so");
+
+    let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
+    let handle = unsafe { libc::dlopen(so_cstr.as_ptr(), libc::RTLD_NOW) };
+    assert!(!handle.is_null());
+
+    let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
+    assert!(!the_answer_addr.is_null());
+
+    let norm_addrs = normalize_user_addrs([the_answer_addr as Addr].as_slice(), 0).unwrap();
+    assert_eq!(norm_addrs.addrs.len(), 1);
+    assert_eq!(norm_addrs.meta.len(), 1);
+
+    let rc = unsafe { libc::dlclose(handle) };
+    assert_eq!(rc, 0, "{}", Error::last_os_error());
+
+    let norm_addr = norm_addrs.addrs[0];
+    let meta = &norm_addrs.meta[norm_addr.1];
+    assert_eq!(meta.binary().unwrap().path, test_so);
+
+    let srcs = [SymbolSrcCfg::Elf(cfg::Elf {
+        file_name: test_so,
+        // TODO: Fix our symbolizer. Base address should be 0.
+        base_address: 0x1000,
+    })];
+    let symbolizer = BlazeSymbolizer::new().unwrap();
+    let results = symbolizer
+        .symbolize(&srcs, &[norm_addr.0])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = results.first().unwrap();
+    assert_eq!(result.symbol, "the_answer");
 }

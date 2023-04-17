@@ -22,6 +22,13 @@ impl Builder {
         }
     }
 
+    /// Configure the mapping to be executable.
+    #[cfg(test)]
+    pub fn exec(mut self) -> Self {
+        self.protection |= libc::PROT_EXEC;
+        self
+    }
+
     /// Memory map the file at the provided `path`.
     pub fn open<P>(self, path: P) -> Result<Mmap>
     where

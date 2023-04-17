@@ -43,3 +43,12 @@ pub enum UserAddrMeta {
     Binary(Binary),
     Unknown(Unknown),
 }
+
+impl UserAddrMeta {
+    pub fn binary(&self) -> Option<&Binary> {
+        match self {
+            Self::Binary(binary) => Some(binary),
+            _ => None,
+        }
+    }
+}
