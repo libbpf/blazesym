@@ -277,6 +277,13 @@ pub fn normalize_user_addrs(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAd
 mod tests {
     use super::*;
 
+    use std::mem::transmute;
+    use std::rc::Rc;
+
+    use crate::mmap::Mmap;
+    use crate::FindAddrOpts;
+    use crate::SymbolType;
+
 
     /// Check that we can read a binary's build ID.
     #[test]
@@ -295,5 +302,120 @@ mod tests {
             .join("test-no-debug.bin");
         let build_id = read_build_id(&elf).unwrap();
         assert_eq!(build_id, None);
+    }
+
+    /// Check that we detect unsorted input addresses.
+    #[test]
+    fn user_address_normalization_unsorted() {
+        let mut addrs = [
+            libc::__errno_location as Addr,
+            libc::dlopen as Addr,
+            libc::fopen as Addr,
+        ];
+        let () = addrs.sort();
+        let () = addrs.swap(0, 1);
+
+        let err = normalize_user_addrs(addrs.as_slice(), 0).unwrap_err();
+        assert!(err.to_string().contains("are not sorted"), "{err}");
+    }
+
+    /// Check that we handle unknown addresses as expected.
+    #[test]
+    fn user_address_normalization_unknown() {
+        // The very first page of the address space should never be
+        // mapped, so use addresses from there.
+        let addrs = [0x500 as Addr, 0x600 as Addr];
+
+        let norm_addrs = normalize_user_addrs(addrs.as_slice(), 0).unwrap();
+        assert_eq!(norm_addrs.addrs.len(), 2);
+        assert_eq!(norm_addrs.meta.len(), 1);
+        assert_eq!(norm_addrs.meta[0], Unknown::default().into());
+        assert_eq!(norm_addrs.addrs[0].1, 0);
+        assert_eq!(norm_addrs.addrs[1].1, 0);
+    }
+
+    /// Check that we can normalize user addresses.
+    #[test]
+    fn user_address_normalization() {
+        let mut addrs = [
+            libc::__errno_location as Addr,
+            libc::dlopen as Addr,
+            libc::fopen as Addr,
+            build_id_reading as Addr,
+            user_address_normalization as Addr,
+            Mmap::map as Addr,
+        ];
+        let () = addrs.sort();
+
+        let (errno_idx, _) = addrs
+            .iter()
+            .enumerate()
+            .find(|(_idx, addr)| **addr == libc::__errno_location as Addr)
+            .unwrap();
+
+        let norm_addrs = normalize_user_addrs(addrs.as_slice(), 0).unwrap();
+        assert_eq!(norm_addrs.addrs.len(), 6);
+
+        let addrs = &norm_addrs.addrs;
+        let meta = &norm_addrs.meta;
+        assert_eq!(meta.len(), 2);
+
+        let fopen_meta_idx = addrs[errno_idx].1;
+        assert!(meta[fopen_meta_idx]
+            .binary()
+            .unwrap()
+            .path
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .contains("libc.so"));
+    }
+
+    /// Check that we can normalize user addresses in our own shared object.
+    #[test]
+    fn user_address_normalization_custom_so() {
+        let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("libtest-so.so");
+
+        let mmap = Mmap::builder().exec().open(test_so).unwrap();
+        let mmap = Rc::new(mmap);
+
+        // Look up the address of the `the_answer` function inside of the shared
+        // object.
+        let elf_parser = ElfParser::from_mmap(mmap.clone(), 0).unwrap();
+        let opts = FindAddrOpts {
+            sym_type: SymbolType::Function,
+            ..Default::default()
+        };
+        let symbols = elf_parser.find_address("the_answer", &opts).unwrap();
+        // There is only one symbol with this address in there.
+        assert_eq!(symbols.len(), 1);
+        let symbol = symbols.first().unwrap();
+
+        let the_answer_addr = unsafe { mmap.as_ptr().add(symbol.address) };
+        // Now just double check that everything worked out and the function
+        // is actually where it was meant to be.
+        let the_answer_fn =
+            unsafe { transmute::<_, extern "C" fn() -> libc::c_int>(the_answer_addr) };
+        let answer = the_answer_fn();
+        assert_eq!(answer, 42);
+
+        let norm_addrs = normalize_user_addrs([the_answer_addr as Addr].as_slice(), 0).unwrap();
+        assert_eq!(norm_addrs.addrs.len(), 1);
+        assert_eq!(norm_addrs.meta.len(), 1);
+
+        let norm_addr = norm_addrs.addrs[0];
+        assert_eq!(norm_addr.0, symbol.address);
+        let meta = &norm_addrs.meta[norm_addr.1];
+        let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("libtest-so.so");
+        let expected_binary = Binary {
+            build_id: Some(read_build_id(&so_path).unwrap().unwrap()),
+            path: so_path,
+            _non_exhaustive: (),
+        };
+        assert_eq!(meta, &UserAddrMeta::Binary(expected_binary));
     }
 }
