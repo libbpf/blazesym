@@ -246,7 +246,7 @@ impl<'archive> Iterator for EntryIter<'archive> {
 /// - ZIP64
 #[derive(Debug)]
 pub(crate) struct Archive {
-    mmap: Rc<Mmap>,
+    mmap: Mmap,
     cd_offset: u32,
     cd_records: u16,
 }
@@ -257,12 +257,12 @@ impl Archive {
     where
         P: AsRef<Path>,
     {
-        let mmap = Rc::new(Mmap::builder().open(path)?);
+        let mmap = Mmap::builder().open(path)?;
         Self::with_mmap(mmap)
     }
 
     /// Create an `Archive` instance using the provided `Mmap`.
-    pub fn with_mmap(mmap: Rc<Mmap>) -> Result<Self> {
+    pub fn with_mmap(mmap: Mmap) -> Result<Self> {
         // Check that a central directory is present as at least some form
         // of validation that we are in fact dealing with a valid zip file.
         let (cd_offset, cd_records) = Archive::find_cd(&mmap)?;
@@ -357,8 +357,8 @@ impl Archive {
 
     /// Retrieve the [`Mmap`] object used by this `Archive`.
     #[inline]
-    pub fn mmap(&self) -> Rc<Mmap> {
-        Rc::clone(&self.mmap)
+    pub fn mmap(&self) -> &Mmap {
+        &self.mmap
     }
 }
 
