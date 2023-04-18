@@ -345,23 +345,16 @@ impl ElfParser {
     /// Create an `ElfParser` from an open file.
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
         let mmap = Mmap::map(&file)?;
-        let offset = 0;
-        Self::from_mmap(mmap, offset)
+        Self::from_mmap(mmap)
     }
 
     /// Create an `ElfParser` from mmap'ed data.
-    pub fn from_mmap(mmap: Mmap, offset: usize) -> Result<ElfParser, Error> {
+    pub fn from_mmap(mmap: Mmap) -> Result<ElfParser, Error> {
         // We transmute the mmap's lifetime to static here as that is a
         // necessity for self-referentiality.
-        let elf_data = mmap.deref().get(offset..).ok_or_else(|| {
-            Error::new(
-                ErrorKind::UnexpectedEof,
-                format!("failed to get memory mapped data @ {offset:x}"),
-            )
-        })?;
         // SAFETY: We never hand out any 'static references to cache
         //         data.
-        let elf_data = unsafe { mem::transmute(elf_data) };
+        let elf_data = unsafe { mem::transmute(mmap.deref()) };
 
         let parser = ElfParser {
             _mmap: mmap,
