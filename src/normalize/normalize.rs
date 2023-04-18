@@ -278,7 +278,6 @@ mod tests {
     use super::*;
 
     use std::mem::transmute;
-    use std::rc::Rc;
 
     use crate::mmap::Mmap;
     use crate::FindAddrOpts;
@@ -379,8 +378,6 @@ mod tests {
             .join("libtest-so.so");
 
         let mmap = Mmap::builder().exec().open(test_so).unwrap();
-        let mmap = Rc::new(mmap);
-
         // Look up the address of the `the_answer` function inside of the shared
         // object.
         let elf_parser = ElfParser::from_mmap(mmap.clone(), 0).unwrap();

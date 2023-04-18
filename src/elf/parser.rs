@@ -8,7 +8,6 @@ use std::io::ErrorKind;
 use std::mem;
 use std::ops::Deref as _;
 use std::path::Path;
-use std::rc::Rc;
 
 use crate::mmap::Mmap;
 use crate::util::search_address_opt_key;
@@ -339,22 +338,22 @@ pub(crate) struct ElfParser {
     ///         to make sure we never end up with a dangling reference.
     cache: RefCell<Cache<'static>>,
     /// The memory mapped file.
-    _mmap: Rc<Mmap>,
+    _mmap: Mmap,
 }
 
 impl ElfParser {
     /// Create an `ElfParser` from an open file.
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
-        let mmap = Rc::new(Mmap::map(&file)?);
+        let mmap = Mmap::map(&file)?;
         let offset = 0;
         Self::from_mmap(mmap, offset)
     }
 
     /// Create an `ElfParser` from mmap'ed data.
-    pub fn from_mmap(mmap: Rc<Mmap>, offset: usize) -> Result<ElfParser, Error> {
+    pub fn from_mmap(mmap: Mmap, offset: usize) -> Result<ElfParser, Error> {
         // We transmute the mmap's lifetime to static here as that is a
         // necessity for self-referentiality.
-        let elf_data = mmap.deref().deref().get(offset..).ok_or_else(|| {
+        let elf_data = mmap.deref().get(offset..).ok_or_else(|| {
             Error::new(
                 ErrorKind::UnexpectedEof,
                 format!("failed to get memory mapped data @ {offset:x}"),
