@@ -8,6 +8,20 @@
 #include <stdlib.h>
 
 /**
+ * The valid variant kind in [`blaze_user_addr_meta`].
+ */
+typedef enum blaze_user_addr_meta_kind {
+  /**
+   * [`blaze_user_addr_meta_variant::unknown`] is valid.
+   */
+  BLAZE_USER_ADDR_UNKNOWN,
+  /**
+   * [`blaze_user_addr_meta_variant::binary`] is valid.
+   */
+  BLAZE_USER_ADDR_BINARY,
+} blaze_user_addr_meta_kind;
+
+/**
  * Feature names of looking up addresses of symbols.
  */
 typedef enum blazesym_faf_type {
@@ -99,6 +113,84 @@ typedef enum blazesym_sym_type {
  * uses information from these sources to symbolize addresses.
  */
 typedef struct blazesym blazesym;
+
+/**
+ * C compatible version of [`Binary`].
+ */
+typedef struct blaze_user_addr_meta_binary blaze_user_addr_meta_binary;
+
+/**
+ * C compatible version of [`Unknown`].
+ */
+typedef struct blaze_user_addr_meta_unknown blaze_user_addr_meta_unknown;
+
+/**
+ * The actual variant data in [`blaze_user_addr_meta`].
+ */
+typedef union blaze_user_addr_meta_variant {
+  /**
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY`].
+   */
+  struct blaze_user_addr_meta_binary binary;
+  /**
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
+   */
+  struct blaze_user_addr_meta_unknown unknown;
+} blaze_user_addr_meta_variant;
+
+/**
+ * C ABI compatible version of [`UserAddrMeta`].
+ */
+typedef struct blaze_user_addr_meta {
+  /**
+   * The variant kind that is present.
+   */
+  enum blaze_user_addr_meta_kind kind;
+  /**
+   * The actual variant with its data.
+   */
+  union blaze_user_addr_meta_variant variant;
+} blaze_user_addr_meta;
+
+/**
+ * A normalized address along with an index into the associated
+ * [`blaze_user_addr_meta`] array (such as
+ * [`blaze_normalized_user_addrs::metas`]).
+ */
+typedef struct blaze_normalized_addr {
+  /**
+   * The normalized address.
+   */
+  uintptr_t addr;
+  /**
+   * The index into the associated [`blaze_user_addr_meta`] array.
+   */
+  size_t meta_idx;
+} blaze_normalized_addr;
+
+/**
+ * An object representing normalized user addresses.
+ *
+ * C ABI compatible version of [`NormalizedUserAddrs`].
+ */
+typedef struct blaze_normalized_user_addrs {
+  /**
+   * The number of [`blaze_user_addr_meta`] objects present in `metas`.
+   */
+  size_t meta_count;
+  /**
+   * An array of `meta_count` objects.
+   */
+  struct blaze_user_addr_meta *metas;
+  /**
+   * The number of [`blaze_normalized_addr`] objects present in `addrs`.
+   */
+  size_t addr_count;
+  /**
+   * An array of `addr_count` objects.
+   */
+  struct blaze_normalized_addr *addrs;
+} blaze_normalized_user_addrs;
 
 /**
  * A placeholder symbolizer for C API.
@@ -350,6 +442,32 @@ typedef struct blazesym_faddr_feature {
   enum blazesym_faf_type ftype;
   union blazesym_faf_param param;
 } blazesym_faddr_feature;
+
+/**
+ * Normalize a list of user space addresses.
+ *
+ * `pid` should describe the PID of the process to which the addresses belong.
+ * It may be `0` if they belong to the calling process.
+ *
+ * C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
+ * error. The resulting object should be free using [`blaze_free_user_addrs`].
+ *
+ * # Safety
+ * Callers need to pass in a valid `addrs` pointer, pointing to memory of
+ * `addr_count` addresses.
+ */
+struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const uintptr_t *aAddrs,
+                                                               size_t aAddrCount,
+                                                               uint32_t aPid);
+
+/**
+ * Free an object as returned by [`blaze_normalized_user_addrs`].
+ *
+ * # Safety
+ * The provided object should have been created by
+ * [`blaze_normalize_user_addrs`].
+ */
+void blaze_free_user_addrs(struct blaze_normalized_user_addrs *aAddrs);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.
