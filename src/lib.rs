@@ -18,7 +18,7 @@
 #[cfg(feature = "nightly")]
 extern crate test;
 
-mod c_api;
+pub mod c_api;
 mod dwarf;
 mod elf;
 mod gsym;
@@ -43,7 +43,10 @@ use ksym::KSymCache;
 use resolver::ResolverMap;
 use resolver::SymResolver;
 
-pub use c_api::*;
+// We import all C API items during doc creation to not have to mention the
+// `c_api` module in, say, the README.
+#[cfg(doc)]
+use c_api::*;
 
 pub type Addr = usize;
 
