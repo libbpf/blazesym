@@ -455,8 +455,7 @@ impl ElfParser {
         //         `str2symtab` available.
         let str2symtab = cache.str2symtab.as_ref().unwrap();
 
-        let r = str2symtab.binary_search_by_key(&name.to_string(), |&(name, _i)| name.to_string());
-
+        let r = str2symtab.binary_search_by_key(&name, |&(name, _i)| name);
         match r {
             Ok(str2sym_i) => {
                 let mut idx = str2sym_i;
