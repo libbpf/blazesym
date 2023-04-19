@@ -11,12 +11,11 @@ use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 use std::ptr;
-use std::ptr::NonNull;
-use std::slice;
 
 use crate::cfg;
 use crate::log::error;
 use crate::log::warn;
+use crate::util::slice_from_user_array;
 use crate::Addr;
 use crate::BlazeSymbolizer;
 use crate::FindAddrFeature;
@@ -26,18 +25,6 @@ use crate::SymbolType;
 use crate::SymbolizedResult;
 use crate::SymbolizerFeature;
 
-
-/// "Safely" create a slice from a user provided array.
-unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: usize) -> &'t [T] {
-    let items = if items.is_null() {
-        // `slice::from_raw_parts` requires a properly aligned non-NULL pointer.
-        // Craft one.
-        NonNull::dangling().as_ptr()
-    } else {
-        items
-    };
-    unsafe { slice::from_raw_parts(items, num_items) }
-}
 
 /// Types of symbol sources and debug information for C API.
 #[repr(C)]
@@ -326,6 +313,7 @@ pub struct blazesym_result {
 unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
     PathBuf::from(unsafe { CStr::from_ptr(cstr) }.to_str().unwrap())
 }
+
 
 /// Create an instance of blazesym a symbolizer for C API.
 ///
