@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::io::Result;
+use std::path::PathBuf;
 
 use crate::elf::ElfCache;
 use crate::ksym::KSymCache;
@@ -11,7 +12,7 @@ use crate::SymbolType;
 
 
 pub struct AddressLineInfo {
-    pub path: String,
+    pub path: PathBuf,
     pub line_no: usize,
     pub column: usize,
 }
@@ -455,7 +456,7 @@ impl BlazeSymbolizer {
                         vec![SymbolizedResult {
                             symbol: "".to_string(),
                             start_address: 0,
-                            path: linfo.path,
+                            path: linfo.path.to_str().unwrap().to_string(),
                             line_no: linfo.line_no,
                             column: linfo.column,
                         }]
@@ -470,7 +471,7 @@ impl BlazeSymbolizer {
                             results.push(SymbolizedResult {
                                 symbol: String::from(sym),
                                 start_address: start,
-                                path: linfo.path.clone(),
+                                path: linfo.path.to_str().unwrap().to_string(),
                                 line_no: linfo.line_no,
                                 column: linfo.column,
                             });

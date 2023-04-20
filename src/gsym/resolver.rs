@@ -161,7 +161,7 @@ impl SymResolver for GsymResolver {
             let finfo = self.ctx.file_info(lntab_row.file_idx as usize)?;
             let dirname = self.ctx.get_str(finfo.directory as usize)?;
             let filename = self.ctx.get_str(finfo.filename as usize)?;
-            let path = Path::new(dirname).join(filename).to_str()?.to_string();
+            let path = Path::new(dirname).join(filename);
             return Some(AddressLineInfo {
                 path,
                 line_no: lntab_row.file_line as usize,

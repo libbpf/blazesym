@@ -1,13 +1,13 @@
 #[cfg(test)]
 use std::env;
 use std::ffi::CStr;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::mem;
-#[cfg(test)]
 use std::path::Path;
 
 use crate::elf::ElfParser;
@@ -94,7 +94,7 @@ pub(crate) struct DebugLineCU {
 }
 
 impl DebugLineCU {
-    pub(crate) fn find_line(&self, address: Addr) -> Option<(&str, &str, usize)> {
+    pub(crate) fn find_line(&self, address: Addr) -> Option<(&Path, &OsStr, usize)> {
         let idx = find_match_or_lower_bound_by(&self.matrix, address, |dls| dls.address)?;
         let states = &self.matrix[idx];
         if states.end_sequence {
@@ -105,21 +105,21 @@ impl DebugLineCU {
         self.stringify_row(idx)
     }
 
-    pub(crate) fn stringify_row(&self, idx: usize) -> Option<(&str, &str, usize)> {
+    pub(crate) fn stringify_row(&self, idx: usize) -> Option<(&Path, &OsStr, usize)> {
         let states = &self.matrix[idx];
         let (dir, file) = {
             if states.file > 0 {
                 let file = &self.files[states.file - 1];
                 let dir = {
                     if file.dir_idx == 0 {
-                        ""
+                        Path::new("")
                     } else {
-                        self.include_directories[file.dir_idx as usize - 1].as_str()
+                        Path::new(&self.include_directories[file.dir_idx as usize - 1])
                     }
                 };
-                (dir, file.name.as_str())
+                (dir, OsStr::new(&file.name))
             } else {
-                ("", "")
+                (Path::new(""), OsStr::new(""))
             }
         };
 

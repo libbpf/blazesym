@@ -1,12 +1,16 @@
 use std::cell::RefCell;
 #[cfg(test)]
 use std::env;
+use std::ffi::OsStr;
+#[cfg(test)]
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::mem;
-#[cfg(test)]
 use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use regex::Regex;
@@ -122,7 +126,7 @@ impl DwarfResolver {
     ///
     /// `address` is an offset from the head of the loaded binary/or
     /// shared object.  This function returns a tuple of `(dir_name, file_name, line_no)`.
-    pub fn find_line_as_ref(&self, address: Addr) -> Option<(&str, &str, usize)> {
+    pub fn find_line_as_ref(&self, address: Addr) -> Option<(&Path, &OsStr, usize)> {
         let idx = self.find_dlcu_index(address)?;
         let dlcu = &self.debug_line_cus[idx];
 
@@ -137,9 +141,9 @@ impl DwarfResolver {
     /// This function is pretty much the same as `find_line_as_ref()`
     /// except returning a copies of `String` instead of `&str`.
     #[cfg(test)]
-    fn find_line(&self, address: Addr) -> Option<(String, String, usize)> {
+    fn find_line(&self, address: Addr) -> Option<(PathBuf, OsString, usize)> {
         let (dir, file, line_no) = self.find_line_as_ref(address)?;
-        Some((String::from(dir), String::from(file), line_no))
+        Some((dir.to_path_buf(), file.to_os_string(), line_no))
     }
 
     /// Extract the symbol information from DWARf if having not done it before.
@@ -270,7 +274,7 @@ impl DwarfResolver {
     }
 
     #[cfg(test)]
-    fn pick_address_for_test(&self) -> (Addr, &str, &str, usize) {
+    fn pick_address_for_test(&self) -> (Addr, &Path, &OsStr, usize) {
         let (addr, idx) = self.addr_to_dlcu[self.addr_to_dlcu.len() / 3];
         let dlcu = &self.debug_line_cus[idx as usize];
         let (dir, file, line) = dlcu.stringify_row(0).unwrap();
