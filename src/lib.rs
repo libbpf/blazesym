@@ -34,6 +34,7 @@ pub mod c_api;
 #[cfg(feature = "dwarf")]
 mod dwarf;
 mod elf;
+mod error;
 mod gsym;
 pub mod inspect;
 mod kernel;
@@ -50,6 +51,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::num::NonZeroU32;
+use std::result;
 
 use resolver::SymResolver;
 
@@ -58,6 +60,15 @@ use resolver::SymResolver;
 // `c_api` module in, say, the README.
 #[cfg(doc)]
 use c_api::*;
+
+
+pub use crate::error::Error;
+pub use crate::error::ErrorExt;
+pub use crate::error::ErrorKind;
+pub use crate::error::IntoError;
+
+/// A result type using our [`Error`] by default.
+pub type Result<T, E = Error> = result::Result<T, E>;
 
 
 /// A type representing addresses.
