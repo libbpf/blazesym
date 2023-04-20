@@ -2,15 +2,11 @@ use std::cell::RefCell;
 #[cfg(test)]
 use std::env;
 use std::ffi::OsStr;
-#[cfg(test)]
-use std::ffi::OsString;
 use std::fmt::Debug;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::mem;
 use std::path::Path;
-#[cfg(test)]
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use regex::Regex;
@@ -131,19 +127,6 @@ impl DwarfResolver {
         let dlcu = &self.debug_line_cus[idx];
 
         dlcu.find_line(address)
-    }
-
-    /// Find line information of an address.
-    ///
-    /// `address` is an offset from the head of the loaded binary/or
-    /// shared object.  This function returns a tuple of `(dir_name, file_name, line_no)`.
-    ///
-    /// This function is pretty much the same as `find_line_as_ref()`
-    /// except returning a copies of `String` instead of `&str`.
-    #[cfg(test)]
-    fn find_line(&self, address: Addr) -> Option<(PathBuf, OsString, usize)> {
-        let (dir, file, line_no) = self.find_line_as_ref(address)?;
-        Some((dir.to_path_buf(), file.to_os_string(), line_no))
     }
 
     /// Extract the symbol information from DWARf if having not done it before.
@@ -298,7 +281,7 @@ mod tests {
         let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
         let (addr, dir, file, line) = resolver.pick_address_for_test();
 
-        let (dir_ret, file_ret, line_ret) = resolver.find_line(addr).unwrap();
+        let (dir_ret, file_ret, line_ret) = resolver.find_line_as_ref(addr).unwrap();
         assert_eq!(dir, dir_ret);
         assert_eq!(file, file_ret);
         assert_eq!(line, line_ret);
