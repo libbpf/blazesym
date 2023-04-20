@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Introduced custom `Error` type instead of relying solely on
+  `std::io::Error`
 - Switched to using `gimli` for DWARF support
   - Added support for DWARF versions v2, v3, and v5 for symbol lookup and source
     code information retrieval
