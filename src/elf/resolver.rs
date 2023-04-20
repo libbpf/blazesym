@@ -96,10 +96,10 @@ impl ElfResolver {
         })
     }
 
-    fn get_parser(&self) -> Option<&ElfParser> {
+    fn get_parser(&self) -> &ElfParser {
         match &self.backend {
-            ElfBackend::Dwarf(dwarf) => Some(dwarf.get_parser()),
-            ElfBackend::Elf(parser) => Some(parser),
+            ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
+            ElfBackend::Elf(parser) => parser,
         }
     }
 }
@@ -111,11 +111,7 @@ impl SymResolver for ElfResolver {
 
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         let off = addr - self.loaded_address + self.loaded_to_virt;
-        let parser = if let Some(parser) = self.get_parser() {
-            parser
-        } else {
-            return vec![]
-        };
+        let parser = self.get_parser();
 
         match parser.find_symbol(off, STT_FUNC) {
             Ok((name, start_addr)) => {
