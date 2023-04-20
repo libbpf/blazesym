@@ -12,10 +12,6 @@
  */
 typedef enum blazesym_faf_type {
   /**
-   * Return the offset in the file. (enable)
-   */
-  BLAZESYM_FAF_T_OFFSET_IN_FILE,
-  /**
    * Return the file name of the shared object. (enable)
    */
   BLAZESYM_FAF_T_OBJ_FILE_NAME,
@@ -327,7 +323,6 @@ typedef struct blazesym_sym_info {
   const char *name;
   uintptr_t address;
   size_t size;
-  uint64_t file_offset;
   const char *obj_file_name;
   enum blazesym_sym_type sym_type;
 } blazesym_sym_info;

@@ -65,10 +65,6 @@ impl SymResolver for KernelResolver {
             .and_then(|resolver| resolver.find_line_info(addr))
     }
 
-    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
-        None
-    }
-
     fn get_obj_file_name(&self) -> &Path {
         let ksym_resolver = self
             .ksym_resolver

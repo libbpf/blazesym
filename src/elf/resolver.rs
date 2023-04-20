@@ -171,11 +171,6 @@ impl SymResolver for ElfResolver {
         }
     }
 
-    fn addr_file_off(&self, addr: Addr) -> Option<u64> {
-        let offset = addr - self.loaded_address + self.loaded_to_virt - self.foff_to_virt;
-        Some(offset as u64)
-    }
-
     fn get_obj_file_name(&self) -> &Path {
         &self.file_name
     }

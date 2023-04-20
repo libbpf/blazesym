@@ -150,7 +150,6 @@ impl SymResolver for KSymResolver {
                 address: *addr,
                 size: 0,
                 sym_type: SymbolType::Function,
-                file_offset: 0,
                 obj_file_name: None,
             }])
         }
@@ -172,7 +171,6 @@ impl SymResolver for KSymResolver {
                     address: *addr,
                     size: 0,
                     sym_type: SymbolType::Function,
-                    file_offset: 0,
                     obj_file_name: None,
                 });
             }
@@ -181,10 +179,6 @@ impl SymResolver for KSymResolver {
     }
 
     fn find_line_info(&self, _addr: Addr) -> Option<super::AddressLineInfo> {
-        None
-    }
-
-    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
         None
     }
 
@@ -283,7 +277,6 @@ mod tests {
         let addr = sym.addr;
         let name = sym.name.clone();
         let opts = FindAddrOpts {
-            offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Function,
         };

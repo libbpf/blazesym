@@ -90,9 +90,6 @@ pub enum SymbolType {
 /// This type passes additional parameters to resolvers.
 #[derive(Debug)]
 pub(crate) struct FindAddrOpts {
-    /// Return the offset of the symbol from the first byte of the
-    /// object file if it is true. (False by default)
-    offset_in_file: bool,
     /// Return the name of the object file if it is true. (False by default)
     obj_file_name: bool,
     /// Return the symbol(s) matching a given type. Unknown, by default,
@@ -111,8 +108,6 @@ pub struct SymbolInfo {
     pub size: usize,
     /// A function or a variable.
     pub sym_type: SymbolType,
-    /// The offset in the object file.
-    pub file_offset: u64,
     /// The file name of the shared object.
     pub obj_file_name: Option<PathBuf>,
 }
@@ -375,15 +370,11 @@ impl BlazeSymbolizer {
 
     fn find_addr_features_context(features: &[FindAddrFeature]) -> FindAddrOpts {
         let mut opts = FindAddrOpts {
-            offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Unknown,
         };
         for f in features {
             match f {
-                FindAddrFeature::OffsetInFile(enable) => {
-                    opts.offset_in_file = *enable;
-                }
                 FindAddrFeature::ObjFileName(enable) => {
                     opts.obj_file_name = *enable;
                 }
@@ -428,11 +419,6 @@ impl BlazeSymbolizer {
                 .find_address_regex(pattern, &ctx)
                 .unwrap_or_default()
             {
-                if ctx.offset_in_file {
-                    if let Some(off) = resolver.addr_file_off(sym.address) {
-                        sym.file_offset = off;
-                    }
-                }
                 if ctx.obj_file_name {
                     sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
                 }
@@ -486,11 +472,6 @@ impl BlazeSymbolizer {
             for (_, resolver) in &resolver_map.resolvers {
                 if let Some(mut syms) = resolver.find_address(name, &ctx) {
                     for sym in &mut syms {
-                        if ctx.offset_in_file {
-                            if let Some(off) = resolver.addr_file_off(sym.address) {
-                                sym.file_offset = off;
-                            }
-                        }
                         if ctx.obj_file_name {
                             sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
                         }

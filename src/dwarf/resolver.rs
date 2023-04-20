@@ -209,7 +209,6 @@ impl DwarfResolver {
                 address: address as Addr,
                 size,
                 sym_type,
-                file_offset: 0,
                 obj_file_name: None,
             });
             idx += 1;
@@ -260,7 +259,6 @@ impl DwarfResolver {
                     address: *address as Addr,
                     size: *size,
                     sym_type: *sym_type,
-                    file_offset: 0,
                     obj_file_name: None,
                 });
             }
@@ -305,7 +303,6 @@ mod tests {
         let bin_name = env::args().next().unwrap();
         let dwarf = DwarfResolver::open(bin_name.as_ref(), false, true).unwrap();
         let opts = FindAddrOpts {
-            offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Unknown,
         };
@@ -322,7 +319,6 @@ mod tests {
             .join("data")
             .join("test-dwarf.bin");
         let opts = FindAddrOpts {
-            offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Function,
         };
@@ -343,7 +339,6 @@ mod tests {
             .join("data")
             .join("test-dwarf.bin");
         let opts = FindAddrOpts {
-            offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Variable,
         };

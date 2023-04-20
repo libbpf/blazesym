@@ -481,7 +481,6 @@ impl ElfParser {
                             address: sym_ref.st_value as Addr,
                             size: sym_ref.st_size as usize,
                             sym_type: SymbolType::Function,
-                            file_offset: 0,
                             obj_file_name: None,
                         });
                     }
@@ -528,7 +527,6 @@ impl ElfParser {
                         address: sym_ref.st_value as Addr,
                         size: sym_ref.st_size as usize,
                         sym_type: SymbolType::Function,
-                        file_offset: 0,
                         obj_file_name: None,
                     });
                 }
@@ -621,7 +619,6 @@ mod tests {
 
         println!("{sym_name}");
         let opts = FindAddrOpts {
-            offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Unknown,
         };

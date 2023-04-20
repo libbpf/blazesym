@@ -171,11 +171,6 @@ impl SymResolver for GsymResolver {
         None
     }
 
-    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
-        // Unavailable
-        None
-    }
-
     fn get_obj_file_name(&self) -> &Path {
         &self.file_name
     }

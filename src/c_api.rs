@@ -536,7 +536,6 @@ pub struct blazesym_sym_info {
     pub name: *const c_char,
     pub address: Addr,
     pub size: usize,
-    pub file_offset: u64,
     pub obj_file_name: *const c_char,
     pub sym_type: blazesym_sym_type,
 }
@@ -578,7 +577,6 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
             address,
             size,
             sym_type,
-            file_offset,
             obj_file_name,
         } in syms
         {
@@ -609,7 +607,6 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
                         SymbolType::Variable => blazesym_sym_type::BLAZESYM_SYM_T_VAR,
                         SymbolType::Unknown => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
                     },
-                    file_offset,
                     obj_file_name,
                 }
             };
@@ -621,7 +618,6 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
                 address: 0,
                 size: 0,
                 sym_type: blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
-                file_offset: 0,
                 obj_file_name: ptr::null(),
             }
         };
@@ -661,7 +657,6 @@ fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
             address,
             size,
             sym_type,
-            file_offset,
             obj_file_name,
         } = sym;
         let name_ptr = str_ptr as *const c_char;
@@ -691,7 +686,6 @@ fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
                     SymbolType::Variable => blazesym_sym_type::BLAZESYM_SYM_T_VAR,
                     SymbolType::Unknown => blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
                 },
-                file_offset,
                 obj_file_name,
             }
         };
@@ -703,7 +697,6 @@ fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
             address: 0,
             size: 0,
             sym_type: blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN,
-            file_offset: 0,
             obj_file_name: ptr::null(),
         }
     };
@@ -732,8 +725,6 @@ pub enum blazesym_sym_type {
 #[allow(non_camel_case_types, unused)]
 #[derive(Debug)]
 pub enum blazesym_faf_type {
-    /// Return the offset in the file. (enable)
-    BLAZESYM_FAF_T_OFFSET_IN_FILE,
     /// Return the file name of the shared object. (enable)
     BLAZESYM_FAF_T_OBJ_FILE_NAME,
     /// Return symbols having the given type. (sym_type)
@@ -788,10 +779,6 @@ impl From<&blazesym_faddr_feature> for FindAddrFeature {
                         FindAddrFeature::SymbolType(SymbolType::Variable)
                     }
                 }
-            }
-            blazesym_faf_type::BLAZESYM_FAF_T_OFFSET_IN_FILE => {
-                // SAFETY: `enable` is the union variant used for `BLAZESYM_FAF_T_OFFSET_IN_FILE`.
-                FindAddrFeature::OffsetInFile(unsafe { feature.param.enable })
             }
             blazesym_faf_type::BLAZESYM_FAF_T_OBJ_FILE_NAME => {
                 // SAFETY: `enable` is the union variant used for `BLAZESYM_FAF_T_OBJ_FILE_NAME`.

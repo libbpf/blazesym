@@ -41,9 +41,6 @@ where
     fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the file name and the line number of an address.
     fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo>;
-    /// Translate an address (virtual) in a process to the file offset
-    /// in the object file.
-    fn addr_file_off(&self, addr: Addr) -> Option<u64>;
     /// Get the file name of the shared object.
     fn get_obj_file_name(&self) -> &Path;
 }
