@@ -152,13 +152,8 @@ impl SymResolver for ElfResolver {
         let off = addr - self.loaded_address + self.loaded_to_virt;
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             let (directory, file, line_no) = dwarf.find_line_as_ref(off)?;
-            let mut path = String::from(directory);
-            if !path.is_empty() && &path[(path.len() - 1)..] != "/" {
-                path.push('/');
-            }
-            path.push_str(file);
             Some(AddressLineInfo {
-                path,
+                path: directory.join(file),
                 line_no,
                 column: 0,
             })
