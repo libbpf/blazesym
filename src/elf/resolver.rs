@@ -33,7 +33,6 @@ pub struct ElfResolver {
     backend: ElfBackend,
     loaded_address: Addr,
     loaded_to_virt: Addr,
-    foff_to_virt: usize,
     size: usize,
     file_name: PathBuf,
 }
@@ -55,7 +54,6 @@ impl ElfResolver {
         // mapped.
         let mut max_addr = 0;
         let mut low_addr = 0xffffffffffffffff;
-        let mut low_off = 0xffffffffffffffff;
         if e_type == ET_DYN || e_type == ET_EXEC {
             for phdr in phdrs {
                 if phdr.p_type != PT_LOAD {
@@ -70,7 +68,6 @@ impl ElfResolver {
                 }
                 if phdr.p_vaddr < low_addr {
                     low_addr = phdr.p_vaddr;
-                    low_off = phdr.p_offset;
                 }
             }
         } else {
@@ -83,14 +80,12 @@ impl ElfResolver {
             loaded_address
         };
         let loaded_to_virt = low_addr;
-        let foff_to_virt = low_addr - low_off;
         let size = max_addr - low_addr;
 
         Ok(ElfResolver {
             backend,
             loaded_address,
             loaded_to_virt: loaded_to_virt as Addr,
-            foff_to_virt: foff_to_virt as usize,
             size: size as usize,
             file_name: file_name.to_path_buf(),
         })
