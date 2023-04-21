@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use blazesym::cfg;
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
 use blazesym::SymbolizerFeature;
@@ -14,10 +15,10 @@ pub fn symbolize_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let sources = [SymbolSrcCfg::Elf {
+    let sources = [SymbolSrcCfg::Elf(cfg::Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
-    }];
+    })];
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
 
     let results = symbolizer
@@ -41,10 +42,10 @@ pub fn lookup_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let sources = [SymbolSrcCfg::Elf {
+    let sources = [SymbolSrcCfg::Elf(cfg::Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
-    }];
+    })];
 
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
