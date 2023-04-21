@@ -15,6 +15,27 @@ autobenches = false
 name = "blazesym"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
+[features]
+# Enable this feature to re-generate the library's C header file. An
+# up-to-date version of this header should already be available in the
+# include/ directory, so this feature is only necessary when APIs are
+# changed.
+generate-c-header = ["cbindgen"]
+# Enable this feature to opt in to the generation of test files. Having test
+# files created is necessary for running tests.
+generate-test-files = ["xz2", "zip"]
+# Enable this feature to opt in to the generation of benchmark files.
+# This feature is required for some of the benchmarks. Note that git-lfs
+# needs to be installed in this case.
+generate-bench-files = ["xz2"]
+# Disable generation of test files. This feature takes preference over
+# `generate-test-files`.
+dont-generate-test-files = []
+# Enable code paths requiring a nightly toolchain. This feature is only meant to
+# be used for testing and benchmarking purposes, not for the core library, which
+# is expected to work on stable.
+nightly = []
+
 [[bench]]
 name = "main"
 harness = false
@@ -39,24 +60,3 @@ cbindgen = {version = "0.24", optional = true}
 libc = "0.2.137"
 xz2 = {version = "0.1.7", optional = true}
 zip = {version = "0.6.4", optional = true, default-features = false}
-
-[features]
-# Enable this feature to re-generate the library's C header file. An
-# up-to-date version of this header should already be available in the
-# include/ directory, so this feature is only necessary when APIs are
-# changed.
-generate-c-header = ["cbindgen"]
-# Enable this feature to opt in to the generation of test files. Having test
-# files created is necessary for running tests.
-generate-test-files = ["xz2", "zip"]
-# Enable this feature to opt in to the generation of benchmark files.
-# This feature is required for some of the benchmarks. Note that git-lfs
-# needs to be installed in this case.
-generate-bench-files = ["xz2"]
-# Disable generation of test files. This feature takes preference over
-# `generate-test-files`.
-dont-generate-test-files = []
-# Enable code paths requiring a nightly toolchain. This feature is only meant to
-# be used for testing and benchmarking purposes, not for the core library, which
-# is expected to work on stable.
-nightly = []
