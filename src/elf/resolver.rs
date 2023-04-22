@@ -5,8 +5,8 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::symbolize::AddressLineInfo;
 use crate::Addr;
-use crate::AddressLineInfo;
 use crate::Error;
 use crate::FindAddrOpts;
 use crate::SymResolver;

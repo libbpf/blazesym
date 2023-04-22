@@ -9,8 +9,8 @@ use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::symbolize::AddressLineInfo;
 use crate::Addr;
-use crate::AddressLineInfo;
 use crate::FindAddrOpts;
 use crate::SymResolver;
 use crate::SymbolInfo;

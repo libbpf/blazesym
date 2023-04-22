@@ -74,7 +74,7 @@ impl DwarfResolver {
     ///
     /// When `addresses` is not empty, the returned instance only has
     /// data that related to these addresses.  For this case, the
-    /// isntance have the ability that can serve only these addresses.
+    /// instance have the ability that can serve only these addresses.
     /// This would be much faster.
     ///
     /// If `addresses` is empty, the returned instance has all data
