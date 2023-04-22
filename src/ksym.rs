@@ -13,12 +13,12 @@ use std::rc::Rc;
 
 use regex::Regex;
 
-use super::FindAddrOpts;
-use super::SymbolInfo;
-use super::SymbolType;
-
+use crate::symbolize::AddressLineInfo;
 use crate::Addr;
+use crate::FindAddrOpts;
 use crate::SymResolver;
+use crate::SymbolInfo;
+use crate::SymbolType;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
@@ -180,7 +180,7 @@ impl SymResolver for KSymResolver {
         Some(syms)
     }
 
-    fn find_line_info(&self, _addr: Addr) -> Option<super::AddressLineInfo> {
+    fn find_line_info(&self, _addr: Addr) -> Option<AddressLineInfo> {
         None
     }
 

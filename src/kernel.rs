@@ -10,8 +10,8 @@ use std::rc::Rc;
 
 use crate::elf::ElfResolver;
 use crate::ksym::KSymResolver;
+use crate::symbolize::AddressLineInfo;
 use crate::Addr;
-use crate::AddressLineInfo;
 use crate::FindAddrOpts;
 use crate::SymResolver;
 use crate::SymbolInfo;
