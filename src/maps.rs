@@ -196,16 +196,6 @@ pub(crate) fn is_symbolization_relevant(entry: &MapsEntry) -> bool {
         return false
     }
 
-    if let Ok(meta_data) = entry.path.metadata() {
-        if !meta_data.is_file() {
-            return false
-        }
-    } else {
-        // TODO: We probably should handle errors more gracefully. It's not
-        //       clear that silently ignoring them is the right thing to do.
-        return false
-    }
-
     true
 }
 
