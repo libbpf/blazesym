@@ -59,7 +59,6 @@ tempfile = "3.4"
 test-log = "0.2"
 
 [build-dependencies]
-anyhow = "1.0.68"
 cbindgen = {version = "0.24", optional = true}
 libc = "0.2.137"
 xz2 = {version = "0.1.7", optional = true}

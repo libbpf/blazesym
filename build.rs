@@ -6,15 +6,12 @@ use std::fs::create_dir_all;
 use std::fs::hard_link;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
-
-use anyhow::bail;
-use anyhow::Context as _;
-use anyhow::Result;
 
 
 /// Retrieve the system's page size.
@@ -22,7 +19,10 @@ fn page_size() -> Result<usize> {
     // SAFETY: `sysconf` is always safe to call.
     let rc = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
     if rc < 0 {
-        return Err(Error::last_os_error()).context("failed to retrieve page size")
+        return Err(Error::new(
+            ErrorKind::Other,
+            format!("failed to retrieve page size: {}", Error::last_os_error()),
+        ))
     }
     Ok(usize::try_from(rc).unwrap())
 }
@@ -57,10 +57,13 @@ where
         .stdout(Stdio::null())
         .args(args.clone())
         .output()
-        .with_context(|| {
-            format!(
-                "failed to run `{}`",
-                format_command(command.as_ref(), args.clone())
+        .map_err(|err| {
+            Error::new(
+                ErrorKind::Other,
+                format!(
+                    "failed to run `{}`: {err}",
+                    format_command(command.as_ref(), args.clone())
+                ),
             )
         })?;
 
@@ -79,13 +82,16 @@ where
             String::new()
         };
 
-        bail!(
-            "`{}` reported non-zero exit-status{code}{stderr}",
-            format_command(command, args),
-        );
+        Err(Error::new(
+            ErrorKind::Other,
+            format!(
+                "`{}` reported non-zero exit-status{code}{stderr}",
+                format_command(command, args)
+            ),
+        ))
+    } else {
+        Ok(())
     }
-
-    Ok(())
 }
 
 /// Compile `src` into `dst` using `cc`.
