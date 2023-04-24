@@ -79,7 +79,7 @@ at an address can result from several lines of code from multiple
 functions with optimization.  In other words, the result
 of an address is a list of `SymbolizedResult`.  Each entry in
 `symlist` results from the address at the respective position in the
-argument passed to [`BlazeSymbolizer::symbolize()`].
+argument passed to `BlazeSymbolizer::symbolize()`.
 
 ### With Linux Kernel
 
@@ -183,8 +183,8 @@ shows the addresses, symbol names, source filenames and line numbers.
 
 `struct blazesym_sym_src_cfg` describes a binary, symbol file, shared
 object, kernel, or process. This example uses a `struct blazesym_sym_src_cfg`
-instance with [`blazesym_src_type::BLAZESYM_SRC_T_PROCESS`] type to
-describe a process. BlazeSym deciphers all the loaded
+instance with `blazesym_src_type::BLAZESYM_SRC_T_PROCESS` type to describe a
+process. BlazeSym deciphers all the loaded
 ELF files of the process and loads symbols and DWARF information from
 them to perform symbolization.
 
@@ -203,9 +203,8 @@ You may want to link a shared library, i.e., `libblazesym.so`.
 
 ### With Linux Kernel
 
-[`blazesym_src_type::BLAZESYM_SRC_T_KERNEL`] is a variant of `struct
-blazesym_sym_src_cfg` highlighting the kernel as a source of
-symbolization.
+`blazesym_src_type::BLAZESYM_SRC_T_KERNEL` is a variant of `struct
+blazesym_sym_src_cfg` highlighting the kernel as a source of symbolization.
 
 ```c
 struct blazesym_sym_src_cfg cfg = {
