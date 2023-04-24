@@ -390,7 +390,7 @@ unsafe fn convert_symbolizedresults_to_c(
     // Allocate a buffer to contain a blazesym_result, all
     // blazesym_csym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
-        acc + result.symbol.len() + result.path.len() + 2
+        acc + result.symbol.len() + result.path.as_os_str().len() + 2
     });
     let all_csym_size = results.iter().flatten().count();
     let buf_size = strtab_size
@@ -423,9 +423,9 @@ unsafe fn convert_symbolizedresults_to_c(
         )
     } as *mut c_char;
 
-    let mut make_cstr = |src: &str| {
+    let mut make_cstr = |src: &OsStr| {
         let cstr = cstr_last;
-        unsafe { ptr::copy(src.as_ptr(), cstr as *mut u8, src.len()) };
+        unsafe { ptr::copy(src.as_bytes().as_ptr(), cstr as *mut u8, src.len()) };
         unsafe { *cstr.add(src.len()) = 0 };
         cstr_last = unsafe { cstr_last.add(src.len() + 1) };
 
@@ -441,9 +441,9 @@ unsafe fn convert_symbolizedresults_to_c(
         entry_last = unsafe { entry_last.add(1) };
 
         for r in entry {
-            let symbol_ptr = make_cstr(&r.symbol);
+            let symbol_ptr = make_cstr(OsStr::new(&r.symbol));
 
-            let path_ptr = make_cstr(&r.path);
+            let path_ptr = make_cstr(r.path.as_os_str());
 
             let csym_ref = unsafe { &mut *csym_last };
             csym_ref.symbol = symbol_ptr;
