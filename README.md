@@ -107,8 +107,8 @@ potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
 ### An example of Rust API
 
-examples/addr2ln_pid.rs is an example performing symbolization for an
-address in a process.
+[`examples/addr2ln_pid.rs`](examples/addr2ln_pid.rs) is an example performing
+symbolization for an address in a process.
 
 ```text
   $ ./target/debug/examples/addr2ln_pid 1234 7f0c41ade000
