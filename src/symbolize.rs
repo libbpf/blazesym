@@ -156,7 +156,7 @@ pub struct SymbolizedResult {
     /// shared object file.
     pub start_address: Addr,
     /// The source path that defines the symbol.
-    pub path: String,
+    pub path: PathBuf,
     /// The line number of the symbolized instruction in the source code.
     ///
     /// This is the line number of the instruction of the address being
@@ -456,7 +456,7 @@ impl BlazeSymbolizer {
                         vec![SymbolizedResult {
                             symbol: "".to_string(),
                             start_address: 0,
-                            path: linfo.path.to_str().unwrap().to_string(),
+                            path: linfo.path,
                             line_no: linfo.line_no,
                             column: linfo.column,
                         }]
@@ -471,7 +471,7 @@ impl BlazeSymbolizer {
                             results.push(SymbolizedResult {
                                 symbol: String::from(sym),
                                 start_address: start,
-                                path: linfo.path.to_str().unwrap().to_string(),
+                                path: linfo.path.clone(),
                                 line_no: linfo.line_no,
                                 column: linfo.column,
                             });
@@ -480,7 +480,7 @@ impl BlazeSymbolizer {
                             results.push(SymbolizedResult {
                                 symbol: String::from(sym),
                                 start_address: start,
-                                path: "".to_string(),
+                                path: PathBuf::new(),
                                 line_no: 0,
                                 column: 0,
                             });

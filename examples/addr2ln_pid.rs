@@ -49,7 +49,7 @@ fn main() {
             symbol,
             start_address,
             addr - start_address,
-            path,
+            path.display(),
             line_no
         );
     } else {

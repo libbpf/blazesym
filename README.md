@@ -63,11 +63,11 @@ sources, and line numbers of addresses involved in a process.
 
       for result in sym_results {
         let SymbolizedResult {symbol, start_address, path, line_no, column} = result;
-        println!("    {}@0x{:016x} {}:{}", symbol, start_address, path, line_no);
+        println!("    {}@0x{:016x} {}:{}", symbol, start_address, path.display(), line_no);
       }
     } else {
       let SymbolizedResult {symbol, start_address, path, line_no, column} = &sym_results[0];
-      println!("0x{:016x} {}@0x{:016x} {}:{}", address, symbol, start_address, path, line_no);
+      println!("0x{:016x} {}@0x{:016x} {}:{}", address, symbol, start_address, path.display(), line_no);
     }
   }
 ```
