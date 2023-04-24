@@ -12,7 +12,7 @@ env:
 
 jobs:
   build:
-    name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}]
+    name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}, ${{ matrix.args }}]
     runs-on: ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
@@ -20,9 +20,12 @@ jobs:
         runs-on: [ubuntu-latest, macos-latest]
         rust: [1.63.0, stable]
         profile: [dev, release]
+        args: [""]
         include:
-          - rust: stable
+          - runs-on: ubuntu-latest
+            rust: stable
             profile: dev
+            args: "--no-default-features"
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
@@ -32,7 +35,7 @@ jobs:
         override: true
     - name: Build ${{ matrix.profile }}
       run: |
-        cargo build --profile=${{ matrix.profile }} --lib
+        cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
   test-coverage:
     name: Test and coverage
     runs-on: ubuntu-22.04

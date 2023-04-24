@@ -10,8 +10,6 @@ use std::ops::Deref as _;
 use std::path::Path;
 use std::rc::Rc;
 
-use regex::Regex;
-
 use crate::mmap::Mmap;
 use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
@@ -504,6 +502,7 @@ impl ElfParser {
         }
     }
 
+    #[cfg(feature = "symbolize")]
     pub(crate) fn find_address_regex(
         &self,
         pattern: &str,
@@ -524,7 +523,7 @@ impl ElfParser {
         //         `str2symtab` available.
         let str2symtab = cache.str2symtab.as_ref().unwrap();
 
-        let re = Regex::new(pattern).unwrap();
+        let re = regex::Regex::new(pattern).unwrap();
         let mut syms = vec![];
         for (sname, sym_i) in str2symtab {
             if re.is_match(sname) {
