@@ -1,13 +1,13 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::io::Error;
 use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::symbolize::AddressLineInfo;
 use crate::Addr;
-use crate::Error;
 use crate::FindAddrOpts;
 use crate::SymResolver;
 use crate::SymbolInfo;

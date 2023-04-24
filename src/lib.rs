@@ -14,35 +14,48 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(missing_debug_implementations)]
 #![cfg_attr(feature = "nightly", feature(test))]
+#![cfg_attr(not(feature = "symbolize"), allow(dead_code))]
 
 #[cfg(feature = "nightly")]
 extern crate test;
 
 pub mod c_api;
+#[cfg(feature = "symbolize")]
 mod dwarf;
 mod elf;
+#[cfg(feature = "symbolize")]
 mod gsym;
+#[cfg(feature = "symbolize")]
 mod kernel;
+#[cfg(feature = "symbolize")]
 mod ksym;
 mod maps;
 mod mmap;
 pub mod normalize;
+#[cfg(feature = "symbolize")]
 mod resolver;
+#[cfg(feature = "symbolize")]
 mod symbolize;
 mod util;
 // TODO: Remove `allow`.
 #[allow(unused)]
 mod zip;
 
-use std::io::Error;
 use std::path::PathBuf;
 
+#[cfg(feature = "symbolize")]
 use resolver::SymResolver;
+#[cfg(feature = "symbolize")]
 pub use symbolize::cfg;
+#[cfg(feature = "symbolize")]
 pub use symbolize::BlazeSymbolizer;
+#[cfg(feature = "symbolize")]
 pub use symbolize::FindAddrFeature;
+#[cfg(feature = "symbolize")]
 pub use symbolize::SymbolSrcCfg;
+#[cfg(feature = "symbolize")]
 pub use symbolize::SymbolizedResult;
+#[cfg(feature = "symbolize")]
 pub use symbolize::SymbolizerFeature;
 
 // We import all C API items during doc creation to not have to mention the
