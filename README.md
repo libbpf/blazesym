@@ -1,22 +1,21 @@
-# BlazeSym
+# blazesym
 
-BlazeSym is a library that symbolizes addresses where symbol names,
-source file names, and line numbers can be acquired.  It can translate stack
-traces to function names and their locations in the
-source code.
+**blazesym** is a library that symbolizes addresses where symbol names,
+source file names, and line numbers can be acquired. It can translate stack
+traces to function names and their locations in the source code.
 
  - <https://github.com/libbpf/blazesym>
 
 ## Build
 
-To build BlazeSym, you must install a Rust environment.
+To build **blazesym**, you must install a Rust environment.
 
-Once successfully installed, you must obtain BlazeSym's source code.
+Once successfully installed, you must obtain blazesym's source code.
 
  - `git clone https://github.com/libbpf/blazesym.git`
 
-Next, you would need to go to the root directory of the BlazeSym source code
-to build BlazeSym.
+Next, you would need to go to the root directory of the **blazesym** source code
+to build the library.
 
  - cargo build
 
@@ -24,11 +23,11 @@ You will see **libblazesym.a** in `target/debug/` or `target/release/`
 directory. The corresponding **blazesym.h** header file is located
 inside `include/`. Your C programs, if any, should include
 **blazesym.h** and link to **libblazesym.a** to access functions and
-various types of BlazeSym.
+various types of **blazesym**.
 
 ## Rust API
 
-The following code makes use of BlazeSym to access symbol names, filenames of
+The following code makes use of **blazesym** to access symbol names, filenames of
 sources, and line numbers of addresses involved in a process.
 
 ```rust,no_run
@@ -74,12 +73,11 @@ sources, and line numbers of addresses involved in a process.
 `SymbolSrcCfg::Process` variant used here instructs the symbolizer to use
 information about the provided process from the system.
 
-`symlist` is a list of lists of `SymbolizedResult`.  The instruction provided
-at an address can result from several lines of code from multiple
-functions with optimization.  In other words, the result
-of an address is a list of `SymbolizedResult`.  Each entry in
-`symlist` results from the address at the respective position in the
-argument passed to `BlazeSymbolizer::symbolize()`.
+`symlist` is a list of lists of `SymbolizedResult`. The instruction provided at
+an address can result from several lines of code from multiple functions with
+optimization. In other words, the result of an address is a list of
+`SymbolizedResult`. Each entry in `symlist` results from the address at the
+respective position in the argument passed to `BlazeSymbolizer::symbolize()`.
 
 ### With Linux Kernel
 
@@ -96,7 +94,7 @@ In this case, you give the path of kallsyms and the path of a kernel image.
 The path of kallsyms can be that of `"/proc/"` or a copy of kallsym.
 
 If you are symbolizing against the current running kernel on the same
-device, give `None` for both paths.  Doing so will find the correct
+device, give `None` for both paths. Doing so will find the correct
 paths for you, if possible. It will use `"/proc/kallsyms"` for
 kallsyms and find the kernel image of the running kernel from several
 potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
@@ -129,7 +127,7 @@ source.
 
 ## C API
 
-The following code symbolizes a list of addresses of a process.  It
+The following code symbolizes a list of addresses of a process. It
 shows the addresses, symbol names, source filenames and line numbers.
 
 ```c
@@ -184,16 +182,15 @@ shows the addresses, symbol names, source filenames and line numbers.
 `struct blazesym_sym_src_cfg` describes a binary, symbol file, shared
 object, kernel, or process. This example uses a `struct blazesym_sym_src_cfg`
 instance with `blazesym_src_type::BLAZESYM_SRC_T_PROCESS` type to describe a
-process. BlazeSym deciphers all the loaded
-ELF files of the process and loads symbols and DWARF information from
-them to perform symbolization.
+process. **blazesym** deciphers all the loaded ELF files of the process and
+loads symbols and DWARF information from them to perform symbolization.
 
 ### Link C programs
 
-You should include `“blazesym.h”` in a C program to call
-BlazeSym.  Refer to the “Build” section to generate `"blazesym.h"`.
+You should include [`blazesym.h`][include/blazesym.h] in a C program to call
+**blazesym**.
 
-You also need the following arguments to link against BlazeSym.
+You also need the following arguments to link against **blazesym**.
 
 ```text
   libblazesym.a -lrt -ldl -lpthread -lm
@@ -216,14 +213,14 @@ struct blazesym_sym_src_cfg cfg = {
 };
 ```
 
-You can give `kallsyms` and `kernel_image` a `NULL`.  BlazeSym will
-locate them for the running kernel.  For example, by default, `kallsyms`
+You can give `kallsyms` and `kernel_image` a `NULL`. **blazesym** will
+locate them for the running kernel. For example, by default, `kallsyms`
 is at `"/proc/kallsyms"`. Accordingly, the kernel image of the current
 kernel will be in `"/boot/"` or `"/usr/lib/debug/boot/"`.
 
 ### An example of C API
 
-There is an example of C API in libbpf-bootstrap.  You could view it at
+There is an example of C API in libbpf-bootstrap. You could view it at
 <https://github.com/libbpf/libbpf-bootstrap/blob/master/examples/c/profile.c>
-.  This example periodically samples the running process of every processor
+. This example periodically samples the running process of every processor
 in a system and prints their stack traces when sampling.
