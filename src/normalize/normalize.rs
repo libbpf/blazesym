@@ -186,7 +186,10 @@ impl NormalizedUserAddrs {
 ///
 /// Normalized addresses are reported in the exact same order in which the
 /// non-normalized ones were provided.
-pub fn normalize_user_addrs_sorted(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAddrs> {
+fn normalize_user_addrs_sorted_impl<A>(addrs: A, pid: u32) -> Result<NormalizedUserAddrs>
+where
+    A: ExactSizeIterator<Item = Addr> + Clone,
+{
     let pid = Pid::from(pid);
 
     let mut entries = maps::parse(pid)?.filter_map(|result| match result {
@@ -211,11 +214,11 @@ pub fn normalize_user_addrs_sorted(addrs: &[Addr], pid: u32) -> Result<Normalize
     // used for all unknown addresses.
     let mut unknown_idx = None;
 
-    let mut prev_addr = addrs.first().copied().unwrap_or_default();
+    let mut prev_addr = addrs.clone().next().unwrap_or_default();
     // We effectively do a single pass over `addrs`, advancing to the next
     // proc maps entry whenever the current address is not (or no longer)
     // contained in the current entry's range.
-    'main: for addr in addrs.iter().copied() {
+    'main: for addr in addrs {
         if addr < prev_addr {
             return Err(Error::new(
                 ErrorKind::InvalidInput,
@@ -267,6 +270,31 @@ pub fn normalize_user_addrs_sorted(addrs: &[Addr], pid: u32) -> Result<Normalize
     }
 
     Ok(normalized)
+}
+
+
+/// Normalize `addresses` belonging to a process.
+///
+/// Normalize all `addrs` in a given process. The `addrs` array has to
+/// be sorted in ascending order or an error will be returned.
+///
+/// Unknown addresses are not normalized. They are reported as
+/// [`Unknown`] meta entries in the returned [`NormalizedUserAddrs`]
+/// object. The cause of an address to be unknown (and, hence, not
+/// normalized), could have a few reasons, including, but not limited
+/// to:
+/// - user error (if a bogus address was provided)
+/// - they belonged to an ELF object that has been unmapped since the
+///   address was captured
+///
+/// The process' ID should be provided in `pid`. To normalize addresses of the
+/// calling processes, `0` can be provided as a sentinel for the current
+/// process' ID.
+///
+/// Normalized addresses are reported in the exact same order in which the
+/// non-normalized ones were provided.
+pub fn normalize_user_addrs_sorted(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAddrs> {
+    normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid)
 }
 
 
