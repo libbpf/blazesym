@@ -29,11 +29,11 @@ unsafe impl Pod for FileInfo {}
 pub struct AddressInfo<'a> {
     pub size: u32,
     pub name: u32,
-    /// The raw data comprises a list of [`AddressData`].
+    /// The raw data comprises a list of [`AddrData`].
     pub data: &'a [u8],
 }
 
-pub struct AddressData<'a> {
+pub struct AddrData<'a> {
     /// The data type. Its value should be one of InfoType*.
     pub typ: u32,
     pub length: u32,

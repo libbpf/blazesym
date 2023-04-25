@@ -46,7 +46,7 @@ use crate::util::ReadRaw as _;
 use crate::Addr;
 
 use super::linetab::LineTableHeader;
-use super::types::AddressData;
+use super::types::AddrData;
 use super::types::AddressInfo;
 use super::types::FileInfo;
 use super::types::Header;
@@ -59,8 +59,8 @@ use super::types::GSYM_VERSION;
 /// Hold the major parts of a standalone GSYM file.
 ///
 /// GsymContext provides functions to access major entities in GSYM.
-/// GsymContext can find respective AddressInfo for an address.  But,
-/// it doesn't parse AddressData to get line numbers.
+/// GsymContext can find respective AddressInfo for an address. But,
+/// it doesn't parse [`AddrData`] to get line numbers.
 ///
 /// The developers should use [`parse_address_data()`],
 /// [`parse_line_table_header()`], and [`linetab::run_op()`] to get
@@ -237,23 +237,23 @@ impl<'a> GsymContext<'a> {
 }
 
 
-/// Parse AddressData.
+/// Parse [`AddrData`].
 ///
-/// AddressDatas are items following AndressInfo.
-/// [`GsymContext::addr_info()`] returns the raw data of AddressDatas as a
-/// slice at [`AddressInfo::data`].
+/// [`AddrData`] objects are items following [`AndressInfo`].
+/// [`GsymContext::addr_info()`] returns the raw data of [`AddrData`] objects as
+/// a slice at [`AddressInfo::data`].
 ///
 /// # Arguments
 ///
 /// * `data` - is the slice from AddressInfo::data.
-pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddressData>> {
+pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddrData>> {
     let mut data_objs = vec![];
 
     while !data.is_empty() {
         let typ = data.read_u32()?;
         let length = data.read_u32()?;
         let d = data.read_slice(length as usize)?;
-        data_objs.push(AddressData {
+        data_objs.push(AddrData {
             typ,
             length,
             data: d,
@@ -272,21 +272,19 @@ pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddressData>> {
     Some(data_objs)
 }
 
-/// Parse AddressData of InfoTypeLineTableInfo.
+/// Parse [`AddrData`] of type [`InfoTypeLineTableInfo`].
 ///
-/// An `AddressData` of `InfoTypeLineTableInfo` type is a table of line numbers
-/// for a symbol. `AddressData` is the payload of `AddressInfo`. One
-/// `AddressInfo` may have several `AddressData` entries in its payload. Each
-/// `AddressData` entry stores a type of data relates to the symbol the
-/// `AddressInfo` presents.
+/// An `AddrData` of `InfoTypeLineTableInfo` type is a table of line numbers for
+/// a symbol. `AddrData` is the payload of `AddressInfo`. One `AddressInfo` may
+/// have several `AddrData` entries in its payload. Each `AddrData` entry stores
+/// a type of data relates to the symbol the `AddressInfo` presents.
 ///
 /// # Arguments
 ///
-/// * `data` - is what [`AddressData::data`] is.
+/// * `data` - is what [`AddrData::data`] is.
 ///
-/// Returns the `LineTableHeader` and the size of the header of a
-/// `AddressData` entry of `InfoTypeLineTableInfo` type in the payload
-/// of an `Addressinfo`.
+/// Returns the `LineTableHeader` and the size of the header of a `AddrData`
+/// entry of `InfoTypeLineTableInfo` type in the payload of an `Addressinfo`.
 pub fn parse_line_table_header(data: &mut &[u8]) -> Option<LineTableHeader> {
     let (min_delta, _bytes) = data.read_i128_leb128()?;
     let (max_delta, _bytes) = data.read_i128_leb128()?;
