@@ -52,6 +52,7 @@ pub enum blaze_user_addr_meta_kind {
 
 /// C compatible version of [`Binary`].
 #[allow(non_camel_case_types)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_binary {
     /// The path to the binary. This member is always present.
@@ -116,6 +117,7 @@ impl From<blaze_user_addr_meta_binary> for Binary {
 
 /// C compatible version of [`Unknown`].
 #[allow(non_camel_case_types)]
+#[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_unknown {}
 

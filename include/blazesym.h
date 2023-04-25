@@ -117,12 +117,27 @@ typedef struct blazesym blazesym;
 /**
  * C compatible version of [`Binary`].
  */
-typedef struct blaze_user_addr_meta_binary blaze_user_addr_meta_binary;
+typedef struct blaze_user_addr_meta_binary {
+  /**
+   * The path to the binary. This member is always present.
+   */
+  char *path;
+  /**
+   * The length of the build ID, in bytes.
+   */
+  size_t build_id_len;
+  /**
+   * The optional build ID of the binary, if found.
+   */
+  uint8_t *build_id;
+} blaze_user_addr_meta_binary;
 
 /**
  * C compatible version of [`Unknown`].
  */
-typedef struct blaze_user_addr_meta_unknown blaze_user_addr_meta_unknown;
+typedef struct blaze_user_addr_meta_unknown {
+
+} blaze_user_addr_meta_unknown;
 
 /**
  * The actual variant data in [`blaze_user_addr_meta`].
