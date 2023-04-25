@@ -298,6 +298,43 @@ pub fn normalize_user_addrs_sorted(addrs: &[Addr], pid: u32) -> Result<Normalize
 }
 
 
+/// Reorder elements of `array` based on index information in `indices`.
+fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
+    debug_assert_eq!(array.len(), indices.len());
+
+    let mut indices = indices;
+    // Sort the entries in `array` based on the indexes in `indices`
+    // (second member).
+    for i in 0..array.len() {
+        while indices[i].1 != i {
+            let () = array.swap(i, indices[i].1);
+            let idx = indices[i].1;
+            let () = indices.swap(i, idx);
+        }
+    }
+}
+
+/// Normalize `addresses` belonging to a process.
+///
+/// Normalize all `addrs` in a given process. Contrary to
+/// [`normalize_user_addrs_sorted`], the provided `addrs` array does not have to
+/// be sorted, but otherwise the functions behave identically.
+pub fn normalize_user_addrs(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAddrs> {
+    let mut addrs = addrs
+        .iter()
+        .enumerate()
+        .map(|(idx, addr)| (*addr, idx))
+        .collect::<Vec<_>>();
+    let () = addrs.sort_unstable();
+
+    let mut normalized =
+        normalize_user_addrs_sorted_impl(addrs.iter().map(|(addr, _idx)| *addr), pid)?;
+
+    let () = reorder(&mut normalized.addrs, addrs);
+    Ok(normalized)
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,6 +344,25 @@ mod tests {
     use crate::mmap::Mmap;
     use crate::FindAddrOpts;
     use crate::SymbolType;
+
+
+    /// Check that we can reorder elements in an array as expected.
+    #[test]
+    fn array_reordering() {
+        let mut array = vec![];
+        reorder::<usize, ()>(&mut array, vec![]);
+
+        let mut array = vec![8];
+        reorder(&mut array, vec![((), 0)]);
+        assert_eq!(array, vec![8]);
+
+        let mut array = vec![8, 1, 4, 0, 3];
+        reorder(
+            &mut array,
+            [4, 1, 3, 0, 2].into_iter().map(|x| ((), x)).collect(),
+        );
+        assert_eq!(array, vec![0, 1, 3, 4, 8]);
+    }
 
 
     /// Check that we can read a binary's build ID.
@@ -361,7 +417,7 @@ mod tests {
     /// Check that we can normalize user addresses.
     #[test]
     fn user_address_normalization() {
-        let mut addrs = [
+        let addrs = [
             libc::__errno_location as Addr,
             libc::dlopen as Addr,
             libc::fopen as Addr,
@@ -369,7 +425,6 @@ mod tests {
             user_address_normalization as Addr,
             Mmap::map as Addr,
         ];
-        let () = addrs.sort();
 
         let (errno_idx, _) = addrs
             .iter()
@@ -377,15 +432,15 @@ mod tests {
             .find(|(_idx, addr)| **addr == libc::__errno_location as Addr)
             .unwrap();
 
-        let norm_addrs = normalize_user_addrs_sorted(addrs.as_slice(), 0).unwrap();
+        let norm_addrs = normalize_user_addrs(addrs.as_slice(), 0).unwrap();
         assert_eq!(norm_addrs.addrs.len(), 6);
 
         let addrs = &norm_addrs.addrs;
         let meta = &norm_addrs.meta;
         assert_eq!(meta.len(), 2);
 
-        let fopen_meta_idx = addrs[errno_idx].1;
-        assert!(meta[fopen_meta_idx]
+        let errno_meta_idx = addrs[errno_idx].1;
+        assert!(meta[errno_meta_idx]
             .binary()
             .unwrap()
             .path

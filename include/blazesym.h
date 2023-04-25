@@ -465,6 +465,23 @@ typedef struct blazesym_faddr_feature {
  * describe the PID of the process to which the addresses belong. It
  * may be `0` if they belong to the calling process.
  *
+ * C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
+ * error. The resulting object should be free using [`blaze_free_user_addrs`].
+ *
+ * # Safety
+ * Callers need to pass in a valid `addrs` pointer, pointing to memory of
+ * `addr_count` addresses.
+ */
+struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const uintptr_t *addrs,
+                                                               size_t addr_count,
+                                                               uint32_t pid);
+
+/**
+ * Normalize a list of user space addresses.
+ *
+ * `pid` should describe the PID of the process to which the addresses belong.
+ * It may be `0` if they belong to the calling process.
+ *
  * C ABI compatible version of [`normalize_user_addrs_sorted`]. Returns `NULL`
  * on error. The resulting object should be free using
  * [`blaze_free_user_addrs`].

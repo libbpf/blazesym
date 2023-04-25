@@ -8,6 +8,7 @@ use std::ptr;
 use std::slice;
 
 use blazesym::c_api::blaze_free_user_addrs;
+use blazesym::c_api::blaze_normalize_user_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blazesym_feature;
 use blazesym::c_api::blazesym_feature_name;
@@ -161,6 +162,28 @@ fn lookup_dwarf() {
 /// Check that we can normalize user space addresses.
 #[test]
 fn normalize_user_addrs() {
+    let addrs = [
+        libc::__errno_location as Addr,
+        libc::dlopen as Addr,
+        libc::fopen as Addr,
+        lookup_dwarf as Addr,
+        normalize_user_addrs as Addr,
+    ];
+
+    let result = unsafe { blaze_normalize_user_addrs(addrs.as_slice().as_ptr(), addrs.len(), 0) };
+    assert_ne!(result, ptr::null_mut());
+
+    let user_addrs = unsafe { &*result };
+    assert_eq!(user_addrs.meta_count, 2);
+    assert_eq!(user_addrs.addr_count, 5);
+
+    let () = unsafe { blaze_free_user_addrs(result) };
+}
+
+
+/// Check that we can normalize user space addresses.
+#[test]
+fn normalize_user_addrs_sorted() {
     let mut addrs = [
         libc::__errno_location as Addr,
         libc::dlopen as Addr,
