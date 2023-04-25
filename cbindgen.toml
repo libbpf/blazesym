@@ -1,3 +1,5 @@
+# See https://github.com/eqrion/cbindgen/blob/master/docs.md#cbindgentoml
+
 language = "C"
 include_guard = "__blazesym_h_"
 usize_is_size_t = true
@@ -12,7 +14,7 @@ exclude = ["Addr"]
 
 [fn]
 args = "Vertical"
-rename_args = "GeckoCase"
+rename_args = "none"
 
 [struct]
 associated_constants_in_body = true
