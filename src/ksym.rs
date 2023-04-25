@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 use regex::Regex;
 
-use crate::symbolize::AddressLineInfo;
+use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymResolver;
@@ -180,7 +180,7 @@ impl SymResolver for KSymResolver {
         Some(syms)
     }
 
-    fn find_line_info(&self, _addr: Addr) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, _addr: Addr) -> Option<AddrLineInfo> {
         None
     }
 

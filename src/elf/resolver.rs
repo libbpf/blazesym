@@ -6,7 +6,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::symbolize::AddressLineInfo;
+use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymResolver;
@@ -148,11 +148,11 @@ impl SymResolver for ElfResolver {
         Some(syms)
     }
 
-    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
         let off = addr - self.loaded_address + self.loaded_to_virt;
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             let (directory, file, line_no) = dwarf.find_line(off)?;
-            Some(AddressLineInfo {
+            Some(AddrLineInfo {
                 path: directory.join(file),
                 line_no,
                 column: 0,

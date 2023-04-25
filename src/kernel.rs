@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use crate::elf::ElfResolver;
 use crate::ksym::KSymResolver;
-use crate::symbolize::AddressLineInfo;
+use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymResolver;
@@ -59,7 +59,7 @@ impl SymResolver for KernelResolver {
     fn find_address_regex(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         None
     }
-    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
+    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
         self.elf_resolver
             .as_ref()
             .and_then(|resolver| resolver.find_line_info(addr))

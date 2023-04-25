@@ -12,7 +12,7 @@ use crate::ksym::KALLSYMS;
 use crate::log;
 use crate::maps;
 use crate::maps::Pid;
-use crate::symbolize::AddressLineInfo;
+use crate::symbolize::AddrLineInfo;
 use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
@@ -39,7 +39,7 @@ where
     /// Find the addresses and sizes of the symbols matching a given pattern.
     fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the file name and the line number of an address.
-    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo>;
+    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo>;
     /// Translate an address (virtual) in a process to the file offset
     /// in the object file.
     fn addr_file_off(&self, addr: Addr) -> Option<u64>;
