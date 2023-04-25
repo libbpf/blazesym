@@ -9,7 +9,7 @@ use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::symbolize::AddressLineInfo;
+use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymResolver;
@@ -108,8 +108,8 @@ impl SymResolver for GsymResolver {
     ///
     /// # Returns
     ///
-    /// The `AddressLineInfo` corresponding to the address or `None`.
-    fn find_line_info(&self, addr: Addr) -> Option<AddressLineInfo> {
+    /// The `AddrLineInfo` corresponding to the address or `None`.
+    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
         let addr = addr.checked_sub(self.loaded_address)?;
         let idx = self.ctx.find_address(addr)?;
         let symaddr = self.ctx.addr_at(idx)?;
@@ -162,7 +162,7 @@ impl SymResolver for GsymResolver {
             let dirname = self.ctx.get_str(finfo.directory as usize)?;
             let filename = self.ctx.get_str(finfo.filename as usize)?;
             let path = Path::new(dirname).join(filename);
-            return Some(AddressLineInfo {
+            return Some(AddrLineInfo {
                 path,
                 line_no: lntab_row.file_line as usize,
                 column: 0,

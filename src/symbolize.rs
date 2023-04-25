@@ -11,7 +11,7 @@ use crate::SymbolInfo;
 use crate::SymbolType;
 
 
-pub struct AddressLineInfo {
+pub struct AddrLineInfo {
     pub path: PathBuf,
     pub line_no: usize,
     pub column: usize,
