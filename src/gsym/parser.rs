@@ -26,9 +26,9 @@
 //! corresponding entry at the same offset in the other table.  The
 //! entries in the Address Data Offset Table are always 32bits
 //! (4bytes.)  It is the file offset to the respective Address
-//! Data. (AddressInfo actually)
+//! Data. (AddrInfo actually)
 //!
-//! An AddressInfo comprises the size and name of a symbol.  The name
+//! An AddrInfo comprises the size and name of a symbol.  The name
 //! is an offset in the string table.  You will find a null terminated
 //! C string at the give offset.  The size is the number of bytes of
 //! the respective object; ex, a function or variable.
@@ -47,7 +47,7 @@ use crate::Addr;
 
 use super::linetab::LineTableHeader;
 use super::types::AddrData;
-use super::types::AddressInfo;
+use super::types::AddrInfo;
 use super::types::FileInfo;
 use super::types::Header;
 use super::types::InfoTypeEndOfList;
@@ -59,12 +59,12 @@ use super::types::GSYM_VERSION;
 /// Hold the major parts of a standalone GSYM file.
 ///
 /// GsymContext provides functions to access major entities in GSYM.
-/// GsymContext can find respective AddressInfo for an address. But,
+/// GsymContext can find respective AddrInfo for an address. But,
 /// it doesn't parse [`AddrData`] to get line numbers.
 ///
 /// The developers should use [`parse_address_data()`],
 /// [`parse_line_table_header()`], and [`linetab::run_op()`] to get
-/// line number information from [`AddressInfo`].
+/// line number information from [`AddrInfo`].
 pub struct GsymContext<'a> {
     header: Header,
     addr_tab: &'a [u8],
@@ -158,7 +158,7 @@ impl<'a> GsymContext<'a> {
     /// Find the index of an entry in the address table potentially containing the
     /// given address.
     ///
-    /// Callers should check the `AddressInfo` object at the returned index to see
+    /// Callers should check the `AddrInfo` object at the returned index to see
     /// whether the symbol actually covers the provided address.
     pub fn find_address(&self, addr: Addr) -> Option<usize> {
         fn find_address_impl<T>(
@@ -201,13 +201,13 @@ impl<'a> GsymContext<'a> {
         Some(self.header.base_address as Addr + address)
     }
 
-    /// Get the AddressInfo of an address given by an index.
-    pub fn addr_info(&self, idx: usize) -> Option<AddressInfo> {
+    /// Get the AddrInfo of an address given by an index.
+    pub fn addr_info(&self, idx: usize) -> Option<AddrInfo> {
         let offset = *self.addr_data_off_tab.get(idx)?;
         let mut data = self.raw_data.get(offset as usize..)?;
         let size = data.read_u32()?;
         let name = data.read_u32()?;
-        let info = AddressInfo { size, name, data };
+        let info = AddrInfo { size, name, data };
 
         Some(info)
     }
@@ -241,11 +241,11 @@ impl<'a> GsymContext<'a> {
 ///
 /// [`AddrData`] objects are items following [`AndressInfo`].
 /// [`GsymContext::addr_info()`] returns the raw data of [`AddrData`] objects as
-/// a slice at [`AddressInfo::data`].
+/// a slice at [`AddrInfo::data`].
 ///
 /// # Arguments
 ///
-/// * `data` - is the slice from AddressInfo::data.
+/// * `data` - is the slice from AddrInfo::data.
 pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddrData>> {
     let mut data_objs = vec![];
 
@@ -275,9 +275,9 @@ pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddrData>> {
 /// Parse [`AddrData`] of type [`InfoTypeLineTableInfo`].
 ///
 /// An `AddrData` of `InfoTypeLineTableInfo` type is a table of line numbers for
-/// a symbol. `AddrData` is the payload of `AddressInfo`. One `AddressInfo` may
+/// a symbol. `AddrData` is the payload of `AddrInfo`. One `AddrInfo` may
 /// have several `AddrData` entries in its payload. Each `AddrData` entry stores
-/// a type of data relates to the symbol the `AddressInfo` presents.
+/// a type of data relates to the symbol the `AddrInfo` presents.
 ///
 /// # Arguments
 ///

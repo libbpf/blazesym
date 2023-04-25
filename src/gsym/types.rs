@@ -26,7 +26,7 @@ pub struct FileInfo {
 // SAFETY: `FileInfo` is valid for any bit pattern.
 unsafe impl Pod for FileInfo {}
 
-pub struct AddressInfo<'a> {
+pub struct AddrInfo<'a> {
     pub size: u32,
     pub name: u32,
     /// The raw data comprises a list of [`AddrData`].
