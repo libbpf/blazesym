@@ -74,7 +74,7 @@ pub struct GsymContext<'a> {
     raw_data: &'a [u8],
 }
 
-impl<'a> GsymContext<'a> {
+impl GsymContext<'_> {
     /// Parse the Header of a standalone GSYM file.
     ///
     /// # Arguments
