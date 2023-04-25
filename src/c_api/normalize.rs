@@ -11,6 +11,7 @@ use std::ptr;
 use std::slice;
 
 use crate::log::error;
+use crate::normalize::normalize_user_addrs;
 use crate::normalize::normalize_user_addrs_sorted;
 use crate::normalize::Binary;
 use crate::normalize::NormalizedUserAddrs;
@@ -244,6 +245,37 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 /// The `addrs` array has to be sorted in ascending order. `pid` should
 /// describe the PID of the process to which the addresses belong. It
 /// may be `0` if they belong to the calling process.
+///
+/// C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
+/// error. The resulting object should be free using [`blaze_free_user_addrs`].
+///
+/// # Safety
+/// Callers need to pass in a valid `addrs` pointer, pointing to memory of
+/// `addr_count` addresses.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_normalize_user_addrs(
+    addrs: *const Addr,
+    addr_count: usize,
+    pid: u32,
+) -> *mut blaze_normalized_user_addrs {
+    // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
+    //         that it points to `addr_count` elements.
+    let addrs = unsafe { slice_from_user_array(addrs, addr_count) };
+    let result = normalize_user_addrs(addrs, pid);
+    match result {
+        Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
+        Err(err) => {
+            error!("failed to normalize user addresses: {err}");
+            ptr::null_mut()
+        }
+    }
+}
+
+
+/// Normalize a list of user space addresses.
+///
+/// `pid` should describe the PID of the process to which the addresses belong.
+/// It may be `0` if they belong to the calling process.
 ///
 /// C ABI compatible version of [`normalize_user_addrs_sorted`]. Returns `NULL`
 /// on error. The resulting object should be free using
