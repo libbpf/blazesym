@@ -5,7 +5,7 @@ use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
 use blazesym::cfg;
-use blazesym::normalize::normalize_user_addrs;
+use blazesym::normalize::normalize_user_addrs_sorted;
 use blazesym::Addr;
 use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
@@ -174,7 +174,7 @@ fn normalize_user_address() {
     let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
     assert!(!the_answer_addr.is_null());
 
-    let norm_addrs = normalize_user_addrs([the_answer_addr as Addr].as_slice(), 0).unwrap();
+    let norm_addrs = normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), 0).unwrap();
     assert_eq!(norm_addrs.addrs.len(), 1);
     assert_eq!(norm_addrs.meta.len(), 1);
 

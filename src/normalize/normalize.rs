@@ -186,7 +186,7 @@ impl NormalizedUserAddrs {
 ///
 /// Normalized addresses are reported in the exact same order in which the
 /// non-normalized ones were provided.
-pub fn normalize_user_addrs(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAddrs> {
+pub fn normalize_user_addrs_sorted(addrs: &[Addr], pid: u32) -> Result<NormalizedUserAddrs> {
     let pid = Pid::from(pid);
 
     let mut entries = maps::parse(pid)?.filter_map(|result| match result {
@@ -311,7 +311,7 @@ mod tests {
         let () = addrs.sort();
         let () = addrs.swap(0, 1);
 
-        let err = normalize_user_addrs(addrs.as_slice(), 0).unwrap_err();
+        let err = normalize_user_addrs_sorted(addrs.as_slice(), 0).unwrap_err();
         assert!(err.to_string().contains("are not sorted"), "{err}");
     }
 
@@ -322,7 +322,7 @@ mod tests {
         // mapped, so use addresses from there.
         let addrs = [0x500 as Addr, 0x600 as Addr];
 
-        let norm_addrs = normalize_user_addrs(addrs.as_slice(), 0).unwrap();
+        let norm_addrs = normalize_user_addrs_sorted(addrs.as_slice(), 0).unwrap();
         assert_eq!(norm_addrs.addrs.len(), 2);
         assert_eq!(norm_addrs.meta.len(), 1);
         assert_eq!(norm_addrs.meta[0], Unknown::default().into());
@@ -349,7 +349,7 @@ mod tests {
             .find(|(_idx, addr)| **addr == libc::__errno_location as Addr)
             .unwrap();
 
-        let norm_addrs = normalize_user_addrs(addrs.as_slice(), 0).unwrap();
+        let norm_addrs = normalize_user_addrs_sorted(addrs.as_slice(), 0).unwrap();
         assert_eq!(norm_addrs.addrs.len(), 6);
 
         let addrs = &norm_addrs.addrs;
@@ -395,7 +395,8 @@ mod tests {
         let answer = the_answer_fn();
         assert_eq!(answer, 42);
 
-        let norm_addrs = normalize_user_addrs([the_answer_addr as Addr].as_slice(), 0).unwrap();
+        let norm_addrs =
+            normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), 0).unwrap();
         assert_eq!(norm_addrs.addrs.len(), 1);
         assert_eq!(norm_addrs.meta.len(), 1);
 

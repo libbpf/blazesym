@@ -11,7 +11,7 @@ use std::ptr;
 use std::slice;
 
 use crate::log::error;
-use crate::normalize::normalize_user_addrs;
+use crate::normalize::normalize_user_addrs_sorted;
 use crate::normalize::Binary;
 use crate::normalize::NormalizedUserAddrs;
 use crate::normalize::Unknown;
@@ -241,17 +241,19 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 
 /// Normalize a list of user space addresses.
 ///
-/// `pid` should describe the PID of the process to which the addresses belong.
-/// It may be `0` if they belong to the calling process.
+/// The `addrs` array has to be sorted in ascending order. `pid` should
+/// describe the PID of the process to which the addresses belong. It
+/// may be `0` if they belong to the calling process.
 ///
-/// C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
-/// error. The resulting object should be free using [`blaze_free_user_addrs`].
+/// C ABI compatible version of [`normalize_user_addrs_sorted`]. Returns `NULL`
+/// on error. The resulting object should be free using
+/// [`blaze_free_user_addrs`].
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
 /// `addr_count` addresses.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_normalize_user_addrs(
+pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     addrs: *const Addr,
     addr_count: usize,
     pid: u32,
@@ -259,7 +261,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_count` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_count) };
-    let result = normalize_user_addrs(addrs, pid);
+    let result = normalize_user_addrs_sorted(addrs, pid);
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
         Err(err) => {
@@ -273,7 +275,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 ///
 /// # Safety
 /// The provided object should have been created by
-/// [`blaze_normalize_user_addrs`].
+/// [`blaze_normalize_user_addrs_sorted`].
 #[no_mangle]
 pub unsafe extern "C" fn blaze_free_user_addrs(addrs: *mut blaze_normalized_user_addrs) {
     if addrs.is_null() {
@@ -281,7 +283,7 @@ pub unsafe extern "C" fn blaze_free_user_addrs(addrs: *mut blaze_normalized_user
     }
 
     // SAFETY: The caller should make sure that `addrs` was created by
-    //         `blaze_normalize_user_addrs`.
+    //         `blaze_normalize_user_addrs_sorted`.
     let user_addrs = unsafe { Box::from_raw(addrs) };
     let addr_metas = unsafe {
         Box::<[blaze_user_addr_meta]>::from_raw(slice::from_raw_parts_mut(

@@ -8,7 +8,7 @@ use std::ptr;
 use std::slice;
 
 use blazesym::c_api::blaze_free_user_addrs;
-use blazesym::c_api::blaze_normalize_user_addrs;
+use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blazesym_feature;
 use blazesym::c_api::blazesym_feature_name;
 use blazesym::c_api::blazesym_feature_params;
@@ -170,7 +170,8 @@ fn normalize_user_addrs() {
     ];
     let () = addrs.sort();
 
-    let result = unsafe { blaze_normalize_user_addrs(addrs.as_slice().as_ptr(), addrs.len(), 0) };
+    let result =
+        unsafe { blaze_normalize_user_addrs_sorted(addrs.as_slice().as_ptr(), addrs.len(), 0) };
     assert_ne!(result, ptr::null_mut());
 
     let user_addrs = unsafe { &*result };
