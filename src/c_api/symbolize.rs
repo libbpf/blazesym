@@ -471,22 +471,19 @@ unsafe fn convert_symbolizedresults_to_c(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_symbolize(
     symbolizer: *mut blazesym,
-    sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: usize,
+    cfg: *const blazesym_sym_src_cfg,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
-    // SAFETY: The caller ensures that the pointer is valid and the count
-    //         matches.
-    let sym_srcs = unsafe { slice_from_user_array(sym_srcs, sym_srcs_len) };
-    let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
+    // SAFETY: The caller ensures that the pointer is valid.
+    let cfg = SymbolSrcCfg::from(unsafe { &*cfg });
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
     let addresses = unsafe { slice_from_user_array(addrs, addr_cnt) };
 
-    let result = symbolizer.symbolize(&sym_srcs, addresses);
+    let result = symbolizer.symbolize(&cfg, addresses);
 
     match result {
         Ok(results) if results.is_empty() => {
@@ -805,18 +802,15 @@ impl From<&blazesym_faddr_feature> for FindAddrFeature {
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_address_regex_opt(
     symbolizer: *mut blazesym,
-    sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: usize,
+    cfg: *const blazesym_sym_src_cfg,
     pattern: *const c_char,
     features: *const blazesym_faddr_feature,
     num_features: usize,
 ) -> *const blazesym_sym_info {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
-    // SAFETY: The caller ensures that the pointer is valid and the count
-    //         matches.
-    let sym_srcs = unsafe { slice_from_user_array(sym_srcs, sym_srcs_len) };
-    let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
+    // SAFETY: The caller ensures that the pointer is valid.
+    let cfg = SymbolSrcCfg::from(unsafe { &*cfg });
 
     let pattern = unsafe { CStr::from_ptr(pattern) };
     // SAFETY: The caller ensures that the pointer is valid and the count
@@ -826,7 +820,7 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
         .iter()
         .map(FindAddrFeature::from)
         .collect::<Vec<_>>();
-    let syms = symbolizer.find_address_regex_opt(&sym_srcs, pattern.to_str().unwrap(), &features);
+    let syms = symbolizer.find_address_regex_opt(&cfg, pattern.to_str().unwrap(), &features);
 
     if syms.is_none() {
         return ptr::null_mut()
@@ -847,13 +841,10 @@ pub unsafe extern "C" fn blazesym_find_address_regex_opt(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_address_regex(
     symbolizer: *mut blazesym,
-    sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: usize,
+    cfg: *const blazesym_sym_src_cfg,
     pattern: *const c_char,
 ) -> *const blazesym_sym_info {
-    unsafe {
-        blazesym_find_address_regex_opt(symbolizer, sym_srcs, sym_srcs_len, pattern, ptr::null(), 0)
-    }
+    unsafe { blazesym_find_address_regex_opt(symbolizer, cfg, pattern, ptr::null(), 0) }
 }
 
 /// Free an array returned by blazesym_find_addr_regex() or
@@ -889,8 +880,7 @@ pub unsafe extern "C" fn blazesym_syms_free(syms: *const blazesym_sym_info) {
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_addresses_opt(
     symbolizer: *mut blazesym,
-    sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: usize,
+    cfg: *const blazesym_sym_src_cfg,
     names: *const *const c_char,
     name_cnt: usize,
     features: *const blazesym_faddr_feature,
@@ -898,10 +888,8 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
 ) -> *const *const blazesym_sym_info {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
-    // SAFETY: The caller ensures that the pointer is valid and the count
-    //         matches.
-    let sym_srcs = unsafe { slice_from_user_array(sym_srcs, sym_srcs_len) };
-    let sym_srcs = sym_srcs.iter().map(SymbolSrcCfg::from).collect::<Vec<_>>();
+    // SAFETY: The caller ensures that the pointer is valid.
+    let cfg = SymbolSrcCfg::from(unsafe { &*cfg });
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
     let names = unsafe { slice_from_user_array(names, name_cnt) };
@@ -920,7 +908,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
         .map(FindAddrFeature::from)
         .collect::<Vec<_>>();
 
-    let result = symbolizer.find_addresses_opt(&sym_srcs, &names, &features);
+    let result = symbolizer.find_addresses_opt(&cfg, &names, &features);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
         Err(_err) => {
@@ -942,22 +930,11 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_find_addresses(
     symbolizer: *mut blazesym,
-    sym_srcs: *const blazesym_sym_src_cfg,
-    sym_srcs_len: usize,
+    cfg: *const blazesym_sym_src_cfg,
     names: *const *const c_char,
     name_cnt: usize,
 ) -> *const *const blazesym_sym_info {
-    unsafe {
-        blazesym_find_addresses_opt(
-            symbolizer,
-            sym_srcs,
-            sym_srcs_len,
-            names,
-            name_cnt,
-            ptr::null(),
-            0,
-        )
-    }
+    unsafe { blazesym_find_addresses_opt(symbolizer, cfg, names, name_cnt, ptr::null(), 0) }
 }
 
 /// Free an array returned by [`blazesym_find_addresses`].

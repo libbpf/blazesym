@@ -32,9 +32,9 @@ fn main() {
     }
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
-    let sym_files = [SymbolSrcCfg::Process(cfg::Process { pid: Some(pid) })];
+    let cfg = SymbolSrcCfg::Process(cfg::Process { pid: Some(pid) });
     let resolver = BlazeSymbolizer::new().unwrap();
-    let symlist = resolver.symbolize(&sym_files, &[addr]).unwrap();
+    let symlist = resolver.symbolize(&cfg, &[addr]).unwrap();
     if !symlist[0].is_empty() {
         let SymbolizedResult {
             symbol,

@@ -59,17 +59,8 @@ fn symbolizer_creation_with_features() {
 fn symbolize_from_file() {
     fn test(cfg: blazesym_sym_src_cfg) {
         let symbolizer = unsafe { blazesym_new() };
-        let srcs = [cfg];
         let addrs = [0x2000100];
-        let result = unsafe {
-            blazesym_symbolize(
-                symbolizer,
-                srcs.as_ptr(),
-                srcs.len(),
-                addrs.as_ptr(),
-                addrs.len(),
-            )
-        };
+        let result = unsafe { blazesym_symbolize(symbolizer, &cfg, addrs.as_ptr(), addrs.len()) };
 
         assert!(!result.is_null());
 
@@ -145,23 +136,15 @@ fn lookup_dwarf() {
         file_name: test_dwarf_c.as_ptr(),
         base_address: 0,
     });
-    let srcs = [blazesym_sym_src_cfg {
+    let cfg = blazesym_sym_src_cfg {
         src_type: blazesym_src_type::BLAZESYM_SRC_T_ELF,
         params: blazesym_ssc_params { elf: elf_src },
-    }];
+    };
 
     let factorial = CString::new("factorial").unwrap();
     let names = [factorial.as_ptr()];
 
-    let result = unsafe {
-        blazesym_find_addresses(
-            symbolizer,
-            srcs.as_ptr(),
-            srcs.len(),
-            names.as_ptr(),
-            names.len(),
-        )
-    };
+    let result = unsafe { blazesym_find_addresses(symbolizer, &cfg, names.as_ptr(), names.len()) };
     let sym_infos = unsafe { slice::from_raw_parts(result, names.len()) };
     let sym_info = unsafe { &*sym_infos[0] };
     assert_eq!(

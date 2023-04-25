@@ -526,8 +526,7 @@ void blazesym_free(blazesym *symbolizer);
  * The returned pointer should be freed by [`blazesym_result_free()`].
  */
 const struct blazesym_result *blazesym_symbolize(blazesym *symbolizer,
-                                                 const struct blazesym_sym_src_cfg *sym_srcs,
-                                                 size_t sym_srcs_len,
+                                                 const struct blazesym_sym_src_cfg *cfg,
                                                  const uintptr_t *addrs,
                                                  size_t addr_cnt);
 
@@ -556,8 +555,7 @@ void blazesym_result_free(const struct blazesym_result *results);
  * The returned pointer should be free by [`blazesym_syms_free()`].
  */
 const struct blazesym_sym_info *blazesym_find_address_regex_opt(blazesym *symbolizer,
-                                                                const struct blazesym_sym_src_cfg *sym_srcs,
-                                                                size_t sym_srcs_len,
+                                                                const struct blazesym_sym_src_cfg *cfg,
                                                                 const char *pattern,
                                                                 const struct blazesym_faddr_feature *features,
                                                                 size_t num_features);
@@ -574,8 +572,7 @@ const struct blazesym_sym_info *blazesym_find_address_regex_opt(blazesym *symbol
  * The returned pointer should be free by [`blazesym_syms_free()`].
  */
 const struct blazesym_sym_info *blazesym_find_address_regex(blazesym *symbolizer,
-                                                            const struct blazesym_sym_src_cfg *sym_srcs,
-                                                            size_t sym_srcs_len,
+                                                            const struct blazesym_sym_src_cfg *cfg,
                                                             const char *pattern);
 
 /**
@@ -604,8 +601,7 @@ void blazesym_syms_free(const struct blazesym_sym_info *syms);
  * The returned pointer should be free by [`blazesym_syms_list_free()`].
  */
 const struct blazesym_sym_info *const *blazesym_find_addresses_opt(blazesym *symbolizer,
-                                                                   const struct blazesym_sym_src_cfg *sym_srcs,
-                                                                   size_t sym_srcs_len,
+                                                                   const struct blazesym_sym_src_cfg *cfg,
                                                                    const char *const *names,
                                                                    size_t name_cnt,
                                                                    const struct blazesym_faddr_feature *features,
@@ -621,8 +617,7 @@ const struct blazesym_sym_info *const *blazesym_find_addresses_opt(blazesym *sym
  * The returned data should be free by [`blazesym_syms_list_free()`].
  */
 const struct blazesym_sym_info *const *blazesym_find_addresses(blazesym *symbolizer,
-                                                               const struct blazesym_sym_src_cfg *sym_srcs,
-                                                               size_t sym_srcs_len,
+                                                               const struct blazesym_sym_src_cfg *cfg,
                                                                const char *const *names,
                                                                size_t name_cnt);
 

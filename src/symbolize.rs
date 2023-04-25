@@ -312,13 +312,13 @@ impl BlazeSymbolizer {
     /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
     pub fn find_address_regex_opt(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         pattern: &str,
         features: &[FindAddrFeature],
     ) -> Option<Vec<SymbolInfo>> {
         let ctx = Self::find_addr_features_context(features);
 
-        let resolver_map = match ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache) {
+        let resolver_map = match ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache) {
             Ok(map) => map,
             _ => return None,
         };
@@ -351,12 +351,8 @@ impl BlazeSymbolizer {
     ///
     /// * `sym_srcs` - A list of symbol and debug sources.
     /// * `pattern` - A regex pattern.
-    pub fn find_address_regex(
-        &self,
-        sym_srcs: &[SymbolSrcCfg],
-        pattern: &str,
-    ) -> Option<Vec<SymbolInfo>> {
-        self.find_address_regex_opt(sym_srcs, pattern, &[])
+    pub fn find_address_regex(&self, cfg: &SymbolSrcCfg, pattern: &str) -> Option<Vec<SymbolInfo>> {
+        self.find_address_regex_opt(cfg, pattern, &[])
     }
 
     /// Find the addresses of a list of symbol names.
@@ -373,13 +369,13 @@ impl BlazeSymbolizer {
     /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
     pub fn find_addresses_opt(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         names: &[&str],
         features: &[FindAddrFeature],
     ) -> Result<Vec<Vec<SymbolInfo>>> {
         let ctx = Self::find_addr_features_context(features);
 
-        let resolver_map = ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache)?;
+        let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
         let mut syms_list = vec![];
         for name in names {
             let mut found = vec![];
@@ -414,10 +410,10 @@ impl BlazeSymbolizer {
     /// * `names` - A list of symbol names.
     pub fn find_addresses(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         names: &[&str],
     ) -> Result<Vec<Vec<SymbolInfo>>> {
-        self.find_addresses_opt(sym_srcs, names, &[])
+        self.find_addresses_opt(cfg, names, &[])
     }
 
     /// Symbolize a list of addresses.
@@ -431,10 +427,10 @@ impl BlazeSymbolizer {
     /// * `addresses` - A list of addresses to symbolize.
     pub fn symbolize(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         addresses: &[Addr],
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
-        let resolver_map = ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache)?;
+        let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
 
         let info: Vec<Vec<SymbolizedResult>> = addresses
             .iter()

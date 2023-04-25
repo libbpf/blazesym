@@ -40,13 +40,11 @@ sources, and line numbers of addresses involved in a process.
 
   let process_id: u32 = std::process::id(); // <some process id>
   // load all symbols of loaded files of the given process.
-  let sym_srcs = [
-    SymbolSrcCfg::Process(cfg::Process { pid: Some(process_id) })
-  ];
+  let cfg = SymbolSrcCfg::Process(cfg::Process { pid: Some(process_id) });
   let symbolizer = BlazeSymbolizer::new().unwrap();
 
-  let stack: [Addr; 2] = [0xff023, 0x17ff93b];    // Addresses of instructions
-  let symlist = symbolizer.symbolize(&sym_srcs,   // Pass this configuration every time
+  let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
+  let symlist = symbolizer.symbolize(&cfg,      // Pass this configuration every time
                                      &stack).unwrap();
   for i in 0..stack.len() {
     let address = stack[i];
@@ -72,12 +70,9 @@ sources, and line numbers of addresses involved in a process.
   }
 ```
 
-`sym_srcs` is a list of symbol sources in a process.
-However, there is only one `SymbolSrcCfg::Process {}` here.
-`SymbolSrcCfg::Process {}` is a convenient variant for loading all objects,
-i.e., binaries and shared libraries, mapped in a process.  Therefore, developers
-do not have to specify each object and its base address with
-`SymbolSrcCfg::Process {}`.
+`cfg` is the configuration to use when symbolizing addresses. The
+`SymbolSrcCfg::Process` variant used here instructs the symbolizer to use
+information about the provided process from the system.
 
 `symlist` is a list of lists of `SymbolizedResult`.  The instruction provided
 at an address can result from several lines of code from multiple
@@ -91,10 +86,10 @@ argument passed to [`BlazeSymbolizer::symbolize()`].
 `SymbolSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
 
 ```rust,ignore,compile_fail
-  let sym_srcs = [SymbolSrcCfg::Kernel(cfg::Kernel {
+  let cfg = SymbolSrcCfg::Kernel(cfg::Kernel {
     kallsyms: Some(PathBuf::from("/proc/kallsyms")),
     kernel_image: Some(PathBuf::from("/boot/vmlinux-xxxxx")),
-  })];
+  });
 ```
 
 In this case, you give the path of kallsyms and the path of a kernel image.
@@ -107,30 +102,8 @@ kallsyms and find the kernel image of the running kernel from several
 potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
 
 ```rust,ignore,compile_fail
-  let sym_srcs = [
-    SymbolSrcCfg::Kernel(cfg::Kernel { kallsyms: None, kernel_image: None })
-  ];
+  let cfg = SymbolSrcCfg::Kernel(cfg::Kernel { kallsyms: None, kernel_image: None });
 ```
-
-### A list of ELF files
-
-You can still provide a list of ELF files and their base addresses if necessary.
-
-```rust,ignore,compile_fail
-  let sym_srcs = [
-    SymbolSrcCfg::Elf(cfg::Elf {
-      file_name: PathBuf::from("/lib/libc.so.xxx"),
-      base_address: 0x1f005d,
-    }),
-    SymbolSrcCfg::Elf(cfg::Elf {
-      fie_name: PathBuf::from("/path/to/my/binary"),
-      base_address: 0x77777,
-    }),
-  ];
-```
-
-At the base address of an ELF file, its executable segment(s) is
-loaded.
 
 ### An example of Rust API
 
@@ -162,8 +135,9 @@ shows the addresses, symbol names, source filenames and line numbers.
 ```c
   #include "blazesym.h"
 
-  struct blazesym_sym_src_cfg sym_srcs[] = {
-    { BLAZESYM_SRC_T_PROCESS, .params = { .process { <pid> } } },
+  struct blazesym_sym_src_cfg cfg = {
+    .src_type = BLAZESYM_SRC_T_PROCESS,
+    .params = { .process { <pid> } },
   };
   const struct blazesym *symbolizer;
   const struct blazesym_result * result;
@@ -174,10 +148,8 @@ shows the addresses, symbol names, source filenames and line numbers.
   int i, j;
 
   symbolizer = blazesym_new();
-  /* sym_srcs should be passed every time doing symbolization */
-  result = blazesym_symbolize(symbolizer,
-                              sym_srcs, 1,
-                              stack, stack_sz);
+  /* `cfg` should be passed every time doing symbolization */
+  result = blazesym_symbolize(symbolizer, cfg, stack, stack_sz);
 
   for (i = 0; i < stack_sz; i++) {
     addr = stack[i];
@@ -236,9 +208,12 @@ blazesym_sym_src_cfg` highlighting the kernel as a source of
 symbolization.
 
 ```c
-struct blazesym_sym_src_cfg sym_srcs[] = {
-  { BLAZESYM_SRC_T_KERNEL, .params = { .kernel = { .kallsyms = "/proc/kallsyms",
-                                       .kernel_image = "/boot/vmlinux-XXXXX" } } },
+struct blazesym_sym_src_cfg cfg = {
+  .src_type = BLAZESYM_SRC_T_KERNEL,
+  .params = { .kernel = {
+    .kallsyms = "/proc/kallsyms",
+    .kernel_image = "/boot/vmlinux-XXXXX" }
+  },
 };
 ```
 
@@ -246,24 +221,6 @@ You can give `kallsyms` and `kernel_image` a `NULL`.  BlazeSym will
 locate them for the running kernel.  For example, by default, `kallsyms`
 is at `"/proc/kallsyms"`. Accordingly, the kernel image of the current
 kernel will be in `"/boot/"` or `"/usr/lib/debug/boot/"`.
-
-### A list of ELF files
-
-The [`blazesym_src_type::BLAZESYM_SRC_T_ELF`] variant of `struct
-blazesym_sym_src_cfg` provides the path of an ELF file and its base
-address. You can specify a list of ELF files and where they are loaded.
-
-
-```c
-struct blazesym_sym_src_cfg sym_srcs[] = {
-  { BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/lib/libc.so.xxx",
-                                    .base_address = 0x7fff31000 } } },
-  { BLAZESYM_SRC_T_ELF, .params = { .elf = { .file_name = "/path/to/a/binary",
-                                    .base_address = 0x1ff329000 } } },
-};
-```
-
-The base address of an ELF file is where its executable segment(s) is loaded.
 
 ### An example of C API
 
