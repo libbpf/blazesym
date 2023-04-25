@@ -43,7 +43,6 @@ nightly = []
 [[bench]]
 name = "main"
 harness = false
-required-features = ["generate-bench-files"]
 
 [dependencies]
 libc = "0.2.137"
