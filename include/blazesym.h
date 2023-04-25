@@ -456,9 +456,9 @@ typedef struct blazesym_faddr_feature {
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
  * `addr_count` addresses.
  */
-struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const uintptr_t *aAddrs,
-                                                               size_t aAddrCount,
-                                                               uint32_t aPid);
+struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const uintptr_t *addrs,
+                                                               size_t addr_count,
+                                                               uint32_t pid);
 
 /**
  * Free an object as returned by [`blaze_normalized_user_addrs`].
@@ -467,7 +467,7 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const uintptr_t *
  * The provided object should have been created by
  * [`blaze_normalize_user_addrs`].
  */
-void blaze_free_user_addrs(struct blaze_normalized_user_addrs *aAddrs);
+void blaze_free_user_addrs(struct blaze_normalized_user_addrs *addrs);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.
@@ -486,8 +486,8 @@ blazesym *blazesym_new(void);
  *
  * Free the pointer with [`blazesym_free()`].
  */
-blazesym *blazesym_new_opts(const struct blazesym_feature *aFeatures,
-                            size_t aNfeatures);
+blazesym *blazesym_new_opts(const struct blazesym_feature *features,
+                            size_t nfeatures);
 
 /**
  * Free an instance of blazesym a symbolizer for C API.
@@ -497,7 +497,7 @@ blazesym *blazesym_new_opts(const struct blazesym_feature *aFeatures,
  * The pointer must be returned by [`blazesym_new()`].
  *
  */
-void blazesym_free(blazesym *aSymbolizer);
+void blazesym_free(blazesym *symbolizer);
 
 /**
  * Symbolize addresses with the sources of symbols and debug info.
@@ -510,11 +510,11 @@ void blazesym_free(blazesym *aSymbolizer);
  *
  * The returned pointer should be freed by [`blazesym_result_free()`].
  */
-const struct blazesym_result *blazesym_symbolize(blazesym *aSymbolizer,
-                                                 const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                 size_t aSymSrcsLen,
-                                                 const uintptr_t *aAddrs,
-                                                 size_t aAddrCnt);
+const struct blazesym_result *blazesym_symbolize(blazesym *symbolizer,
+                                                 const struct blazesym_sym_src_cfg *sym_srcs,
+                                                 size_t sym_srcs_len,
+                                                 const uintptr_t *addrs,
+                                                 size_t addr_cnt);
 
 /**
  * Free an array returned by blazesym_symbolize.
@@ -524,7 +524,7 @@ const struct blazesym_result *blazesym_symbolize(blazesym *aSymbolizer,
  * The pointer must be returned by [`blazesym_symbolize()`].
  *
  */
-void blazesym_result_free(const struct blazesym_result *aResults);
+void blazesym_result_free(const struct blazesym_result *results);
 
 /**
  * Find the addresses of symbols matching a pattern.
@@ -540,12 +540,12 @@ void blazesym_result_free(const struct blazesym_result *aResults);
  *
  * The returned pointer should be free by [`blazesym_syms_free()`].
  */
-const struct blazesym_sym_info *blazesym_find_address_regex_opt(blazesym *aSymbolizer,
-                                                                const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                                size_t aSymSrcsLen,
-                                                                const char *aPattern,
-                                                                const struct blazesym_faddr_feature *aFeatures,
-                                                                size_t aNumFeatures);
+const struct blazesym_sym_info *blazesym_find_address_regex_opt(blazesym *symbolizer,
+                                                                const struct blazesym_sym_src_cfg *sym_srcs,
+                                                                size_t sym_srcs_len,
+                                                                const char *pattern,
+                                                                const struct blazesym_faddr_feature *features,
+                                                                size_t num_features);
 
 /**
  * Find the addresses of symbols matching a pattern.
@@ -558,10 +558,10 @@ const struct blazesym_sym_info *blazesym_find_address_regex_opt(blazesym *aSymbo
  *
  * The returned pointer should be free by [`blazesym_syms_free()`].
  */
-const struct blazesym_sym_info *blazesym_find_address_regex(blazesym *aSymbolizer,
-                                                            const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                            size_t aSymSrcsLen,
-                                                            const char *aPattern);
+const struct blazesym_sym_info *blazesym_find_address_regex(blazesym *symbolizer,
+                                                            const struct blazesym_sym_src_cfg *sym_srcs,
+                                                            size_t sym_srcs_len,
+                                                            const char *pattern);
 
 /**
  * Free an array returned by blazesym_find_addr_regex() or
@@ -572,7 +572,7 @@ const struct blazesym_sym_info *blazesym_find_address_regex(blazesym *aSymbolize
  * The `syms` pointer should have been allocated by one of the
  * `blazesym_find_address*` variants.
  */
-void blazesym_syms_free(const struct blazesym_sym_info *aSyms);
+void blazesym_syms_free(const struct blazesym_sym_info *syms);
 
 /**
  * Find the addresses of a list of symbols.
@@ -588,13 +588,13 @@ void blazesym_syms_free(const struct blazesym_sym_info *aSyms);
  *
  * The returned pointer should be free by [`blazesym_syms_list_free()`].
  */
-const struct blazesym_sym_info *const *blazesym_find_addresses_opt(blazesym *aSymbolizer,
-                                                                   const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                                   size_t aSymSrcsLen,
-                                                                   const char *const *aNames,
-                                                                   size_t aNameCnt,
-                                                                   const struct blazesym_faddr_feature *aFeatures,
-                                                                   size_t aNumFeatures);
+const struct blazesym_sym_info *const *blazesym_find_addresses_opt(blazesym *symbolizer,
+                                                                   const struct blazesym_sym_src_cfg *sym_srcs,
+                                                                   size_t sym_srcs_len,
+                                                                   const char *const *names,
+                                                                   size_t name_cnt,
+                                                                   const struct blazesym_faddr_feature *features,
+                                                                   size_t num_features);
 
 /**
  * Find addresses of a symbol name.
@@ -605,11 +605,11 @@ const struct blazesym_sym_info *const *blazesym_find_addresses_opt(blazesym *aSy
  *
  * The returned data should be free by [`blazesym_syms_list_free()`].
  */
-const struct blazesym_sym_info *const *blazesym_find_addresses(blazesym *aSymbolizer,
-                                                               const struct blazesym_sym_src_cfg *aSymSrcs,
-                                                               size_t aSymSrcsLen,
-                                                               const char *const *aNames,
-                                                               size_t aNameCnt);
+const struct blazesym_sym_info *const *blazesym_find_addresses(blazesym *symbolizer,
+                                                               const struct blazesym_sym_src_cfg *sym_srcs,
+                                                               size_t sym_srcs_len,
+                                                               const char *const *names,
+                                                               size_t name_cnt);
 
 /**
  * Free an array returned by [`blazesym_find_addresses`].
@@ -619,6 +619,6 @@ const struct blazesym_sym_info *const *blazesym_find_addresses(blazesym *aSymbol
  * The pointer must be returned by [`blazesym_find_addresses`].
  *
  */
-void blazesym_syms_list_free(const struct blazesym_sym_info *const *aSymsList);
+void blazesym_syms_list_free(const struct blazesym_sym_info *const *syms_list);
 
 #endif /* __blazesym_h_ */
