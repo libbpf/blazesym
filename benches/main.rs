@@ -1,5 +1,6 @@
 mod dwarf;
 mod gsym;
+mod normalize;
 
 use std::time::Duration;
 
@@ -16,6 +17,7 @@ fn benchmark(c: &mut Criterion) {
     group.significance_level(0.02);
     dwarf::benchmark(&mut group);
     gsym::benchmark(&mut group);
+    normalize::benchmark(&mut group);
 }
 
 criterion_group!(benches, benchmark);
