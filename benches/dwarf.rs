@@ -18,14 +18,14 @@ fn symbolize_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let sources = [SymbolSrcCfg::Elf(cfg::Elf {
+    let cfg = SymbolSrcCfg::Elf(cfg::Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
-    })];
+    });
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
 
     let results = symbolizer
-        .symbolize(&sources, &[0xffffffff8110ecb0])
+        .symbolize(&cfg, &[0xffffffff8110ecb0])
         .unwrap()
         .into_iter()
         .flatten()
@@ -45,14 +45,14 @@ fn lookup_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let sources = [SymbolSrcCfg::Elf(cfg::Elf {
+    let cfg = SymbolSrcCfg::Elf(cfg::Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
-    })];
+    });
 
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
-        .find_addresses(&sources, &["abort_creds"])
+        .find_addresses(&cfg, &["abort_creds"])
         .unwrap()
         .into_iter()
         .flatten()

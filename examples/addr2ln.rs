@@ -22,10 +22,10 @@ fn main() {
 
     let bin_name = &args[1];
     let mut addr_str = &args[2][..];
-    let sym_srcs = [SymbolSrcCfg::Elf(cfg::Elf {
+    let cfg = SymbolSrcCfg::Elf(cfg::Elf {
         file_name: path::PathBuf::from(bin_name),
         base_address: 0x0,
-    })];
+    });
     let resolver = BlazeSymbolizer::new().unwrap();
 
     if &addr_str[0..2] == "0x" {
@@ -34,7 +34,7 @@ fn main() {
     }
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
-    let results = resolver.symbolize(&sym_srcs, &[addr]).unwrap();
+    let results = resolver.symbolize(&cfg, &[addr]).unwrap();
     if results.len() == 1 && !results[0].is_empty() {
         let result = &results[0][0];
         println!(

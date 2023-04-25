@@ -312,13 +312,13 @@ impl BlazeSymbolizer {
     /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
     pub fn find_address_regex_opt(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         pattern: &str,
         features: &[FindAddrFeature],
     ) -> Option<Vec<SymbolInfo>> {
         let ctx = Self::find_addr_features_context(features);
 
-        let resolver_map = match ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache) {
+        let resolver_map = match ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache) {
             Ok(map) => map,
             _ => return None,
         };
@@ -351,12 +351,8 @@ impl BlazeSymbolizer {
     ///
     /// * `sym_srcs` - A list of symbol and debug sources.
     /// * `pattern` - A regex pattern.
-    pub fn find_address_regex(
-        &self,
-        sym_srcs: &[SymbolSrcCfg],
-        pattern: &str,
-    ) -> Option<Vec<SymbolInfo>> {
-        self.find_address_regex_opt(sym_srcs, pattern, &[])
+    pub fn find_address_regex(&self, cfg: &SymbolSrcCfg, pattern: &str) -> Option<Vec<SymbolInfo>> {
+        self.find_address_regex_opt(cfg, pattern, &[])
     }
 
     /// Find the addresses of a list of symbol names.
@@ -373,13 +369,13 @@ impl BlazeSymbolizer {
     /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
     pub fn find_addresses_opt(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         names: &[&str],
         features: &[FindAddrFeature],
     ) -> Result<Vec<Vec<SymbolInfo>>> {
         let ctx = Self::find_addr_features_context(features);
 
-        let resolver_map = ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache)?;
+        let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
         let mut syms_list = vec![];
         for name in names {
             let mut found = vec![];
@@ -414,10 +410,10 @@ impl BlazeSymbolizer {
     /// * `names` - A list of symbol names.
     pub fn find_addresses(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         names: &[&str],
     ) -> Result<Vec<Vec<SymbolInfo>>> {
-        self.find_addresses_opt(sym_srcs, names, &[])
+        self.find_addresses_opt(cfg, names, &[])
     }
 
     /// Symbolize a list of addresses.
@@ -431,10 +427,10 @@ impl BlazeSymbolizer {
     /// * `addresses` - A list of addresses to symbolize.
     pub fn symbolize(
         &self,
-        sym_srcs: &[SymbolSrcCfg],
+        cfg: &SymbolSrcCfg,
         addresses: &[Addr],
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
-        let resolver_map = ResolverMap::new(sym_srcs, &self.ksym_cache, &self.elf_cache)?;
+        let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
 
         let info: Vec<Vec<SymbolizedResult>> = addresses
             .iter()
@@ -492,72 +488,5 @@ impl BlazeSymbolizer {
             .collect();
 
         Ok(info)
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    use std::path::Path;
-
-    use test_log::test;
-
-
-    #[test]
-    fn load_symbolfilecfg_process() {
-        // Check if SymbolSrcCfg::Process expands to ELFResolvers.
-        let cfg = vec![SymbolSrcCfg::Process(cfg::Process { pid: None })];
-        let line_number_info = true;
-        let debug_info_symbols = false;
-        let ksym_cache = KSymCache::new();
-        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
-        let resolver_map = ResolverMap::new(&cfg, &ksym_cache, &elf_cache);
-        assert!(resolver_map.is_ok());
-        let resolver_map = resolver_map.unwrap();
-
-        let signatures: Vec<_> = resolver_map
-            .resolvers
-            .iter()
-            .map(|(_, resolver)| format!("{resolver:?}"))
-            .collect();
-        // ElfResolver for the binary itself.
-        assert!(signatures.iter().any(|x| x.contains("/blazesym")));
-        // ElfResolver for libc.
-        assert!(signatures.iter().any(|x| x.contains("/libc")));
-    }
-
-    #[test]
-    fn load_symbolfilecfg_processkernel() {
-        let kallsyms = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("kallsyms");
-
-        // Check if SymbolSrcCfg::Process & SymbolSrcCfg::Kernel expands to
-        // ELFResolvers and a KernelResolver.
-        let srcs = vec![
-            SymbolSrcCfg::Process(cfg::Process { pid: None }),
-            SymbolSrcCfg::Kernel(cfg::Kernel {
-                kallsyms: Some(kallsyms),
-                kernel_image: None,
-            }),
-        ];
-        let line_number_info = true;
-        let debug_info_symbols = false;
-        let ksym_cache = KSymCache::new();
-        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
-        let resolver_map = ResolverMap::new(&srcs, &ksym_cache, &elf_cache).unwrap();
-
-        let signatures: Vec<_> = resolver_map
-            .resolvers
-            .iter()
-            .map(|(_, resolver)| format!("{resolver:?}"))
-            .collect();
-        // ElfResolver for the binary itself.
-        assert!(signatures.iter().any(|x| x.contains("/blazesym")));
-        // ElfResolver for libc.
-        assert!(signatures.iter().any(|x| x.contains("/libc")));
-        assert!(signatures.iter().any(|x| x.contains("KernelResolver")));
     }
 }

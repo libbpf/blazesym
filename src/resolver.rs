@@ -157,7 +157,7 @@ impl ResolverMap {
     }
 
     pub fn new(
-        sym_srcs: &[SymbolSrcCfg],
+        sym_srcs: &[&SymbolSrcCfg],
         ksym_cache: &KSymCache,
         elf_cache: &ElfCache,
     ) -> Result<ResolverMap> {
