@@ -11,12 +11,12 @@ use crate::ksym::KSymCache;
 use crate::ksym::KALLSYMS;
 use crate::log;
 use crate::maps;
-use crate::maps::Pid;
 use crate::symbolize::AddrLineInfo;
 use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
 use crate::FindAddrOpts;
+use crate::Pid;
 use crate::SymbolInfo;
 use crate::SymbolSrcCfg;
 
