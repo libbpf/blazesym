@@ -1,5 +1,5 @@
 use blazesym::c_api;
-use blazesym::normalize::normalize_user_addrs;
+use blazesym::normalize::Normalizer;
 use blazesym::Addr;
 
 use criterion::measurement::Measurement;
@@ -17,7 +17,10 @@ fn normalize_process() {
     ];
     let () = addrs.sort();
 
-    let norm_addrs = normalize_user_addrs(addrs.as_slice(), 0).unwrap();
+    let normalizer = Normalizer::new();
+    let norm_addrs = normalizer
+        .normalize_user_addrs(addrs.as_slice(), 0)
+        .unwrap();
     assert_eq!(norm_addrs.addrs.len(), 5);
 }
 

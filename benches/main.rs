@@ -1,3 +1,5 @@
+#![allow(clippy::let_and_return, clippy::let_unit_value)]
+
 mod dwarf;
 mod gsym;
 mod normalize;

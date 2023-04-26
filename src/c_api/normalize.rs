@@ -11,13 +11,52 @@ use std::ptr;
 use std::slice;
 
 use crate::log::error;
-use crate::normalize::normalize_user_addrs;
 use crate::normalize::Binary;
 use crate::normalize::NormalizedUserAddrs;
+use crate::normalize::Normalizer;
 use crate::normalize::Unknown;
 use crate::normalize::UserAddrMeta;
 use crate::util::slice_from_user_array;
 use crate::Addr;
+
+
+/// An address normalizer.
+///
+/// It is returned by [`blaze_normalizer_new()`] and should be freed by
+/// [`blaze_normalizer_free()`].
+#[allow(non_camel_case_types)]
+pub type blaze_normalizer = Normalizer;
+
+
+/// Create an instance of a blazesym normalizer.
+///
+/// The returned pointer should be released using
+/// [`blaze_normalizer_free`] once it is no longer needed.
+#[no_mangle]
+pub extern "C" fn blaze_normalizer_new() -> *mut blaze_normalizer {
+    let normalizer = Normalizer::new();
+    let normalizer_box = Box::new(normalizer);
+    Box::into_raw(normalizer_box)
+}
+
+
+/// Free a blazesym normalizer.
+///
+/// Release resources associated with a normalizer as created by
+/// [`blaze_normalizer_new`], for example.
+///
+/// # Safety
+/// The provided normalizer should have been created by
+/// [`blaze_normalizer_new`].
+#[no_mangle]
+pub unsafe extern "C" fn blaze_normalizer_free(normalizer: *mut blaze_normalizer) {
+    if !normalizer.is_null() {
+        // SAFETY: The caller needs to ensure that `normalizer` is a
+        //         valid pointer.
+        drop(unsafe { Box::from_raw(normalizer) });
+    }
+}
+
 
 /// A normalized address along with an index into the associated
 /// [`blaze_user_addr_meta`] array (such as
@@ -252,14 +291,18 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 /// `addr_count` addresses.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs(
+    normalizer: *const blaze_normalizer,
     addrs: *const Addr,
     addr_count: usize,
     pid: u32,
 ) -> *mut blaze_normalized_user_addrs {
+    // SAFETY: The caller needs to ensure that `normalizer` is a valid
+    //         pointer.
+    let normalizer = unsafe { &*normalizer };
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_count` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_count) };
-    let result = normalize_user_addrs(addrs, pid);
+    let result = normalizer.normalize_user_addrs(addrs, pid);
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
         Err(err) => {

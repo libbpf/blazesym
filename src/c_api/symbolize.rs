@@ -249,7 +249,7 @@ pub struct blazesym_feature {
 /// It is returned by [`blazesym_new()`] and should be free by
 /// [`blazesym_free()`].
 #[allow(non_camel_case_types)]
-type blazesym = BlazeSymbolizer;
+pub type blazesym = BlazeSymbolizer;
 
 /// The result of symbolization of an address for C API.
 ///
