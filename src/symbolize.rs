@@ -1,12 +1,19 @@
 use std::fmt::Debug;
 use std::io::Result;
+use std::path::Path;
 use std::path::PathBuf;
 
 use crate::elf::ElfCache;
+use crate::elf::ElfResolver;
 use crate::ksym::KSymCache;
+use crate::normalize::Binary;
+use crate::normalize::NormalizedUserAddrs;
+use crate::normalize::Normalizer;
+use crate::normalize::UserAddrMeta;
 use crate::resolver::ResolverMap;
 use crate::Addr;
 use crate::FindAddrOpts;
+use crate::Pid;
 use crate::SymResolver;
 use crate::SymbolInfo;
 use crate::SymbolType;
@@ -25,6 +32,9 @@ pub mod cfg {
     use crate::Addr;
     use crate::Pid;
     use crate::SymbolSrcCfg;
+
+    #[cfg(doc)]
+    use super::BlazeSymbolizer;
 
 
     /// A single ELF file.
@@ -93,7 +103,12 @@ pub mod cfg {
     }
 
 
-    /// This one will be expended into all ELF files in a process.
+    /// Configuration for process based address symbolization.
+    ///
+    /// The corresponding addresses supplied to
+    /// [`BlazeSymbolizer::symbolize`] are expected to be absolute
+    /// addresses as valid within the process identified by the
+    /// [`pid`][Process::pid] member.
     #[derive(Clone, Debug)]
     pub struct Process {
         pub pid: Pid,
@@ -467,23 +482,65 @@ impl BlazeSymbolizer {
         }
     }
 
+    fn resolve_addr_in_binary(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
+        let backend = self.elf_cache.find(path)?;
+        let resolver = ElfResolver::new(path, 0, backend)?;
+        let symbols = self.symbolize_with_resolver(addr, &resolver);
+        Ok(symbols)
+    }
+
+    /// Symbolize the given list of user space addresses in the provided
+    /// process.
+    fn symbolize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<Vec<Vec<SymbolizedResult>>> {
+        // TODO: We don't really *need to* use the
+        //       `normalize_user_addrs` API here, which allocates a
+        //       bunch etc. Rather, we could use internal APIs to only
+        //       process necessary bits of proc maps as we go and while
+        //       we have addresses to symbolize left.
+        let normalizer = Normalizer::new();
+        let normalized = normalizer.normalize_user_addrs(addrs, pid)?;
+
+        let NormalizedUserAddrs {
+            addrs: norm_addrs,
+            meta: metas,
+        } = normalized;
+
+        let symbols = norm_addrs.into_iter().try_fold(
+            Vec::with_capacity(addrs.len()),
+            |mut all_symbols, (addr, meta_idx)| {
+                let meta = &metas[meta_idx];
+
+                match meta {
+                    UserAddrMeta::Binary(Binary { path, .. }) => {
+                        let symbols = self.resolve_addr_in_binary(addr, path)?;
+                        all_symbols.push(symbols);
+                    }
+                    UserAddrMeta::Unknown(_unknown) => all_symbols.push(Vec::new()),
+                }
+
+                Result::Ok(all_symbols)
+            },
+        )?;
+
+        Ok(symbols)
+    }
+
     /// Symbolize a list of addresses.
     ///
-    /// Symbolize a list of addresses with the information from the
-    /// sources of symbols and debug info described by `sym_srcs`.
-    ///
-    /// # Arguments
-    ///
-    /// * `sym_srcs` - A list of symbol and debug sources.
-    /// * `addresses` - A list of addresses to symbolize.
+    /// Symbolize a list of addresses according to the configuration
+    /// provided via `cfg`.
     pub fn symbolize(
         &self,
         cfg: &SymbolSrcCfg,
-        addresses: &[Addr],
+        addrs: &[Addr],
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
+        if let SymbolSrcCfg::Process(cfg::Process { pid }) = cfg {
+            return self.symbolize_user_addrs(addrs, *pid)
+        }
+
         let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
 
-        let info = addresses
+        let info = addrs
             .iter()
             .map(|addr| {
                 let resolver = if let Some(resolver) = resolver_map.find_resolver(*addr) {
