@@ -115,6 +115,18 @@ typedef enum blazesym_sym_type {
 typedef struct blazesym blazesym;
 
 /**
+ * A normalizer for addresses.
+ *
+ * Address normalization is the process of taking virtual absolute
+ * addresses as they are seen by, say, a process (which include
+ * relocation and process specific layout randomizations, among other
+ * things) and converting them to "normalized" virtual addresses as
+ * they are present in, say, an ELF binary or a DWARF debug info file,
+ * and one would be able to see them using tools such as readelf(1).
+ */
+typedef struct blaze_normalizer blaze_normalizer;
+
+/**
  * C compatible version of [`Binary`].
  */
 typedef struct blaze_user_addr_meta_binary {
@@ -459,20 +471,42 @@ typedef struct blazesym_faddr_feature {
 } blazesym_faddr_feature;
 
 /**
+ * Create an instance of a blazesym normalizer.
+ *
+ * The returned pointer should be released using
+ * [`blaze_normalizer_free`] once it is no longer needed.
+ */
+struct blaze_normalizer *blaze_normalizer_new(void);
+
+/**
+ * Free a blazesym normalizer.
+ *
+ * Release resources associated with a normalizer as created by
+ * [`blaze_normalizer_new`], for example.
+ *
+ * # Safety
+ * The provided normalizer should have been created by
+ * [`blaze_normalizer_new`].
+ */
+void blaze_normalizer_free(struct blaze_normalizer *normalizer);
+
+/**
  * Normalize a list of user space addresses.
  *
  * The `addrs` array has to be sorted in ascending order. `pid` should
  * describe the PID of the process to which the addresses belong. It
  * may be `0` if they belong to the calling process.
  *
- * C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
- * error. The resulting object should be free using [`blaze_free_user_addrs`].
+ * C ABI compatible version of [`Normalizer::normalize_user_addrs`].
+ * Returns `NULL` on error. The resulting object should be freed using
+ * [`blaze_free_user_addrs`].
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
  * `addr_count` addresses.
  */
-struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const uintptr_t *addrs,
+struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const struct blaze_normalizer *normalizer,
+                                                               const uintptr_t *addrs,
                                                                size_t addr_count,
                                                                uint32_t pid);
 
@@ -482,15 +516,16 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const uintptr_t *
  * `pid` should describe the PID of the process to which the addresses belong.
  * It may be `0` if they belong to the calling process.
  *
- * C ABI compatible version of [`normalize_user_addrs_sorted`]. Returns `NULL`
- * on error. The resulting object should be free using
+ * C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
+ * Returns `NULL` on error. The resulting object should be freed using
  * [`blaze_free_user_addrs`].
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
  * `addr_count` addresses.
  */
-struct blaze_normalized_user_addrs *blaze_normalize_user_addrs_sorted(const uintptr_t *addrs,
+struct blaze_normalized_user_addrs *blaze_normalize_user_addrs_sorted(const struct blaze_normalizer *normalizer,
+                                                                      const uintptr_t *addrs,
                                                                       size_t addr_count,
                                                                       uint32_t pid);
 
