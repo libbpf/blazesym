@@ -6,13 +6,9 @@ use crate::cfg;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
 use crate::gsym::GsymResolver;
-use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
-use crate::ksym::KALLSYMS;
-use crate::log;
 use crate::symbolize::AddrLineInfo;
 use crate::util;
-use crate::util::uname_release;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
@@ -65,80 +61,9 @@ impl ResolverMap {
         Ok(resolver)
     }
 
-    fn create_kernel_resolver(
-        cfg: &cfg::Kernel,
-        ksym_cache: &KSymCache,
-        elf_cache: &ElfCache,
-    ) -> Result<KernelResolver> {
-        let cfg::Kernel {
-            kallsyms,
-            kernel_image,
-        } = cfg;
-
-        let ksym_resolver = if let Some(kallsyms) = kallsyms {
-            let ksym_resolver = ksym_cache.get_resolver(kallsyms)?;
-            Some(ksym_resolver)
-        } else {
-            let kallsyms = Path::new(KALLSYMS);
-            let result = ksym_cache.get_resolver(kallsyms);
-            match result {
-                Ok(resolver) => Some(resolver),
-                Err(err) => {
-                    log::warn!(
-                        "failed to load kallsyms from {}: {err}; ignoring...",
-                        kallsyms.display()
-                    );
-                    None
-                }
-            }
-        };
-
-        let elf_resolver = if let Some(image) = kernel_image {
-            let backend = elf_cache.find(image)?;
-            let elf_resolver = ElfResolver::new(image, 0, backend)?;
-            Some(elf_resolver)
-        } else {
-            let release = uname_release()?.to_str().unwrap().to_string();
-            let basename = "vmlinux-";
-            let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
-            let kernel_image = dirs.iter().find_map(|dir| {
-                let path = dir.join(format!("{basename}{release}"));
-                path.exists().then_some(path)
-            });
-
-            if let Some(image) = kernel_image {
-                let result = elf_cache.find(&image);
-                match result {
-                    Ok(backend) => {
-                        let result = ElfResolver::new(&image, 0, backend);
-                        match result {
-                            Ok(resolver) => Some(resolver),
-                            Err(err) => {
-                                log::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
-                                None
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        log::warn!(
-                            "failed to load kernel image {}: {err}; ignoring...",
-                            image.display()
-                        );
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        };
-
-        let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
-        Ok(resolver)
-    }
-
     pub fn new(
         sym_srcs: &[&SymbolSrcCfg],
-        ksym_cache: &KSymCache,
+        _ksym_cache: &KSymCache,
         elf_cache: &ElfCache,
     ) -> Result<ResolverMap> {
         let mut resolvers = ResolverList::new();
@@ -148,9 +73,8 @@ impl ResolverMap {
                     let resolver = Self::create_elf_resolver(elf, elf_cache)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
-                SymbolSrcCfg::Kernel(kernel) => {
-                    let resolver = Self::create_kernel_resolver(kernel, ksym_cache, elf_cache)?;
-                    let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+                SymbolSrcCfg::Kernel(..) => {
+                    unreachable!()
                 }
                 SymbolSrcCfg::Process(..) => {
                     unreachable!()

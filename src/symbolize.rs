@@ -5,12 +5,16 @@ use std::path::PathBuf;
 
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
+use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
+use crate::ksym::KALLSYMS;
+use crate::log;
 use crate::normalize::Binary;
 use crate::normalize::NormalizedUserAddrs;
 use crate::normalize::Normalizer;
 use crate::normalize::UserAddrMeta;
 use crate::resolver::ResolverMap;
+use crate::util::uname_release;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::Pid;
@@ -525,6 +529,81 @@ impl BlazeSymbolizer {
         Ok(symbols)
     }
 
+    fn symbolize_kernel_addrs(
+        &self,
+        addrs: &[Addr],
+        cfg: &cfg::Kernel,
+    ) -> Result<Vec<Vec<SymbolizedResult>>> {
+        let cfg::Kernel {
+            kallsyms,
+            kernel_image,
+        } = cfg;
+
+        let ksym_resolver = if let Some(kallsyms) = kallsyms {
+            let ksym_resolver = self.ksym_cache.get_resolver(kallsyms)?;
+            Some(ksym_resolver)
+        } else {
+            let kallsyms = Path::new(KALLSYMS);
+            let result = self.ksym_cache.get_resolver(kallsyms);
+            match result {
+                Ok(resolver) => Some(resolver),
+                Err(err) => {
+                    log::warn!(
+                        "failed to load kallsyms from {}: {err}; ignoring...",
+                        kallsyms.display()
+                    );
+                    None
+                }
+            }
+        };
+
+        let elf_resolver = if let Some(image) = kernel_image {
+            let backend = self.elf_cache.find(image)?;
+            let elf_resolver = ElfResolver::new(image, 0, backend)?;
+            Some(elf_resolver)
+        } else {
+            let release = uname_release()?.to_str().unwrap().to_string();
+            let basename = "vmlinux-";
+            let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
+            let kernel_image = dirs.iter().find_map(|dir| {
+                let path = dir.join(format!("{basename}{release}"));
+                path.exists().then_some(path)
+            });
+
+            if let Some(image) = kernel_image {
+                let result = self.elf_cache.find(&image);
+                match result {
+                    Ok(backend) => {
+                        let result = ElfResolver::new(&image, 0, backend);
+                        match result {
+                            Ok(resolver) => Some(resolver),
+                            Err(err) => {
+                                log::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
+                                None
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        log::warn!(
+                            "failed to load kernel image {}: {err}; ignoring...",
+                            image.display()
+                        );
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        };
+
+        let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
+        let symbols = addrs
+            .iter()
+            .map(|addr| self.symbolize_with_resolver(*addr, &resolver))
+            .collect();
+        Ok(symbols)
+    }
+
     /// Symbolize a list of addresses.
     ///
     /// Symbolize a list of addresses according to the configuration
@@ -536,6 +615,9 @@ impl BlazeSymbolizer {
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
         if let SymbolSrcCfg::Process(cfg::Process { pid }) = cfg {
             return self.symbolize_user_addrs(addrs, *pid)
+        }
+        if let SymbolSrcCfg::Kernel(kernel) = cfg {
+            return self.symbolize_kernel_addrs(addrs, kernel)
         }
 
         let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
