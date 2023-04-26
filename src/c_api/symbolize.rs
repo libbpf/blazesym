@@ -28,7 +28,7 @@ use crate::SymbolizerFeature;
 
 /// Types of symbol sources and debug information for C API.
 #[repr(C)]
-#[allow(non_camel_case_types, unused)]
+#[allow(unused)]
 #[derive(Debug)]
 pub enum blazesym_src_type {
     /// Symbols and debug information from an ELF file.
@@ -205,7 +205,7 @@ impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
 
 /// Names of the BlazeSym features.
 #[repr(C)]
-#[allow(non_camel_case_types, unused)]
+#[allow(unused)]
 #[derive(Debug)]
 pub enum blazesym_feature_name {
     /// Enable or disable returning line numbers of addresses.
@@ -248,7 +248,6 @@ pub struct blazesym_feature {
 ///
 /// It is returned by [`blazesym_new()`] and should be free by
 /// [`blazesym_free()`].
-#[allow(non_camel_case_types)]
 pub type blazesym = BlazeSymbolizer;
 
 /// The result of symbolization of an address for C API.
@@ -701,7 +700,7 @@ fn convert_syms_to_c(syms: Vec<SymbolInfo>) -> *const blazesym_sym_info {
 /// This type is used to choice what type of symbols you like to find
 /// and indicate the types of symbols found.
 #[repr(C)]
-#[allow(non_camel_case_types, unused)]
+#[allow(unused)]
 #[derive(Copy, Clone, Debug)]
 pub enum blazesym_sym_type {
     /// You want to find a symbol of any type.
@@ -714,7 +713,7 @@ pub enum blazesym_sym_type {
 
 /// Feature names of looking up addresses of symbols.
 #[repr(C)]
-#[allow(non_camel_case_types, unused)]
+#[allow(unused)]
 #[derive(Debug)]
 pub enum blazesym_faf_type {
     /// Return the offset in the file. (enable)
