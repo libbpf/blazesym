@@ -12,9 +12,9 @@ use crate::elf::ElfParser;
 use crate::log::warn;
 use crate::maps;
 use crate::maps::PathMapsEntry;
-use crate::maps::Pid;
 use crate::util::ReadRaw as _;
 use crate::Addr;
+use crate::Pid;
 
 use super::meta::Binary;
 use super::meta::Unknown;

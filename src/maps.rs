@@ -1,6 +1,3 @@
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -8,34 +5,11 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read;
 use std::io::Result;
-use std::num::NonZeroU32;
 use std::ops::Range;
 use std::path::PathBuf;
 
 use crate::Addr;
-
-
-/// An enumeration identifying a process.
-#[derive(Clone, Copy, Debug)]
-pub(crate) enum Pid {
-    Slf,
-    Pid(NonZeroU32),
-}
-
-impl Display for Pid {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Self::Slf => write!(f, "self"),
-            Self::Pid(pid) => write!(f, "{pid}"),
-        }
-    }
-}
-
-impl From<u32> for Pid {
-    fn from(pid: u32) -> Self {
-        NonZeroU32::new(pid).map(Pid::Pid).unwrap_or(Pid::Slf)
-    }
-}
+use crate::Pid;
 
 
 #[derive(Debug, Eq, Hash, PartialEq)]
