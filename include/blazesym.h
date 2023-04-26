@@ -504,8 +504,9 @@ void blaze_normalizer_free(blaze_normalizer *normalizer);
  * `pid` should describe the PID of the process to which the addresses belong.
  * It may be `0` if they belong to the calling process.
  *
- * C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
- * error. The resulting object should be free using [`blaze_free_user_addrs`].
+ * C ABI compatible version of [`Normalizer::normalize_user_addrs`].
+ * Returns `NULL` on error. The resulting object should be free using
+ * [`blaze_user_addrs_free`].
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -523,7 +524,7 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const blaze_norma
  * The provided object should have been created by
  * [`blaze_normalize_user_addrs`].
  */
-void blaze_free_user_addrs(struct blaze_normalized_user_addrs *addrs);
+void blaze_user_addrs_free(struct blaze_normalized_user_addrs *addrs);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.

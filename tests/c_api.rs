@@ -7,10 +7,10 @@ use std::path::Path;
 use std::ptr;
 use std::slice;
 
-use blazesym::c_api::blaze_free_user_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs;
 use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
+use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_feature;
 use blazesym::c_api::blazesym_feature_name;
 use blazesym::c_api::blazesym_feature_params;
@@ -192,6 +192,6 @@ fn normalize_user_addrs() {
     assert_eq!(user_addrs.meta_count, 2);
     assert_eq!(user_addrs.addr_count, 5);
 
-    let () = unsafe { blaze_free_user_addrs(result) };
+    let () = unsafe { blaze_user_addrs_free(result) };
     let () = unsafe { blaze_normalizer_free(normalizer) };
 }

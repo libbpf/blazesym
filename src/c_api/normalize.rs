@@ -279,8 +279,9 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 /// `pid` should describe the PID of the process to which the addresses belong.
 /// It may be `0` if they belong to the calling process.
 ///
-/// C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
-/// error. The resulting object should be free using [`blaze_free_user_addrs`].
+/// C ABI compatible version of [`Normalizer::normalize_user_addrs`].
+/// Returns `NULL` on error. The resulting object should be free using
+/// [`blaze_user_addrs_free`].
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -314,7 +315,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 /// The provided object should have been created by
 /// [`blaze_normalize_user_addrs`].
 #[no_mangle]
-pub unsafe extern "C" fn blaze_free_user_addrs(addrs: *mut blaze_normalized_user_addrs) {
+pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user_addrs) {
     if addrs.is_null() {
         return
     }
