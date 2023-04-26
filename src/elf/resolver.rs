@@ -6,6 +6,7 @@ use std::io::ErrorKind;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::log::warn;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::FindAddrOpts;
@@ -110,14 +111,16 @@ impl SymResolver for ElfResolver {
     }
 
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
-        let off = addr - self.loaded_address + self.loaded_to_virt;
         let parser = self.get_parser();
 
-        match parser.find_symbol(off, STT_FUNC) {
+        match parser.find_symbol(addr, STT_FUNC) {
             Ok((name, start_addr)) => {
-                vec![(name, start_addr - self.loaded_to_virt + self.loaded_address)]
+                vec![(name, start_addr)]
             }
-            Err(_) => vec![],
+            Err(err) => {
+                warn!("no symbol found for address 0x{addr:x}: {err}");
+                vec![]
+            }
         }
     }
 

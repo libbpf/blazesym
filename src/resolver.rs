@@ -10,13 +10,11 @@ use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
 use crate::ksym::KALLSYMS;
 use crate::log;
-use crate::maps;
 use crate::symbolize::AddrLineInfo;
 use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
 use crate::FindAddrOpts;
-use crate::Pid;
 use crate::SymbolInfo;
 use crate::SymbolSrcCfg;
 
@@ -56,26 +54,6 @@ pub(crate) struct ResolverMap {
 }
 
 impl ResolverMap {
-    fn build_resolvers_proc_maps(
-        pid: Pid,
-        resolvers: &mut ResolverList,
-        elf_cache: &ElfCache,
-    ) -> Result<()> {
-        let entries = maps::parse(pid)?.filter_map(|result| match result {
-            Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
-            Err(err) => Some(Err(err)),
-        });
-
-        for entry in entries {
-            let entry = entry?;
-            let backend = elf_cache.find(&entry.path.symbolic_path)?;
-            let resolver = ElfResolver::new(&entry.path.maps_file, entry.range.start, backend)?;
-            let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
-        }
-
-        Ok(())
-    }
-
     fn create_elf_resolver(cfg: &cfg::Elf, elf_cache: &ElfCache) -> Result<ElfResolver> {
         let cfg::Elf {
             file_name,
@@ -174,8 +152,8 @@ impl ResolverMap {
                     let resolver = Self::create_kernel_resolver(kernel, ksym_cache, elf_cache)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
-                SymbolSrcCfg::Process(cfg::Process { pid }) => {
-                    let () = Self::build_resolvers_proc_maps(*pid, &mut resolvers, elf_cache)?;
+                SymbolSrcCfg::Process(..) => {
+                    unreachable!()
                 }
                 SymbolSrcCfg::Gsym(cfg::Gsym {
                     file_name,
