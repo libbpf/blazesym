@@ -220,12 +220,10 @@ impl Normalizer {
     ///
     /// Normalized addresses are reported in the exact same order in which the
     /// non-normalized ones were provided.
-    fn normalize_user_addrs_sorted_impl<A>(&self, addrs: A, pid: u32) -> Result<NormalizedUserAddrs>
+    fn normalize_user_addrs_sorted_impl<A>(&self, addrs: A, pid: Pid) -> Result<NormalizedUserAddrs>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
-        let pid = Pid::from(pid);
-
         let mut entries = maps::parse(pid)?.filter_map(|result| match result {
             Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
             Err(err) => Some(Err(err)),
@@ -329,7 +327,7 @@ impl Normalizer {
     pub fn normalize_user_addrs_sorted(
         &self,
         addrs: &[Addr],
-        pid: u32,
+        pid: Pid,
     ) -> Result<NormalizedUserAddrs> {
         self.normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid)
     }
@@ -341,7 +339,7 @@ impl Normalizer {
     /// [`Normalizer::normalize_user_addrs_sorted`], the provided
     /// `addrs` array does not have to be sorted, but otherwise the
     /// functions behave identically.
-    pub fn normalize_user_addrs(&self, addrs: &[Addr], pid: u32) -> Result<NormalizedUserAddrs> {
+    pub fn normalize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<NormalizedUserAddrs> {
         let mut addrs = addrs
             .iter()
             .enumerate()
@@ -420,7 +418,7 @@ mod tests {
 
         let normalizer = Normalizer::new();
         let err = normalizer
-            .normalize_user_addrs_sorted(addrs.as_slice(), 0)
+            .normalize_user_addrs_sorted(addrs.as_slice(), Pid::Slf)
             .unwrap_err();
         assert!(err.to_string().contains("are not sorted"), "{err}");
     }
@@ -434,7 +432,7 @@ mod tests {
 
         let normalizer = Normalizer::new();
         let norm_addrs = normalizer
-            .normalize_user_addrs_sorted(addrs.as_slice(), 0)
+            .normalize_user_addrs_sorted(addrs.as_slice(), Pid::Slf)
             .unwrap();
         assert_eq!(norm_addrs.addrs.len(), 2);
         assert_eq!(norm_addrs.meta.len(), 1);
@@ -463,7 +461,7 @@ mod tests {
 
         let normalizer = Normalizer::new();
         let norm_addrs = normalizer
-            .normalize_user_addrs(addrs.as_slice(), 0)
+            .normalize_user_addrs(addrs.as_slice(), Pid::Slf)
             .unwrap();
         assert_eq!(norm_addrs.addrs.len(), 6);
 
@@ -512,7 +510,7 @@ mod tests {
 
         let normalizer = Normalizer::new();
         let norm_addrs = normalizer
-            .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), 0)
+            .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
             .unwrap();
         assert_eq!(norm_addrs.addrs.len(), 1);
         assert_eq!(norm_addrs.meta.len(), 1);
