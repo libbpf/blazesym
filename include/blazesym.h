@@ -499,7 +499,7 @@ void blaze_normalizer_free(struct blaze_normalizer *normalizer);
  *
  * C ABI compatible version of [`Normalizer::normalize_user_addrs`].
  * Returns `NULL` on error. The resulting object should be freed using
- * [`blaze_free_user_addrs`].
+ * [`blaze_user_addrs_free`].
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -518,7 +518,7 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const struct blaz
  *
  * C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
  * Returns `NULL` on error. The resulting object should be freed using
- * [`blaze_free_user_addrs`].
+ * [`blaze_user_addrs_free`].
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -536,7 +536,7 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs_sorted(const stru
  * The provided object should have been created by
  * [`blaze_normalize_user_addrs_sorted`].
  */
-void blaze_free_user_addrs(struct blaze_normalized_user_addrs *addrs);
+void blaze_user_addrs_free(struct blaze_normalized_user_addrs *addrs);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.
