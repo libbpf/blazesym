@@ -70,7 +70,6 @@ impl From<(Addr, usize)> for blaze_normalized_addr {
 
 
 /// The valid variant kind in [`blaze_user_addr_meta`].
-#[allow(non_camel_case_types)]
 #[repr(C)]
 #[derive(Debug)]
 pub enum blaze_user_addr_meta_kind {
@@ -82,7 +81,6 @@ pub enum blaze_user_addr_meta_kind {
 
 
 /// C compatible version of [`Binary`].
-#[allow(non_camel_case_types)]
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_binary {
@@ -147,7 +145,6 @@ impl From<blaze_user_addr_meta_binary> for Binary {
 
 
 /// C compatible version of [`Unknown`].
-#[allow(non_camel_case_types)]
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_unknown {}
