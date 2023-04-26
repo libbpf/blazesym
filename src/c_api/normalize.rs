@@ -275,7 +275,7 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 ///
 /// C ABI compatible version of [`Normalizer::normalize_user_addrs`].
 /// Returns `NULL` on error. The resulting object should be freed using
-/// [`blaze_free_user_addrs`].
+/// [`blaze_user_addrs_free`].
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -311,7 +311,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 ///
 /// C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
 /// Returns `NULL` on error. The resulting object should be freed using
-/// [`blaze_free_user_addrs`].
+/// [`blaze_user_addrs_free`].
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -345,7 +345,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
 /// The provided object should have been created by
 /// [`blaze_normalize_user_addrs_sorted`].
 #[no_mangle]
-pub unsafe extern "C" fn blaze_free_user_addrs(addrs: *mut blaze_normalized_user_addrs) {
+pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user_addrs) {
     if addrs.is_null() {
         return
     }
