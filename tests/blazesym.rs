@@ -177,7 +177,7 @@ fn normalize_user_address() {
 
     let normalizer = Normalizer::new();
     let norm_addrs = normalizer
-        .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), 0)
+        .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
         .unwrap();
     assert_eq!(norm_addrs.addrs.len(), 1);
     assert_eq!(norm_addrs.meta.len(), 1);

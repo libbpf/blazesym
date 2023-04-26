@@ -19,7 +19,7 @@ fn normalize_process() {
 
     let normalizer = Normalizer::new();
     let norm_addrs = normalizer
-        .normalize_user_addrs_sorted(addrs.as_slice(), 0)
+        .normalize_user_addrs_sorted(addrs.as_slice(), 0.into())
         .unwrap();
     assert_eq!(norm_addrs.addrs.len(), 5);
 }
