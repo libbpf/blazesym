@@ -7,6 +7,7 @@ use crate::ksym::KSymCache;
 use crate::resolver::ResolverMap;
 use crate::Addr;
 use crate::FindAddrOpts;
+use crate::SymResolver;
 use crate::SymbolInfo;
 use crate::SymbolType;
 
@@ -416,6 +417,57 @@ impl BlazeSymbolizer {
         self.find_addresses_opt(cfg, names, &[])
     }
 
+    /// Symbolize an address using the provided [`SymResolver`].
+    fn symbolize_with_resolver(
+        &self,
+        addr: Addr,
+        resolver: &dyn SymResolver,
+    ) -> Vec<SymbolizedResult> {
+        let res_syms = resolver.find_symbols(addr);
+        let linfo = if self.line_number_info {
+            resolver.find_line_info(addr)
+        } else {
+            None
+        };
+        if res_syms.is_empty() {
+            if let Some(linfo) = linfo {
+                vec![SymbolizedResult {
+                    symbol: "".to_string(),
+                    start_address: 0,
+                    path: linfo.path,
+                    line_no: linfo.line_no,
+                    column: linfo.column,
+                }]
+            } else {
+                vec![]
+            }
+        } else {
+            let mut results = vec![];
+            for sym in res_syms {
+                if let Some(ref linfo) = linfo {
+                    let (sym, start) = sym;
+                    results.push(SymbolizedResult {
+                        symbol: String::from(sym),
+                        start_address: start,
+                        path: linfo.path.clone(),
+                        line_no: linfo.line_no,
+                        column: linfo.column,
+                    });
+                } else {
+                    let (sym, start) = sym;
+                    results.push(SymbolizedResult {
+                        symbol: String::from(sym),
+                        start_address: start,
+                        path: PathBuf::new(),
+                        line_no: 0,
+                        column: 0,
+                    });
+                }
+            }
+            results
+        }
+    }
+
     /// Symbolize a list of addresses.
     ///
     /// Symbolize a list of addresses with the information from the
@@ -432,7 +484,7 @@ impl BlazeSymbolizer {
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
         let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
 
-        let info: Vec<Vec<SymbolizedResult>> = addresses
+        let info = addresses
             .iter()
             .map(|addr| {
                 let resolver = if let Some(resolver) = resolver_map.find_resolver(*addr) {
@@ -441,49 +493,7 @@ impl BlazeSymbolizer {
                     return vec![]
                 };
 
-                let res_syms = resolver.find_symbols(*addr);
-                let linfo = if self.line_number_info {
-                    resolver.find_line_info(*addr)
-                } else {
-                    None
-                };
-                if res_syms.is_empty() {
-                    if let Some(linfo) = linfo {
-                        vec![SymbolizedResult {
-                            symbol: "".to_string(),
-                            start_address: 0,
-                            path: linfo.path,
-                            line_no: linfo.line_no,
-                            column: linfo.column,
-                        }]
-                    } else {
-                        vec![]
-                    }
-                } else {
-                    let mut results = vec![];
-                    for sym in res_syms {
-                        if let Some(ref linfo) = linfo {
-                            let (sym, start) = sym;
-                            results.push(SymbolizedResult {
-                                symbol: String::from(sym),
-                                start_address: start,
-                                path: linfo.path.clone(),
-                                line_no: linfo.line_no,
-                                column: linfo.column,
-                            });
-                        } else {
-                            let (sym, start) = sym;
-                            results.push(SymbolizedResult {
-                                symbol: String::from(sym),
-                                start_address: start,
-                                path: PathBuf::new(),
-                                line_no: 0,
-                                column: 0,
-                            });
-                        }
-                    }
-                    results
-                }
+                self.symbolize_with_resolver(*addr, resolver)
             })
             .collect();
 
