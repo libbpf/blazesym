@@ -186,9 +186,7 @@ impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
             blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
                 // SAFETY: `process` is the union variant used for `BLAZESYM_SRC_T_PROCESS`.
                 let pid = unsafe { cfg.params.process.pid };
-                SymbolSrcCfg::Process(cfg::Process {
-                    pid: if pid > 0 { Some(pid) } else { None },
-                })
+                SymbolSrcCfg::Process(cfg::Process { pid: pid.into() })
             }
             blazesym_src_type::BLAZESYM_SRC_T_GSYM => {
                 // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.

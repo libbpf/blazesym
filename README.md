@@ -40,7 +40,7 @@ sources, and line numbers of addresses involved in a process.
 
   let process_id: u32 = std::process::id(); // <some process id>
   // load all symbols of loaded files of the given process.
-  let cfg = SymbolSrcCfg::Process(cfg::Process { pid: Some(process_id) });
+  let cfg = SymbolSrcCfg::Process(cfg::Process { pid: process_id.into() });
   let symbolizer = BlazeSymbolizer::new().unwrap();
 
   let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
