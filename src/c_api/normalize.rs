@@ -11,14 +11,44 @@ use std::ptr;
 use std::slice;
 
 use crate::log::error;
-use crate::normalize::normalize_user_addrs;
-use crate::normalize::normalize_user_addrs_sorted;
 use crate::normalize::Binary;
 use crate::normalize::NormalizedUserAddrs;
+use crate::normalize::Normalizer;
 use crate::normalize::Unknown;
 use crate::normalize::UserAddrMeta;
 use crate::util::slice_from_user_array;
 use crate::Addr;
+
+
+/// Create an instance of a blazesym normalizer.
+///
+/// The returned pointer should be released using
+/// [`blaze_normalizer_free`] once it is no longer needed.
+#[no_mangle]
+pub extern "C" fn blaze_normalizer_new() -> *mut Normalizer {
+    let normalizer = Normalizer::new();
+    let normalizer_box = Box::new(normalizer);
+    Box::into_raw(normalizer_box)
+}
+
+
+/// Free a blazesym normalizer.
+///
+/// Release resources associated with a normalizer as created by
+/// [`blaze_normalizer_new`], for example.
+///
+/// # Safety
+/// The provided normalizer should have been created by
+/// [`blaze_normalizer_new`].
+#[no_mangle]
+pub unsafe extern "C" fn blaze_normalizer_free(normalizer: *mut Normalizer) {
+    if !normalizer.is_null() {
+        // SAFETY: The caller needs to ensure that `normalizer` is a
+        //         valid pointer.
+        drop(unsafe { Box::from_raw(normalizer) });
+    }
+}
+
 
 /// A normalized address along with an index into the associated
 /// [`blaze_user_addr_meta`] array (such as
@@ -246,22 +276,27 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 /// describe the PID of the process to which the addresses belong. It
 /// may be `0` if they belong to the calling process.
 ///
-/// C ABI compatible version of [`normalize_user_addrs`]. Returns `NULL` on
-/// error. The resulting object should be free using [`blaze_free_user_addrs`].
+/// C ABI compatible version of [`Normalizer::normalize_user_addrs`].
+/// Returns `NULL` on error. The resulting object should be freed using
+/// [`blaze_free_user_addrs`].
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
 /// `addr_count` addresses.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs(
+    normalizer: *const Normalizer,
     addrs: *const Addr,
     addr_count: usize,
     pid: u32,
 ) -> *mut blaze_normalized_user_addrs {
+    // SAFETY: The caller needs to ensure that `normalizer` is a valid
+    //         pointer.
+    let normalizer = unsafe { &*normalizer };
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_count` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_count) };
-    let result = normalize_user_addrs(addrs, pid);
+    let result = normalizer.normalize_user_addrs(addrs, pid);
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
         Err(err) => {
@@ -277,8 +312,8 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 /// `pid` should describe the PID of the process to which the addresses belong.
 /// It may be `0` if they belong to the calling process.
 ///
-/// C ABI compatible version of [`normalize_user_addrs_sorted`]. Returns `NULL`
-/// on error. The resulting object should be free using
+/// C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
+/// Returns `NULL` on error. The resulting object should be freed using
 /// [`blaze_free_user_addrs`].
 ///
 /// # Safety
@@ -286,14 +321,18 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 /// `addr_count` addresses.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
+    normalizer: *const Normalizer,
     addrs: *const Addr,
     addr_count: usize,
     pid: u32,
 ) -> *mut blaze_normalized_user_addrs {
+    // SAFETY: The caller needs to ensure that `normalizer` is a valid
+    //         pointer.
+    let normalizer = unsafe { &*normalizer };
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_count` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_count) };
-    let result = normalize_user_addrs_sorted(addrs, pid);
+    let result = normalizer.normalize_user_addrs_sorted(addrs, pid);
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
         Err(err) => {
