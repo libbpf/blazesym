@@ -5,10 +5,8 @@ use std::path::Path;
 use crate::cfg;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
-use crate::gsym::GsymResolver;
 use crate::ksym::KSymCache;
 use crate::symbolize::AddrLineInfo;
-use crate::util;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
@@ -79,31 +77,13 @@ impl ResolverMap {
                 SymbolSrcCfg::Process(..) => {
                     unreachable!()
                 }
-                SymbolSrcCfg::Gsym(cfg::Gsym {
-                    file_name,
-                    base_address,
-                }) => {
-                    let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
-                    let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
+                SymbolSrcCfg::Gsym(..) => {
+                    unreachable!()
                 }
             }
         }
         resolvers.sort_by_key(|x| x.0 .0); // sorted by the loaded addresses
 
         Ok(ResolverMap { resolvers })
-    }
-
-    pub fn find_resolver(&self, address: Addr) -> Option<&dyn SymResolver> {
-        let idx = util::find_match_or_lower_bound_by(&self.resolvers, address, |x| x.0 .0)?;
-        let (loaded_begin, loaded_end) = self.resolvers[idx].0;
-        if loaded_begin != loaded_end && address >= loaded_end {
-            // `begin == end` means this ELF file may have only
-            // symbols and debug information.  For this case, we
-            // always use this resolver if the given address is just
-            // above its loaded address.
-            None
-        } else {
-            Some(self.resolvers[idx].1.as_ref())
-        }
     }
 }

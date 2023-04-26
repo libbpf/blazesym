@@ -5,6 +5,7 @@ use std::path::PathBuf;
 
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
+use crate::gsym::GsymResolver;
 use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
 use crate::ksym::KALLSYMS;
@@ -486,6 +487,18 @@ impl BlazeSymbolizer {
         }
     }
 
+    /// Symbolize a list of addresses using the provided [`SymResolver`].
+    fn symbolize_addrs(
+        &self,
+        addrs: &[Addr],
+        resolver: &dyn SymResolver,
+    ) -> Vec<Vec<SymbolizedResult>> {
+        addrs
+            .iter()
+            .map(|addr| self.symbolize_with_resolver(*addr, resolver))
+            .collect()
+    }
+
     fn resolve_addr_in_binary(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
         let backend = self.elf_cache.find(path)?;
         let resolver = ElfResolver::new(path, 0, backend)?;
@@ -597,10 +610,7 @@ impl BlazeSymbolizer {
         };
 
         let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
-        let symbols = addrs
-            .iter()
-            .map(|addr| self.symbolize_with_resolver(*addr, &resolver))
-            .collect();
+        let symbols = self.symbolize_addrs(addrs, &resolver);
         Ok(symbols)
     }
 
@@ -613,28 +623,26 @@ impl BlazeSymbolizer {
         cfg: &SymbolSrcCfg,
         addrs: &[Addr],
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
-        if let SymbolSrcCfg::Process(cfg::Process { pid }) = cfg {
-            return self.symbolize_user_addrs(addrs, *pid)
+        match cfg {
+            SymbolSrcCfg::Elf(cfg::Elf {
+                file_name,
+                base_address,
+            }) => {
+                let backend = self.elf_cache.find(file_name)?;
+                let resolver = ElfResolver::new(file_name, *base_address, backend)?;
+                let symbols = self.symbolize_addrs(addrs, &resolver);
+                Ok(symbols)
+            }
+            SymbolSrcCfg::Kernel(kernel) => self.symbolize_kernel_addrs(addrs, kernel),
+            SymbolSrcCfg::Process(cfg::Process { pid }) => self.symbolize_user_addrs(addrs, *pid),
+            SymbolSrcCfg::Gsym(cfg::Gsym {
+                file_name,
+                base_address,
+            }) => {
+                let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
+                let symbols = self.symbolize_addrs(addrs, &resolver);
+                Ok(symbols)
+            }
         }
-        if let SymbolSrcCfg::Kernel(kernel) = cfg {
-            return self.symbolize_kernel_addrs(addrs, kernel)
-        }
-
-        let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
-
-        let info = addrs
-            .iter()
-            .map(|addr| {
-                let resolver = if let Some(resolver) = resolver_map.find_resolver(*addr) {
-                    resolver
-                } else {
-                    return vec![]
-                };
-
-                self.symbolize_with_resolver(*addr, resolver)
-            })
-            .collect();
-
-        Ok(info)
     }
 }
