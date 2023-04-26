@@ -8,6 +8,7 @@ use blazesym::cfg;
 use blazesym::normalize::Normalizer;
 use blazesym::Addr;
 use blazesym::BlazeSymbolizer;
+use blazesym::Pid;
 use blazesym::SymbolSrcCfg;
 use blazesym::SymbolizerFeature;
 
@@ -90,7 +91,7 @@ fn symbolize_dwarf() {
 /// Check that we can symbolize addresses inside our own process.
 #[test]
 fn symbolize_process() {
-    let cfg = SymbolSrcCfg::Process(cfg::Process { pid: None });
+    let cfg = SymbolSrcCfg::Process(cfg::Process { pid: Pid::Slf });
     let addrs = [symbolize_process as Addr, BlazeSymbolizer::new as Addr];
     let symbolizer = BlazeSymbolizer::new().unwrap();
     let results = symbolizer

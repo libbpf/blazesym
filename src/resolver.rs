@@ -175,8 +175,7 @@ impl ResolverMap {
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
                 SymbolSrcCfg::Process(cfg::Process { pid }) => {
-                    let pid = Pid::from(pid.unwrap_or(0));
-                    let () = Self::build_resolvers_proc_maps(pid, &mut resolvers, elf_cache)?;
+                    let () = Self::build_resolvers_proc_maps(*pid, &mut resolvers, elf_cache)?;
                 }
                 SymbolSrcCfg::Gsym(cfg::Gsym {
                     file_name,

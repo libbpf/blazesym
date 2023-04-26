@@ -22,8 +22,9 @@ pub struct AddrLineInfo {
 pub mod cfg {
     use std::path::PathBuf;
 
-    use super::Addr;
-    use super::SymbolSrcCfg;
+    use crate::Addr;
+    use crate::Pid;
+    use crate::SymbolSrcCfg;
 
 
     /// A single ELF file.
@@ -93,11 +94,9 @@ pub mod cfg {
 
 
     /// This one will be expended into all ELF files in a process.
-    ///
-    /// With a `None` value, it would mean a process calling BlazeSym.
     #[derive(Clone, Debug)]
     pub struct Process {
-        pub pid: Option<u32>,
+        pub pid: Pid,
     }
 
     impl From<Process> for SymbolSrcCfg {
