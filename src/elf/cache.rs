@@ -4,9 +4,11 @@ use std::io::Error;
 use std::num::NonZeroUsize;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
+#[cfg(feature = "lru")]
 use std::path::PathBuf;
 use std::rc::Rc;
 
+#[cfg(feature = "lru")]
 use lru::LruCache;
 
 use crate::dwarf::DwarfResolver;
@@ -93,6 +95,7 @@ impl ElfCacheEntry {
 
 #[derive(Debug)]
 struct _ElfCache {
+    #[cfg(feature = "lru")]
     cache: LruCache<PathBuf, ElfCacheEntry>,
     line_number_info: bool,
     debug_info_symbols: bool,
@@ -101,12 +104,14 @@ struct _ElfCache {
 impl _ElfCache {
     fn new(line_number_info: bool, debug_info_symbols: bool) -> _ElfCache {
         _ElfCache {
+            #[cfg(feature = "lru")]
             cache: LruCache::new(DFL_CACHE_MAX),
             line_number_info,
             debug_info_symbols,
         }
     }
 
+    #[cfg(feature = "lru")]
     fn find_or_create_backend(
         &mut self,
         file_name: &Path,
@@ -123,6 +128,17 @@ impl _ElfCache {
         let entry = ElfCacheEntry::new(file, self.line_number_info, self.debug_info_symbols)?;
         let backend = entry.get_backend();
         let _previous = self.cache.put(file_name.to_path_buf(), entry);
+        Ok(backend)
+    }
+
+    #[cfg(not(feature = "lru"))]
+    fn find_or_create_backend(
+        &mut self,
+        _file_name: &Path,
+        file: File,
+    ) -> Result<ElfBackend, Error> {
+        let entry = ElfCacheEntry::new(file, self.line_number_info, self.debug_info_symbols)?;
+        let backend = entry.get_backend();
         Ok(backend)
     }
 
