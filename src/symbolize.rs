@@ -318,63 +318,6 @@ impl BlazeSymbolizer {
         opts
     }
 
-    /// Find the addresses of the symbols matching a pattern.
-    ///
-    /// Find the addresses of the symbols matching a pattern from the sources
-    /// of symbols and debug info described by `sym_srcs`.
-    /// `find_address_regex_opt()` works just like `find_address_regex()` with
-    /// additional controls on features.
-    ///
-    /// # Arguments
-    ///
-    /// * `sym_srcs` - A list of symbol and debug sources.
-    /// * `pattern` - A regex pattern.
-    /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
-    pub fn find_address_regex_opt(
-        &self,
-        cfg: &SymbolSrcCfg,
-        pattern: &str,
-        features: &[FindAddrFeature],
-    ) -> Option<Vec<SymbolInfo>> {
-        let ctx = Self::find_addr_features_context(features);
-
-        let resolver_map = match ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache) {
-            Ok(map) => map,
-            _ => return None,
-        };
-        let mut syms = vec![];
-        for (_, resolver) in &resolver_map.resolvers {
-            for mut sym in resolver
-                .find_address_regex(pattern, &ctx)
-                .unwrap_or_default()
-            {
-                if ctx.offset_in_file {
-                    if let Some(off) = resolver.addr_file_off(sym.address) {
-                        sym.file_offset = off;
-                    }
-                }
-                if ctx.obj_file_name {
-                    sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
-                }
-                syms.push(sym);
-            }
-        }
-        Some(syms)
-    }
-
-    /// Find the addresses of the symbols matching a pattern.
-    ///
-    /// Find the addresses of the symbols matching a pattern from the sources
-    /// of symbols and debug info described by `sym_srcs`.
-    ///
-    /// # Arguments
-    ///
-    /// * `sym_srcs` - A list of symbol and debug sources.
-    /// * `pattern` - A regex pattern.
-    pub fn find_address_regex(&self, cfg: &SymbolSrcCfg, pattern: &str) -> Option<Vec<SymbolInfo>> {
-        self.find_address_regex_opt(cfg, pattern, &[])
-    }
-
     /// Find the addresses of a list of symbol names.
     ///
     /// Find the addresses of a list of symbol names from the sources

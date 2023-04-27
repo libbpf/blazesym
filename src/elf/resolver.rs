@@ -136,21 +136,6 @@ impl SymResolver for ElfResolver {
         Some(addr_res)
     }
 
-    fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
-        let syms = match &self.backend {
-            ElfBackend::Dwarf(dwarf) => dwarf.find_address_regex(pattern, opts),
-            ElfBackend::Elf(parser) => parser.find_address_regex(pattern, opts),
-        };
-        if syms.is_err() {
-            return None
-        }
-        let mut syms = syms.unwrap();
-        for sym in &mut syms {
-            sym.address = sym.address - self.loaded_to_virt + self.loaded_address;
-        }
-        Some(syms)
-    }
-
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             let (directory, file, line_no) = dwarf.find_line(addr)?;

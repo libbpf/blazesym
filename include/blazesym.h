@@ -595,52 +595,6 @@ const struct blazesym_result *blazesym_symbolize(blazesym *symbolizer,
 void blazesym_result_free(const struct blazesym_result *results);
 
 /**
- * Find the addresses of symbols matching a pattern.
- *
- * Return an array of `blazesym_sym_info` ending with an item having a null address.
- * input names.  The caller should free the returned array by calling
- * [`blazesym_syms_free()`].
- *
- * It works the same as [`blazesym_find_address_regex()`] with
- * additional controls on features.
- *
- * # Safety
- *
- * The returned pointer should be free by [`blazesym_syms_free()`].
- */
-const struct blazesym_sym_info *blazesym_find_address_regex_opt(blazesym *symbolizer,
-                                                                const struct blazesym_sym_src_cfg *cfg,
-                                                                const char *pattern,
-                                                                const struct blazesym_faddr_feature *features,
-                                                                size_t num_features);
-
-/**
- * Find the addresses of symbols matching a pattern.
- *
- * Return an array of `blazesym_sym_info` ending with an item having a null address.
- * input names.  The caller should free the returned array by calling
- * [`blazesym_syms_free()`].
- *
- * # Safety
- *
- * The returned pointer should be free by [`blazesym_syms_free()`].
- */
-const struct blazesym_sym_info *blazesym_find_address_regex(blazesym *symbolizer,
-                                                            const struct blazesym_sym_src_cfg *cfg,
-                                                            const char *pattern);
-
-/**
- * Free an array returned by blazesym_find_addr_regex() or
- * blazesym_find_addr_regex_opt().
- *
- * # Safety
- *
- * The `syms` pointer should have been allocated by one of the
- * `blazesym_find_address*` variants.
- */
-void blazesym_syms_free(const struct blazesym_sym_info *syms);
-
-/**
  * Find the addresses of a list of symbols.
  *
  * Return an array with the same size as the input names. The caller should

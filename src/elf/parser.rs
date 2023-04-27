@@ -494,52 +494,6 @@ impl ElfParser {
         }
     }
 
-    #[cfg(feature = "symbolize")]
-    pub(crate) fn find_address_regex(
-        &self,
-        pattern: &str,
-        opts: &FindAddrOpts,
-    ) -> Result<Vec<SymbolInfo>, Error> {
-        if let SymbolType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
-        }
-
-
-        let mut cache = self.cache.borrow_mut();
-        let () = cache.ensure_symtab()?;
-        let () = cache.ensure_str2symtab()?;
-        // SANITY: The above `ensure_symtab` ensures we have `symtab`
-        //         available.
-        let symtab = cache.symtab.as_ref().unwrap();
-        // SANITY: The above `ensure_str2symtab` ensures we have
-        //         `str2symtab` available.
-        let str2symtab = cache.str2symtab.as_ref().unwrap();
-
-        let re = regex::Regex::new(pattern).unwrap();
-        let mut syms = vec![];
-        for (sname, sym_i) in str2symtab {
-            if re.is_match(sname) {
-                let sym_ref = &symtab.get(*sym_i).ok_or_else(|| {
-                    Error::new(
-                        ErrorKind::InvalidInput,
-                        format!("index ({sym_i}) into ELF symbol table out of bounds"),
-                    )
-                })?;
-                if sym_ref.st_shndx != SHN_UNDEF {
-                    syms.push(SymbolInfo {
-                        name: sname.to_string(),
-                        address: sym_ref.st_value as Addr,
-                        size: sym_ref.st_size as usize,
-                        sym_type: SymbolType::Function,
-                        file_offset: 0,
-                        obj_file_name: None,
-                    });
-                }
-            }
-        }
-        Ok(syms)
-    }
-
     #[cfg(test)]
     fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
         let mut cache = self.cache.borrow_mut();

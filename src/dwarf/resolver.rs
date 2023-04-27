@@ -9,8 +9,6 @@ use std::mem;
 use std::path::Path;
 use std::rc::Rc;
 
-use regex::Regex;
-
 use crate::elf::ElfParser;
 use crate::util::find_match_or_lower_bound_by;
 use crate::Addr;
@@ -204,58 +202,6 @@ impl DwarfResolver {
         Ok(found)
     }
 
-    /// Find the address of symbols matching a pattern from DWARF.
-    ///
-    /// #Arguments
-    ///
-    /// * `pattern` - is a regex pattern to match symbols.
-    /// * `opts` - is the context giving additional parameters.
-    ///
-    /// Return a list of symbols including addresses and other information.
-    pub(crate) fn find_address_regex(
-        &self,
-        pattern: &str,
-        opts: &FindAddrOpts,
-    ) -> Result<Vec<SymbolInfo>, Error> {
-        if let SymbolType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
-        }
-        let r = self.parser.find_address_regex(pattern, opts)?;
-        if !r.is_empty() {
-            return Ok(r)
-        }
-
-        self.ensure_debug_info_syms()?;
-
-        let dis_ref = self.debug_info_syms.borrow();
-        if dis_ref.is_none() {
-            return Ok(vec![])
-        }
-        let debug_info_syms = dis_ref.as_ref().unwrap();
-        let mut syms = vec![];
-        let re = Regex::new(pattern).unwrap();
-        for sym in debug_info_syms {
-            if re.is_match(sym.name) {
-                let DWSymInfo {
-                    address,
-                    size,
-                    sym_type,
-                    ..
-                } = sym;
-                syms.push(SymbolInfo {
-                    name: sym.name.to_string(),
-                    address: *address as Addr,
-                    size: *size,
-                    sym_type: *sym_type,
-                    file_offset: 0,
-                    obj_file_name: None,
-                });
-            }
-        }
-
-        Ok(syms)
-    }
-
     #[cfg(test)]
     fn pick_address_for_test(&self) -> (Addr, &Path, &OsStr, usize) {
         let (addr, idx) = self.addr_to_dlcu[self.addr_to_dlcu.len() / 3];
@@ -285,21 +231,6 @@ mod tests {
         assert_eq!(dir, dir_ret);
         assert_eq!(file, file_ret);
         assert_eq!(line, line_ret);
-    }
-
-    #[test]
-    fn test_dwarf_find_addr_regex() {
-        let bin_name = env::args().next().unwrap();
-        let dwarf = DwarfResolver::open(bin_name.as_ref(), false, true).unwrap();
-        let opts = FindAddrOpts {
-            offset_in_file: false,
-            obj_file_name: false,
-            sym_type: SymbolType::Unknown,
-        };
-        let syms = dwarf
-            .find_address_regex("DwarfResolver.*find_address_regex.*", &opts)
-            .unwrap();
-        assert!(!syms.is_empty());
     }
 
     /// Check that we can look up a symbol in DWARF debug information.

@@ -91,10 +91,6 @@ impl SymResolver for GsymResolver {
         None
     }
 
-    fn find_address_regex(&self, _pattern: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
-        None
-    }
-
     /// Finds the source code location for a given address.
     ///
     /// This function takes in an address and returns the file path,
