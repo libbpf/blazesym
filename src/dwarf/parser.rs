@@ -501,8 +501,14 @@ fn run_debug_line_stmt(
         }
         _ => {
             // Special opcodes
-            let desired_line_incr = (opcode - opcode_base) % prologue.line_range;
-            let addr_adv = (opcode - opcode_base) / prologue.line_range;
+            let opcode_offset = opcode.checked_sub(opcode_base).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    format!("DWARF based opcode offset is invalid (opcode: {opcode}, base: {opcode_base})"),
+                )
+            })?;
+            let desired_line_incr = opcode_offset % prologue.line_range;
+            let addr_adv = opcode_offset / prologue.line_range;
             states.address += Addr::from(addr_adv * prologue.minimum_instruction_length);
             states.line = (states.line as i64
                 + (desired_line_incr as i16 + prologue.line_base as i16) as i64
