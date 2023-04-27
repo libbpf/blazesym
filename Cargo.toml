@@ -16,10 +16,7 @@ name = "blazesym"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [features]
-default = ["symbolize"]
-# Enable symbolization support. Without this feature only address normalization
-# functionality will be present.
-symbolize = ["lru"]
+default = ["lru"]
 # Enable this feature to re-generate the library's C header file. An
 # up-to-date version of this header should already be available in the
 # include/ directory, so this feature is only necessary when APIs are
