@@ -202,36 +202,26 @@ impl Normalizer {
         Self { _private: () }
     }
 
-    /// Normalize all `addrs` in a given process. The `addrs` array has to
-    /// be sorted in ascending order or an error will be returned.
-    ///
-    /// Unknown addresses are not normalized. They are reported as
-    /// [`Unknown`] meta entries in the returned [`NormalizedUserAddrs`]
-    /// object. The cause of an address to be unknown (and, hence, not
-    /// normalized), could have a few reasons, including, but not limited
-    /// to:
-    /// - user error (if a bogus address was provided)
-    /// - they belonged to an ELF object that has been unmapped since the
-    ///   address was captured
-    ///
-    /// The process' ID should be provided in `pid`. To normalize addresses of the
-    /// calling processes, `0` can be provided as a sentinel for the current
-    /// process' ID.
-    ///
-    /// Normalized addresses are reported in the exact same order in which the
-    /// non-normalized ones were provided.
-    fn normalize_user_addrs_sorted_impl<A>(&self, addrs: A, pid: Pid) -> Result<NormalizedUserAddrs>
+    fn normalize_user_addrs_with_entries<A, E, F>(
+        &self,
+        addrs: A,
+        entries: E,
+        get_build_id: F,
+    ) -> Result<NormalizedUserAddrs>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
+        E: Iterator<Item = Result<maps::MapsEntry>>,
+        F: Fn(&Path) -> Result<Option<Vec<u8>>>,
     {
-        let mut entries = maps::parse(pid)?.filter_map(|result| match result {
+        let mut entries = entries.filter_map(|result| match result {
             Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
             Err(err) => Some(Err(err)),
         });
+
         let mut entry = entries.next().ok_or_else(|| {
             Error::new(
                 ErrorKind::UnexpectedEof,
-                format!("proc maps for {pid} does not contain relevant entries"),
+                "proc maps does not contain relevant entries",
             )
         })??;
 
@@ -287,7 +277,7 @@ impl Normalizer {
             } else {
                 let binary = Binary {
                     path: entry.path.symbolic_path.to_path_buf(),
-                    build_id: read_build_id(&entry.path.maps_file)?,
+                    build_id: get_build_id(&entry.path.maps_file)?,
                     _non_exhaustive: (),
                 };
 
@@ -302,6 +292,32 @@ impl Normalizer {
         }
 
         Ok(normalized)
+    }
+
+    /// Normalize all `addrs` in a given process. The `addrs` array has to
+    /// be sorted in ascending order or an error will be returned.
+    ///
+    /// Unknown addresses are not normalized. They are reported as
+    /// [`Unknown`] meta entries in the returned [`NormalizedUserAddrs`]
+    /// object. The cause of an address to be unknown (and, hence, not
+    /// normalized), could have a few reasons, including, but not limited
+    /// to:
+    /// - user error (if a bogus address was provided)
+    /// - they belonged to an ELF object that has been unmapped since the
+    ///   address was captured
+    ///
+    /// The process' ID should be provided in `pid`. To normalize addresses of the
+    /// calling processes, `0` can be provided as a sentinel for the current
+    /// process' ID.
+    ///
+    /// Normalized addresses are reported in the exact same order in which the
+    /// non-normalized ones were provided.
+    fn normalize_user_addrs_sorted_impl<A>(&self, addrs: A, pid: Pid) -> Result<NormalizedUserAddrs>
+    where
+        A: ExactSizeIterator<Item = Addr> + Clone,
+    {
+        let entries = maps::parse(pid)?;
+        self.normalize_user_addrs_with_entries(addrs, entries, read_build_id)
     }
 
     /// Normalize `addresses` belonging to a process.

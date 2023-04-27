@@ -45,6 +45,7 @@ pub enum UserAddrMeta {
 }
 
 impl UserAddrMeta {
+    /// Retrieve the [`Binary`] of this enum, if this variant is active.
     pub fn binary(&self) -> Option<&Binary> {
         match self {
             Self::Binary(binary) => Some(binary),
