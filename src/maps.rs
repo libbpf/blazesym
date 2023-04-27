@@ -142,6 +142,8 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
         [b'/', ..] => {
             let symbolic_path =
                 PathBuf::from(path_str.strip_suffix(" (deleted)").unwrap_or(path_str));
+            // TODO: May have to resolve the symbolic link in case of
+            //       `Pid::Slf` here for remote symbolization use cases.
             let maps_file = PathBuf::from(format!("/proc/{pid}/map_files/{address_str}"));
             Some(PathName::Path(EntryPath {
                 maps_file,
@@ -204,7 +206,7 @@ where
 /// `filter` is a filter function (similar to those usable on iterators)
 /// that determines which entries we keep (those for which it returned
 /// `true`) and which we discard (anything `false`).
-fn parse_file<R>(reader: R, pid: Pid) -> impl Iterator<Item = Result<MapsEntry>>
+pub(crate) fn parse_file<R>(reader: R, pid: Pid) -> impl Iterator<Item = Result<MapsEntry>>
 where
     R: Read,
 {

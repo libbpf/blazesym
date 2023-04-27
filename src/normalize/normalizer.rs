@@ -249,16 +249,6 @@ impl Normalizer {
             }
             prev_addr = addr;
 
-            // proc maps entries are always sorted by start address. If the
-            // current address lies before the start address at this point,
-            // that means that we cannot find a suitable entry. This could
-            // happen, for example, if an ELF object was unmapped between
-            // address capture and normalization.
-            if addr < entry.range.start {
-                unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
-                continue 'main
-            }
-
             while addr >= entry.range.end {
                 entry = if let Some(entry) = entries.next() {
                     entry?
@@ -270,6 +260,16 @@ impl Normalizer {
                     unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
                     continue 'main
                 };
+            }
+
+            // proc maps entries are always sorted by start address. If the
+            // current address lies before the start address at this point,
+            // that means that we cannot find a suitable entry. This could
+            // happen, for example, if an ELF object was unmapped between
+            // address capture and normalization.
+            if addr < entry.range.start {
+                unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
+                continue 'main
             }
 
             let meta_idx = if let Some(meta_idx) = meta_lookup.get(&entry.path.symbolic_path) {
@@ -543,5 +543,69 @@ mod tests {
             _non_exhaustive: (),
         };
         assert_eq!(meta, &UserAddrMeta::Binary(expected_binary));
+    }
+
+    /// Check that we correctly handle normalization of an address not
+    /// in any executable segment.
+    #[test]
+    fn user_address_normalization_static_maps() {
+        fn read_no_build_id(_path: &Path) -> Result<Option<Vec<u8>>> {
+            Ok(None)
+        }
+
+        fn test(unknown_addr: Addr) {
+            let maps = r#"
+55d3195b7000-55d3195b9000 r--p 00000000 00:12 2015701                    /bin/cat
+55d3195b9000-55d3195be000 r-xp 00002000 00:12 2015701                    /bin/cat
+55d3195be000-55d3195c1000 r--p 00007000 00:12 2015701                    /bin/cat
+55d3195c1000-55d3195c2000 r--p 00009000 00:12 2015701                    /bin/cat
+55d3195c2000-55d3195c3000 rw-p 0000a000 00:12 2015701                    /bin/cat
+55d31b4dc000-55d31b4fd000 rw-p 00000000 00:00 0                          [heap]
+7fd5b9c3d000-7fd5b9c5f000 rw-p 00000000 00:00 0
+7fd5b9c5f000-7fd5ba034000 r--p 00000000 00:12 7689533                    /usr/lib/locale/locale-archive
+7fd5ba034000-7fd5ba037000 rw-p 00000000 00:00 0
+7fd5ba037000-7fd5ba059000 r--p 00000000 00:12 2088876                    /lib64/libc.so.6
+7fd5ba059000-7fd5ba1a8000 r-xp 00022000 00:12 2088876                    /lib64/libc.so.6
+7fd5ba1a8000-7fd5ba1fa000 r--p 00171000 00:12 2088876                    /lib64/libc.so.6
+7fd5ba1fa000-7fd5ba1fe000 r--p 001c3000 00:12 2088876                    /lib64/libc.so.6
+7fd5ba1fe000-7fd5ba200000 rw-p 001c7000 00:12 2088876                    /lib64/libc.so.6
+7fd5ba200000-7fd5ba208000 rw-p 00000000 00:00 0
+7fd5ba214000-7fd5ba216000 rw-p 00000000 00:00 0
+7fd5ba216000-7fd5ba217000 r--p 00000000 00:12 2088889                    /lib64/ld-linux-x86-64.so.2
+7fd5ba217000-7fd5ba23c000 r-xp 00001000 00:12 2088889                    /lib64/ld-linux-x86-64.so.2
+7fd5ba23c000-7fd5ba246000 r--p 00026000 00:12 2088889                    /lib64/ld-linux-x86-64.so.2
+7fd5ba246000-7fd5ba248000 r--p 00030000 00:12 2088889                    /lib64/ld-linux-x86-64.so.2
+7fd5ba248000-7fd5ba24a000 rw-p 00032000 00:12 2088889                    /lib64/ld-linux-x86-64.so.2
+7ffe102a2000-7ffe102c4000 rw-p 00000000 00:00 0                          [stack]
+7ffe103f6000-7ffe103fa000 r--p 00000000 00:00 0                          [vvar]
+7ffe103fa000-7ffe103fc000 r-xp 00000000 00:00 0                          [vdso]
+"#;
+
+            let pid = Pid::Slf;
+            let entries = maps::parse_file(maps.as_bytes(), pid);
+            let addrs = [unknown_addr as Addr];
+
+            let normalizer = Normalizer::new();
+            let norm_addrs = normalizer
+                .normalize_user_addrs_with_entries(
+                    addrs.as_slice().iter().copied(),
+                    entries,
+                    read_no_build_id,
+                )
+                .unwrap();
+            assert_eq!(norm_addrs.addrs.len(), 1);
+            assert_eq!(norm_addrs.meta.len(), 1);
+            assert_eq!(norm_addrs.meta[0], Unknown::default().into());
+        }
+
+        test(0x0);
+        test(0x1);
+        test(0x1000);
+        test(0xa0000);
+        test(0x7fd5ba1fe000);
+        test(0x7fffffff0000);
+        test(0x7fffffff1000);
+        test(0x7fffffff1001);
+        test(0x7fffffffffff);
     }
 }
