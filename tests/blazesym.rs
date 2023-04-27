@@ -87,6 +87,27 @@ fn symbolize_dwarf() {
     assert_eq!(result.symbol, "factorial");
 }
 
+/// Check that we can symbolize addresses inside our own process.
+#[test]
+fn symbolize_process() {
+    let cfg = SymbolSrcCfg::Process(cfg::Process { pid: None });
+    let addrs = [symbolize_process as Addr, BlazeSymbolizer::new as Addr];
+    let symbolizer = BlazeSymbolizer::new().unwrap();
+    let results = symbolizer
+        .symbolize(&cfg, &addrs)
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 2);
+
+    let result = &results[0];
+    assert!(result.symbol.contains("symbolize_process"), "{result:x?}");
+
+    let result = &results[1];
+    assert!(result.symbol.contains("BlazeSymbolizer3new"), "{result:x?}");
+}
+
 /// Check that we can look up an address using DWARF.
 #[test]
 fn lookup_dwarf() {
