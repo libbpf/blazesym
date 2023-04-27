@@ -53,12 +53,11 @@ impl SymResolver for KernelResolver {
             self.elf_resolver.as_ref().unwrap().find_symbols(addr)
         }
     }
+
     fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         None
     }
-    fn find_address_regex(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
-        None
-    }
+
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
         self.elf_resolver
             .as_ref()

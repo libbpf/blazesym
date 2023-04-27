@@ -28,8 +28,6 @@ where
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)>;
     /// Find the address and size of a symbol name.
     fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
-    /// Find the addresses and sizes of the symbols matching a given pattern.
-    fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
     /// Find the file name and the line number of an address.
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo>;
     /// Translate an address (virtual) in a process to the file offset

@@ -11,8 +11,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
-use regex::Regex;
-
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::FindAddrOpts;
@@ -155,29 +153,6 @@ impl SymResolver for KSymResolver {
             }])
         }
         None
-    }
-
-    fn find_address_regex(&self, pattern: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
-        if let SymbolType::Variable = opts.sym_type {
-            return None
-        }
-        self.ensure_sym_to_addr();
-
-        let re = Regex::new(pattern).unwrap();
-        let mut syms = vec![];
-        for (name, addr) in self.sym_to_addr.borrow().iter() {
-            if re.is_match(name) {
-                syms.push(SymbolInfo {
-                    name: name.to_string(),
-                    address: *addr,
-                    size: 0,
-                    sym_type: SymbolType::Function,
-                    file_offset: 0,
-                    obj_file_name: None,
-                });
-            }
-        }
-        Some(syms)
     }
 
     fn find_line_info(&self, _addr: Addr) -> Option<AddrLineInfo> {
