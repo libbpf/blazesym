@@ -152,9 +152,8 @@ impl SymResolver for ElfResolver {
     }
 
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
-        let off = addr - self.loaded_address + self.loaded_to_virt;
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
-            let (directory, file, line_no) = dwarf.find_line(off)?;
+            let (directory, file, line_no) = dwarf.find_line(addr)?;
             Some(AddrLineInfo {
                 path: directory.join(file),
                 line_no,
