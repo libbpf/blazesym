@@ -152,7 +152,7 @@ impl DwarfResolver {
     ///
     /// * `name` - is the symbol name to find.
     /// * `opts` - is the context giving additional parameters.
-    pub(crate) fn find_address(
+    pub(crate) fn find_addr(
         &self,
         name: &str,
         opts: &FindAddrOpts,
@@ -160,7 +160,7 @@ impl DwarfResolver {
         if let SymbolType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
-        let elf_r = self.parser.find_address(name, opts)?;
+        let elf_r = self.parser.find_addr(name, opts)?;
         if !elf_r.is_empty() {
             // Since it is found from symtab, symtab should be
             // complete and DWARF shouldn't provide more information.
@@ -246,7 +246,7 @@ mod tests {
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref(), true, true).unwrap();
 
-        let symbols = resolver.find_address("factorial", &opts).unwrap();
+        let symbols = resolver.find_addr("factorial", &opts).unwrap();
         assert_eq!(symbols.len(), 1);
 
         // `factorial` resides at address 0x2000100.
@@ -267,7 +267,7 @@ mod tests {
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref(), true, true).unwrap();
 
-        let err = resolver.find_address("factorial", &opts).unwrap_err();
+        let err = resolver.find_addr("factorial", &opts).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }

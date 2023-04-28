@@ -343,7 +343,7 @@ impl BlazeSymbolizer {
         for name in names {
             let mut found = vec![];
             for (_, resolver) in &resolver_map.resolvers {
-                if let Some(mut syms) = resolver.find_address(name, &ctx) {
+                if let Some(mut syms) = resolver.find_addr(name, &ctx) {
                     for sym in &mut syms {
                         if ctx.offset_in_file {
                             if let Some(off) = resolver.addr_file_off(sym.address) {

@@ -439,7 +439,7 @@ impl ElfParser {
         Ok((name, sym.st_value as Addr))
     }
 
-    pub(crate) fn find_address(
+    pub(crate) fn find_addr(
         &self,
         name: &str,
         opts: &FindAddrOpts,
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn test_elf64_find_address() {
+    fn test_elf64_find_addr() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-no-debug.bin");
@@ -588,7 +588,7 @@ mod tests {
             obj_file_name: false,
             sym_type: SymbolType::Unknown,
         };
-        let addr_r = parser.find_address(sym_name, &opts).unwrap();
+        let addr_r = parser.find_addr(sym_name, &opts).unwrap();
         assert_eq!(addr_r.len(), 1);
         assert!(addr_r.iter().any(|x| x.address == addr));
     }
