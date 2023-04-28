@@ -124,10 +124,10 @@ impl SymResolver for ElfResolver {
         }
     }
 
-    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         let mut addr_res = match &self.backend {
-            ElfBackend::Dwarf(dwarf) => dwarf.find_address(name, opts),
-            ElfBackend::Elf(parser) => parser.find_address(name, opts),
+            ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
+            ElfBackend::Elf(parser) => parser.find_addr(name, opts),
         }
         .ok()?;
         for x in &mut addr_res {

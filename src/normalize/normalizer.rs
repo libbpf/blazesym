@@ -495,7 +495,7 @@ mod tests {
             sym_type: SymbolType::Function,
             ..Default::default()
         };
-        let symbols = elf_parser.find_address("the_answer", &opts).unwrap();
+        let symbols = elf_parser.find_addr("the_answer", &opts).unwrap();
         // There is only one symbol with this address in there.
         assert_eq!(symbols.len(), 1);
         let symbol = symbols.first().unwrap();

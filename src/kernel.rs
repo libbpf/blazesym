@@ -54,7 +54,7 @@ impl SymResolver for KernelResolver {
         }
     }
 
-    fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         None
     }
 

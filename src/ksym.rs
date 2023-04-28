@@ -136,7 +136,7 @@ impl SymResolver for KSymResolver {
             .collect()
     }
 
-    fn find_address(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         if let SymbolType::Variable = opts.sym_type {
             return None
         }
@@ -262,7 +262,7 @@ mod tests {
             obj_file_name: false,
             sym_type: SymbolType::Function,
         };
-        let found = resolver.find_address(&name, &opts);
+        let found = resolver.find_addr(&name, &opts);
         assert!(found.is_some());
         assert!(found.unwrap().iter().any(|x| x.address == addr));
     }

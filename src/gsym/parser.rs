@@ -160,18 +160,14 @@ impl GsymContext<'_> {
     ///
     /// Callers should check the `AddrInfo` object at the returned index to see
     /// whether the symbol actually covers the provided address.
-    pub fn find_address(&self, addr: Addr) -> Option<usize> {
-        fn find_address_impl<T>(
-            mut addr_tab: &[u8],
-            num_addrs: usize,
-            address: Addr,
-        ) -> Option<usize>
+    pub fn find_addr(&self, addr: Addr) -> Option<usize> {
+        fn find_addr_impl<T>(mut addr_tab: &[u8], num_addrs: usize, addr: Addr) -> Option<usize>
         where
             T: Copy + Ord + TryFrom<Addr> + Pod + 'static,
         {
-            let address = T::try_from(address).ok()?;
+            let addr = T::try_from(addr).ok()?;
             let table = addr_tab.read_pod_slice_ref::<T>(num_addrs)?;
-            find_match_or_lower_bound(table, address)
+            find_match_or_lower_bound(table, addr)
         }
 
 
@@ -179,10 +175,10 @@ impl GsymContext<'_> {
         let num_addrs = self.header.num_addrs as usize;
 
         match self.header.addr_off_size {
-            1 => find_address_impl::<u8>(self.addr_tab, num_addrs, relative_addr),
-            2 => find_address_impl::<u16>(self.addr_tab, num_addrs, relative_addr),
-            4 => find_address_impl::<u32>(self.addr_tab, num_addrs, relative_addr),
-            8 => find_address_impl::<u64>(self.addr_tab, num_addrs, relative_addr),
+            1 => find_addr_impl::<u8>(self.addr_tab, num_addrs, relative_addr),
+            2 => find_addr_impl::<u16>(self.addr_tab, num_addrs, relative_addr),
+            4 => find_addr_impl::<u32>(self.addr_tab, num_addrs, relative_addr),
+            8 => find_addr_impl::<u64>(self.addr_tab, num_addrs, relative_addr),
             _ => None,
         }
     }
@@ -191,14 +187,14 @@ impl GsymContext<'_> {
     pub fn addr_at(&self, idx: usize) -> Option<Addr> {
         let addr_off_size = self.header.addr_off_size as usize;
         let mut data = self.addr_tab.get(idx * addr_off_size..)?;
-        let address = match addr_off_size {
+        let addr = match addr_off_size {
             1 => data.read_u8()?.into(),
             2 => data.read_u16()?.into(),
             4 => data.read_u32()? as Addr,
             8 => data.read_u64()? as Addr,
             _ => return None,
         };
-        Some(self.header.base_address as Addr + address)
+        Some(self.header.base_address as Addr + addr)
     }
 
     /// Get the AddrInfo of an address given by an index.
@@ -322,17 +318,17 @@ mod tests {
         gsym_fo.read_to_end(&mut data).unwrap();
         let ctx = GsymContext::parse_header(&data).unwrap();
 
-        let idx = ctx.find_address(0x0000000002000000).unwrap();
+        let idx = ctx.find_addr(0x0000000002000000).unwrap();
         let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "main");
 
-        let idx = ctx.find_address(0x0000000002000100).unwrap();
+        let idx = ctx.find_addr(0x0000000002000100).unwrap();
         let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "factorial");
     }
 
     #[test]
-    fn test_find_address() {
+    fn test_find_addr() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.gsym");
@@ -385,7 +381,7 @@ mod tests {
                 ctx.header.base_address = 0;
                 ctx.addr_tab = addr_tab.as_slice();
 
-                let idx = ctx.find_address(addr).unwrap_or(0);
+                let idx = ctx.find_addr(addr).unwrap_or(0);
                 let addr_u32 = addr as u32;
                 let idx1 = match values.binary_search(&addr_u32) {
                     Ok(idx) => idx,

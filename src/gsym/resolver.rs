@@ -67,9 +67,9 @@ impl SymResolver for GsymResolver {
     }
 
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
-        fn find_address_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
+        fn find_addr_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
             let addr = addr.checked_sub(gsym.loaded_address)?;
-            let idx = gsym.ctx.find_address(addr)?;
+            let idx = gsym.ctx.find_addr(addr)?;
 
             let found = gsym.ctx.addr_at(idx)?;
             if addr < found {
@@ -82,10 +82,10 @@ impl SymResolver for GsymResolver {
             Some(vec![(name, found + gsym.loaded_address)])
         }
 
-        find_address_impl(self, addr).unwrap_or_default()
+        find_addr_impl(self, addr).unwrap_or_default()
     }
 
-    fn find_address(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
         // It is inefficient to find the address of a symbol with
         // GSYM.  We may support it in the future if needed.
         None
@@ -107,7 +107,7 @@ impl SymResolver for GsymResolver {
     /// The `AddrLineInfo` corresponding to the address or `None`.
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
         let addr = addr.checked_sub(self.loaded_address)?;
-        let idx = self.ctx.find_address(addr)?;
+        let idx = self.ctx.find_addr(addr)?;
         let symaddr = self.ctx.addr_at(idx)?;
         if addr < symaddr {
             return None
