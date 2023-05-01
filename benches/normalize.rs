@@ -13,7 +13,7 @@ fn normalize_process() {
         libc::dlopen as Addr,
         libc::fopen as Addr,
         normalize_process as Addr,
-        c_api::blazesym_find_addresses as Addr,
+        c_api::blazesym_find_addrs as Addr,
     ];
     let () = addrs.sort();
 

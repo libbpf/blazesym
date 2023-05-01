@@ -322,7 +322,7 @@ impl BlazeSymbolizer {
     ///
     /// Find the addresses of a list of symbol names from the sources
     /// of symbols and debug info described by `sym_srcs`.
-    /// `find_addresses_opt()` works just like `find_addresses()` with
+    /// `find_addresses_opt()` works just like `find_addrs()` with
     /// additional controls on features.
     ///
     /// # Arguments
@@ -371,11 +371,7 @@ impl BlazeSymbolizer {
     ///
     /// * `sym_srcs` - A list of symbol and debug sources.
     /// * `names` - A list of symbol names.
-    pub fn find_addresses(
-        &self,
-        cfg: &SymbolSrcCfg,
-        names: &[&str],
-    ) -> Result<Vec<Vec<SymbolInfo>>> {
+    pub fn find_addrs(&self, cfg: &SymbolSrcCfg, names: &[&str]) -> Result<Vec<Vec<SymbolInfo>>> {
         self.find_addresses_opt(cfg, names, &[])
     }
 

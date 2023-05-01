@@ -125,7 +125,7 @@ fn lookup_dwarf() {
     });
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
-        .find_addresses(&cfg, &["factorial"])
+        .find_addrs(&cfg, &["factorial"])
         .unwrap()
         .into_iter()
         .flatten()
@@ -153,7 +153,7 @@ fn lookup_dwarf_no_debug_info() {
     });
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
-        .find_addresses(&cfg, &["factorial"])
+        .find_addrs(&cfg, &["factorial"])
         .unwrap()
         .into_iter()
         .flatten()
