@@ -15,7 +15,7 @@ use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_feature;
 use blazesym::c_api::blazesym_feature_name;
 use blazesym::c_api::blazesym_feature_params;
-use blazesym::c_api::blazesym_find_addresses;
+use blazesym::c_api::blazesym_find_addrs;
 use blazesym::c_api::blazesym_free;
 use blazesym::c_api::blazesym_new;
 use blazesym::c_api::blazesym_new_opts;
@@ -147,7 +147,7 @@ fn lookup_dwarf() {
     let factorial = CString::new("factorial").unwrap();
     let names = [factorial.as_ptr()];
 
-    let result = unsafe { blazesym_find_addresses(symbolizer, &cfg, names.as_ptr(), names.len()) };
+    let result = unsafe { blazesym_find_addrs(symbolizer, &cfg, names.as_ptr(), names.len()) };
     let sym_infos = unsafe { slice::from_raw_parts(result, names.len()) };
     let sym_info = unsafe { &*sym_infos[0] };
     assert_eq!(

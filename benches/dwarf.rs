@@ -52,7 +52,7 @@ fn lookup_end_to_end() {
 
     let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
     let results = symbolizer
-        .find_addresses(&cfg, &["abort_creds"])
+        .find_addrs(&cfg, &["abort_creds"])
         .unwrap()
         .into_iter()
         .flatten()

@@ -523,7 +523,8 @@ pub struct blazesym_sym_info {
     pub sym_type: blazesym_sym_type,
 }
 
-/// Convert SymbolInfos returned by BlazeSymbolizer::find_addresses() to a C array.
+/// Convert [`SymbolInfo`] objects as returned by
+/// [`BlazeSymbolizer::find_addrs`] to a C array.
 fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blazesym_sym_info {
     let mut sym_cnt = 0;
     let mut str_buf_sz = 0;
@@ -764,13 +765,13 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
 
 /// Find addresses of a symbol name.
 ///
-/// A symbol may have multiple addressses.
+/// A symbol may have multiple addresses.
 ///
 /// # Safety
 ///
 /// The returned data should be free by [`blazesym_syms_list_free()`].
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_find_addresses(
+pub unsafe extern "C" fn blazesym_find_addrs(
     symbolizer: *mut blazesym,
     cfg: *const blazesym_sym_src_cfg,
     names: *const *const c_char,
@@ -779,11 +780,11 @@ pub unsafe extern "C" fn blazesym_find_addresses(
     unsafe { blazesym_find_addresses_opt(symbolizer, cfg, names, name_cnt, ptr::null(), 0) }
 }
 
-/// Free an array returned by [`blazesym_find_addresses`].
+/// Free an array returned by [`blazesym_find_addrs`].
 ///
 /// # Safety
 ///
-/// The pointer must be returned by [`blazesym_find_addresses`].
+/// The pointer must be returned by [`blazesym_find_addrs`].
 ///
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_syms_list_free(syms_list: *const *const blazesym_sym_info) {
