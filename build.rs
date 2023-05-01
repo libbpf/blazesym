@@ -324,11 +324,36 @@ fn main() {
 
     #[cfg(feature = "generate-c-header")]
     {
+        use std::fs::write;
+
         cbindgen::Builder::new()
             .with_crate(crate_dir)
             .with_config(cbindgen::Config::from_root_or_default(crate_dir))
             .generate()
             .expect("Unable to generate bindings")
             .write_to_file(Path::new(crate_dir).join("include").join("blazesym.h"));
+
+        // Generate a C program that just included blazesym.h as a basic
+        // smoke test that cbindgen didn't screw up completely.
+        let out_dir = env::var_os("OUT_DIR").unwrap();
+        let out_dir = Path::new(&out_dir);
+        let blaze_src = out_dir.join("blazesym.c");
+        let () = write(
+            &blaze_src,
+            r#"
+#include <blazesym.h>
+
+int main() {
+  return 0;
+}
+"#,
+        )
+        .unwrap();
+
+        cc(
+            &blaze_src,
+            "blazesym.bin",
+            &["-I", Path::new(crate_dir).join("include").to_str().unwrap()],
+        );
     }
 }
