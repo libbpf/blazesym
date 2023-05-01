@@ -206,32 +206,6 @@ pub enum SymbolizerFeature {
     DebugInfoSymbols(bool),
 }
 
-/// Switches and settings of features to modify the way looking up addresses of
-/// symbols or the returned information.
-#[derive(Debug)]
-pub enum FindAddrFeature {
-    /// Return the offset in the file.
-    ///
-    /// The offset will be returned as the value of `SymbolInfo::file_offset`.
-    /// (Off by default)
-    OffsetInFile(bool),
-    /// Return the file name of the shared object.
-    ///
-    /// The name of the executable or object file will be returned as
-    /// the value of `SymbolInfo::obj_file_name`.
-    /// (Off by default)
-    ObjFileName(bool),
-    /// Return symbols having the given type.
-    ///
-    /// With `SymbolType::Function`, BlazeSym will return only the
-    /// symbols that are functions.  With `SymbolType::Variable`,
-    /// BlazeSym will return only the symbols that are variables.
-    /// With `SymbolType::Unknown`, BlazeSym will return symbols of
-    /// any type.
-    SymbolType(SymbolType),
-    /// Return symbols from the compile unit (source) of the given name.
-    CommpileUnit(String),
-}
 
 /// BlazeSymbolizer provides an interface to symbolize addresses with
 /// a list of symbol sources.
