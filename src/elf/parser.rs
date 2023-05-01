@@ -596,6 +596,14 @@ mod tests {
         let opts = FindAddrOpts::default();
         let syms = parser.find_addr("factorial", &opts).unwrap();
         assert_eq!(syms.len(), 1);
-        assert_eq!(syms.first().unwrap().address, 0x2000100);
+        let sym = &syms[0];
+        assert_eq!(sym.name, "factorial");
+        assert_eq!(sym.address, 0x2000100);
+
+        let syms = parser.find_addr("factorial_wrapper", &opts).unwrap();
+        assert_eq!(syms.len(), 2);
+        assert_eq!(syms[0].name, "factorial_wrapper");
+        assert_eq!(syms[1].name, "factorial_wrapper");
+        assert_ne!(syms[0].address, syms[1].address);
     }
 }

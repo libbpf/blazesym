@@ -2,6 +2,7 @@
  *
  * Chosen functions are placed in dedicated sections to allow for control placement.
  */
+extern void foo(void);
 
 __attribute__((section(".text.factorial"))) unsigned int
 factorial(unsigned int n) {
@@ -10,13 +11,14 @@ factorial(unsigned int n) {
 	return factorial(n - 1) * n;
 }
 
-static inline void
-factorial_inline_wrapper() {
+__attribute__((noinline)) static void
+factorial_wrapper() {
 	factorial(5);
 }
 
 __attribute__((section(".text.main"))) int
 main(int argc, const char *argv[]) {
-	factorial_inline_wrapper();
+	factorial_wrapper();
+	foo();
 	return 0;
 }

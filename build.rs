@@ -240,6 +240,8 @@ fn prepare_test_files(crate_root: &Path) {
     cc(&src, "test-dwarf-v5.bin", &["-gdwarf-5"]);
 
     let src = crate_root.join("data").join("test-stable-addresses.c");
+    let src_cu2 = crate_root.join("data").join("test-stable-addresses-cu2.c");
+    let src_cu2 = src_cu2.to_str().unwrap();
     let ld_script = crate_root.join("data").join("test-stable-addresses.ld");
     let ld_script = ld_script.to_str().unwrap();
     println!("cargo:rerun-if-changed={ld_script}");
@@ -253,6 +255,8 @@ fn prepare_test_files(crate_root: &Path) {
             "-Wl,--build-id=none",
             "-O0",
             "-nostdlib",
+            // TODO: Eventually we may want to make `cc` multi-input-file aware.
+            src_cu2,
         ],
     );
 
