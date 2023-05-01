@@ -608,33 +608,17 @@ void blazesym_result_free(const struct blazesym_result *results);
  *
  * The returned pointer should be free by [`blazesym_syms_list_free()`].
  */
-const struct blazesym_sym_info *const *blazesym_find_addresses_opt(blazesym *symbolizer,
-                                                                   const struct blazesym_sym_src_cfg *cfg,
-                                                                   const char *const *names,
-                                                                   size_t name_cnt,
-                                                                   const struct blazesym_faddr_feature *features,
-                                                                   size_t num_features);
+const struct blazesym_sym_info *const *blazesym_find_addrs(blazesym *symbolizer,
+                                                           const struct blazesym_sym_src_cfg *cfg,
+                                                           const char *const *names,
+                                                           size_t name_cnt);
 
 /**
- * Find addresses of a symbol name.
- *
- * A symbol may have multiple addressses.
+ * Free an array returned by [`blazesym_find_addrs`].
  *
  * # Safety
  *
- * The returned data should be free by [`blazesym_syms_list_free()`].
- */
-const struct blazesym_sym_info *const *blazesym_find_addresses(blazesym *symbolizer,
-                                                               const struct blazesym_sym_src_cfg *cfg,
-                                                               const char *const *names,
-                                                               size_t name_cnt);
-
-/**
- * Free an array returned by [`blazesym_find_addresses`].
- *
- * # Safety
- *
- * The pointer must be returned by [`blazesym_find_addresses`].
+ * The pointer must be returned by [`blazesym_find_addrs`].
  *
  */
 void blazesym_syms_list_free(const struct blazesym_sym_info *const *syms_list);
