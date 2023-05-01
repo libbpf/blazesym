@@ -10,6 +10,7 @@ use std::ops::Deref as _;
 use std::path::Path;
 
 use crate::mmap::Mmap;
+use crate::util::find_match_or_lower_bound_by;
 use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -458,25 +459,20 @@ impl ElfParser {
         //         `str2symtab` available.
         let str2symtab = cache.str2symtab.as_ref().unwrap();
 
-        let r = str2symtab.binary_search_by_key(&name, |&(name, _i)| name);
+        let r = find_match_or_lower_bound_by(str2symtab, name, |&(name, _i)| name);
         match r {
-            Ok(str2sym_i) => {
-                let mut idx = str2sym_i;
-                while idx > 0 {
-                    let name_seek = str2symtab[idx].0;
-                    if !name_seek.eq(name) {
-                        idx += 1;
-                        break
-                    }
-                    idx -= 1;
-                }
-
+            Some(idx) => {
                 let mut found = vec![];
                 for (name_visit, sym_i) in str2symtab.iter().skip(idx) {
-                    if !(*name_visit).eq(name) {
+                    if *name_visit != name {
                         break
                     }
-                    let sym_ref = &symtab[*sym_i];
+                    let sym_ref = &symtab.get(*sym_i).ok_or_else(|| {
+                        Error::new(
+                            ErrorKind::InvalidInput,
+                            format!("symbol table index ({sym_i}) out of bounds"),
+                        )
+                    })?;
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymbolInfo {
                             name: name.to_string(),
@@ -490,7 +486,7 @@ impl ElfParser {
                 }
                 Ok(found)
             }
-            Err(_) => Ok(vec![]),
+            None => Ok(vec![]),
         }
     }
 
@@ -572,7 +568,7 @@ mod tests {
     }
 
     #[test]
-    fn test_elf64_find_addr() {
+    fn elf64_lookup_symbol_random() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-no-debug.bin");
@@ -583,13 +579,23 @@ mod tests {
         let (sym_name, addr) = parser.pick_symtab_addr();
 
         println!("{sym_name}");
-        let opts = FindAddrOpts {
-            offset_in_file: false,
-            obj_file_name: false,
-            sym_type: SymbolType::Unknown,
-        };
+        let opts = FindAddrOpts::default();
         let addr_r = parser.find_addr(sym_name, &opts).unwrap();
         assert_eq!(addr_r.len(), 1);
         assert!(addr_r.iter().any(|x| x.address == addr));
+    }
+
+    /// Make sure that we can look up a symbol in an ELF file.
+    #[test]
+    fn lookup_symbol() {
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-dwarf.bin");
+
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let opts = FindAddrOpts::default();
+        let syms = parser.find_addr("factorial", &opts).unwrap();
+        assert_eq!(syms.len(), 1);
+        assert_eq!(syms.first().unwrap().address, 0x2000100);
     }
 }
