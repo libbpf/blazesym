@@ -22,24 +22,6 @@ typedef enum blaze_user_addr_meta_kind {
 } blaze_user_addr_meta_kind;
 
 /**
- * Feature names of looking up addresses of symbols.
- */
-typedef enum blazesym_faf_type {
-  /**
-   * Return the offset in the file. (enable)
-   */
-  BLAZESYM_FAF_T_OFFSET_IN_FILE,
-  /**
-   * Return the file name of the shared object. (enable)
-   */
-  BLAZESYM_FAF_T_OBJ_FILE_NAME,
-  /**
-   * Return symbols having the given type. (sym_type)
-   */
-  BLAZESYM_FAF_T_SYMBOL_TYPE,
-} blazesym_faf_type;
-
-/**
  * Names of the BlazeSym features.
  */
 typedef enum blazesym_feature_name {
@@ -450,25 +432,6 @@ typedef struct blazesym_sym_info {
   const char *obj_file_name;
   enum blazesym_sym_type sym_type;
 } blazesym_sym_info;
-
-/**
- * The parameter parts of `blazesym_faddr_feature`.
- */
-typedef union blazesym_faf_param {
-  bool enable;
-  enum blazesym_sym_type sym_type;
-} blazesym_faf_param;
-
-/**
- * Switches and settings of features of looking up addresses of
- * symbols.
- *
- * See [`FindAddrFeature`] for details.
- */
-typedef struct blazesym_faddr_feature {
-  enum blazesym_faf_type ftype;
-  union blazesym_faf_param param;
-} blazesym_faddr_feature;
 
 /**
  * Create an instance of a blazesym normalizer.

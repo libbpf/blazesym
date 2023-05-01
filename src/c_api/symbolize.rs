@@ -18,7 +18,6 @@ use crate::log::warn;
 use crate::util::slice_from_user_array;
 use crate::Addr;
 use crate::BlazeSymbolizer;
-use crate::FindAddrFeature;
 use crate::SymbolInfo;
 use crate::SymbolSrcCfg;
 use crate::SymbolType;
@@ -631,80 +630,6 @@ pub enum blazesym_sym_type {
     BLAZESYM_SYM_T_FUNC,
     /// The returned symbol is a variable, or you want to find a variable.
     BLAZESYM_SYM_T_VAR,
-}
-
-/// Feature names of looking up addresses of symbols.
-#[repr(C)]
-#[allow(unused)]
-#[derive(Debug)]
-pub enum blazesym_faf_type {
-    /// Return the offset in the file. (enable)
-    BLAZESYM_FAF_T_OFFSET_IN_FILE,
-    /// Return the file name of the shared object. (enable)
-    BLAZESYM_FAF_T_OBJ_FILE_NAME,
-    /// Return symbols having the given type. (sym_type)
-    BLAZESYM_FAF_T_SYMBOL_TYPE,
-}
-
-/// The parameter parts of `blazesym_faddr_feature`.
-#[repr(C)]
-pub union blazesym_faf_param {
-    enable: bool,
-    sym_type: blazesym_sym_type,
-}
-
-impl Debug for blazesym_faf_param {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct(stringify!(blazesym_faf_param)).finish()
-    }
-}
-
-
-/// Switches and settings of features of looking up addresses of
-/// symbols.
-///
-/// See [`FindAddrFeature`] for details.
-#[repr(C)]
-pub struct blazesym_faddr_feature {
-    ftype: blazesym_faf_type,
-    param: blazesym_faf_param,
-}
-
-impl Debug for blazesym_faddr_feature {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct(stringify!(blazesym_faddr_feature))
-            .field("ftype", &self.ftype)
-            .finish()
-    }
-}
-
-impl From<&blazesym_faddr_feature> for FindAddrFeature {
-    fn from(feature: &blazesym_faddr_feature) -> Self {
-        match feature.ftype {
-            blazesym_faf_type::BLAZESYM_FAF_T_SYMBOL_TYPE => {
-                // SAFETY: `sym_type` is the union variant used for `BLAZESYM_FAF_T_SYMBOL_TYPE`.
-                match unsafe { feature.param.sym_type } {
-                    blazesym_sym_type::BLAZESYM_SYM_T_UNKNOWN => {
-                        FindAddrFeature::SymbolType(SymbolType::Unknown)
-                    }
-                    blazesym_sym_type::BLAZESYM_SYM_T_FUNC => {
-                        FindAddrFeature::SymbolType(SymbolType::Function)
-                    }
-                    blazesym_sym_type::BLAZESYM_SYM_T_VAR => {
-                        FindAddrFeature::SymbolType(SymbolType::Variable)
-                    }
-                }
-            }
-            blazesym_faf_type::BLAZESYM_FAF_T_OFFSET_IN_FILE => {
-                // SAFETY: `enable` is the union variant used for `BLAZESYM_FAF_T_OFFSET_IN_FILE`.
-                FindAddrFeature::OffsetInFile(unsafe { feature.param.enable })
-            }
-            blazesym_faf_type::BLAZESYM_FAF_T_OBJ_FILE_NAME => {
-                // SAFETY: `enable` is the union variant used for `BLAZESYM_FAF_T_OBJ_FILE_NAME`.
-                FindAddrFeature::ObjFileName(unsafe { feature.param.enable })
-            }
-        }
-    }
 }
 
 

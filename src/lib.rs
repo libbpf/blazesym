@@ -39,7 +39,6 @@ use std::path::PathBuf;
 use resolver::SymResolver;
 pub use symbolize::cfg;
 pub use symbolize::BlazeSymbolizer;
-pub use symbolize::FindAddrFeature;
 pub use symbolize::SymbolSrcCfg;
 pub use symbolize::SymbolizedResult;
 pub use symbolize::SymbolizerFeature;
