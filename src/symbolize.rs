@@ -293,64 +293,30 @@ impl BlazeSymbolizer {
         })
     }
 
-    fn find_addr_features_context(features: &[FindAddrFeature]) -> FindAddrOpts {
-        let mut opts = FindAddrOpts {
+    /// Find the addresses of a list of symbol names.
+    ///
+    /// Find the addresses of a list of symbol names using the provided
+    /// configuration.
+    pub fn find_addrs(&self, cfg: &SymbolSrcCfg, names: &[&str]) -> Result<Vec<Vec<SymbolInfo>>> {
+        let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Unknown,
         };
-        for f in features {
-            match f {
-                FindAddrFeature::OffsetInFile(enable) => {
-                    opts.offset_in_file = *enable;
-                }
-                FindAddrFeature::ObjFileName(enable) => {
-                    opts.obj_file_name = *enable;
-                }
-                FindAddrFeature::SymbolType(sym_type) => {
-                    opts.sym_type = *sym_type;
-                }
-                _ => {
-                    todo!();
-                }
-            }
-        }
-        opts
-    }
-
-    /// Find the addresses of a list of symbol names.
-    ///
-    /// Find the addresses of a list of symbol names from the sources
-    /// of symbols and debug info described by `sym_srcs`.
-    /// `find_addresses_opt()` works just like `find_addrs()` with
-    /// additional controls on features.
-    ///
-    /// # Arguments
-    ///
-    /// * `sym_srcs` - A list of symbol and debug sources.
-    /// * `names` - A list of symbol names.
-    /// * `features` - a list of `FindAddrFeature` to enable, disable, or specify parameters.
-    pub fn find_addresses_opt(
-        &self,
-        cfg: &SymbolSrcCfg,
-        names: &[&str],
-        features: &[FindAddrFeature],
-    ) -> Result<Vec<Vec<SymbolInfo>>> {
-        let ctx = Self::find_addr_features_context(features);
 
         let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
         let mut syms_list = vec![];
         for name in names {
             let mut found = vec![];
             for (_, resolver) in &resolver_map.resolvers {
-                if let Some(mut syms) = resolver.find_addr(name, &ctx) {
+                if let Some(mut syms) = resolver.find_addr(name, &opts) {
                     for sym in &mut syms {
-                        if ctx.offset_in_file {
+                        if opts.offset_in_file {
                             if let Some(off) = resolver.addr_file_off(sym.address) {
                                 sym.file_offset = off;
                             }
                         }
-                        if ctx.obj_file_name {
+                        if opts.obj_file_name {
                             sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
                         }
                     }
@@ -360,19 +326,6 @@ impl BlazeSymbolizer {
             syms_list.push(found);
         }
         Ok(syms_list)
-    }
-
-    /// Find the addresses of a list of symbol names.
-    ///
-    /// Find the addresses of a list of symbol names from the sources
-    /// of symbols and debug info described by `sym_srcs`.
-    ///
-    /// # Arguments
-    ///
-    /// * `sym_srcs` - A list of symbol and debug sources.
-    /// * `names` - A list of symbol names.
-    pub fn find_addrs(&self, cfg: &SymbolSrcCfg, names: &[&str]) -> Result<Vec<Vec<SymbolInfo>>> {
-        self.find_addresses_opt(cfg, names, &[])
     }
 
     /// Symbolize an address using the provided [`SymResolver`].

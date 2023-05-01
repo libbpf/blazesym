@@ -721,13 +721,11 @@ impl From<&blazesym_faddr_feature> for FindAddrFeature {
 ///
 /// The returned pointer should be free by [`blazesym_syms_list_free()`].
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_find_addresses_opt(
+pub unsafe extern "C" fn blazesym_find_addrs(
     symbolizer: *mut blazesym,
     cfg: *const blazesym_sym_src_cfg,
     names: *const *const c_char,
     name_cnt: usize,
-    features: *const blazesym_faddr_feature,
-    num_features: usize,
 ) -> *const *const blazesym_sym_info {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
@@ -743,15 +741,7 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
             unsafe { CStr::from_ptr(p) }.to_str().unwrap()
         })
         .collect::<Vec<_>>();
-    // SAFETY: The caller ensures that the pointer is valid and the count
-    //         matches.
-    let features = unsafe { slice_from_user_array(features, num_features) };
-    let features = features
-        .iter()
-        .map(FindAddrFeature::from)
-        .collect::<Vec<_>>();
-
-    let result = symbolizer.find_addresses_opt(&cfg, &names, &features);
+    let result = symbolizer.find_addrs(&cfg, &names);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
         Err(_err) => {
@@ -761,23 +751,6 @@ pub unsafe extern "C" fn blazesym_find_addresses_opt(
             ptr::null()
         }
     }
-}
-
-/// Find addresses of a symbol name.
-///
-/// A symbol may have multiple addresses.
-///
-/// # Safety
-///
-/// The returned data should be free by [`blazesym_syms_list_free()`].
-#[no_mangle]
-pub unsafe extern "C" fn blazesym_find_addrs(
-    symbolizer: *mut blazesym,
-    cfg: *const blazesym_sym_src_cfg,
-    names: *const *const c_char,
-    name_cnt: usize,
-) -> *const *const blazesym_sym_info {
-    unsafe { blazesym_find_addresses_opt(symbolizer, cfg, names, name_cnt, ptr::null(), 0) }
 }
 
 /// Free an array returned by [`blazesym_find_addrs`].
