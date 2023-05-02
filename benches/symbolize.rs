@@ -17,7 +17,7 @@ fn symbolize_process() {
         libc::dlopen as Addr,
         libc::fopen as Addr,
         symbolize_process as Addr,
-        c_api::blaze_find_addrs as Addr,
+        c_api::blaze_inspector_free as Addr,
     ];
 
     let symbolizer = BlazeSymbolizer::new().unwrap();
