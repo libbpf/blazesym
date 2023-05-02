@@ -1,10 +1,53 @@
-// A library symbolizes addresses to symbols, filenames, and line numbers.
-//
-// BlazeSym is a library to symbolize addresses to get symbol names, file
-// names of source files, and line numbers.  It can translate a stack
-// trace to function names and their locations in the
-// source code.
-#![doc = include_str!("../README.md")]
+//! **blazesym** is a library that can be used to symbolize addresses. Address
+//! symbolization is a common problem in tracing contexts, for example, where users
+//! want to reason about functions by name, but low level components report only the
+//! "raw" addresses (e.g., in the form of stacktraces).
+//!
+//! In addition to symbolization, **blazesym** also provides APIs for the reverse
+//! operation: looking up addresses from symbol names. That can be useful, for
+//! example, for configuring breakpoints or tracepoints.
+//!
+//! Here an example illustrating usage of the symbolization functionality:
+//! ```no_run
+//! use blazesym::cfg;
+//! use blazesym::Addr;
+//! use blazesym::BlazeSymbolizer;
+//! use blazesym::SymbolSrcCfg;
+//! use blazesym::SymbolizedResult;
+//!
+//! let process_id: u32 = std::process::id(); // <some process id>
+//! // Load all symbols of loaded files of the given process.
+//! let cfg = SymbolSrcCfg::Process(cfg::Process { pid: process_id.into() });
+//! let symbolizer = BlazeSymbolizer::new().unwrap();
+//!
+//! let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
+//! let symlist = symbolizer.symbolize(&cfg,      // Pass this configuration every time
+//!                                    &stack).unwrap();
+//! for i in 0..stack.len() {
+//!   let address = stack[i];
+//!
+//!   if symlist.len() <= i || symlist[i].len() == 0 {  // Unknown address
+//!     println!("0x{:016x}", address);
+//!     continue;
+//!   }
+//!
+//!   let sym_results = &symlist[i];
+//!   if sym_results.len() > 1 {
+//!     // One address may get several results (e.g., when defined in multiple
+//!     // compilation units)
+//!     println!("0x{:016x} ({} entries)", address, sym_results.len());
+//!
+//!     for result in sym_results {
+//!       let SymbolizedResult {symbol, start_address, path, line_no, column} = result;
+//!       println!("    {}@0x{:016x} {}:{}", symbol, start_address, path.display(), line_no);
+//!     }
+//!   } else {
+//!     let SymbolizedResult {symbol, start_address, path, line_no, column} = &sym_results[0];
+//!     println!("0x{:016x} {}@0x{:016x} {}:{}", address, symbol, start_address, path.display(), line_no);
+//!   }
+//! }
+//! ```
+
 #![allow(clippy::collapsible_if, clippy::let_and_return, clippy::let_unit_value)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(missing_debug_implementations)]
