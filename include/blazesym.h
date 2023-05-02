@@ -95,6 +95,15 @@ typedef enum blazesym_src_type {
 typedef struct blazesym blazesym;
 
 /**
+ * An inspector of various "sources".
+ *
+ * Object of this type can be used to perform inspections of supported sources.
+ * E.g., using an ELF file as a source, information about a symbol can be
+ * inquired based on its name.
+ */
+typedef struct blaze_inspector blaze_inspector;
+
+/**
  * A normalizer for addresses.
  *
  * Address normalization is the process of taking virtual absolute
@@ -119,12 +128,206 @@ typedef struct blaze_sym_info {
 } blaze_sym_info;
 
 /**
+ * An object representing an ELF inspection source.
+ *
+ * C ABI compatible version of [`inspect::Elf`].
+ */
+typedef struct blaze_inspect_elf_src {
+  /**
+   * The path to the binary. This member is always present.
+   */
+  char *path;
+  /**
+   * Whether or not to consult debug information to satisfy the request (if
+   * present).
+   */
+  bool debug_info;
+} blaze_inspect_elf_src;
+
+/**
+ * C compatible version of [`Binary`].
+ */
+typedef struct blaze_user_addr_meta_binary {
+  /**
+   * The path to the binary. This member is always present.
+   */
+  char *path;
+  /**
+   * The length of the build ID, in bytes.
+   */
+  size_t build_id_len;
+  /**
+   * The optional build ID of the binary, if found.
+   */
+  uint8_t *build_id;
+} blaze_user_addr_meta_binary;
+
+/**
+ * C compatible version of [`Unknown`].
+ */
+typedef struct blaze_user_addr_meta_unknown {
+
+} blaze_user_addr_meta_unknown;
+
+/**
+ * The actual variant data in [`blaze_user_addr_meta`].
+ */
+typedef union blaze_user_addr_meta_variant {
+  /**
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY`].
+   */
+  struct blaze_user_addr_meta_binary binary;
+  /**
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
+   */
+  struct blaze_user_addr_meta_unknown unknown;
+} blaze_user_addr_meta_variant;
+
+/**
+ * C ABI compatible version of [`UserAddrMeta`].
+ */
+typedef struct blaze_user_addr_meta {
+  /**
+   * The variant kind that is present.
+   */
+  enum blaze_user_addr_meta_kind kind;
+  /**
+   * The actual variant with its data.
+   */
+  union blaze_user_addr_meta_variant variant;
+} blaze_user_addr_meta;
+
+/**
+ * A normalized address along with an index into the associated
+ * [`blaze_user_addr_meta`] array (such as
+ * [`blaze_normalized_user_addrs::metas`]).
+ */
+typedef struct blaze_normalized_addr {
+  /**
+   * The normalized address.
+   */
+  uintptr_t addr;
+  /**
+   * The index into the associated [`blaze_user_addr_meta`] array.
+   */
+  size_t meta_idx;
+} blaze_normalized_addr;
+
+/**
+ * An object representing normalized user addresses.
+ *
+ * C ABI compatible version of [`NormalizedUserAddrs`].
+ */
+typedef struct blaze_normalized_user_addrs {
+  /**
+   * The number of [`blaze_user_addr_meta`] objects present in `metas`.
+   */
+  size_t meta_count;
+  /**
+   * An array of `meta_count` objects.
+   */
+  struct blaze_user_addr_meta *metas;
+  /**
+   * The number of [`blaze_normalized_addr`] objects present in `addrs`.
+   */
+  size_t addr_count;
+  /**
+   * An array of `addr_count` objects.
+   */
+  struct blaze_normalized_addr *addrs;
+} blaze_normalized_user_addrs;
+
+/**
  * A placeholder symbolizer for C API.
  *
  * It is returned by [`blazesym_new()`] and should be free by
  * [`blazesym_free()`].
  */
 typedef struct blazesym blazesym;
+
+typedef union blazesym_feature_params {
+  bool enable;
+} blazesym_feature_params;
+
+/**
+ * Setting of the blazesym features.
+ *
+ * Contain parameters to enable, disable, or customize a feature.
+ */
+typedef struct blazesym_feature {
+  enum blazesym_feature_name feature;
+  union blazesym_feature_params params;
+} blazesym_feature;
+
+/**
+ * The result of symbolization of an address for C API.
+ *
+ * A `blazesym_csym` is the information of a symbol found for an
+ * address.  One address may result in several symbols.
+ */
+typedef struct blazesym_csym {
+  /**
+   * The symbol name is where the given address should belong to.
+   */
+  const char *symbol;
+  /**
+   * The address (i.e.,the first byte) is where the symbol is located.
+   *
+   * The address is already relocated to the address space of
+   * the process.
+   */
+  uintptr_t start_address;
+  /**
+   * The path of the source code defines the symbol.
+   */
+  const char *path;
+  /**
+   * The instruction of the address is in the line number of the source code.
+   */
+  size_t line_no;
+  size_t column;
+} blazesym_csym;
+
+/**
+ * `blazesym_entry` is the output of symbolization for an address for C API.
+ *
+ * Every address has an `blazesym_entry` in
+ * [`blazesym_result::entries`] to collect symbols found by BlazeSym.
+ */
+typedef struct blazesym_entry {
+  /**
+   * The number of symbols found for an address.
+   */
+  size_t size;
+  /**
+   * All symbols found.
+   *
+   * `syms` is an array of blazesym_csym in the size `size`.
+   */
+  const struct blazesym_csym *syms;
+} blazesym_entry;
+
+/**
+ * `blazesym_result` is the result of symbolization for C API.
+ *
+ * The instances of blazesym_result are returned from
+ * [`blazesym_symbolize()`].  They should be free by calling
+ * [`blazesym_result_free()`].
+ */
+typedef struct blazesym_result {
+  /**
+   * The number of addresses being symbolized.
+   */
+  size_t size;
+  /**
+   * The entries for addresses.
+   *
+   * Symbolization occurs based on the order of addresses.
+   * Therefore, every address must have an entry here on the same
+   * order.
+   */
+  struct blazesym_entry entries[0];
+} blazesym_result;
 
 /**
  * The parameters to load symbols and debug information from an ELF.
@@ -258,184 +461,7 @@ typedef struct blazesym_sym_src_cfg {
 } blazesym_sym_src_cfg;
 
 /**
- * C compatible version of [`Binary`].
- */
-typedef struct blaze_user_addr_meta_binary {
-  /**
-   * The path to the binary. This member is always present.
-   */
-  char *path;
-  /**
-   * The length of the build ID, in bytes.
-   */
-  size_t build_id_len;
-  /**
-   * The optional build ID of the binary, if found.
-   */
-  uint8_t *build_id;
-} blaze_user_addr_meta_binary;
-
-/**
- * C compatible version of [`Unknown`].
- */
-typedef struct blaze_user_addr_meta_unknown {
-
-} blaze_user_addr_meta_unknown;
-
-/**
- * The actual variant data in [`blaze_user_addr_meta`].
- */
-typedef union blaze_user_addr_meta_variant {
-  /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY`].
-   */
-  struct blaze_user_addr_meta_binary binary;
-  /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
-   */
-  struct blaze_user_addr_meta_unknown unknown;
-} blaze_user_addr_meta_variant;
-
-/**
- * C ABI compatible version of [`UserAddrMeta`].
- */
-typedef struct blaze_user_addr_meta {
-  /**
-   * The variant kind that is present.
-   */
-  enum blaze_user_addr_meta_kind kind;
-  /**
-   * The actual variant with its data.
-   */
-  union blaze_user_addr_meta_variant variant;
-} blaze_user_addr_meta;
-
-/**
- * A normalized address along with an index into the associated
- * [`blaze_user_addr_meta`] array (such as
- * [`blaze_normalized_user_addrs::metas`]).
- */
-typedef struct blaze_normalized_addr {
-  /**
-   * The normalized address.
-   */
-  uintptr_t addr;
-  /**
-   * The index into the associated [`blaze_user_addr_meta`] array.
-   */
-  size_t meta_idx;
-} blaze_normalized_addr;
-
-/**
- * An object representing normalized user addresses.
- *
- * C ABI compatible version of [`NormalizedUserAddrs`].
- */
-typedef struct blaze_normalized_user_addrs {
-  /**
-   * The number of [`blaze_user_addr_meta`] objects present in `metas`.
-   */
-  size_t meta_count;
-  /**
-   * An array of `meta_count` objects.
-   */
-  struct blaze_user_addr_meta *metas;
-  /**
-   * The number of [`blaze_normalized_addr`] objects present in `addrs`.
-   */
-  size_t addr_count;
-  /**
-   * An array of `addr_count` objects.
-   */
-  struct blaze_normalized_addr *addrs;
-} blaze_normalized_user_addrs;
-
-typedef union blazesym_feature_params {
-  bool enable;
-} blazesym_feature_params;
-
-/**
- * Setting of the blazesym features.
- *
- * Contain parameters to enable, disable, or customize a feature.
- */
-typedef struct blazesym_feature {
-  enum blazesym_feature_name feature;
-  union blazesym_feature_params params;
-} blazesym_feature;
-
-/**
- * The result of symbolization of an address for C API.
- *
- * A `blazesym_csym` is the information of a symbol found for an
- * address.  One address may result in several symbols.
- */
-typedef struct blazesym_csym {
-  /**
-   * The symbol name is where the given address should belong to.
-   */
-  const char *symbol;
-  /**
-   * The address (i.e.,the first byte) is where the symbol is located.
-   *
-   * The address is already relocated to the address space of
-   * the process.
-   */
-  uintptr_t start_address;
-  /**
-   * The path of the source code defines the symbol.
-   */
-  const char *path;
-  /**
-   * The instruction of the address is in the line number of the source code.
-   */
-  size_t line_no;
-  size_t column;
-} blazesym_csym;
-
-/**
- * `blazesym_entry` is the output of symbolization for an address for C API.
- *
- * Every address has an `blazesym_entry` in
- * [`blazesym_result::entries`] to collect symbols found by BlazeSym.
- */
-typedef struct blazesym_entry {
-  /**
-   * The number of symbols found for an address.
-   */
-  size_t size;
-  /**
-   * All symbols found.
-   *
-   * `syms` is an array of blazesym_csym in the size `size`.
-   */
-  const struct blazesym_csym *syms;
-} blazesym_entry;
-
-/**
- * `blazesym_result` is the result of symbolization for C API.
- *
- * The instances of blazesym_result are returned from
- * [`blazesym_symbolize()`].  They should be free by calling
- * [`blazesym_result_free()`].
- */
-typedef struct blazesym_result {
-  /**
-   * The number of addresses being symbolized.
-   */
-  size_t size;
-  /**
-   * The entries for addresses.
-   *
-   * Symbolization occurs based on the order of addresses.
-   * Therefore, every address must have an entry here on the same
-   * order.
-   */
-  struct blazesym_entry entries[0];
-} blazesym_result;
-
-/**
- * Find the addresses of a list of symbols.
+ * Lookup symbol information in an ELF file.
  *
  * Return an array with the same size as the input names. The caller should
  * free the returned array by calling [`blaze_syms_free`].
@@ -444,24 +470,47 @@ typedef struct blazesym_result {
  * The respective entry in the returned array is an array containing
  * all addresses and ended with a null (0x0).
  *
- * # Safety
+ * The returned pointer should be freed by [`blaze_syms_free`].
  *
- * The returned pointer should be free by [`blaze_syms_free`].
+ * # Safety
+ * The `inspector` object should have been created using
+ * [`blaze_inspector_new`], `src` needs to point to a valid object, and `names`
+ * needs to be a valid pointer to `name_cnt` strings.
  */
-const struct blaze_sym_info *const *blaze_find_addrs(blazesym *symbolizer,
-                                                     const struct blazesym_sym_src_cfg *cfg,
-                                                     const char *const *names,
-                                                     size_t name_cnt);
+const struct blaze_sym_info *const *blaze_inspect_syms_elf(const struct blaze_inspector *inspector,
+                                                           const struct blaze_inspect_elf_src *src,
+                                                           const char *const *names,
+                                                           size_t name_cnt);
 
 /**
- * Free an array returned by [`blazesym_find_addrs`].
+ * Free an array returned by [`blaze_inspect_syms_elf`].
  *
  * # Safety
  *
- * The pointer must be returned by [`blazesym_find_addrs`].
+ * The pointer must be returned by [`blaze_inspect_syms_elf`].
  *
  */
 void blaze_syms_free(const struct blaze_sym_info *const *syms);
+
+/**
+ * Create an instance of a blazesym inspector.
+ *
+ * The returned pointer should be released using
+ * [`blaze_inspector_free`] once it is no longer needed.
+ */
+struct blaze_inspector *blaze_inspector_new(void);
+
+/**
+ * Free a blazesym inspector.
+ *
+ * Release resources associated with a inspector as created by
+ * [`blaze_inspector_new`], for example.
+ *
+ * # Safety
+ * The provided inspector should have been created by
+ * [`blaze_inspector_new`].
+ */
+void blaze_inspector_free(struct blaze_inspector *inspector);
 
 /**
  * Create an instance of a blazesym normalizer.

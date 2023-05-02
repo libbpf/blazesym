@@ -2,21 +2,87 @@ use std::alloc::alloc;
 use std::alloc::dealloc;
 use std::alloc::Layout;
 use std::ffi::CStr;
+use std::ffi::CString;
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::mem;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
+use std::os::unix::ffi::OsStringExt as _;
+use std::path::Path;
+use std::path::PathBuf;
 use std::ptr;
 
-use crate::c_api::blazesym;
-use crate::c_api::blazesym_sym_src_cfg;
+#[cfg(doc)]
+use crate::inspect;
+use crate::inspect::Elf;
+use crate::inspect::Inspector;
+use crate::inspect::Source;
 use crate::log::error;
 use crate::util::slice_from_user_array;
 use crate::Addr;
 use crate::SymbolInfo;
-use crate::SymbolSrcCfg;
 use crate::SymbolType;
+
+
+/// An object representing an ELF inspection source.
+///
+/// C ABI compatible version of [`inspect::Elf`].
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_inspect_elf_src {
+    /// The path to the binary. This member is always present.
+    path: *mut c_char,
+    /// Whether or not to consult debug information to satisfy the request (if
+    /// present).
+    debug_info: bool,
+}
+
+impl From<Elf> for blaze_inspect_elf_src {
+    fn from(other: Elf) -> Self {
+        let Elf {
+            path,
+            debug_info,
+            _non_exhaustive: (),
+        } = other;
+        Self {
+            path: CString::new(path.into_os_string().into_vec())
+                .expect("encountered path with NUL bytes")
+                .into_raw(),
+            debug_info,
+        }
+    }
+}
+
+impl From<blaze_inspect_elf_src> for Elf {
+    fn from(other: blaze_inspect_elf_src) -> Self {
+        let blaze_inspect_elf_src { path, debug_info } = other;
+
+        Elf {
+            path: PathBuf::from(OsString::from_vec(
+                unsafe { CString::from_raw(path) }.into_bytes(),
+            )),
+            debug_info,
+            _non_exhaustive: (),
+        }
+    }
+}
+
+impl From<&blaze_inspect_elf_src> for Elf {
+    fn from(other: &blaze_inspect_elf_src) -> Self {
+        let blaze_inspect_elf_src { path, debug_info } = other;
+
+        Elf {
+            path: Path::new(OsStr::from_bytes(
+                unsafe { CStr::from_ptr(*path) }.to_bytes(),
+            ))
+            .to_path_buf(),
+            debug_info: *debug_info,
+            _non_exhaustive: (),
+        }
+    }
+}
 
 
 /// The type of a symbol.
@@ -140,7 +206,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
 }
 
 
-/// Find the addresses of a list of symbols.
+/// Lookup symbol information in an ELF file.
 ///
 /// Return an array with the same size as the input names. The caller should
 /// free the returned array by calling [`blaze_syms_free`].
@@ -149,20 +215,23 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
 /// The respective entry in the returned array is an array containing
 /// all addresses and ended with a null (0x0).
 ///
-/// # Safety
+/// The returned pointer should be freed by [`blaze_syms_free`].
 ///
-/// The returned pointer should be free by [`blaze_syms_free`].
+/// # Safety
+/// The `inspector` object should have been created using
+/// [`blaze_inspector_new`], `src` needs to point to a valid object, and `names`
+/// needs to be a valid pointer to `name_cnt` strings.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_find_addrs(
-    symbolizer: *mut blazesym,
-    cfg: *const blazesym_sym_src_cfg,
+pub unsafe extern "C" fn blaze_inspect_syms_elf(
+    inspector: *const Inspector,
+    src: *const blaze_inspect_elf_src,
     names: *const *const c_char,
     name_cnt: usize,
 ) -> *const *const blaze_sym_info {
     // SAFETY: The caller ensures that the pointer is valid.
-    let symbolizer = unsafe { &*symbolizer };
+    let inspector = unsafe { &*inspector };
     // SAFETY: The caller ensures that the pointer is valid.
-    let cfg = SymbolSrcCfg::from(unsafe { &*cfg });
+    let src = Source::Elf(Elf::from(unsafe { &*src }));
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
     let names = unsafe { slice_from_user_array(names, name_cnt) };
@@ -173,22 +242,22 @@ pub unsafe extern "C" fn blaze_find_addrs(
             unsafe { CStr::from_ptr(p) }.to_str().unwrap()
         })
         .collect::<Vec<_>>();
-    let result = symbolizer.find_addrs(&cfg, &names);
+    let result = inspector.lookup(&names, &src);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
         Err(err) => {
-            error!("failed to find {name_cnt} symbols: {err}");
+            error!("failed to lookup symbols: {err}");
             ptr::null()
         }
     }
 }
 
 
-/// Free an array returned by [`blazesym_find_addrs`].
+/// Free an array returned by [`blaze_inspect_syms_elf`].
 ///
 /// # Safety
 ///
-/// The pointer must be returned by [`blazesym_find_addrs`].
+/// The pointer must be returned by [`blaze_inspect_syms_elf`].
 ///
 #[no_mangle]
 pub unsafe extern "C" fn blaze_syms_free(syms: *const *const blaze_sym_info) {
@@ -199,4 +268,34 @@ pub unsafe extern "C" fn blaze_syms_free(syms: *const *const blaze_sym_info) {
     let raw_buf_with_sz = unsafe { (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
     let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
     unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
+}
+
+
+/// Create an instance of a blazesym inspector.
+///
+/// The returned pointer should be released using
+/// [`blaze_inspector_free`] once it is no longer needed.
+#[no_mangle]
+pub extern "C" fn blaze_inspector_new() -> *mut Inspector {
+    let inspector = Inspector::new();
+    let inspector_box = Box::new(inspector);
+    Box::into_raw(inspector_box)
+}
+
+
+/// Free a blazesym inspector.
+///
+/// Release resources associated with a inspector as created by
+/// [`blaze_inspector_new`], for example.
+///
+/// # Safety
+/// The provided inspector should have been created by
+/// [`blaze_inspector_new`].
+#[no_mangle]
+pub unsafe extern "C" fn blaze_inspector_free(inspector: *mut Inspector) {
+    if !inspector.is_null() {
+        // SAFETY: The caller needs to ensure that `inspector` is a
+        //         valid pointer.
+        drop(unsafe { Box::from_raw(inspector) });
+    }
 }
