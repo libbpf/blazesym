@@ -38,11 +38,10 @@ fn main() {
     if results.len() == 1 && !results[0].is_empty() {
         let result = &results[0][0];
         println!(
-            "0x{:x} @ {} {}:{}",
-            addr,
+            "0x{addr:x} @ {} {}:{}",
             result.symbol,
             result.path.display(),
-            result.line_no
+            result.line
         );
     } else {
         println!("0x{addr:x} is not found");

@@ -276,15 +276,15 @@ typedef struct blazesym_csym {
    * The address is already relocated to the address space of
    * the process.
    */
-  uintptr_t start_address;
+  uintptr_t addr;
   /**
-   * The path of the source code defines the symbol.
+   * The path of the source file defining the symbol.
    */
   const char *path;
   /**
-   * The instruction of the address is in the line number of the source code.
+   * The line number on which the symbol was to be found in the source code.
    */
-  size_t line_no;
+  size_t line;
   size_t column;
 } blazesym_csym;
 
