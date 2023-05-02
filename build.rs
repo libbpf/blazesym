@@ -259,6 +259,20 @@ fn prepare_test_files(crate_root: &Path) {
             src_cu2,
         ],
     );
+    cc(
+        &src,
+        "test-stable-addresses-no-dwarf.bin",
+        &[
+            "-g0",
+            "-T",
+            ld_script,
+            "-Wl,--build-id=none",
+            "-O0",
+            "-nostdlib",
+            // TODO: Eventually we may want to make `cc` multi-input-file aware.
+            src_cu2,
+        ],
+    );
 
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test.gsym");

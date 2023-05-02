@@ -79,7 +79,6 @@ impl DwarfResolver {
     /// from the given file.  If the instance will be used for long
     /// running, you would want to load all data into memory to have
     /// the ability of handling all possible addresses.
-    #[cfg(test)]
     fn open_for_addresses(
         filename: &Path,
         addresses: &[Addr],
@@ -99,7 +98,6 @@ impl DwarfResolver {
     ///
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
-    #[cfg(test)]
     pub fn open(
         filename: &Path,
         debug_line_info: bool,
