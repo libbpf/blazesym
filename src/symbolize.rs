@@ -367,7 +367,7 @@ impl BlazeSymbolizer {
 
     fn resolve_addr_in_binary(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
         let backend = self.elf_cache.find(path)?;
-        let resolver = ElfResolver::new(path, 0, backend)?;
+        let resolver = ElfResolver::with_backend(path, 0, backend)?;
         let symbols = self.symbolize_with_resolver(addr, &resolver);
         Ok(symbols)
     }
@@ -438,7 +438,7 @@ impl BlazeSymbolizer {
 
         let elf_resolver = if let Some(image) = kernel_image {
             let backend = self.elf_cache.find(image)?;
-            let elf_resolver = ElfResolver::new(image, 0, backend)?;
+            let elf_resolver = ElfResolver::with_backend(image, 0, backend)?;
             Some(elf_resolver)
         } else {
             let release = uname_release()?.to_str().unwrap().to_string();
@@ -453,7 +453,7 @@ impl BlazeSymbolizer {
                 let result = self.elf_cache.find(&image);
                 match result {
                     Ok(backend) => {
-                        let result = ElfResolver::new(&image, 0, backend);
+                        let result = ElfResolver::with_backend(&image, 0, backend);
                         match result {
                             Ok(resolver) => Some(resolver),
                             Err(err) => {
@@ -495,7 +495,7 @@ impl BlazeSymbolizer {
                 base_address,
             }) => {
                 let backend = self.elf_cache.find(file_name)?;
-                let resolver = ElfResolver::new(file_name, *base_address, backend)?;
+                let resolver = ElfResolver::with_backend(file_name, *base_address, backend)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }

@@ -53,7 +53,7 @@ impl ResolverMap {
         } = cfg;
 
         let backend = elf_cache.find(file_name)?;
-        let resolver = ElfResolver::new(file_name, *base_address, backend)?;
+        let resolver = ElfResolver::with_backend(file_name, *base_address, backend)?;
         Ok(resolver)
     }
 
