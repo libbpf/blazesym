@@ -92,7 +92,7 @@ typedef enum blazesym_src_type {
  * kallsyms (`SymbolSrcCfg::Kernel`).  Additionally, BlazeSymbolizer
  * uses information from these sources to symbolize addresses.
  */
-typedef struct blazesym blazesym;
+typedef struct blaze_symbolizer blaze_symbolizer;
 
 /**
  * An inspector of various "sources".
@@ -243,7 +243,7 @@ typedef struct blaze_normalized_user_addrs {
  * It is returned by [`blaze_symbolizer_new`] and should be free by
  * [`blaze_symbolizer_free`].
  */
-typedef struct blazesym blazesym;
+typedef struct blaze_symbolizer blaze_symbolizer;
 
 typedef union blazesym_feature_params {
   bool enable;
@@ -583,7 +583,7 @@ void blaze_user_addrs_free(struct blaze_normalized_user_addrs *addrs);
 /**
  * Create an instance of blazesym a symbolizer for C API.
  */
-blazesym *blaze_symbolizer_new(void);
+blaze_symbolizer *blaze_symbolizer_new(void);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.
@@ -592,8 +592,8 @@ blazesym *blaze_symbolizer_new(void);
  *
  * `features` needs to be a valid pointer to `feature_cnt` elements.
  */
-blazesym *blaze_symbolizer_new_opts(const struct blazesym_feature *features,
-                                    size_t feature_cnt);
+blaze_symbolizer *blaze_symbolizer_new_opts(const struct blazesym_feature *features,
+                                            size_t feature_cnt);
 
 /**
  * Free an instance of blazesym a symbolizer for C API.
@@ -603,7 +603,7 @@ blazesym *blaze_symbolizer_new_opts(const struct blazesym_feature *features,
  * The pointer must have been returned by [`blaze_symbolizer_new`] or
  * [`blaze_symbolizer_new_opts`].
  */
-void blaze_symbolizer_free(blazesym *symbolizer);
+void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
 
 /**
  * Symbolize addresses with the sources of symbols and debug info.
@@ -616,7 +616,7 @@ void blaze_symbolizer_free(blazesym *symbolizer);
  *
  * The returned pointer should be freed by [`blazesym_result_free()`].
  */
-const struct blazesym_result *blaze_symbolize(blazesym *symbolizer,
+const struct blazesym_result *blaze_symbolize(blaze_symbolizer *symbolizer,
                                               const struct blazesym_sym_src_cfg *cfg,
                                               const uintptr_t *addrs,
                                               size_t addr_cnt);
