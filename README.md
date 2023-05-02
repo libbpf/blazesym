@@ -1,226 +1,91 @@
+[![pipeline](https://github.com/libbpf/blazesym/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/libbpf/blazesym/actions/workflows/test.yml)
+[![coverage](https://codecov.io/gh/libbpf/blazesym/branch/main/graph/badge.svg)](https://codecov.io/gh/libbpf/blazesym)
+[![crates.io](https://img.shields.io/crates/v/blazesym.svg)](https://crates.io/crates/blazesym)
+[![Docs](https://docs.rs/blazesym/badge.svg)](https://docs.rs/blazesym)
+[![rustc](https://img.shields.io/badge/rustc-1.63+-blue.svg)](https://blog.rust-lang.org/2022/08/11/Rust-1.63.0.html)
+
 # blazesym
 
-**blazesym** is a library that symbolizes addresses where symbol names,
-source file names, and line numbers can be acquired. It can translate stack
-traces to function names and their locations in the source code.
+**blazesym** is a library that can be used to symbolize addresses. Address
+symbolization is a common problem in tracing contexts, for example, where users
+want to reason about functions by name, but low level components report only the
+"raw" addresses (e.g., in the form of stacktraces).
 
- - <https://github.com/libbpf/blazesym>
+In addition to symbolization, **blazesym** also provides APIs for the reverse
+operation: looking up addresses from symbol names. That can be useful, for
+example, for configuring breakpoints or tracepoints.
 
-## Build
+The library aims to provide a "batteries-included" experience. That is to say,
+it tries to do the expected thing by default. When offering such convenience
+comes at the cost of performance, we aim to provide advanced APIs that allow for
+runtime configuration of the corresponding features.
 
-To build **blazesym**, you must install a Rust environment.
+The library is written in Rust and provides a first class C API. This crate
+adheres to Cargo's [semantic versioning rules][cargo-semver]. At a minimum, it
+builds with the most recent Rust stable release minus five minor versions ("N -
+5"). E.g., assuming the most recent Rust stable is `1.68`, the crate is
+guaranteed to build with `1.63` and higher.
 
-Once successfully installed, you must obtain blazesym's source code.
 
- - `git clone https://github.com/libbpf/blazesym.git`
+## Status
+**blazesym** is being actively worked on. Feel free to contribute with
+discussions, feature suggestions, or code contributions!
 
-Next, you would need to go to the root directory of the **blazesym** source code
-to build the library.
+Here is rough roadmap of currently planned features (in no particular order):
 
- - cargo build
+- [ ] Fully support handling of kernel addresses
+  - currently normalization APIs, for example, only support user space addresses
+- [ ] Optimize normalization logic with more aggressive caching
+- [ ] Switch to using [`gimli`](https://crates.io/crates/gimli) for DWARF parsing
+  - doing so will allow us to:
+    - [ ] Support more versions of the DWARF standard (https://github.com/libbpf/blazesym/issues/42 & https://github.com/libbpf/blazesym/issues/57)
+    - [ ] Support split debug information (https://github.com/libbpf/blazesym/issues/60)
+- [ ] Support symbolization of addresses in APKs (relevant for Android)
+- [ ] Support ELF32 binaries (https://github.com/libbpf/blazesym/issues/53)
+- [ ] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)
+- [ ] Support remote symbolization (https://github.com/libbpf/blazesym/issues/61)
+  - [x] Add APIs for address normalization (https://github.com/libbpf/blazesym/pull/114, https://github.com/libbpf/blazesym/pull/128, ...)
+- [ ] Support advanced symbolization use cases involving [`debuginfod`](https://sourceware.org/elfutils/Debuginfod.html)
 
-You will see **libblazesym.a** in `target/debug/` or `target/release/`
-directory. The corresponding **blazesym.h** header file is located
-inside `include/`. Your C programs, if any, should include
-**blazesym.h** and link to **libblazesym.a** to access functions and
-various types of **blazesym**.
 
-## Rust API
+## Build & Use
+**blazesym** requires a standard Rust toolchain and can be built using the Cargo
+project manager (e.g., `cargo build`).
 
-The following code makes use of **blazesym** to access symbol names, filenames of
-sources, and line numbers of addresses involved in a process.
-
-```rust,no_run
-  use blazesym::cfg;
-  use blazesym::Addr;
-  use blazesym::BlazeSymbolizer;
-  use blazesym::SymbolSrcCfg;
-  use blazesym::SymbolizedResult;
-
-  let process_id: u32 = std::process::id(); // <some process id>
-  // load all symbols of loaded files of the given process.
-  let cfg = SymbolSrcCfg::Process(cfg::Process { pid: process_id.into() });
-  let symbolizer = BlazeSymbolizer::new().unwrap();
-
-  let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
-  let symlist = symbolizer.symbolize(&cfg,      // Pass this configuration every time
-                                     &stack).unwrap();
-  for i in 0..stack.len() {
-    let address = stack[i];
-
-    if symlist.len() <= i || symlist[i].len() == 0 {  // Unknown address
-      println!("0x{:016x}", address);
-      continue;
-    }
-
-    let sym_results = &symlist[i];
-    if sym_results.len() > 1 {
-      // One address may get several results (ex, inline code)
-      println!("0x{:016x} ({} entries)", address, sym_results.len());
-
-      for result in sym_results {
-        let SymbolizedResult {symbol, start_address, path, line_no, column} = result;
-        println!("    {}@0x{:016x} {}:{}", symbol, start_address, path.display(), line_no);
-      }
-    } else {
-      let SymbolizedResult {symbol, start_address, path, line_no, column} = &sym_results[0];
-      println!("0x{:016x} {}@0x{:016x} {}:{}", address, symbol, start_address, path.display(), line_no);
-    }
-  }
+### Rust
+Consumption from a Rust project should happen via `Cargo.toml`:
+```toml
+[dependencies]
+blazesym = "*"
 ```
 
-`cfg` is the configuration to use when symbolizing addresses. The
-`SymbolSrcCfg::Process` variant used here instructs the symbolizer to use
-information about the provided process from the system.
+For a quick set of examples please refer to the [`examples/` folder](examples/).
+Please refer to the [documentation](https://docs.rs/blazesym) for a
+comprehensive explanation of individual types and functions.
 
-`symlist` is a list of lists of `SymbolizedResult`. The instruction provided at
-an address can result from several lines of code from multiple functions with
-optimization. In other words, the result of an address is a list of
-`SymbolizedResult`. Each entry in `symlist` results from the address at the
-respective position in the argument passed to `BlazeSymbolizer::symbolize()`.
 
-### With Linux Kernel
+### C
+For C interoperability, the aforementioned build will produce `libblazesym.a` as
+well as `libblazesym.so` in the respective target folder (e.g.,
+`<project-root>/target/debug/`).
 
-`SymbolSrcCfg::Kernel {}` is a variant to load symbols of the Linux Kernel.
-
-```rust,ignore,compile_fail
-  let cfg = SymbolSrcCfg::Kernel(cfg::Kernel {
-    kallsyms: Some(PathBuf::from("/proc/kallsyms")),
-    kernel_image: Some(PathBuf::from("/boot/vmlinux-xxxxx")),
-  });
-```
-
-In this case, you give the path of kallsyms and the path of a kernel image.
-The path of kallsyms can be that of `"/proc/"` or a copy of kallsym.
-
-If you are symbolizing against the current running kernel on the same
-device, give `None` for both paths. Doing so will find the correct
-paths for you, if possible. It will use `"/proc/kallsyms"` for
-kallsyms and find the kernel image of the running kernel from several
-potential directories; for instance, `"/boot/"` and `"/usr/lib/debug/boot/"`.
-
-```rust,ignore,compile_fail
-  let cfg = SymbolSrcCfg::Kernel(cfg::Kernel { kallsyms: None, kernel_image: None });
-```
-
-### An example of Rust API
-
-[`examples/addr2ln_pid.rs`](examples/addr2ln_pid.rs) is an example performing
-symbolization for an address in a process.
-
+In your C programs include [`blazesym.h`][include/blazesym.h] (provided as part
+of the library) from your source code and then link against the static or shared
+library, respectively. When linking statically, you may also need to link:
 ```text
-  $ ./target/debug/examples/addr2ln_pid 1234 7f0c41ade000
-  PID: 1234
-  0x7f0c41ade000 wcsxfrm_l@0x7f0c41addd10+752 src/foo.c:0
-  $
+-lrt -ldl -lpthread -lm
 ```
 
-The above command will display the symbol names, sources' file names,
-and the line numbers of address 0x7f0c41ade000 in process 1234.
-
-Users should build examples using the following command at the root of the
-source.
-
-```text
-  $ cargo build --examples
-```
-
-## C API
-
-The following code symbolizes a list of addresses of a process. It
-shows the addresses, symbol names, source filenames and line numbers.
-
-```c
-  #include "blazesym.h"
-
-  struct blazesym_sym_src_cfg cfg = {
-    .src_type = BLAZESYM_SRC_T_PROCESS,
-    .params = { .process { <pid> } },
-  };
-  const struct blazesym *symbolizer;
-  const struct blazesym_result * result;
-  const struct blazesym_csym *sym;
-  uint64_t stack[] = { 0x12345, 0x7ff992, ..};
-  int stack_sz = sizeof(stack) / sizeof(stack[0]);
-  uint64_t addr;
-  int i, j;
-
-  symbolizer = blazesym_new();
-  /* `cfg` should be passed every time doing symbolization */
-  result = blazesym_symbolize(symbolizer, cfg, stack, stack_sz);
-
-  for (i = 0; i < stack_sz; i++) {
-    addr = stack[i];
-
-    if (!result || i >= result->size || result->entries[i].size == 0) {
-      /* not found */
-      printf("[<%016llx>]\n", addr);
-      continue;
-    }
-
-    if (result->entries[i].size == 1) {
-      /* found one result */
-      sym = &result->entries[i].syms[0];
-      printf("[<%016llx>] %s@0x%llx %s:%ld\n", addr, sym->symbol, sym->start_address,
-              sym->path, sym->line_no);
-      continue;
-    }
-
-    /* Found multiple results */
-    printf("[<%016llx>] (%d entries)\n", addr, result->entries[i].size);
-    for (j = 0; j < result->entries[i].size; j++) {
-      sym = &result->entries[i].syms[j];
-      printf("    %s@0x$llx %s:%ld\n", sym->symbol, sym->start_address,
-             sym->path, sym->line_no);
-    }
-  }
-
-  blazesym_result_free(result);
-  blazesym_free(symbolizer);
-```
-
-`struct blazesym_sym_src_cfg` describes a binary, symbol file, shared
-object, kernel, or process. This example uses a `struct blazesym_sym_src_cfg`
-instance with `blazesym_src_type::BLAZESYM_SRC_T_PROCESS` type to describe a
-process. **blazesym** deciphers all the loaded ELF files of the process and
-loads symbols and DWARF information from them to perform symbolization.
-
-### Link C programs
-
-You should include [`blazesym.h`][include/blazesym.h] in a C program to call
-**blazesym**.
-
-You also need the following arguments to link against **blazesym**.
-
-```text
-  libblazesym.a -lrt -ldl -lpthread -lm
-```
-
-You may want to link a shared library, i.e., `libblazesym.so`.
-
-### With Linux Kernel
-
-`blazesym_src_type::BLAZESYM_SRC_T_KERNEL` is a variant of `struct
-blazesym_sym_src_cfg` highlighting the kernel as a source of symbolization.
-
-```c
-struct blazesym_sym_src_cfg cfg = {
-  .src_type = BLAZESYM_SRC_T_KERNEL,
-  .params = { .kernel = {
-    .kallsyms = "/proc/kallsyms",
-    .kernel_image = "/boot/vmlinux-XXXXX" }
-  },
-};
-```
-
-You can give `kallsyms` and `kernel_image` a `NULL`. **blazesym** will
-locate them for the running kernel. For example, by default, `kallsyms`
-is at `"/proc/kallsyms"`. Accordingly, the kernel image of the current
-kernel will be in `"/boot/"` or `"/usr/lib/debug/boot/"`.
-
-### An example of C API
-
-There is an example of C API in libbpf-bootstrap. You could view it at
+An example of usage of the C API is in available in **libbpf-bootstrap**:
 <https://github.com/libbpf/libbpf-bootstrap/blob/master/examples/c/profile.c>
-. This example periodically samples the running process of every processor
-in a system and prints their stack traces when sampling.
+
+This example periodically samples the running process of every processor
+in a system and prints their stack traces.
+
+A detailed [documentation of the C API](https://docs.rs/blazesym/latest/blazesym/c_api)
+is available as part of the Rust documentation or can be generated locally from
+the current repository snapshot using `cargo doc` (grouped under the `c_api`
+module).
+
+
+[cargo-semver]: https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility
