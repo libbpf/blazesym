@@ -18,14 +18,14 @@ use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
 use blazesym::c_api::blaze_symbolize;
+use blazesym::c_api::blaze_symbolizer_free;
+use blazesym::c_api::blaze_symbolizer_new;
+use blazesym::c_api::blaze_symbolizer_new_opts;
 use blazesym::c_api::blaze_syms_free;
 use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_feature;
 use blazesym::c_api::blazesym_feature_name;
 use blazesym::c_api::blazesym_feature_params;
-use blazesym::c_api::blazesym_free;
-use blazesym::c_api::blazesym_new;
-use blazesym::c_api::blazesym_new_opts;
 use blazesym::c_api::blazesym_result_free;
 use blazesym::c_api::blazesym_src_type;
 use blazesym::c_api::blazesym_ssc_elf;
@@ -38,8 +38,8 @@ use blazesym::Addr;
 /// Make sure that we can create and free a symbolizer instance.
 #[test]
 fn symbolizer_creation() {
-    let symbolizer = unsafe { blazesym_new() };
-    let () = unsafe { blazesym_free(symbolizer) };
+    let symbolizer = blaze_symbolizer_new();
+    let () = unsafe { blaze_symbolizer_free(symbolizer) };
 }
 
 
@@ -57,8 +57,8 @@ fn symbolizer_creation_with_features() {
             params: blazesym_feature_params { enable: true },
         },
     ];
-    let symbolizer = unsafe { blazesym_new_opts(features.as_ptr(), features.len()) };
-    let () = unsafe { blazesym_free(symbolizer) };
+    let symbolizer = unsafe { blaze_symbolizer_new_opts(features.as_ptr(), features.len()) };
+    let () = unsafe { blaze_symbolizer_free(symbolizer) };
 }
 
 
@@ -66,7 +66,7 @@ fn symbolizer_creation_with_features() {
 #[test]
 fn symbolize_from_file() {
     fn test(cfg: blazesym_sym_src_cfg) {
-        let symbolizer = unsafe { blazesym_new() };
+        let symbolizer = blaze_symbolizer_new();
         let addrs = [0x2000100];
         let result = unsafe { blaze_symbolize(symbolizer, &cfg, addrs.as_ptr(), addrs.len()) };
 
@@ -86,7 +86,7 @@ fn symbolize_from_file() {
         );
 
         let () = unsafe { blazesym_result_free(result) };
-        let () = unsafe { blazesym_free(symbolizer) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))

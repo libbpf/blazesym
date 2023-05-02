@@ -241,8 +241,8 @@ pub struct blazesym_feature {
 
 /// A placeholder symbolizer for C API.
 ///
-/// It is returned by [`blazesym_new()`] and should be free by
-/// [`blazesym_free()`].
+/// It is returned by [`blaze_symbolizer_new`] and should be free by
+/// [`blaze_symbolizer_free`].
 pub type blazesym = BlazeSymbolizer;
 
 /// The result of symbolization of an address for C API.
@@ -310,13 +310,8 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 
 
 /// Create an instance of blazesym a symbolizer for C API.
-///
-/// # Safety
-///
-/// Free the pointer with [`blazesym_free()`].
-///
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
+pub extern "C" fn blaze_symbolizer_new() -> *mut blazesym {
     let symbolizer = match BlazeSymbolizer::new() {
         Ok(s) => s,
         Err(_) => return ptr::null_mut(),
@@ -329,15 +324,15 @@ pub unsafe extern "C" fn blazesym_new() -> *mut blazesym {
 ///
 /// # Safety
 ///
-/// Free the pointer with [`blazesym_free()`].
+/// `features` needs to be a valid pointer to `feature_cnt` elements.
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_new_opts(
+pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     features: *const blazesym_feature,
-    nfeatures: usize,
+    feature_cnt: usize,
 ) -> *mut blazesym {
     // SAFETY: The caller needs to ensure that `features` is a valid pointer and
-    //         that it points to `nfeatures` elements.
-    let features_v = unsafe { slice_from_user_array(features, nfeatures) };
+    //         that it points to `feature_cnt` elements.
+    let features_v = unsafe { slice_from_user_array(features, feature_cnt) };
     let features_r = features_v
         .iter()
         .map(|x| -> SymbolizerFeature {
@@ -364,10 +359,10 @@ pub unsafe extern "C" fn blazesym_new_opts(
 ///
 /// # Safety
 ///
-/// The pointer must be returned by [`blazesym_new()`].
-///
+/// The pointer must have been returned by [`blaze_symbolizer_new`] or
+/// [`blaze_symbolizer_new_opts`].
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_free(symbolizer: *mut blazesym) {
+pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blazesym) {
     if !symbolizer.is_null() {
         drop(unsafe { Box::from_raw(symbolizer) });
     }
