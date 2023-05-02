@@ -10,7 +10,7 @@ exclude = ["Addr"]
 
 [export.rename]
 "Addr" = "uintptr_t"
-"BlazeSymbolizer" = "blazesym"
+"BlazeSymbolizer" = "blaze_symbolizer"
 "Inspector" = "blaze_inspector"
 "Normalizer" = "blaze_normalizer"
 
