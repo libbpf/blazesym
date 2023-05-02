@@ -258,11 +258,11 @@ pub struct blazesym_csym {
     ///
     /// The address is already relocated to the address space of
     /// the process.
-    pub start_address: Addr,
-    /// The path of the source code defines the symbol.
+    pub addr: Addr,
+    /// The path of the source file defining the symbol.
     pub path: *const c_char,
-    /// The instruction of the address is in the line number of the source code.
-    pub line_no: usize,
+    /// The line number on which the symbol was to be found in the source code.
+    pub line: usize,
     pub column: usize,
 }
 
@@ -436,9 +436,9 @@ unsafe fn convert_symbolizedresults_to_c(
 
             let csym_ref = unsafe { &mut *csym_last };
             csym_ref.symbol = symbol_ptr;
-            csym_ref.start_address = r.start_address;
+            csym_ref.addr = r.addr;
             csym_ref.path = path_ptr;
-            csym_ref.line_no = r.line_no;
+            csym_ref.line = r.line;
             csym_ref.column = r.column;
 
             csym_last = unsafe { csym_last.add(1) };

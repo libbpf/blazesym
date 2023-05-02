@@ -24,10 +24,10 @@
 //! let symlist = symbolizer.symbolize(&cfg,      // Pass this configuration every time
 //!                                    &stack).unwrap();
 //! for i in 0..stack.len() {
-//!   let address = stack[i];
+//!   let addr = stack[i];
 //!
 //!   if symlist.len() <= i || symlist[i].len() == 0 {  // Unknown address
-//!     println!("0x{:016x}", address);
+//!     println!("0x{addr:016x}");
 //!     continue;
 //!   }
 //!
@@ -35,15 +35,15 @@
 //!   if sym_results.len() > 1 {
 //!     // One address may get several results (e.g., when defined in multiple
 //!     // compilation units)
-//!     println!("0x{:016x} ({} entries)", address, sym_results.len());
+//!     println!("0x{addr:016x} ({} entries)", sym_results.len());
 //!
 //!     for result in sym_results {
-//!       let SymbolizedResult {symbol, start_address, path, line_no, column} = result;
-//!       println!("    {}@0x{:016x} {}:{}", symbol, start_address, path.display(), line_no);
+//!       let SymbolizedResult {symbol, addr, path, line, column} = result;
+//!       println!("    {symbol}@0x{addr:016x} {}:{line}", path.display());
 //!     }
 //!   } else {
-//!     let SymbolizedResult {symbol, start_address, path, line_no, column} = &sym_results[0];
-//!     println!("0x{:016x} {}@0x{:016x} {}:{}", address, symbol, start_address, path.display(), line_no);
+//!     let SymbolizedResult {symbol, addr, path, line, column} = &sym_results[0];
+//!     println!("0x{addr:016x} {symbol}@0x{addr:016x} {}:{line}", path.display());
 //!   }
 //! }
 //! ```

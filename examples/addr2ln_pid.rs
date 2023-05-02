@@ -38,19 +38,15 @@ fn main() {
     if !symlist[0].is_empty() {
         let SymbolizedResult {
             symbol,
-            start_address,
+            addr: sym_addr,
             path,
-            line_no,
+            line,
             column: _,
         } = &symlist[0][0];
         println!(
-            "0x{:x} {}@0x{:x}+{} {}:{}",
-            addr,
-            symbol,
-            start_address,
-            addr - start_address,
+            "0x{addr:x} {symbol}@0x{addr:x}+{} {}:{line}",
+            addr - sym_addr,
             path.display(),
-            line_no
         );
     } else {
         println!("0x{addr:x} is not found");

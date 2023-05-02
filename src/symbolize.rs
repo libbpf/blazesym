@@ -26,7 +26,7 @@ use crate::SymbolType;
 
 pub struct AddrLineInfo {
     pub path: PathBuf,
-    pub line_no: usize,
+    pub line: usize,
     pub column: usize,
 }
 
@@ -174,7 +174,7 @@ pub struct SymbolizedResult {
     ///
     /// The address is in the target process, not the offset from the
     /// shared object file.
-    pub start_address: Addr,
+    pub addr: Addr,
     /// The source path that defines the symbol.
     pub path: PathBuf,
     /// The line number of the symbolized instruction in the source code.
@@ -182,7 +182,7 @@ pub struct SymbolizedResult {
     /// This is the line number of the instruction of the address being
     /// symbolized, not the line number that defines the symbol
     /// (function).
-    pub line_no: usize,
+    pub line: usize,
     pub column: usize,
 }
 
@@ -318,9 +318,9 @@ impl BlazeSymbolizer {
             if let Some(linfo) = linfo {
                 vec![SymbolizedResult {
                     symbol: "".to_string(),
-                    start_address: 0,
+                    addr: 0,
                     path: linfo.path,
-                    line_no: linfo.line_no,
+                    line: linfo.line,
                     column: linfo.column,
                 }]
             } else {
@@ -333,18 +333,18 @@ impl BlazeSymbolizer {
                     let (sym, start) = sym;
                     results.push(SymbolizedResult {
                         symbol: String::from(sym),
-                        start_address: start,
+                        addr: start,
                         path: linfo.path.clone(),
-                        line_no: linfo.line_no,
+                        line: linfo.line,
                         column: linfo.column,
                     });
                 } else {
                     let (sym, start) = sym;
                     results.push(SymbolizedResult {
                         symbol: String::from(sym),
-                        start_address: start,
+                        addr: start,
                         path: PathBuf::new(),
-                        line_no: 0,
+                        line: 0,
                         column: 0,
                     });
                 }
