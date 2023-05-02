@@ -311,7 +311,7 @@ typedef struct blazesym_entry {
  * `blazesym_result` is the result of symbolization for C API.
  *
  * The instances of blazesym_result are returned from
- * [`blazesym_symbolize()`].  They should be free by calling
+ * [`blaze_symbolize()`]. They should be freed by calling
  * [`blazesym_result_free()`].
  */
 typedef struct blazesym_result {
@@ -621,18 +621,17 @@ void blazesym_free(blazesym *symbolizer);
  *
  * The returned pointer should be freed by [`blazesym_result_free()`].
  */
-const struct blazesym_result *blazesym_symbolize(blazesym *symbolizer,
-                                                 const struct blazesym_sym_src_cfg *cfg,
-                                                 const uintptr_t *addrs,
-                                                 size_t addr_cnt);
+const struct blazesym_result *blaze_symbolize(blazesym *symbolizer,
+                                              const struct blazesym_sym_src_cfg *cfg,
+                                              const uintptr_t *addrs,
+                                              size_t addr_cnt);
 
 /**
- * Free an array returned by blazesym_symbolize.
+ * Free an array returned by [`blaze_symbolize`].
  *
  * # Safety
  *
- * The pointer must be returned by [`blazesym_symbolize()`].
- *
+ * The pointer must have been returned by [`blaze_symbolize`].
  */
 void blazesym_result_free(const struct blazesym_result *results);
 
