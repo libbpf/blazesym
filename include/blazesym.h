@@ -8,6 +8,25 @@
 #include <stdlib.h>
 
 /**
+ * The type of a symbol.
+ */
+typedef enum blaze_sym_type {
+  /**
+   * That type could not be determined (possibly because the source does not
+   * contains information about the type).
+   */
+  BLAZE_SYM_UNKNOWN,
+  /**
+   * The symbol is a function.
+   */
+  BLAZE_SYM_FUNC,
+  /**
+   * The symbol is a variable.
+   */
+  BLAZE_SYM_VAR,
+} blaze_sym_type;
+
+/**
  * The valid variant kind in [`blaze_user_addr_meta`].
  */
 typedef enum blaze_user_addr_meta_kind {
@@ -64,27 +83,6 @@ typedef enum blazesym_src_type {
 } blazesym_src_type;
 
 /**
- * The types of symbols.
- *
- * This type is used to choice what type of symbols you like to find
- * and indicate the types of symbols found.
- */
-typedef enum blazesym_sym_type {
-  /**
-   * You want to find a symbol of any type.
-   */
-  BLAZESYM_SYM_T_UNKNOWN,
-  /**
-   * The returned symbol is a function, or you want to find a function.
-   */
-  BLAZESYM_SYM_T_FUNC,
-  /**
-   * The returned symbol is a variable, or you want to find a variable.
-   */
-  BLAZESYM_SYM_T_VAR,
-} blazesym_sym_type;
-
-/**
  * BlazeSymbolizer provides an interface to symbolize addresses with
  * a list of symbol sources.
  *
@@ -109,97 +107,16 @@ typedef struct blazesym blazesym;
 typedef struct blaze_normalizer blaze_normalizer;
 
 /**
- * C compatible version of [`Binary`].
+ * Information about a looked up symbol.
  */
-typedef struct blaze_user_addr_meta_binary {
-  /**
-   * The path to the binary. This member is always present.
-   */
-  char *path;
-  /**
-   * The length of the build ID, in bytes.
-   */
-  size_t build_id_len;
-  /**
-   * The optional build ID of the binary, if found.
-   */
-  uint8_t *build_id;
-} blaze_user_addr_meta_binary;
-
-/**
- * C compatible version of [`Unknown`].
- */
-typedef struct blaze_user_addr_meta_unknown {
-
-} blaze_user_addr_meta_unknown;
-
-/**
- * The actual variant data in [`blaze_user_addr_meta`].
- */
-typedef union blaze_user_addr_meta_variant {
-  /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY`].
-   */
-  struct blaze_user_addr_meta_binary binary;
-  /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
-   */
-  struct blaze_user_addr_meta_unknown unknown;
-} blaze_user_addr_meta_variant;
-
-/**
- * C ABI compatible version of [`UserAddrMeta`].
- */
-typedef struct blaze_user_addr_meta {
-  /**
-   * The variant kind that is present.
-   */
-  enum blaze_user_addr_meta_kind kind;
-  /**
-   * The actual variant with its data.
-   */
-  union blaze_user_addr_meta_variant variant;
-} blaze_user_addr_meta;
-
-/**
- * A normalized address along with an index into the associated
- * [`blaze_user_addr_meta`] array (such as
- * [`blaze_normalized_user_addrs::metas`]).
- */
-typedef struct blaze_normalized_addr {
-  /**
-   * The normalized address.
-   */
-  uintptr_t addr;
-  /**
-   * The index into the associated [`blaze_user_addr_meta`] array.
-   */
-  size_t meta_idx;
-} blaze_normalized_addr;
-
-/**
- * An object representing normalized user addresses.
- *
- * C ABI compatible version of [`NormalizedUserAddrs`].
- */
-typedef struct blaze_normalized_user_addrs {
-  /**
-   * The number of [`blaze_user_addr_meta`] objects present in `metas`.
-   */
-  size_t meta_count;
-  /**
-   * An array of `meta_count` objects.
-   */
-  struct blaze_user_addr_meta *metas;
-  /**
-   * The number of [`blaze_normalized_addr`] objects present in `addrs`.
-   */
-  size_t addr_count;
-  /**
-   * An array of `addr_count` objects.
-   */
-  struct blaze_normalized_addr *addrs;
-} blaze_normalized_user_addrs;
+typedef struct blaze_sym_info {
+  const char *name;
+  uintptr_t address;
+  size_t size;
+  uint64_t file_offset;
+  const char *obj_file_name;
+  enum blaze_sym_type sym_type;
+} blaze_sym_info;
 
 /**
  * A placeholder symbolizer for C API.
@@ -208,90 +125,6 @@ typedef struct blaze_normalized_user_addrs {
  * [`blazesym_free()`].
  */
 typedef struct blazesym blazesym;
-
-typedef union blazesym_feature_params {
-  bool enable;
-} blazesym_feature_params;
-
-/**
- * Setting of the blazesym features.
- *
- * Contain parameters to enable, disable, or customize a feature.
- */
-typedef struct blazesym_feature {
-  enum blazesym_feature_name feature;
-  union blazesym_feature_params params;
-} blazesym_feature;
-
-/**
- * The result of symbolization of an address for C API.
- *
- * A `blazesym_csym` is the information of a symbol found for an
- * address.  One address may result in several symbols.
- */
-typedef struct blazesym_csym {
-  /**
-   * The symbol name is where the given address should belong to.
-   */
-  const char *symbol;
-  /**
-   * The address (i.e.,the first byte) is where the symbol is located.
-   *
-   * The address is already relocated to the address space of
-   * the process.
-   */
-  uintptr_t start_address;
-  /**
-   * The path of the source code defines the symbol.
-   */
-  const char *path;
-  /**
-   * The instruction of the address is in the line number of the source code.
-   */
-  size_t line_no;
-  size_t column;
-} blazesym_csym;
-
-/**
- * `blazesym_entry` is the output of symbolization for an address for C API.
- *
- * Every address has an `blazesym_entry` in
- * [`blazesym_result::entries`] to collect symbols found by BlazeSym.
- */
-typedef struct blazesym_entry {
-  /**
-   * The number of symbols found for an address.
-   */
-  size_t size;
-  /**
-   * All symbols found.
-   *
-   * `syms` is an array of blazesym_csym in the size `size`.
-   */
-  const struct blazesym_csym *syms;
-} blazesym_entry;
-
-/**
- * `blazesym_result` is the result of symbolization for C API.
- *
- * The instances of blazesym_result are returned from
- * [`blazesym_symbolize()`].  They should be free by calling
- * [`blazesym_result_free()`].
- */
-typedef struct blazesym_result {
-  /**
-   * The number of addresses being symbolized.
-   */
-  size_t size;
-  /**
-   * The entries for addresses.
-   *
-   * Symbolization occurs based on the order of addresses.
-   * Therefore, every address must have an entry here on the same
-   * order.
-   */
-  struct blazesym_entry entries[0];
-} blazesym_result;
 
 /**
  * The parameters to load symbols and debug information from an ELF.
@@ -424,14 +257,211 @@ typedef struct blazesym_sym_src_cfg {
   union blazesym_ssc_params params;
 } blazesym_sym_src_cfg;
 
-typedef struct blazesym_sym_info {
-  const char *name;
-  uintptr_t address;
+/**
+ * C compatible version of [`Binary`].
+ */
+typedef struct blaze_user_addr_meta_binary {
+  /**
+   * The path to the binary. This member is always present.
+   */
+  char *path;
+  /**
+   * The length of the build ID, in bytes.
+   */
+  size_t build_id_len;
+  /**
+   * The optional build ID of the binary, if found.
+   */
+  uint8_t *build_id;
+} blaze_user_addr_meta_binary;
+
+/**
+ * C compatible version of [`Unknown`].
+ */
+typedef struct blaze_user_addr_meta_unknown {
+
+} blaze_user_addr_meta_unknown;
+
+/**
+ * The actual variant data in [`blaze_user_addr_meta`].
+ */
+typedef union blaze_user_addr_meta_variant {
+  /**
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY`].
+   */
+  struct blaze_user_addr_meta_binary binary;
+  /**
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
+   */
+  struct blaze_user_addr_meta_unknown unknown;
+} blaze_user_addr_meta_variant;
+
+/**
+ * C ABI compatible version of [`UserAddrMeta`].
+ */
+typedef struct blaze_user_addr_meta {
+  /**
+   * The variant kind that is present.
+   */
+  enum blaze_user_addr_meta_kind kind;
+  /**
+   * The actual variant with its data.
+   */
+  union blaze_user_addr_meta_variant variant;
+} blaze_user_addr_meta;
+
+/**
+ * A normalized address along with an index into the associated
+ * [`blaze_user_addr_meta`] array (such as
+ * [`blaze_normalized_user_addrs::metas`]).
+ */
+typedef struct blaze_normalized_addr {
+  /**
+   * The normalized address.
+   */
+  uintptr_t addr;
+  /**
+   * The index into the associated [`blaze_user_addr_meta`] array.
+   */
+  size_t meta_idx;
+} blaze_normalized_addr;
+
+/**
+ * An object representing normalized user addresses.
+ *
+ * C ABI compatible version of [`NormalizedUserAddrs`].
+ */
+typedef struct blaze_normalized_user_addrs {
+  /**
+   * The number of [`blaze_user_addr_meta`] objects present in `metas`.
+   */
+  size_t meta_count;
+  /**
+   * An array of `meta_count` objects.
+   */
+  struct blaze_user_addr_meta *metas;
+  /**
+   * The number of [`blaze_normalized_addr`] objects present in `addrs`.
+   */
+  size_t addr_count;
+  /**
+   * An array of `addr_count` objects.
+   */
+  struct blaze_normalized_addr *addrs;
+} blaze_normalized_user_addrs;
+
+typedef union blazesym_feature_params {
+  bool enable;
+} blazesym_feature_params;
+
+/**
+ * Setting of the blazesym features.
+ *
+ * Contain parameters to enable, disable, or customize a feature.
+ */
+typedef struct blazesym_feature {
+  enum blazesym_feature_name feature;
+  union blazesym_feature_params params;
+} blazesym_feature;
+
+/**
+ * The result of symbolization of an address for C API.
+ *
+ * A `blazesym_csym` is the information of a symbol found for an
+ * address.  One address may result in several symbols.
+ */
+typedef struct blazesym_csym {
+  /**
+   * The symbol name is where the given address should belong to.
+   */
+  const char *symbol;
+  /**
+   * The address (i.e.,the first byte) is where the symbol is located.
+   *
+   * The address is already relocated to the address space of
+   * the process.
+   */
+  uintptr_t start_address;
+  /**
+   * The path of the source code defines the symbol.
+   */
+  const char *path;
+  /**
+   * The instruction of the address is in the line number of the source code.
+   */
+  size_t line_no;
+  size_t column;
+} blazesym_csym;
+
+/**
+ * `blazesym_entry` is the output of symbolization for an address for C API.
+ *
+ * Every address has an `blazesym_entry` in
+ * [`blazesym_result::entries`] to collect symbols found by BlazeSym.
+ */
+typedef struct blazesym_entry {
+  /**
+   * The number of symbols found for an address.
+   */
   size_t size;
-  uint64_t file_offset;
-  const char *obj_file_name;
-  enum blazesym_sym_type sym_type;
-} blazesym_sym_info;
+  /**
+   * All symbols found.
+   *
+   * `syms` is an array of blazesym_csym in the size `size`.
+   */
+  const struct blazesym_csym *syms;
+} blazesym_entry;
+
+/**
+ * `blazesym_result` is the result of symbolization for C API.
+ *
+ * The instances of blazesym_result are returned from
+ * [`blazesym_symbolize()`].  They should be free by calling
+ * [`blazesym_result_free()`].
+ */
+typedef struct blazesym_result {
+  /**
+   * The number of addresses being symbolized.
+   */
+  size_t size;
+  /**
+   * The entries for addresses.
+   *
+   * Symbolization occurs based on the order of addresses.
+   * Therefore, every address must have an entry here on the same
+   * order.
+   */
+  struct blazesym_entry entries[0];
+} blazesym_result;
+
+/**
+ * Find the addresses of a list of symbols.
+ *
+ * Return an array with the same size as the input names. The caller should
+ * free the returned array by calling [`blaze_syms_free`].
+ *
+ * Every name in the input name list may have more than one address.
+ * The respective entry in the returned array is an array containing
+ * all addresses and ended with a null (0x0).
+ *
+ * # Safety
+ *
+ * The returned pointer should be free by [`blaze_syms_free`].
+ */
+const struct blaze_sym_info *const *blaze_find_addrs(blazesym *symbolizer,
+                                                     const struct blazesym_sym_src_cfg *cfg,
+                                                     const char *const *names,
+                                                     size_t name_cnt);
+
+/**
+ * Free an array returned by [`blazesym_find_addrs`].
+ *
+ * # Safety
+ *
+ * The pointer must be returned by [`blazesym_find_addrs`].
+ *
+ */
+void blaze_syms_free(const struct blaze_sym_info *const *syms);
 
 /**
  * Create an instance of a blazesym normalizer.
@@ -556,34 +586,5 @@ const struct blazesym_result *blazesym_symbolize(blazesym *symbolizer,
  *
  */
 void blazesym_result_free(const struct blazesym_result *results);
-
-/**
- * Find the addresses of a list of symbols.
- *
- * Return an array with the same size as the input names. The caller should
- * free the returned array by calling [`blazesym_syms_list_free()`].
- *
- * Every name in the input name list may have more than one address.
- * The respective entry in the returned array is an array containing
- * all addresses and ended with a null (0x0).
- *
- * # Safety
- *
- * The returned pointer should be free by [`blazesym_syms_list_free()`].
- */
-const struct blazesym_sym_info *const *blazesym_find_addrs(blazesym *symbolizer,
-                                                           const struct blazesym_sym_src_cfg *cfg,
-                                                           const char *const *names,
-                                                           size_t name_cnt);
-
-/**
- * Free an array returned by [`blazesym_find_addrs`].
- *
- * # Safety
- *
- * The pointer must be returned by [`blazesym_find_addrs`].
- *
- */
-void blazesym_syms_list_free(const struct blazesym_sym_info *const *syms_list);
 
 #endif /* __blazesym_h_ */

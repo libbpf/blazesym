@@ -7,15 +7,16 @@ use std::path::Path;
 use std::ptr;
 use std::slice;
 
+use blazesym::c_api::blaze_find_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
+use blazesym::c_api::blaze_syms_free;
 use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_feature;
 use blazesym::c_api::blazesym_feature_name;
 use blazesym::c_api::blazesym_feature_params;
-use blazesym::c_api::blazesym_find_addrs;
 use blazesym::c_api::blazesym_free;
 use blazesym::c_api::blazesym_new;
 use blazesym::c_api::blazesym_new_opts;
@@ -26,7 +27,6 @@ use blazesym::c_api::blazesym_ssc_gsym;
 use blazesym::c_api::blazesym_ssc_params;
 use blazesym::c_api::blazesym_sym_src_cfg;
 use blazesym::c_api::blazesym_symbolize;
-use blazesym::c_api::blazesym_syms_list_free;
 use blazesym::Addr;
 
 
@@ -147,7 +147,7 @@ fn lookup_dwarf() {
     let factorial = CString::new("factorial").unwrap();
     let names = [factorial.as_ptr()];
 
-    let result = unsafe { blazesym_find_addrs(symbolizer, &cfg, names.as_ptr(), names.len()) };
+    let result = unsafe { blaze_find_addrs(symbolizer, &cfg, names.as_ptr(), names.len()) };
     let sym_infos = unsafe { slice::from_raw_parts(result, names.len()) };
     let sym_info = unsafe { &*sym_infos[0] };
     assert_eq!(
@@ -156,7 +156,7 @@ fn lookup_dwarf() {
     );
     assert_eq!(sym_info.address, 0x2000100);
 
-    let () = unsafe { blazesym_syms_list_free(result) };
+    let () = unsafe { blaze_syms_free(result) };
     let () = unsafe { blazesym_free(symbolizer) };
 }
 
