@@ -284,7 +284,7 @@ pub struct blazesym_entry {
 /// `blazesym_result` is the result of symbolization for C API.
 ///
 /// The instances of blazesym_result are returned from
-/// [`blazesym_symbolize()`].  They should be free by calling
+/// [`blaze_symbolize()`]. They should be freed by calling
 /// [`blazesym_result_free()`].
 #[repr(C)]
 #[derive(Debug)]
@@ -463,7 +463,7 @@ unsafe fn convert_symbolizedresults_to_c(
 ///
 /// The returned pointer should be freed by [`blazesym_result_free()`].
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_symbolize(
+pub unsafe extern "C" fn blaze_symbolize(
     symbolizer: *mut blazesym,
     cfg: *const blazesym_sym_src_cfg,
     addrs: *const Addr,
@@ -492,12 +492,11 @@ pub unsafe extern "C" fn blazesym_symbolize(
     }
 }
 
-/// Free an array returned by blazesym_symbolize.
+/// Free an array returned by [`blaze_symbolize`].
 ///
 /// # Safety
 ///
-/// The pointer must be returned by [`blazesym_symbolize()`].
-///
+/// The pointer must have been returned by [`blaze_symbolize`].
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
     if results.is_null() {

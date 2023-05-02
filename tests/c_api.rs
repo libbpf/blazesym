@@ -17,6 +17,7 @@ use blazesym::c_api::blaze_normalize_user_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
+use blazesym::c_api::blaze_symbolize;
 use blazesym::c_api::blaze_syms_free;
 use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_feature;
@@ -31,7 +32,6 @@ use blazesym::c_api::blazesym_ssc_elf;
 use blazesym::c_api::blazesym_ssc_gsym;
 use blazesym::c_api::blazesym_ssc_params;
 use blazesym::c_api::blazesym_sym_src_cfg;
-use blazesym::c_api::blazesym_symbolize;
 use blazesym::Addr;
 
 
@@ -68,7 +68,7 @@ fn symbolize_from_file() {
     fn test(cfg: blazesym_sym_src_cfg) {
         let symbolizer = unsafe { blazesym_new() };
         let addrs = [0x2000100];
-        let result = unsafe { blazesym_symbolize(symbolizer, &cfg, addrs.as_ptr(), addrs.len()) };
+        let result = unsafe { blaze_symbolize(symbolizer, &cfg, addrs.as_ptr(), addrs.len()) };
 
         assert!(!result.is_null());
 
