@@ -1,8 +1,8 @@
 mod meta;
-mod normalize;
+mod normalizer;
 
 pub use meta::Binary;
 pub use meta::Unknown;
 pub use meta::UserAddrMeta;
-pub use normalize::NormalizedUserAddrs;
-pub use normalize::Normalizer;
+pub use normalizer::NormalizedUserAddrs;
+pub use normalizer::Normalizer;

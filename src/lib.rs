@@ -5,12 +5,7 @@
 // trace to function names and their locations in the
 // source code.
 #![doc = include_str!("../README.md")]
-#![allow(
-    clippy::collapsible_if,
-    clippy::let_and_return,
-    clippy::let_unit_value,
-    clippy::module_inception
-)]
+#![allow(clippy::collapsible_if, clippy::let_and_return, clippy::let_unit_value)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(missing_debug_implementations)]
 #![cfg_attr(feature = "nightly", feature(test))]
