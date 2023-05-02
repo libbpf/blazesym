@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -40,11 +41,11 @@ pub struct ElfResolver {
 }
 
 impl ElfResolver {
-    pub(crate) fn new(
+    pub(crate) fn with_backend(
         file_name: &Path,
         loaded_address: Addr,
         backend: ElfBackend,
-    ) -> Result<ElfResolver, Error> {
+    ) -> Result<ElfResolver> {
         let parser = match &backend {
             ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
             ElfBackend::Elf(parser) => parser,
