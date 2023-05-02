@@ -6,6 +6,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use crate::log::warn;
 use crate::symbolize::AddrLineInfo;
@@ -41,6 +42,13 @@ pub struct ElfResolver {
 }
 
 impl ElfResolver {
+    /// Create a new [`ElfResolver`] for the file represented by `file_name`.
+    pub(crate) fn new(file_name: &Path) -> Result<Self> {
+        let parser = ElfParser::open(file_name)?;
+        let backend = ElfBackend::Elf(Rc::new(parser));
+        Self::with_backend(file_name, 0, backend)
+    }
+
     pub(crate) fn with_backend(
         file_name: &Path,
         loaded_address: Addr,

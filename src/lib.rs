@@ -18,6 +18,7 @@ pub mod c_api;
 mod dwarf;
 mod elf;
 mod gsym;
+pub mod inspect;
 mod kernel;
 mod ksym;
 mod maps;

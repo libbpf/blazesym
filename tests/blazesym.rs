@@ -1,3 +1,5 @@
+#![allow(clippy::let_and_return, clippy::let_unit_value)]
+
 use std::ffi::CString;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -5,6 +7,8 @@ use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
 use blazesym::cfg;
+use blazesym::inspect;
+use blazesym::inspect::Inspector;
 use blazesym::normalize::Normalizer;
 use blazesym::Addr;
 use blazesym::BlazeSymbolizer;
@@ -182,4 +186,38 @@ fn normalize_user_address() {
 
     test("libtest-so.so");
     test("libtest-so-no-separate-code.so");
+}
+
+
+/// Check that we can look up an address.
+#[test]
+fn inspect() {
+    fn test(src: inspect::Source) {
+        let inspector = Inspector::new();
+        let results = inspector
+            .lookup(&["factorial"], &src)
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
+
+        let result = results.first().unwrap();
+        assert_eq!(result.address, 0x2000100);
+    }
+
+    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-dwarf.bin");
+    let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
+    let () = test(src);
+
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-no-dwarf.bin");
+    let mut elf = inspect::Elf::new(test_elf);
+    assert!(elf.debug_info);
+    elf.debug_info = false;
+    let src = inspect::Source::Elf(elf);
+    let () = test(src);
 }

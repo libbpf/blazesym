@@ -142,17 +142,16 @@ impl SymResolver for KSymResolver {
         }
         self.ensure_sym_to_addr();
 
-        if let Some(addr) = self.sym_to_addr.borrow().get(name) {
-            return Some(vec![SymbolInfo {
+        self.sym_to_addr.borrow().get(name).map(|addr| {
+            vec![SymbolInfo {
                 name: name.to_string(),
                 address: *addr,
                 size: 0,
                 sym_type: SymbolType::Function,
                 file_offset: 0,
                 obj_file_name: None,
-            }])
-        }
-        None
+            }]
+        })
     }
 
     fn find_line_info(&self, _addr: Addr) -> Option<AddrLineInfo> {
