@@ -240,8 +240,8 @@ typedef struct blaze_normalized_user_addrs {
 /**
  * A placeholder symbolizer for C API.
  *
- * It is returned by [`blazesym_new()`] and should be free by
- * [`blazesym_free()`].
+ * It is returned by [`blaze_symbolizer_new`] and should be free by
+ * [`blaze_symbolizer_free`].
  */
 typedef struct blazesym blazesym;
 
@@ -582,33 +582,28 @@ void blaze_user_addrs_free(struct blaze_normalized_user_addrs *addrs);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.
- *
- * # Safety
- *
- * Free the pointer with [`blazesym_free()`].
- *
  */
-blazesym *blazesym_new(void);
+blazesym *blaze_symbolizer_new(void);
 
 /**
  * Create an instance of blazesym a symbolizer for C API.
  *
  * # Safety
  *
- * Free the pointer with [`blazesym_free()`].
+ * `features` needs to be a valid pointer to `feature_cnt` elements.
  */
-blazesym *blazesym_new_opts(const struct blazesym_feature *features,
-                            size_t nfeatures);
+blazesym *blaze_symbolizer_new_opts(const struct blazesym_feature *features,
+                                    size_t feature_cnt);
 
 /**
  * Free an instance of blazesym a symbolizer for C API.
  *
  * # Safety
  *
- * The pointer must be returned by [`blazesym_new()`].
- *
+ * The pointer must have been returned by [`blaze_symbolizer_new`] or
+ * [`blaze_symbolizer_new_opts`].
  */
-void blazesym_free(blazesym *symbolizer);
+void blaze_symbolizer_free(blazesym *symbolizer);
 
 /**
  * Symbolize addresses with the sources of symbols and debug info.
