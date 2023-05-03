@@ -15,7 +15,7 @@ pub struct Elf {
     /// It can be an executable or shared object.
     /// For example, passing `"/bin/sh"` will load symbols and debug information from `sh`.
     /// Whereas passing `"/lib/libc.so.xxx"` will load symbols and debug information from the libc.
-    pub file_name: PathBuf,
+    pub path: PathBuf,
     /// The address where the executable segment loaded.
     ///
     /// The address in the process should be the executable segment's
@@ -46,7 +46,7 @@ impl Elf {
     /// Create a new [`Elf`] object, referencing the provided path.
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
-            file_name: path.into(),
+            path: path.into(),
             base_address: 0,
             _non_exhaustive: (),
         }
@@ -97,6 +97,7 @@ impl From<Kernel> for Source {
 /// by the [`pid`][Process::pid] member.
 #[derive(Clone, Debug)]
 pub struct Process {
+    /// The referenced process' ID.
     pub pid: Pid,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
@@ -124,7 +125,7 @@ impl From<Process> for Source {
 #[derive(Clone, Debug)]
 pub struct Gsym {
     /// The path to the gsym file.
-    pub file_name: PathBuf,
+    pub path: PathBuf,
     /// The base address.
     pub base_address: Addr,
     /// The struct is non-exhaustive and open to extension.
@@ -136,7 +137,7 @@ impl Gsym {
     /// Create a new [`Gsym`] object, referencing the provided path.
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
-            file_name: path.into(),
+            path: path.into(),
             base_address: 0,
             _non_exhaustive: (),
         }

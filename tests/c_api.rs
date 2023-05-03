@@ -95,7 +95,7 @@ fn symbolize_from_file() {
     let test_dwarf_c = CString::new(test_dwarf.to_str().unwrap()).unwrap();
 
     let elf_src = ManuallyDrop::new(blazesym_ssc_elf {
-        file_name: test_dwarf_c.as_ptr(),
+        path: test_dwarf_c.as_ptr(),
         base_address: 0,
     });
     let src = blazesym_sym_src_cfg {
@@ -109,7 +109,7 @@ fn symbolize_from_file() {
         .join("test.gsym");
     let test_gsym_c = CString::new(test_gsym.to_str().unwrap()).unwrap();
     let gsym_src = ManuallyDrop::new(blazesym_ssc_gsym {
-        file_name: test_gsym_c.as_ptr(),
+        path: test_gsym_c.as_ptr(),
         base_address: 0,
     });
     let src = blazesym_sym_src_cfg {

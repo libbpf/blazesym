@@ -48,12 +48,13 @@ pub enum blazesym_src_type {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blazesym_ssc_elf {
-    /// The file name of an ELF file.
+    /// The path to the ELF file.
     ///
-    /// It can be an executable or shared object.
-    /// For example, passing "/bin/sh" will load symbols and debug information from `sh`.
-    /// Whereas passing "/lib/libc.so.xxx" will load symbols and debug information from the libc.
-    pub file_name: *const c_char,
+    /// The referenced file may be an executable or shared object. For example,
+    /// passing "/bin/sh" will load symbols and debug information from `sh` and
+    /// passing "/lib/libc.so.xxx" will load symbols and debug information from
+    /// libc.
+    pub path: *const c_char,
     /// The base address is where the file's executable segment(s) is loaded.
     ///
     /// It should be the address
@@ -119,8 +120,8 @@ pub struct blazesym_ssc_process {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blazesym_ssc_gsym {
-    /// The file name of a gsym file.
-    pub file_name: *const c_char,
+    /// The path to a gsym file.
+    pub path: *const c_char,
     /// The base address is where the file's executable segment(s) is loaded.
     pub base_address: Addr,
 }
@@ -161,7 +162,7 @@ impl From<&blazesym_sym_src_cfg> for Source {
                 // SAFETY: `elf` is the union variant used for `BLAZESYM_SRC_T_ELF`.
                 let elf = unsafe { &src.params.elf };
                 Source::Elf(Elf {
-                    file_name: unsafe { from_cstr(elf.file_name) },
+                    path: unsafe { from_cstr(elf.path) },
                     base_address: elf.base_address,
                     _non_exhaustive: (),
                 })
@@ -197,7 +198,7 @@ impl From<&blazesym_sym_src_cfg> for Source {
                 // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.
                 let gsym = unsafe { &src.params.gsym };
                 Source::Gsym(Gsym {
-                    file_name: unsafe { from_cstr(gsym.file_name) },
+                    path: unsafe { from_cstr(gsym.path) },
                     base_address: gsym.base_address,
                     _non_exhaustive: (),
                 })

@@ -352,12 +352,12 @@ impl Symbolizer {
     pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<SymbolizedResult>>> {
         match src {
             Source::Elf(Elf {
-                file_name,
+                path,
                 base_address,
                 _non_exhaustive: (),
             }) => {
-                let backend = self.elf_cache.find(file_name)?;
-                let resolver = ElfResolver::with_backend(file_name, *base_address, backend)?;
+                let backend = self.elf_cache.find(path)?;
+                let resolver = ElfResolver::with_backend(path, *base_address, backend)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }
@@ -367,11 +367,11 @@ impl Symbolizer {
                 _non_exhaustive: (),
             }) => self.symbolize_user_addrs(addrs, *pid),
             Source::Gsym(Gsym {
-                file_name,
+                path,
                 base_address,
                 _non_exhaustive: (),
             }) => {
-                let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
+                let resolver = GsymResolver::new(path.clone(), *base_address)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }
