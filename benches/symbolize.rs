@@ -11,7 +11,7 @@ use criterion::BenchmarkGroup;
 
 /// Symbolize addresses in the current process.
 fn symbolize_process() {
-    let src = Source::Process(Process { pid: Pid::Slf });
+    let src = Source::Process(Process::new(Pid::Slf));
     let addrs = [
         libc::__errno_location as Addr,
         libc::dlopen as Addr,

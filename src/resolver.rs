@@ -50,6 +50,7 @@ impl ResolverMap {
         let symbolize::Elf {
             file_name,
             base_address,
+            _non_exhaustive: (),
         } = src;
 
         let backend = elf_cache.find(file_name)?;

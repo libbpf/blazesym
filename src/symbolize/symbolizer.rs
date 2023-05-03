@@ -280,6 +280,7 @@ impl Symbolizer {
         let Kernel {
             kallsyms,
             kernel_image,
+            _non_exhaustive: (),
         } = src;
 
         let ksym_resolver = if let Some(kallsyms) = kallsyms {
@@ -353,6 +354,7 @@ impl Symbolizer {
             Source::Elf(Elf {
                 file_name,
                 base_address,
+                _non_exhaustive: (),
             }) => {
                 let backend = self.elf_cache.find(file_name)?;
                 let resolver = ElfResolver::with_backend(file_name, *base_address, backend)?;
@@ -360,10 +362,14 @@ impl Symbolizer {
                 Ok(symbols)
             }
             Source::Kernel(kernel) => self.symbolize_kernel_addrs(addrs, kernel),
-            Source::Process(Process { pid }) => self.symbolize_user_addrs(addrs, *pid),
+            Source::Process(Process {
+                pid,
+                _non_exhaustive: (),
+            }) => self.symbolize_user_addrs(addrs, *pid),
             Source::Gsym(Gsym {
                 file_name,
                 base_address,
+                _non_exhaustive: (),
             }) => {
                 let resolver = GsymResolver::new(file_name.clone(), *base_address)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
