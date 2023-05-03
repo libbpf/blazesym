@@ -39,7 +39,7 @@ pub mod cfg {
     use crate::SymbolSrcCfg;
 
     #[cfg(doc)]
-    use super::BlazeSymbolizer;
+    use super::Symbolizer;
 
 
     /// A single ELF file.
@@ -110,10 +110,9 @@ pub mod cfg {
 
     /// Configuration for process based address symbolization.
     ///
-    /// The corresponding addresses supplied to
-    /// [`BlazeSymbolizer::symbolize`] are expected to be absolute
-    /// addresses as valid within the process identified by the
-    /// [`pid`][Process::pid] member.
+    /// The corresponding addresses supplied to [`Symbolizer::symbolize`] are
+    /// expected to be absolute addresses as valid within the process identified
+    /// by the [`pid`][Process::pid] member.
     #[derive(Clone, Debug)]
     pub struct Process {
         pub pid: Pid,
@@ -158,13 +157,13 @@ pub enum SymbolSrcCfg {
     Gsym(cfg::Gsym),
 }
 
-/// The result of symbolization by BlazeSymbolizer.
+/// The result of symbolization by Symbolizer.
 ///
-/// [`BlazeSymbolizer::symbolize()`] returns a list of lists of
+/// [`Symbolizer::symbolize()`] returns a list of lists of
 /// `SymbolizedResult`.  It appears as `[[SymbolizedResult {...},
 /// SymbolizedResult {...}, ...], [SymbolizedResult {...}, ...],
 /// ...]`.  At the first level, each entry is a list of
-/// `SymbolizedResult`.  [`BlazeSymbolizer::symbolize()`] can return
+/// `SymbolizedResult`.  [`Symbolizer::symbolize()`] can return
 /// multiple results of an address due to compiler optimizations.
 #[derive(Clone, Debug)]
 pub struct SymbolizedResult {
@@ -187,9 +186,9 @@ pub struct SymbolizedResult {
 }
 
 
-/// Switches in the features of BlazeSymbolizer.
+/// Switches in the features of Symbolizer.
 ///
-/// Passing variants of this `enum` to [`BlazeSymbolizer::new_opt()`]
+/// Passing variants of this `enum` to [`Symbolizer::new_opt()`]
 /// will enable (true) or disable (false) respective features
 /// of a symbolizer.
 #[derive(Debug)]
@@ -201,48 +200,41 @@ pub enum SymbolizerFeature {
     LineNumberInfo(bool), // default is true.
     /// Switch on or off the feature of parsing symbols (subprogram) from DWARF.
     ///
-    /// By default, it is false.  BlazeSym parses symbols from DWARF
+    /// By default, it is false. BlazeSym parses symbols from DWARF
     /// only if the user of BlazeSym enables it.
     DebugInfoSymbols(bool),
 }
 
 
-/// BlazeSymbolizer provides an interface to symbolize addresses with
-/// a list of symbol sources.
-///
-/// Users should present BlazeSymbolizer with a list of symbol sources
-/// (`SymbolSrcCfg`); for example, an ELF file and its base address
-/// (`SymbolSrcCfg::Elf`), or a Linux kernel image and a copy of its
-/// kallsyms (`SymbolSrcCfg::Kernel`).  Additionally, BlazeSymbolizer
-/// uses information from these sources to symbolize addresses.
+/// Symbolizer provides an interface to symbolize addresses.
 #[derive(Debug)]
-pub struct BlazeSymbolizer {
+pub struct Symbolizer {
     ksym_cache: KSymCache,
     elf_cache: ElfCache,
     line_number_info: bool,
 }
 
-impl BlazeSymbolizer {
-    /// Create and return an instance of BlazeSymbolizer.
-    pub fn new() -> Result<BlazeSymbolizer> {
+impl Symbolizer {
+    /// Create a new [`Symbolizer`].
+    pub fn new() -> Result<Symbolizer> {
         let ksym_cache = KSymCache::new();
 
         let line_number_info = true;
         let debug_info_symbols = false;
         let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
 
-        Ok(BlazeSymbolizer {
+        Ok(Symbolizer {
             ksym_cache,
             elf_cache,
             line_number_info,
         })
     }
 
-    /// Create and return an instance of BlazeSymbolizer.
+    /// Create a new [`Symbolizer`] with the provided set of features.
     ///
-    /// `new_opt()` works like [`BlazeSymbolizer::new()`] except it receives a list of
+    /// `new_opt()` works like [`Symbolizer::new()`] except it receives a list of
     /// [`SymbolizerFeature`] to turn on or off some features.
-    pub fn new_opt(features: &[SymbolizerFeature]) -> Result<BlazeSymbolizer> {
+    pub fn new_opt(features: &[SymbolizerFeature]) -> Result<Symbolizer> {
         let mut line_number_info = true;
         let mut debug_info_symbols = false;
 
@@ -260,7 +252,7 @@ impl BlazeSymbolizer {
         let ksym_cache = KSymCache::new();
         let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
 
-        Ok(BlazeSymbolizer {
+        Ok(Symbolizer {
             ksym_cache,
             elf_cache,
             line_number_info,

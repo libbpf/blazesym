@@ -2,9 +2,9 @@ extern crate blazesym;
 
 use blazesym::cfg;
 use blazesym::Addr;
-use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
 use blazesym::SymbolizedResult;
+use blazesym::Symbolizer;
 use std::env;
 
 fn show_usage() {
@@ -33,7 +33,7 @@ fn main() {
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
     let cfg = SymbolSrcCfg::Process(cfg::Process { pid: pid.into() });
-    let resolver = BlazeSymbolizer::new().unwrap();
+    let resolver = Symbolizer::new().unwrap();
     let symlist = resolver.symbolize(&cfg, &[addr]).unwrap();
     if !symlist[0].is_empty() {
         let SymbolizedResult {

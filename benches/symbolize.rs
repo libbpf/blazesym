@@ -1,9 +1,9 @@
 use blazesym::c_api;
 use blazesym::cfg;
 use blazesym::Addr;
-use blazesym::BlazeSymbolizer;
 use blazesym::Pid;
 use blazesym::SymbolSrcCfg;
+use blazesym::Symbolizer;
 
 use criterion::measurement::Measurement;
 use criterion::BenchmarkGroup;
@@ -20,7 +20,7 @@ fn symbolize_process() {
         c_api::blaze_inspector_free as Addr,
     ];
 
-    let symbolizer = BlazeSymbolizer::new().unwrap();
+    let symbolizer = Symbolizer::new().unwrap();
     let results = symbolizer.symbolize(&cfg, &addrs).unwrap();
     assert_eq!(results.len(), addrs.len());
 }

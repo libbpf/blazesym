@@ -11,14 +11,14 @@
 //! ```no_run
 //! use blazesym::cfg;
 //! use blazesym::Addr;
-//! use blazesym::BlazeSymbolizer;
+//! use blazesym::Symbolizer;
 //! use blazesym::SymbolSrcCfg;
 //! use blazesym::SymbolizedResult;
 //!
 //! let process_id: u32 = std::process::id(); // <some process id>
 //! // Load all symbols of loaded files of the given process.
 //! let cfg = SymbolSrcCfg::Process(cfg::Process { pid: process_id.into() });
-//! let symbolizer = BlazeSymbolizer::new().unwrap();
+//! let symbolizer = Symbolizer::new().unwrap();
 //!
 //! let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
 //! let symlist = symbolizer.symbolize(&cfg,      // Pass this configuration every time
@@ -82,9 +82,9 @@ use std::path::PathBuf;
 
 use resolver::SymResolver;
 pub use symbolize::cfg;
-pub use symbolize::BlazeSymbolizer;
 pub use symbolize::SymbolSrcCfg;
 pub use symbolize::SymbolizedResult;
+pub use symbolize::Symbolizer;
 pub use symbolize::SymbolizerFeature;
 
 // We import all C API items during doc creation to not have to mention the
