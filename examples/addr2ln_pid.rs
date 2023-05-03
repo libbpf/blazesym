@@ -1,10 +1,10 @@
 extern crate blazesym;
 
-use blazesym::cfg;
+use blazesym::symbolize::cfg;
+use blazesym::symbolize::SymbolSrcCfg;
+use blazesym::symbolize::SymbolizedResult;
+use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
-use blazesym::SymbolSrcCfg;
-use blazesym::SymbolizedResult;
-use blazesym::Symbolizer;
 use std::env;
 
 fn show_usage() {

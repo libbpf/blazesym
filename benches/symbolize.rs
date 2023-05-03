@@ -1,9 +1,9 @@
 use blazesym::c_api;
-use blazesym::cfg;
+use blazesym::symbolize::cfg;
+use blazesym::symbolize::SymbolSrcCfg;
+use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::Pid;
-use blazesym::SymbolSrcCfg;
-use blazesym::Symbolizer;
 
 use criterion::measurement::Measurement;
 use criterion::BenchmarkGroup;

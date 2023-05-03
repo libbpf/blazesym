@@ -2,15 +2,15 @@ use std::fmt::Debug;
 use std::io::Result;
 use std::path::Path;
 
-use crate::cfg;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
 use crate::ksym::KSymCache;
+use crate::symbolize::cfg;
 use crate::symbolize::AddrLineInfo;
+use crate::symbolize::SymbolSrcCfg;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
-use crate::SymbolSrcCfg;
 
 
 /// The trait of symbol resolvers.

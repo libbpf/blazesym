@@ -9,11 +9,11 @@
 //!
 //! Here an example illustrating usage of the symbolization functionality:
 //! ```no_run
-//! use blazesym::cfg;
+//! use blazesym::symbolize::cfg;
 //! use blazesym::Addr;
-//! use blazesym::Symbolizer;
-//! use blazesym::SymbolSrcCfg;
-//! use blazesym::SymbolizedResult;
+//! use blazesym::symbolize::Symbolizer;
+//! use blazesym::symbolize::SymbolSrcCfg;
+//! use blazesym::symbolize::SymbolizedResult;
 //!
 //! let process_id: u32 = std::process::id(); // <some process id>
 //! // Load all symbols of loaded files of the given process.
@@ -68,7 +68,7 @@ mod maps;
 mod mmap;
 pub mod normalize;
 mod resolver;
-mod symbolize;
+pub mod symbolize;
 mod util;
 // TODO: Remove `allow`.
 #[allow(unused)]
@@ -81,11 +81,7 @@ use std::num::NonZeroU32;
 use std::path::PathBuf;
 
 use resolver::SymResolver;
-pub use symbolize::cfg;
-pub use symbolize::SymbolSrcCfg;
-pub use symbolize::SymbolizedResult;
-pub use symbolize::Symbolizer;
-pub use symbolize::SymbolizerFeature;
+
 
 // We import all C API items during doc creation to not have to mention the
 // `c_api` module in, say, the README.

@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use blazesym::cfg;
-use blazesym::SymbolSrcCfg;
-use blazesym::Symbolizer;
-use blazesym::SymbolizerFeature;
+use blazesym::symbolize::cfg;
+use blazesym::symbolize::SymbolSrcCfg;
+use blazesym::symbolize::Symbolizer;
+use blazesym::symbolize::SymbolizerFeature;
 
 use criterion::measurement::Measurement;
 use criterion::BenchmarkGroup;
