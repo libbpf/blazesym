@@ -1,25 +1,25 @@
-extern crate blazesym;
+use std::env;
+
+use anyhow::bail;
+use anyhow::Context as _;
+use anyhow::Result;
 
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::SymbolizedResult;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
-use std::env;
 
-fn show_usage() {
-    let args: Vec<String> = env::args().collect();
-    println!("Usage: {} <pid> <address>", args[0]);
-    println!("Resolve an address in the process of the given pid, and");
-    println!("print its symbol, the file name of the source, and the line number.");
-}
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
+fn main() -> Result<()> {
+    let args = env::args().collect::<Vec<_>>();
 
     if args.len() != 3 {
-        show_usage();
-        return
+        bail!(
+            "Usage: {} <pid> <address>
+Resolve an address in the process of the given pid, and
+print its symbol, the file name of the source, and the line number.",
+            args.first().map(String::as_str).unwrap_or("addr2ln_pid")
+        );
     }
 
     let pid = args[1].parse::<u32>().unwrap();
@@ -30,11 +30,14 @@ fn main() {
         // Remove prefixed 0x
         addr_str = &addr_str[2..];
     }
-    let addr = Addr::from_str_radix(addr_str, 16).unwrap();
+    let addr = Addr::from_str_radix(addr_str, 16)
+        .with_context(|| format!("failed to parse address: {addr_str}"))?;
 
     let src = Source::Process(Process::new(pid.into()));
     let resolver = Symbolizer::new().unwrap();
-    let symlist = resolver.symbolize(&src, &[addr]).unwrap();
+    let symlist = resolver
+        .symbolize(&src, &[addr])
+        .with_context(|| format!("failed to symbolize address {addr}"))?;
     if !symlist[0].is_empty() {
         let SymbolizedResult {
             symbol,
@@ -51,4 +54,6 @@ fn main() {
     } else {
         println!("0x{addr:x} is not found");
     }
+
+    Ok(())
 }

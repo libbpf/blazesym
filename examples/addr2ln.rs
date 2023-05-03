@@ -1,22 +1,22 @@
-extern crate blazesym;
+use std::env;
+
+use anyhow::bail;
+use anyhow::Context as _;
+use anyhow::Result;
 
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
-use std::env;
 
-fn show_usage() {
-    let args: Vec<String> = env::args().collect();
-    println!("Usage: {} <file> <address>", args[0]);
-}
-
-fn main() {
-    let args: Vec<String> = env::args().collect();
+fn main() -> Result<()> {
+    let args = env::args().collect::<Vec<_>>();
 
     if args.len() != 3 {
-        show_usage();
-        return
+        bail!(
+            "Usage: {} <pid> <address>",
+            args.first().map(String::as_str).unwrap_or("addr2ln_pid")
+        );
     }
 
     let bin_name = &args[1];
@@ -28,9 +28,12 @@ fn main() {
         // Remove prefixed 0x
         addr_str = &addr_str[2..];
     }
-    let addr = Addr::from_str_radix(addr_str, 16).unwrap();
+    let addr = Addr::from_str_radix(addr_str, 16)
+        .with_context(|| format!("failed to parse address: {addr_str}"))?;
 
-    let results = resolver.symbolize(&src, &[addr]).unwrap();
+    let results = resolver
+        .symbolize(&src, &[addr])
+        .with_context(|| format!("failed to symbolize address {addr}"))?;
     if results.len() == 1 && !results[0].is_empty() {
         let result = &results[0][0];
         println!(
@@ -42,4 +45,6 @@ fn main() {
     } else {
         println!("0x{addr:x} is not found");
     }
+
+    Ok(())
 }
