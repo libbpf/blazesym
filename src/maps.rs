@@ -267,6 +267,7 @@ mod tests {
         assert_ne!(maps.map(|entry| entry.unwrap()).count(), 0);
     }
 
+    /// Make sure that we can parse proc maps lines correctly.
     #[test]
     fn map_line_parsing() {
         let lines = r#"
@@ -350,5 +351,27 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
                 .maps_file,
             Path::new("/proc/self/map_files/7f2321e00000-7f2321e37000")
         );
+    }
+
+    /// Check that we error out as expected on malformed proc maps lines.
+    #[test]
+    fn malformed_proc_maps_lines() {
+        let lines = [
+            "7fa7bb75a000+7fa7bb75c000",
+            "7fa7bb75a000-7fa7bb75c000",
+            "7fa7b$#5a000-7fa7bb75c000",
+            "7fa7bb75a000-7fa7@%@5c000",
+            "7fa7bb75a000+7fa7bb75c000 r--p",
+            "7fa7bb75a000-7fa7bb75c000 r--p",
+            "7fa7b$#5a000-7fa7bb75c000 r--p",
+            "7fa7bb75a000-7fa7@%@5c000 r--p",
+            "7fa7bb75a000-7fa7bb75c000 r--p",
+            "7fa7bb75a000-7fa7bb75c000 r--p 00000000",
+            "7fa7bb75a000-7fa7bb75c000 r--p 000zz000 00:20",
+        ];
+
+        let () = lines.iter().for_each(|line| {
+            let _err = parse_maps_line(line, Pid::Slf).unwrap_err();
+        });
     }
 }
