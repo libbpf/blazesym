@@ -49,6 +49,8 @@ pub use symbolize::SymbolizerFeature;
 #[cfg(doc)]
 use c_api::*;
 
+
+/// A type representing addresses.
 pub type Addr = usize;
 
 
@@ -122,16 +124,18 @@ pub struct SymbolInfo {
 #[cfg(feature = "log")]
 #[macro_use]
 mod log {
-    pub use log::debug;
-    pub use log::error;
-    pub use log::info;
-    pub use log::trace;
-    pub use log::warn;
+    #[allow(unused)]
+    pub(crate) use log::debug;
+    pub(crate) use log::error;
+    #[allow(unused)]
+    pub(crate) use log::info;
+    #[allow(unused)]
+    pub(crate) use log::trace;
+    pub(crate) use log::warn;
 }
 #[cfg(not(feature = "log"))]
 #[macro_use]
 mod log {
-    #[macro_export]
     macro_rules! debug {
         ($($args:tt)*) => {{
           if false {
@@ -141,9 +145,12 @@ mod log {
           }
         }};
     }
-    pub use debug;
-    pub use debug as error;
-    pub use debug as info;
-    pub use debug as trace;
-    pub use debug as warn;
+    #[allow(unused)]
+    pub(crate) use debug;
+    pub(crate) use debug as error;
+    #[allow(unused)]
+    pub(crate) use debug as info;
+    #[allow(unused)]
+    pub(crate) use debug as trace;
+    pub(crate) use debug as warn;
 }
