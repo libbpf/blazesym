@@ -24,7 +24,7 @@ use crate::SymbolInfo;
 use crate::SymbolType;
 
 
-pub struct AddrLineInfo {
+pub(crate) struct AddrLineInfo {
     pub path: PathBuf,
     pub line: usize,
     pub column: usize,
@@ -34,9 +34,9 @@ pub struct AddrLineInfo {
 pub mod cfg {
     use std::path::PathBuf;
 
+    use crate::symbolize::SymbolSrcCfg;
     use crate::Addr;
     use crate::Pid;
-    use crate::SymbolSrcCfg;
 
     #[cfg(doc)]
     use super::Symbolizer;

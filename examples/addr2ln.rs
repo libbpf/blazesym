@@ -1,9 +1,9 @@
 extern crate blazesym;
 
-use blazesym::cfg;
+use blazesym::symbolize::cfg;
+use blazesym::symbolize::SymbolSrcCfg;
+use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
-use blazesym::SymbolSrcCfg;
-use blazesym::Symbolizer;
 use std::env;
 use std::path;
 

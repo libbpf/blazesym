@@ -12,15 +12,15 @@ use std::os::unix::ffi::OsStrExt as _;
 use std::path::PathBuf;
 use std::ptr;
 
-use crate::cfg;
 use crate::log::error;
 use crate::log::warn;
+use crate::symbolize::cfg;
+use crate::symbolize::SymbolSrcCfg;
+use crate::symbolize::SymbolizedResult;
+use crate::symbolize::Symbolizer;
+use crate::symbolize::SymbolizerFeature;
 use crate::util::slice_from_user_array;
 use crate::Addr;
-use crate::SymbolSrcCfg;
-use crate::SymbolizedResult;
-use crate::Symbolizer;
-use crate::SymbolizerFeature;
 
 
 /// Types of symbol sources and debug information for C API.
