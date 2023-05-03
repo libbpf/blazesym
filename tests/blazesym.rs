@@ -51,7 +51,7 @@ fn symbolize_gsym() {
         file_name: test_gsym,
         base_address: 0,
     });
-    let symbolizer = Symbolizer::new_opt(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features).unwrap();
 
     let results = symbolizer
         .symbolize(&cfg, &[0x2000100])
@@ -79,7 +79,7 @@ fn symbolize_dwarf() {
         file_name: test_dwarf,
         base_address: 0,
     });
-    let symbolizer = Symbolizer::new_opt(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features).unwrap();
     let results = symbolizer
         .symbolize(&cfg, &[0x2000100])
         .unwrap()
@@ -127,7 +127,7 @@ fn lookup_dwarf() {
         file_name: test_dwarf,
         base_address: 0,
     });
-    let symbolizer = Symbolizer::new_opt(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features).unwrap();
     let results = symbolizer
         .find_addrs(&cfg, &["factorial"])
         .unwrap()

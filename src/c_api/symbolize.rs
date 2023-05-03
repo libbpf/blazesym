@@ -347,7 +347,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
         })
         .collect::<Vec<_>>();
 
-    let symbolizer = match Symbolizer::new_opt(&features_r) {
+    let symbolizer = match Symbolizer::with_opts(&features_r) {
         Ok(s) => s,
         Err(_) => return ptr::null_mut(),
     };
