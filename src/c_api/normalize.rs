@@ -383,3 +383,33 @@ pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Check that we can convert an [`Unknown`] into a
+    /// [`blaze_user_addr_meta_unknown`] and back.
+    #[test]
+    fn unknown_convesion() {
+        let unknown = Unknown {
+            _non_exhaustive: (),
+        };
+
+        let unknown_new = Unknown::from(blaze_user_addr_meta_unknown::from(unknown.clone()));
+        assert_eq!(unknown_new, unknown);
+    }
+
+    /// Check that we correctly format the debug representation of a
+    /// [`blaze_user_addr_meta_variant`].
+    #[test]
+    fn debug_meta_variant() {
+        let unknown = blaze_user_addr_meta_unknown {};
+        let variant = blaze_user_addr_meta_variant {
+            unknown: ManuallyDrop::new(unknown),
+        };
+        assert_eq!(format!("{variant:?}"), "blaze_user_addr_meta_variant");
+    }
+}
