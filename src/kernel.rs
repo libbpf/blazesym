@@ -9,12 +9,12 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::elf::ElfResolver;
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymbolInfo;
 use crate::ksym::KSymResolver;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
-use crate::FindAddrOpts;
 use crate::SymResolver;
-use crate::SymbolInfo;
 
 
 pub(crate) struct KernelResolver {

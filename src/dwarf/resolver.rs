@@ -10,11 +10,11 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::elf::ElfParser;
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymbolInfo;
+use crate::inspect::SymbolType;
 use crate::util::find_match_or_lower_bound_by;
 use crate::Addr;
-use crate::FindAddrOpts;
-use crate::SymbolInfo;
-use crate::SymbolType;
 
 use super::parser::debug_info_parse_symbols;
 use super::parser::parse_debug_line_elf_parser;

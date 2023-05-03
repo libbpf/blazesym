@@ -19,11 +19,11 @@ use crate::inspect;
 use crate::inspect::Elf;
 use crate::inspect::Inspector;
 use crate::inspect::Source;
+use crate::inspect::SymbolInfo;
+use crate::inspect::SymbolType;
 use crate::log::error;
 use crate::util::slice_from_user_array;
 use crate::Addr;
-use crate::SymbolInfo;
-use crate::SymbolType;
 
 
 /// An object representing an ELF inspection source.

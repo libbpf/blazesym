@@ -11,12 +11,12 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymbolInfo;
+use crate::inspect::SymbolType;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
-use crate::FindAddrOpts;
 use crate::SymResolver;
-use crate::SymbolInfo;
-use crate::SymbolType;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;

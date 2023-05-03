@@ -8,12 +8,12 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymbolInfo;
 use crate::log::warn;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
-use crate::FindAddrOpts;
 use crate::SymResolver;
-use crate::SymbolInfo;
 
 use super::cache::ElfBackend;
 use super::types::ET_DYN;
