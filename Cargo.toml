@@ -47,6 +47,7 @@ log = {version = "0.4.17", optional = true}
 lru = {version = "0.10", optional = true}
 
 [dev-dependencies]
+anyhow = "1.0.71"
 blazesym = {path = ".", features = ["generate-test-files", "log"]}
 criterion = "0.4"
 env_logger = "0.10"
