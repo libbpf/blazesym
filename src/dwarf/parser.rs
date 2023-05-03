@@ -11,6 +11,7 @@ use std::mem;
 use std::path::Path;
 
 use crate::elf::ElfParser;
+use crate::inspect::SymbolType;
 use crate::util::decode_leb128;
 use crate::util::decode_leb128_s;
 use crate::util::decode_udword;
@@ -20,7 +21,6 @@ use crate::util::find_match_or_lower_bound_by;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Addr;
-use crate::SymbolType;
 
 use super::constants;
 use super::debug_info;

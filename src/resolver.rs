@@ -4,13 +4,13 @@ use std::path::Path;
 
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymbolInfo;
 use crate::ksym::KSymCache;
 use crate::symbolize;
 use crate::symbolize::AddrLineInfo;
 use crate::symbolize::Source;
 use crate::Addr;
-use crate::FindAddrOpts;
-use crate::SymbolInfo;
 
 
 /// The trait of symbol resolvers.

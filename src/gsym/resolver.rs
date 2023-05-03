@@ -9,11 +9,11 @@ use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymbolInfo;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
-use crate::FindAddrOpts;
 use crate::SymResolver;
-use crate::SymbolInfo;
 
 use super::linetab::run_op;
 use super::linetab::LineTableRow;

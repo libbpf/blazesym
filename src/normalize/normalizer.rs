@@ -362,9 +362,9 @@ mod tests {
 
     use std::mem::transmute;
 
+    use crate::inspect::FindAddrOpts;
+    use crate::inspect::SymbolType;
     use crate::mmap::Mmap;
-    use crate::FindAddrOpts;
-    use crate::SymbolType;
 
 
     /// Check that we can reorder elements in an array as expected.

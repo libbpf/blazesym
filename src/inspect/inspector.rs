@@ -2,13 +2,13 @@ use std::io::Result;
 
 use crate::dwarf::DwarfResolver;
 use crate::elf::ElfResolver;
-use crate::FindAddrOpts;
 use crate::SymResolver;
-use crate::SymbolInfo;
-use crate::SymbolType;
 
 use super::source::Elf;
 use super::source::Source;
+use super::FindAddrOpts;
+use super::SymbolInfo;
+use super::SymbolType;
 
 
 /// An inspector of various "sources".

@@ -9,14 +9,14 @@ use std::mem;
 use std::ops::Deref as _;
 use std::path::Path;
 
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymbolInfo;
+use crate::inspect::SymbolType;
 use crate::mmap::Mmap;
 use crate::util::find_match_or_lower_bound_by;
 use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
-use crate::FindAddrOpts;
-use crate::SymbolInfo;
-use crate::SymbolType;
 
 use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
