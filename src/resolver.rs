@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
 use crate::ksym::KSymCache;
-use crate::symbolize::cfg;
+use crate::symbolize;
 use crate::symbolize::AddrLineInfo;
 use crate::symbolize::Source;
 use crate::Addr;
@@ -46,8 +46,8 @@ pub(crate) struct ResolverMap {
 }
 
 impl ResolverMap {
-    fn create_elf_resolver(src: &cfg::Elf, elf_cache: &ElfCache) -> Result<ElfResolver> {
-        let cfg::Elf {
+    fn create_elf_resolver(src: &symbolize::Elf, elf_cache: &ElfCache) -> Result<ElfResolver> {
+        let symbolize::Elf {
             file_name,
             base_address,
         } = src;

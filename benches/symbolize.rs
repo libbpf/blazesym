@@ -1,5 +1,5 @@
 use blazesym::c_api;
-use blazesym::symbolize::cfg;
+use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
@@ -11,7 +11,7 @@ use criterion::BenchmarkGroup;
 
 /// Symbolize addresses in the current process.
 fn symbolize_process() {
-    let src = Source::Process(cfg::Process { pid: Pid::Slf });
+    let src = Source::Process(Process { pid: Pid::Slf });
     let addrs = [
         libc::__errno_location as Addr,
         libc::dlopen as Addr,
