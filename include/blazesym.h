@@ -83,18 +83,6 @@ typedef enum blazesym_src_type {
 } blazesym_src_type;
 
 /**
- * BlazeSymbolizer provides an interface to symbolize addresses with
- * a list of symbol sources.
- *
- * Users should present BlazeSymbolizer with a list of symbol sources
- * (`SymbolSrcCfg`); for example, an ELF file and its base address
- * (`SymbolSrcCfg::Elf`), or a Linux kernel image and a copy of its
- * kallsyms (`SymbolSrcCfg::Kernel`).  Additionally, BlazeSymbolizer
- * uses information from these sources to symbolize addresses.
- */
-typedef struct blaze_symbolizer blaze_symbolizer;
-
-/**
  * An inspector of various "sources".
  *
  * Object of this type can be used to perform inspections of supported sources.
@@ -114,6 +102,11 @@ typedef struct blaze_inspector blaze_inspector;
  * and one would be able to see them using tools such as readelf(1).
  */
 typedef struct blaze_normalizer blaze_normalizer;
+
+/**
+ * Symbolizer provides an interface to symbolize addresses.
+ */
+typedef struct blaze_symbolizer blaze_symbolizer;
 
 /**
  * Information about a looked up symbol.

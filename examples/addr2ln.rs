@@ -2,8 +2,8 @@ extern crate blazesym;
 
 use blazesym::cfg;
 use blazesym::Addr;
-use blazesym::BlazeSymbolizer;
 use blazesym::SymbolSrcCfg;
+use blazesym::Symbolizer;
 use std::env;
 use std::path;
 
@@ -26,7 +26,7 @@ fn main() {
         file_name: path::PathBuf::from(bin_name),
         base_address: 0x0,
     });
-    let resolver = BlazeSymbolizer::new().unwrap();
+    let resolver = Symbolizer::new().unwrap();
 
     if &addr_str[0..2] == "0x" {
         // Remove prefixed 0x

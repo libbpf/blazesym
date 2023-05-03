@@ -113,7 +113,7 @@ pub struct blaze_sym_info {
 
 
 /// Convert [`SymbolInfo`] objects as returned by
-/// [`BlazeSymbolizer::find_addrs`] to a C array.
+/// [`Symbolizer::find_addrs`] to a C array.
 fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaze_sym_info {
     let mut sym_cnt = 0;
     let mut str_buf_sz = 0;

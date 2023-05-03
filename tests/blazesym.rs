@@ -11,9 +11,9 @@ use blazesym::inspect;
 use blazesym::inspect::Inspector;
 use blazesym::normalize::Normalizer;
 use blazesym::Addr;
-use blazesym::BlazeSymbolizer;
 use blazesym::Pid;
 use blazesym::SymbolSrcCfg;
+use blazesym::Symbolizer;
 use blazesym::SymbolizerFeature;
 
 
@@ -31,7 +31,7 @@ fn error_on_non_existent_source() {
             base_address: 0,
         }),
     ];
-    let symbolizer = BlazeSymbolizer::new().unwrap();
+    let symbolizer = Symbolizer::new().unwrap();
 
     for src in srcs {
         let err = symbolizer.symbolize(&src, &[0x2000100]).unwrap_err();
@@ -51,7 +51,7 @@ fn symbolize_gsym() {
         file_name: test_gsym,
         base_address: 0,
     });
-    let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
+    let symbolizer = Symbolizer::new_opt(&features).unwrap();
 
     let results = symbolizer
         .symbolize(&cfg, &[0x2000100])
@@ -79,7 +79,7 @@ fn symbolize_dwarf() {
         file_name: test_dwarf,
         base_address: 0,
     });
-    let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
+    let symbolizer = Symbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .symbolize(&cfg, &[0x2000100])
         .unwrap()
@@ -96,8 +96,8 @@ fn symbolize_dwarf() {
 #[test]
 fn symbolize_process() {
     let cfg = SymbolSrcCfg::Process(cfg::Process { pid: Pid::Slf });
-    let addrs = [symbolize_process as Addr, BlazeSymbolizer::new as Addr];
-    let symbolizer = BlazeSymbolizer::new().unwrap();
+    let addrs = [symbolize_process as Addr, Symbolizer::new as Addr];
+    let symbolizer = Symbolizer::new().unwrap();
     let results = symbolizer
         .symbolize(&cfg, &addrs)
         .unwrap()
@@ -110,7 +110,7 @@ fn symbolize_process() {
     assert!(result.symbol.contains("symbolize_process"), "{result:x?}");
 
     let result = &results[1];
-    assert!(result.symbol.contains("BlazeSymbolizer3new"), "{result:x?}");
+    assert!(result.symbol.contains("Symbolizer3new"), "{result:x?}");
 }
 
 /// Check that we can look up an address using DWARF.
@@ -127,7 +127,7 @@ fn lookup_dwarf() {
         file_name: test_dwarf,
         base_address: 0,
     });
-    let symbolizer = BlazeSymbolizer::new_opt(&features).unwrap();
+    let symbolizer = Symbolizer::new_opt(&features).unwrap();
     let results = symbolizer
         .find_addrs(&cfg, &["factorial"])
         .unwrap()
@@ -171,7 +171,7 @@ fn normalize_user_address() {
             // TODO: Fix our symbolizer. Base address should be 0.
             base_address: 0x1000,
         });
-        let symbolizer = BlazeSymbolizer::new().unwrap();
+        let symbolizer = Symbolizer::new().unwrap();
         let results = symbolizer
             .symbolize(&cfg, &[norm_addr.0])
             .unwrap()

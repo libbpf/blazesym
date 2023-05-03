@@ -17,9 +17,9 @@ use crate::log::error;
 use crate::log::warn;
 use crate::util::slice_from_user_array;
 use crate::Addr;
-use crate::BlazeSymbolizer;
 use crate::SymbolSrcCfg;
 use crate::SymbolizedResult;
+use crate::Symbolizer;
 use crate::SymbolizerFeature;
 
 
@@ -243,7 +243,7 @@ pub struct blazesym_feature {
 ///
 /// It is returned by [`blaze_symbolizer_new`] and should be free by
 /// [`blaze_symbolizer_free`].
-pub type blaze_symbolizer = BlazeSymbolizer;
+pub type blaze_symbolizer = Symbolizer;
 
 /// The result of symbolization of an address for C API.
 ///
@@ -312,7 +312,7 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 /// Create an instance of blazesym a symbolizer for C API.
 #[no_mangle]
 pub extern "C" fn blaze_symbolizer_new() -> *mut blaze_symbolizer {
-    let symbolizer = match BlazeSymbolizer::new() {
+    let symbolizer = match Symbolizer::new() {
         Ok(s) => s,
         Err(_) => return ptr::null_mut(),
     };
@@ -347,7 +347,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
         })
         .collect::<Vec<_>>();
 
-    let symbolizer = match BlazeSymbolizer::new_opt(&features_r) {
+    let symbolizer = match Symbolizer::new_opt(&features_r) {
         Ok(s) => s,
         Err(_) => return ptr::null_mut(),
     };
