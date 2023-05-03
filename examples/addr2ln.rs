@@ -1,6 +1,6 @@
 extern crate blazesym;
 
-use blazesym::symbolize::cfg;
+use blazesym::symbolize::Elf;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
@@ -22,7 +22,7 @@ fn main() {
 
     let bin_name = &args[1];
     let mut addr_str = &args[2][..];
-    let src = Source::Elf(cfg::Elf {
+    let src = Source::Elf(Elf {
         file_name: path::PathBuf::from(bin_name),
         base_address: 0x0,
     });

@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use blazesym::symbolize::cfg;
+use blazesym::symbolize::Elf;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::symbolize::SymbolizerFeature;
@@ -18,7 +18,7 @@ fn symbolize_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let src = Source::Elf(cfg::Elf {
+    let src = Source::Elf(Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
     });
@@ -45,7 +45,7 @@ fn lookup_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let src = Source::Elf(cfg::Elf {
+    let src = Source::Elf(Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
     });

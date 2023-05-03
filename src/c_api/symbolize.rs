@@ -14,7 +14,10 @@ use std::ptr;
 
 use crate::log::error;
 use crate::log::warn;
-use crate::symbolize::cfg;
+use crate::symbolize::Elf;
+use crate::symbolize::Gsym;
+use crate::symbolize::Kernel;
+use crate::symbolize::Process;
 use crate::symbolize::Source;
 use crate::symbolize::SymbolizedResult;
 use crate::symbolize::Symbolizer;
@@ -157,7 +160,7 @@ impl From<&blazesym_sym_src_cfg> for Source {
             blazesym_src_type::BLAZESYM_SRC_T_ELF => {
                 // SAFETY: `elf` is the union variant used for `BLAZESYM_SRC_T_ELF`.
                 let elf = unsafe { &src.params.elf };
-                Source::Elf(cfg::Elf {
+                Source::Elf(Elf {
                     file_name: unsafe { from_cstr(elf.file_name) },
                     base_address: elf.base_address,
                 })
@@ -167,7 +170,7 @@ impl From<&blazesym_sym_src_cfg> for Source {
                 let kernel = unsafe { &src.params.kernel };
                 let kallsyms = kernel.kallsyms;
                 let kernel_image = kernel.kernel_image;
-                Source::Kernel(cfg::Kernel {
+                Source::Kernel(Kernel {
                     kallsyms: if !kallsyms.is_null() {
                         Some(unsafe { from_cstr(kallsyms) })
                     } else {
@@ -183,12 +186,12 @@ impl From<&blazesym_sym_src_cfg> for Source {
             blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
                 // SAFETY: `process` is the union variant used for `BLAZESYM_SRC_T_PROCESS`.
                 let pid = unsafe { src.params.process.pid };
-                Source::Process(cfg::Process { pid: pid.into() })
+                Source::Process(Process { pid: pid.into() })
             }
             blazesym_src_type::BLAZESYM_SRC_T_GSYM => {
                 // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.
                 let gsym = unsafe { &src.params.gsym };
-                Source::Gsym(cfg::Gsym {
+                Source::Gsym(Gsym {
                     file_name: unsafe { from_cstr(gsym.file_name) },
                     base_address: gsym.base_address,
                 })

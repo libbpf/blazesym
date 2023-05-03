@@ -20,11 +20,11 @@ use blazesym::Pid;
 fn error_on_non_existent_source() {
     let non_existent = Path::new("/does-not-exists");
     let srcs = vec![
-        symbolize::Source::Gsym(symbolize::cfg::Gsym {
+        symbolize::Source::Gsym(symbolize::Gsym {
             file_name: non_existent.to_path_buf(),
             base_address: 0,
         }),
-        symbolize::Source::Elf(symbolize::cfg::Elf {
+        symbolize::Source::Elf(symbolize::Elf {
             file_name: non_existent.to_path_buf(),
             base_address: 0,
         }),
@@ -45,7 +45,7 @@ fn symbolize_gsym() {
         .join("test.gsym");
 
     let features = vec![symbolize::SymbolizerFeature::LineNumberInfo(true)];
-    let src = symbolize::Source::Gsym(symbolize::cfg::Gsym {
+    let src = symbolize::Source::Gsym(symbolize::Gsym {
         file_name: test_gsym,
         base_address: 0,
     });
@@ -73,7 +73,7 @@ fn symbolize_dwarf() {
         symbolize::SymbolizerFeature::LineNumberInfo(true),
         symbolize::SymbolizerFeature::DebugInfoSymbols(true),
     ];
-    let src = symbolize::Source::Elf(symbolize::cfg::Elf {
+    let src = symbolize::Source::Elf(symbolize::Elf {
         file_name: test_dwarf,
         base_address: 0,
     });
@@ -93,7 +93,7 @@ fn symbolize_dwarf() {
 /// Check that we can symbolize addresses inside our own process.
 #[test]
 fn symbolize_process() {
-    let src = symbolize::Source::Process(symbolize::cfg::Process { pid: Pid::Slf });
+    let src = symbolize::Source::Process(symbolize::Process { pid: Pid::Slf });
     let addrs = [symbolize_process as Addr, Symbolizer::new as Addr];
     let symbolizer = Symbolizer::new().unwrap();
     let results = symbolizer
@@ -121,7 +121,7 @@ fn lookup_dwarf() {
         symbolize::SymbolizerFeature::LineNumberInfo(true),
         symbolize::SymbolizerFeature::DebugInfoSymbols(true),
     ];
-    let src = symbolize::Source::Elf(symbolize::cfg::Elf {
+    let src = symbolize::Source::Elf(symbolize::Elf {
         file_name: test_dwarf,
         base_address: 0,
     });
@@ -164,7 +164,7 @@ fn normalize_user_address() {
         let meta = &norm_addrs.meta[norm_addr.1];
         assert_eq!(meta.binary().unwrap().path, test_so);
 
-        let src = symbolize::Source::Elf(symbolize::cfg::Elf {
+        let src = symbolize::Source::Elf(symbolize::Elf {
             file_name: test_so,
             // TODO: Fix our symbolizer. Base address should be 0.
             base_address: 0x1000,
