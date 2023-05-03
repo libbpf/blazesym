@@ -610,7 +610,7 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  * The returned pointer should be freed by [`blazesym_result_free()`].
  */
 const struct blazesym_result *blaze_symbolize(blaze_symbolizer *symbolizer,
-                                              const struct blazesym_sym_src_cfg *cfg,
+                                              const struct blazesym_sym_src_cfg *src,
                                               const uintptr_t *addrs,
                                               size_t addr_cnt);
 

@@ -65,10 +65,10 @@ fn symbolizer_creation_with_features() {
 /// Make sure that we can symbolize an address.
 #[test]
 fn symbolize_from_file() {
-    fn test(cfg: blazesym_sym_src_cfg) {
+    fn test(src: blazesym_sym_src_cfg) {
         let symbolizer = blaze_symbolizer_new();
         let addrs = [0x2000100];
-        let result = unsafe { blaze_symbolize(symbolizer, &cfg, addrs.as_ptr(), addrs.len()) };
+        let result = unsafe { blaze_symbolize(symbolizer, &src, addrs.as_ptr(), addrs.len()) };
 
         assert!(!result.is_null());
 
@@ -98,11 +98,11 @@ fn symbolize_from_file() {
         file_name: test_dwarf_c.as_ptr(),
         base_address: 0,
     });
-    let cfg = blazesym_sym_src_cfg {
+    let src = blazesym_sym_src_cfg {
         src_type: blazesym_src_type::BLAZESYM_SRC_T_ELF,
         params: blazesym_ssc_params { elf: elf_src },
     };
-    test(cfg);
+    test(src);
 
     let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
@@ -112,11 +112,11 @@ fn symbolize_from_file() {
         file_name: test_gsym_c.as_ptr(),
         base_address: 0,
     });
-    let cfg = blazesym_sym_src_cfg {
+    let src = blazesym_sym_src_cfg {
         src_type: blazesym_src_type::BLAZESYM_SRC_T_GSYM,
         params: blazesym_ssc_params { gsym: gsym_src },
     };
-    test(cfg);
+    test(src);
 }
 
 

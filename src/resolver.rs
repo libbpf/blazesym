@@ -7,7 +7,7 @@ use crate::elf::ElfResolver;
 use crate::ksym::KSymCache;
 use crate::symbolize::cfg;
 use crate::symbolize::AddrLineInfo;
-use crate::symbolize::SymbolSrcCfg;
+use crate::symbolize::Source;
 use crate::Addr;
 use crate::FindAddrOpts;
 use crate::SymbolInfo;
@@ -46,11 +46,11 @@ pub(crate) struct ResolverMap {
 }
 
 impl ResolverMap {
-    fn create_elf_resolver(cfg: &cfg::Elf, elf_cache: &ElfCache) -> Result<ElfResolver> {
+    fn create_elf_resolver(src: &cfg::Elf, elf_cache: &ElfCache) -> Result<ElfResolver> {
         let cfg::Elf {
             file_name,
             base_address,
-        } = cfg;
+        } = src;
 
         let backend = elf_cache.find(file_name)?;
         let resolver = ElfResolver::with_backend(file_name, *base_address, backend)?;
@@ -58,24 +58,24 @@ impl ResolverMap {
     }
 
     pub fn new(
-        sym_srcs: &[&SymbolSrcCfg],
+        sym_srcs: &[&Source],
         _ksym_cache: &KSymCache,
         elf_cache: &ElfCache,
     ) -> Result<ResolverMap> {
         let mut resolvers = ResolverList::new();
-        for cfg in sym_srcs {
-            match cfg {
-                SymbolSrcCfg::Elf(elf) => {
+        for src in sym_srcs {
+            match src {
+                Source::Elf(elf) => {
                     let resolver = Self::create_elf_resolver(elf, elf_cache)?;
                     let () = resolvers.push((resolver.get_address_range(), Box::new(resolver)));
                 }
-                SymbolSrcCfg::Kernel(..) => {
+                Source::Kernel(..) => {
                     unreachable!()
                 }
-                SymbolSrcCfg::Process(..) => {
+                Source::Process(..) => {
                     unreachable!()
                 }
-                SymbolSrcCfg::Gsym(..) => {
+                Source::Gsym(..) => {
                     unreachable!()
                 }
             }

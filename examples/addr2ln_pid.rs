@@ -1,7 +1,7 @@
 extern crate blazesym;
 
 use blazesym::symbolize::cfg;
-use blazesym::symbolize::SymbolSrcCfg;
+use blazesym::symbolize::Source;
 use blazesym::symbolize::SymbolizedResult;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
@@ -32,9 +32,9 @@ fn main() {
     }
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
-    let cfg = SymbolSrcCfg::Process(cfg::Process { pid: pid.into() });
+    let src = Source::Process(cfg::Process { pid: pid.into() });
     let resolver = Symbolizer::new().unwrap();
-    let symlist = resolver.symbolize(&cfg, &[addr]).unwrap();
+    let symlist = resolver.symbolize(&src, &[addr]).unwrap();
     if !symlist[0].is_empty() {
         let SymbolizedResult {
             symbol,

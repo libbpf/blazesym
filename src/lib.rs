@@ -12,16 +12,16 @@
 //! use blazesym::symbolize::cfg;
 //! use blazesym::Addr;
 //! use blazesym::symbolize::Symbolizer;
-//! use blazesym::symbolize::SymbolSrcCfg;
+//! use blazesym::symbolize::Source;
 //! use blazesym::symbolize::SymbolizedResult;
 //!
 //! let process_id: u32 = std::process::id(); // <some process id>
 //! // Load all symbols of loaded files of the given process.
-//! let cfg = SymbolSrcCfg::Process(cfg::Process { pid: process_id.into() });
+//! let src = Source::Process(cfg::Process { pid: process_id.into() });
 //! let symbolizer = Symbolizer::new().unwrap();
 //!
 //! let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
-//! let symlist = symbolizer.symbolize(&cfg,      // Pass this configuration every time
+//! let symlist = symbolizer.symbolize(&src,      // Pass this configuration every time
 //!                                    &stack).unwrap();
 //! for i in 0..stack.len() {
 //!   let addr = stack[i];

@@ -15,7 +15,7 @@ use std::ptr;
 use crate::log::error;
 use crate::log::warn;
 use crate::symbolize::cfg;
-use crate::symbolize::SymbolSrcCfg;
+use crate::symbolize::Source;
 use crate::symbolize::SymbolizedResult;
 use crate::symbolize::Symbolizer;
 use crate::symbolize::SymbolizerFeature;
@@ -151,23 +151,23 @@ pub struct blazesym_sym_src_cfg {
     pub params: blazesym_ssc_params,
 }
 
-impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
-    fn from(cfg: &blazesym_sym_src_cfg) -> Self {
-        match cfg.src_type {
+impl From<&blazesym_sym_src_cfg> for Source {
+    fn from(src: &blazesym_sym_src_cfg) -> Self {
+        match src.src_type {
             blazesym_src_type::BLAZESYM_SRC_T_ELF => {
                 // SAFETY: `elf` is the union variant used for `BLAZESYM_SRC_T_ELF`.
-                let elf = unsafe { &cfg.params.elf };
-                SymbolSrcCfg::Elf(cfg::Elf {
+                let elf = unsafe { &src.params.elf };
+                Source::Elf(cfg::Elf {
                     file_name: unsafe { from_cstr(elf.file_name) },
                     base_address: elf.base_address,
                 })
             }
             blazesym_src_type::BLAZESYM_SRC_T_KERNEL => {
                 // SAFETY: `kernel` is the union variant used for `BLAZESYM_SRC_T_KERNEL`.
-                let kernel = unsafe { &cfg.params.kernel };
+                let kernel = unsafe { &src.params.kernel };
                 let kallsyms = kernel.kallsyms;
                 let kernel_image = kernel.kernel_image;
-                SymbolSrcCfg::Kernel(cfg::Kernel {
+                Source::Kernel(cfg::Kernel {
                     kallsyms: if !kallsyms.is_null() {
                         Some(unsafe { from_cstr(kallsyms) })
                     } else {
@@ -182,13 +182,13 @@ impl From<&blazesym_sym_src_cfg> for SymbolSrcCfg {
             }
             blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
                 // SAFETY: `process` is the union variant used for `BLAZESYM_SRC_T_PROCESS`.
-                let pid = unsafe { cfg.params.process.pid };
-                SymbolSrcCfg::Process(cfg::Process { pid: pid.into() })
+                let pid = unsafe { src.params.process.pid };
+                Source::Process(cfg::Process { pid: pid.into() })
             }
             blazesym_src_type::BLAZESYM_SRC_T_GSYM => {
                 // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.
-                let gsym = unsafe { &cfg.params.gsym };
-                SymbolSrcCfg::Gsym(cfg::Gsym {
+                let gsym = unsafe { &src.params.gsym };
+                Source::Gsym(cfg::Gsym {
                     file_name: unsafe { from_cstr(gsym.file_name) },
                     base_address: gsym.base_address,
                 })
@@ -460,19 +460,19 @@ unsafe fn convert_symbolizedresults_to_c(
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize(
     symbolizer: *mut blaze_symbolizer,
-    cfg: *const blazesym_sym_src_cfg,
+    src: *const blazesym_sym_src_cfg,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid.
-    let cfg = SymbolSrcCfg::from(unsafe { &*cfg });
+    let src = Source::from(unsafe { &*src });
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
     let addresses = unsafe { slice_from_user_array(addrs, addr_cnt) };
 
-    let result = symbolizer.symbolize(&cfg, addresses);
+    let result = symbolizer.symbolize(&src, addresses);
 
     match result {
         Ok(results) if results.is_empty() => {
