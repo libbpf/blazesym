@@ -326,6 +326,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
                 .maps_file,
             Path::new("/proc/self/map_files/55f4a95cb000-55f4a95cf000")
         );
+        assert_eq!(entry.path_name.as_ref().unwrap().as_component(), None);
 
         let entry = parse_maps_line(lines.lines().nth(6).unwrap(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4aa379000);
@@ -335,6 +336,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
             entry.path_name.as_ref().unwrap().as_component().unwrap(),
             "[heap]",
         );
+        assert_eq!(entry.path_name.as_ref().unwrap().as_path(), None);
 
         let entry = parse_maps_line(lines.lines().nth(8).unwrap(), Pid::Slf).unwrap();
         assert_eq!(entry.mode, 0b1001);
