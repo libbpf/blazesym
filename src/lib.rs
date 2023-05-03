@@ -95,7 +95,9 @@ pub type Addr = usize;
 /// An enumeration identifying a process.
 #[derive(Clone, Copy, Debug)]
 pub enum Pid {
+    /// The current process.
     Slf,
+    /// The process identified by the provided ID.
     Pid(NonZeroU32),
 }
 
