@@ -330,13 +330,14 @@ typedef struct blazesym_result {
  */
 typedef struct blazesym_ssc_elf {
   /**
-   * The file name of an ELF file.
+   * The path to the ELF file.
    *
-   * It can be an executable or shared object.
-   * For example, passing "/bin/sh" will load symbols and debug information from `sh`.
-   * Whereas passing "/lib/libc.so.xxx" will load symbols and debug information from the libc.
+   * The referenced file may be an executable or shared object. For example,
+   * passing "/bin/sh" will load symbols and debug information from `sh` and
+   * passing "/lib/libc.so.xxx" will load symbols and debug information from
+   * libc.
    */
-  const char *file_name;
+  const char *path;
   /**
    * The base address is where the file's executable segment(s) is loaded.
    *
@@ -411,9 +412,9 @@ typedef struct blazesym_ssc_process {
  */
 typedef struct blazesym_ssc_gsym {
   /**
-   * The file name of a gsym file.
+   * The path to a gsym file.
    */
-  const char *file_name;
+  const char *path;
   /**
    * The base address is where the file's executable segment(s) is loaded.
    */

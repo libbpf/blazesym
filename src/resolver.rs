@@ -48,13 +48,13 @@ pub(crate) struct ResolverMap {
 impl ResolverMap {
     fn create_elf_resolver(src: &symbolize::Elf, elf_cache: &ElfCache) -> Result<ElfResolver> {
         let symbolize::Elf {
-            file_name,
+            path,
             base_address,
             _non_exhaustive: (),
         } = src;
 
-        let backend = elf_cache.find(file_name)?;
-        let resolver = ElfResolver::with_backend(file_name, *base_address, backend)?;
+        let backend = elf_cache.find(path)?;
+        let resolver = ElfResolver::with_backend(path, *base_address, backend)?;
         Ok(resolver)
     }
 
