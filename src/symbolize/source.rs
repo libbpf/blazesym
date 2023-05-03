@@ -37,6 +37,20 @@ pub struct Elf {
     /// `x`.  For example, the first block is with the permission of
     /// `r-xp`.
     pub base_address: Addr,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub(crate) _non_exhaustive: (),
+}
+
+impl Elf {
+    /// Create a new [`Elf`] object, referencing the provided path.
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            file_name: path.into(),
+            base_address: 0,
+            _non_exhaustive: (),
+        }
+    }
 }
 
 impl From<Elf> for Source {
@@ -47,7 +61,7 @@ impl From<Elf> for Source {
 
 
 /// Linux Kernel's binary image and a copy of /proc/kallsyms
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Kernel {
     /// The path of a kallsyms copy.
     ///
@@ -64,6 +78,9 @@ pub struct Kernel {
     /// kernel image of the running kernel in `"/boot/"` or
     /// `"/usr/lib/debug/boot/"`.
     pub kernel_image: Option<PathBuf>,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub(crate) _non_exhaustive: (),
 }
 
 impl From<Kernel> for Source {
@@ -81,6 +98,19 @@ impl From<Kernel> for Source {
 #[derive(Clone, Debug)]
 pub struct Process {
     pub pid: Pid,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub(crate) _non_exhaustive: (),
+}
+
+impl Process {
+    /// Create a new [`Process`] object using the provided `pid`.
+    pub fn new(pid: Pid) -> Self {
+        Self {
+            pid,
+            _non_exhaustive: (),
+        }
+    }
 }
 
 impl From<Process> for Source {
@@ -97,6 +127,20 @@ pub struct Gsym {
     pub file_name: PathBuf,
     /// The base address.
     pub base_address: Addr,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub(crate) _non_exhaustive: (),
+}
+
+impl Gsym {
+    /// Create a new [`Gsym`] object, referencing the provided path.
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            file_name: path.into(),
+            base_address: 0,
+            _non_exhaustive: (),
+        }
+    }
 }
 
 impl From<Gsym> for Source {

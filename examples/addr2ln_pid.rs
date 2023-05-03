@@ -32,7 +32,7 @@ fn main() {
     }
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
-    let src = Source::Process(Process { pid: pid.into() });
+    let src = Source::Process(Process::new(pid.into()));
     let resolver = Symbolizer::new().unwrap();
     let symlist = resolver.symbolize(&src, &[addr]).unwrap();
     if !symlist[0].is_empty() {

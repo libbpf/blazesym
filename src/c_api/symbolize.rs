@@ -163,6 +163,7 @@ impl From<&blazesym_sym_src_cfg> for Source {
                 Source::Elf(Elf {
                     file_name: unsafe { from_cstr(elf.file_name) },
                     base_address: elf.base_address,
+                    _non_exhaustive: (),
                 })
             }
             blazesym_src_type::BLAZESYM_SRC_T_KERNEL => {
@@ -181,12 +182,16 @@ impl From<&blazesym_sym_src_cfg> for Source {
                     } else {
                         None
                     },
+                    _non_exhaustive: (),
                 })
             }
             blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
                 // SAFETY: `process` is the union variant used for `BLAZESYM_SRC_T_PROCESS`.
                 let pid = unsafe { src.params.process.pid };
-                Source::Process(Process { pid: pid.into() })
+                Source::Process(Process {
+                    pid: pid.into(),
+                    _non_exhaustive: (),
+                })
             }
             blazesym_src_type::BLAZESYM_SRC_T_GSYM => {
                 // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.
@@ -194,6 +199,7 @@ impl From<&blazesym_sym_src_cfg> for Source {
                 Source::Gsym(Gsym {
                     file_name: unsafe { from_cstr(gsym.file_name) },
                     base_address: gsym.base_address,
+                    _non_exhaustive: (),
                 })
             }
         }

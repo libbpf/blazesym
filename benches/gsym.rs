@@ -18,10 +18,7 @@ fn symbolize_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let src = Source::Gsym(Gsym {
-        file_name: gsym_vmlinux,
-        base_address: 0,
-    });
+    let src = Source::Gsym(Gsym::new(gsym_vmlinux));
     let symbolizer = Symbolizer::with_opts(&features).unwrap();
 
     let results = symbolizer

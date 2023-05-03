@@ -5,7 +5,6 @@ use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use std::env;
-use std::path;
 
 fn show_usage() {
     let args: Vec<String> = env::args().collect();
@@ -22,10 +21,7 @@ fn main() {
 
     let bin_name = &args[1];
     let mut addr_str = &args[2][..];
-    let src = Source::Elf(Elf {
-        file_name: path::PathBuf::from(bin_name),
-        base_address: 0x0,
-    });
+    let src = Source::Elf(Elf::new(bin_name));
     let resolver = Symbolizer::new().unwrap();
 
     if &addr_str[0..2] == "0x" {
