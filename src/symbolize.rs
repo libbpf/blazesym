@@ -188,9 +188,8 @@ pub struct SymbolizedResult {
 
 /// Switches in the features of Symbolizer.
 ///
-/// Passing variants of this `enum` to [`Symbolizer::new_opt()`]
-/// will enable (true) or disable (false) respective features
-/// of a symbolizer.
+/// Passing variants of this `enum` to [`Symbolizer::with_opts`] will enable
+/// (true) or disable (false) respective features of a symbolizer.
 #[derive(Debug)]
 pub enum SymbolizerFeature {
     /// Switch on or off the feature of returning file names and line numbers of addresses.
@@ -232,9 +231,9 @@ impl Symbolizer {
 
     /// Create a new [`Symbolizer`] with the provided set of features.
     ///
-    /// `new_opt()` works like [`Symbolizer::new()`] except it receives a list of
-    /// [`SymbolizerFeature`] to turn on or off some features.
-    pub fn new_opt(features: &[SymbolizerFeature]) -> Result<Symbolizer> {
+    /// This constructor works like [`Symbolizer::new`] except it receives a
+    /// list of [`SymbolizerFeature`] to turn on or off some features.
+    pub fn with_opts(features: &[SymbolizerFeature]) -> Result<Symbolizer> {
         let mut line_number_info = true;
         let mut debug_info_symbols = false;
 

@@ -22,7 +22,7 @@ fn symbolize_end_to_end() {
         file_name: gsym_vmlinux,
         base_address: 0,
     });
-    let symbolizer = Symbolizer::new_opt(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features).unwrap();
 
     let results = symbolizer
         .symbolize(&cfg, &[0xffffffff8110ecb0])
