@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use blazesym::symbolize::cfg;
-use blazesym::symbolize::SymbolSrcCfg;
+use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::symbolize::SymbolizerFeature;
 
@@ -18,14 +18,14 @@ fn symbolize_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let cfg = SymbolSrcCfg::Elf(cfg::Elf {
+    let src = Source::Elf(cfg::Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
     });
     let symbolizer = Symbolizer::with_opts(&features).unwrap();
 
     let results = symbolizer
-        .symbolize(&cfg, &[0xffffffff8110ecb0])
+        .symbolize(&src, &[0xffffffff8110ecb0])
         .unwrap()
         .into_iter()
         .flatten()
@@ -45,14 +45,14 @@ fn lookup_end_to_end() {
         SymbolizerFeature::DebugInfoSymbols(true),
         SymbolizerFeature::LineNumberInfo(true),
     ];
-    let cfg = SymbolSrcCfg::Elf(cfg::Elf {
+    let src = Source::Elf(cfg::Elf {
         file_name: dwarf_vmlinux,
         base_address: 0,
     });
 
     let symbolizer = Symbolizer::with_opts(&features).unwrap();
     let results = symbolizer
-        .find_addrs(&cfg, &["abort_creds"])
+        .find_addrs(&src, &["abort_creds"])
         .unwrap()
         .into_iter()
         .flatten()

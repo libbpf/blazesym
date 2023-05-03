@@ -1,7 +1,7 @@
 extern crate blazesym;
 
 use blazesym::symbolize::cfg;
-use blazesym::symbolize::SymbolSrcCfg;
+use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use std::env;
@@ -22,7 +22,7 @@ fn main() {
 
     let bin_name = &args[1];
     let mut addr_str = &args[2][..];
-    let cfg = SymbolSrcCfg::Elf(cfg::Elf {
+    let src = Source::Elf(cfg::Elf {
         file_name: path::PathBuf::from(bin_name),
         base_address: 0x0,
     });
@@ -34,7 +34,7 @@ fn main() {
     }
     let addr = Addr::from_str_radix(addr_str, 16).unwrap();
 
-    let results = resolver.symbolize(&cfg, &[addr]).unwrap();
+    let results = resolver.symbolize(&src, &[addr]).unwrap();
     if results.len() == 1 && !results[0].is_empty() {
         let result = &results[0][0];
         println!(

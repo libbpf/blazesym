@@ -34,7 +34,7 @@ pub(crate) struct AddrLineInfo {
 pub mod cfg {
     use std::path::PathBuf;
 
-    use crate::symbolize::SymbolSrcCfg;
+    use crate::symbolize::Source;
     use crate::Addr;
     use crate::Pid;
 
@@ -74,9 +74,9 @@ pub mod cfg {
         pub base_address: Addr,
     }
 
-    impl From<Elf> for SymbolSrcCfg {
+    impl From<Elf> for Source {
         fn from(elf: Elf) -> Self {
-            SymbolSrcCfg::Elf(elf)
+            Source::Elf(elf)
         }
     }
 
@@ -101,9 +101,9 @@ pub mod cfg {
         pub kernel_image: Option<PathBuf>,
     }
 
-    impl From<Kernel> for SymbolSrcCfg {
+    impl From<Kernel> for Source {
         fn from(kernel: Kernel) -> Self {
-            SymbolSrcCfg::Kernel(kernel)
+            Source::Kernel(kernel)
         }
     }
 
@@ -118,9 +118,9 @@ pub mod cfg {
         pub pid: Pid,
     }
 
-    impl From<Process> for SymbolSrcCfg {
+    impl From<Process> for Source {
         fn from(process: Process) -> Self {
-            SymbolSrcCfg::Process(process)
+            Source::Process(process)
         }
     }
 
@@ -134,9 +134,9 @@ pub mod cfg {
         pub base_address: Addr,
     }
 
-    impl From<Gsym> for SymbolSrcCfg {
+    impl From<Gsym> for Source {
         fn from(gsym: Gsym) -> Self {
-            SymbolSrcCfg::Gsym(gsym)
+            Source::Gsym(gsym)
         }
     }
 }
@@ -146,7 +146,7 @@ pub mod cfg {
 /// The source of symbols and debug information can be an ELF file, kernel
 /// image, or process.
 #[derive(Clone, Debug)]
-pub enum SymbolSrcCfg {
+pub enum Source {
     /// A single ELF file
     Elf(cfg::Elf),
     /// Information about the Linux kernel.
@@ -262,14 +262,14 @@ impl Symbolizer {
     ///
     /// Find the addresses of a list of symbol names using the provided
     /// configuration.
-    pub fn find_addrs(&self, cfg: &SymbolSrcCfg, names: &[&str]) -> Result<Vec<Vec<SymbolInfo>>> {
+    pub fn find_addrs(&self, src: &Source, names: &[&str]) -> Result<Vec<Vec<SymbolInfo>>> {
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
             sym_type: SymbolType::Unknown,
         };
 
-        let resolver_map = ResolverMap::new(&[cfg], &self.ksym_cache, &self.elf_cache)?;
+        let resolver_map = ResolverMap::new(&[src], &self.ksym_cache, &self.elf_cache)?;
         let mut syms_list = vec![];
         for name in names {
             let mut found = vec![];
@@ -402,12 +402,12 @@ impl Symbolizer {
     fn symbolize_kernel_addrs(
         &self,
         addrs: &[Addr],
-        cfg: &cfg::Kernel,
+        src: &cfg::Kernel,
     ) -> Result<Vec<Vec<SymbolizedResult>>> {
         let cfg::Kernel {
             kallsyms,
             kernel_image,
-        } = cfg;
+        } = src;
 
         let ksym_resolver = if let Some(kallsyms) = kallsyms {
             let ksym_resolver = self.ksym_cache.get_resolver(kallsyms)?;
@@ -474,14 +474,10 @@ impl Symbolizer {
     /// Symbolize a list of addresses.
     ///
     /// Symbolize a list of addresses according to the configuration
-    /// provided via `cfg`.
-    pub fn symbolize(
-        &self,
-        cfg: &SymbolSrcCfg,
-        addrs: &[Addr],
-    ) -> Result<Vec<Vec<SymbolizedResult>>> {
-        match cfg {
-            SymbolSrcCfg::Elf(cfg::Elf {
+    /// provided via `src`.
+    pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<SymbolizedResult>>> {
+        match src {
+            Source::Elf(cfg::Elf {
                 file_name,
                 base_address,
             }) => {
@@ -490,9 +486,9 @@ impl Symbolizer {
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }
-            SymbolSrcCfg::Kernel(kernel) => self.symbolize_kernel_addrs(addrs, kernel),
-            SymbolSrcCfg::Process(cfg::Process { pid }) => self.symbolize_user_addrs(addrs, *pid),
-            SymbolSrcCfg::Gsym(cfg::Gsym {
+            Source::Kernel(kernel) => self.symbolize_kernel_addrs(addrs, kernel),
+            Source::Process(cfg::Process { pid }) => self.symbolize_user_addrs(addrs, *pid),
+            Source::Gsym(cfg::Gsym {
                 file_name,
                 base_address,
             }) => {
