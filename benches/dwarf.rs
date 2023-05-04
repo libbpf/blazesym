@@ -3,7 +3,6 @@ use std::path::Path;
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
-use blazesym::symbolize::SymbolizerFeature;
 
 use criterion::measurement::Measurement;
 use criterion::BenchmarkGroup;
@@ -14,12 +13,8 @@ fn symbolize_end_to_end() {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64");
-    let features = [
-        SymbolizerFeature::DebugInfoSymbols(true),
-        SymbolizerFeature::LineNumberInfo(true),
-    ];
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
-    let symbolizer = Symbolizer::with_opts(&features);
+    let symbolizer = Symbolizer::new();
 
     let results = symbolizer
         .symbolize(&src, &[0xffffffff8110ecb0])
@@ -38,13 +33,9 @@ fn lookup_end_to_end() {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64");
-    let features = [
-        SymbolizerFeature::DebugInfoSymbols(true),
-        SymbolizerFeature::LineNumberInfo(true),
-    ];
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
 
-    let symbolizer = Symbolizer::with_opts(&features);
+    let symbolizer = Symbolizer::new();
     let results = symbolizer
         .find_addrs(&src, &["abort_creds"])
         .unwrap()

@@ -21,11 +21,9 @@ use blazesym::c_api::blaze_symbolize;
 use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
+use blazesym::c_api::blaze_symbolizer_opts;
 use blazesym::c_api::blaze_syms_free;
 use blazesym::c_api::blaze_user_addrs_free;
-use blazesym::c_api::blazesym_feature;
-use blazesym::c_api::blazesym_feature_name;
-use blazesym::c_api::blazesym_feature_params;
 use blazesym::c_api::blazesym_result_free;
 use blazesym::c_api::blazesym_src_type;
 use blazesym::c_api::blazesym_ssc_elf;
@@ -44,20 +42,14 @@ fn symbolizer_creation() {
 
 
 /// Make sure that we can create and free a symbolizer instance with the
-/// provided features.
+/// provided options.
 #[test]
-fn symbolizer_creation_with_features() {
-    let features = [
-        blazesym_feature {
-            feature: blazesym_feature_name::BLAZESYM_LINE_NUMBER_INFO,
-            params: blazesym_feature_params { enable: true },
-        },
-        blazesym_feature {
-            feature: blazesym_feature_name::BLAZESYM_DEBUG_INFO_SYMBOLS,
-            params: blazesym_feature_params { enable: true },
-        },
-    ];
-    let symbolizer = unsafe { blaze_symbolizer_new_opts(features.as_ptr(), features.len()) };
+fn symbolizer_creation_with_opts() {
+    let opts = blaze_symbolizer_opts {
+        debug_syms: true,
+        src_location: false,
+    };
+    let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
     let () = unsafe { blaze_symbolizer_free(symbolizer) };
 }
 

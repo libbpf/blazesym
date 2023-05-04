@@ -3,7 +3,6 @@ use std::path::Path;
 use blazesym::symbolize::Gsym;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
-use blazesym::symbolize::SymbolizerFeature;
 
 use criterion::measurement::Measurement;
 use criterion::BenchmarkGroup;
@@ -14,12 +13,8 @@ fn symbolize_end_to_end() {
     let gsym_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.gsym");
-    let features = [
-        SymbolizerFeature::DebugInfoSymbols(true),
-        SymbolizerFeature::LineNumberInfo(true),
-    ];
     let src = Source::Gsym(Gsym::new(gsym_vmlinux));
-    let symbolizer = Symbolizer::with_opts(&features);
+    let symbolizer = Symbolizer::new();
 
     let results = symbolizer
         .symbolize(&src, &[0xffffffff8110ecb0])
