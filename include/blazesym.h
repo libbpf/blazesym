@@ -288,7 +288,7 @@ typedef struct blazesym_result {
  * Load all ELF files in a process as the sources of symbols and debug
  * information.
  */
-typedef struct blazesym_ssc_process {
+typedef struct blaze_symbolize_src_process {
   /**
    * It is the PID of a process to symbolize.
    *
@@ -296,7 +296,7 @@ typedef struct blazesym_ssc_process {
    * files.
    */
   uint32_t pid;
-} blazesym_ssc_process;
+} blaze_symbolize_src_process;
 
 /**
  * The parameters to load symbols and debug information from a kernel.
@@ -304,7 +304,7 @@ typedef struct blazesym_ssc_process {
  * Use a kernel image and a snapshot of its kallsyms as a source of symbols and
  * debug information.
  */
-typedef struct blazesym_ssc_kernel {
+typedef struct blaze_symbolize_src_kernel {
   /**
    * The path of a copy of kallsyms.
    *
@@ -323,7 +323,7 @@ typedef struct blazesym_ssc_kernel {
    * `"/usr/lib/debug/boot/"`.
    */
   const char *kernel_image;
-} blazesym_ssc_kernel;
+} blaze_symbolize_src_kernel;
 
 /**
  * The parameters to load symbols and debug information from an ELF.
@@ -331,7 +331,7 @@ typedef struct blazesym_ssc_kernel {
  * Describes the path and address of an ELF file loaded in a
  * process.
  */
-typedef struct blazesym_ssc_elf {
+typedef struct blaze_symbolize_src_elf {
   /**
    * The path to the ELF file.
    *
@@ -365,12 +365,12 @@ typedef struct blazesym_ssc_elf {
    * permission of `r-xp`.
    */
   uintptr_t base_address;
-} blazesym_ssc_elf;
+} blaze_symbolize_src_elf;
 
 /**
  * The parameters to load symbols and debug information from a gsym file.
  */
-typedef struct blazesym_ssc_gsym {
+typedef struct blaze_symbolize_src_gsym {
   /**
    * The path to a gsym file.
    */
@@ -379,7 +379,7 @@ typedef struct blazesym_ssc_gsym {
    * The base address is where the file's executable segment(s) is loaded.
    */
   uintptr_t base_address;
-} blazesym_ssc_gsym;
+} blaze_symbolize_src_gsym;
 
 /**
  * Lookup symbol information in an ELF file.
@@ -534,11 +534,11 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
  * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blazesym_ssc_process`] object. `addrs` must represent an array of
+ * [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
 const struct blazesym_result *blaze_symbolize_process(blaze_symbolizer *symbolizer,
-                                                      const struct blazesym_ssc_process *src,
+                                                      const struct blaze_symbolize_src_process *src,
                                                       const uintptr_t *addrs,
                                                       size_t addr_cnt);
 
@@ -552,11 +552,11 @@ const struct blazesym_result *blaze_symbolize_process(blaze_symbolizer *symboliz
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
  * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blazesym_ssc_kernel`] object. `addrs` must represent an array of
+ * [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
 const struct blazesym_result *blaze_symbolize_kernel(blaze_symbolizer *symbolizer,
-                                                     const struct blazesym_ssc_kernel *src,
+                                                     const struct blaze_symbolize_src_kernel *src,
                                                      const uintptr_t *addrs,
                                                      size_t addr_cnt);
 
@@ -570,11 +570,11 @@ const struct blazesym_result *blaze_symbolize_kernel(blaze_symbolizer *symbolize
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
  * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blazesym_ssc_elf`] object. `addrs` must represent an array of
+ * [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
 const struct blazesym_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
-                                                  const struct blazesym_ssc_elf *src,
+                                                  const struct blaze_symbolize_src_elf *src,
                                                   const uintptr_t *addrs,
                                                   size_t addr_cnt);
 
@@ -588,11 +588,11 @@ const struct blazesym_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
  * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blazesym_ssc_gsym`] object. `addrs` must represent an array of
+ * [`blaze_symbolize_src_gsym`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
 const struct blazesym_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
-                                                   const struct blazesym_ssc_gsym *src,
+                                                   const struct blaze_symbolize_src_gsym *src,
                                                    const uintptr_t *addrs,
                                                    size_t addr_cnt);
 
