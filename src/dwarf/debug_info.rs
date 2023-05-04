@@ -80,7 +80,7 @@ pub struct CUHeaderV4 {
 /// DIEs of the unit in the `.debug_info` section.  DWARFv5 is much
 /// more complicated.
 ///
-/// So far, BlazeSym supports only DWARFv4, that is common used.
+/// So far, blazesym supports only DWARFv4, that is common used.
 pub enum UnitHeader {
     CompileV4(CUHeaderV4),
     CompileV5(CUHeaderV5),
@@ -765,7 +765,7 @@ impl<'a> Iterator for UnitIter<'a> {
                         },
                     ))
                 }
-                // BlazeSym supports only v4 so far.
+                // blazesym supports only v4 so far.
                 UnitHeader::CompileV5(ref _cuh) => {
                     log::warn!("ignoring unsupported DWARF v5 unit header");
                 }
