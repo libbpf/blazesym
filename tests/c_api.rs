@@ -17,6 +17,7 @@ use blazesym::c_api::blaze_normalize_user_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
+use blazesym::c_api::blaze_result_free;
 use blazesym::c_api::blaze_symbolize_elf;
 use blazesym::c_api::blaze_symbolize_gsym;
 use blazesym::c_api::blaze_symbolize_process;
@@ -28,7 +29,6 @@ use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
 use blazesym::c_api::blaze_symbolizer_opts;
 use blazesym::c_api::blaze_user_addrs_free;
-use blazesym::c_api::blazesym_result_free;
 use blazesym::Addr;
 
 
@@ -85,7 +85,7 @@ fn symbolize_from_elf() {
         CStr::from_bytes_with_nul(b"factorial\0").unwrap()
     );
 
-    let () = unsafe { blazesym_result_free(result) };
+    let () = unsafe { blaze_result_free(result) };
     let () = unsafe { blaze_symbolizer_free(symbolizer) };
 }
 
@@ -122,7 +122,7 @@ fn symbolize_from_gsym() {
         CStr::from_bytes_with_nul(b"factorial\0").unwrap()
     );
 
-    let () = unsafe { blazesym_result_free(result) };
+    let () = unsafe { blaze_result_free(result) };
     let () = unsafe { blaze_symbolizer_free(symbolizer) };
 }
 
@@ -152,7 +152,7 @@ fn symbolize_in_process() {
         CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()
     );
 
-    let () = unsafe { blazesym_result_free(result) };
+    let () = unsafe { blaze_result_free(result) };
     let () = unsafe { blaze_symbolizer_free(symbolizer) };
 }
 
