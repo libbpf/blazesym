@@ -213,12 +213,12 @@ typedef struct blaze_symbolizer_opts {
 } blaze_symbolizer_opts;
 
 /**
- * The result of symbolization of an address for C API.
+ * The result of symbolization of an address.
  *
- * A `blazesym_csym` is the information of a symbol found for an
- * address.  One address may result in several symbols.
+ * A `blaze_sym` is the information of a symbol found for an
+ * address. One address may result in several symbols.
  */
-typedef struct blazesym_csym {
+typedef struct blaze_sym {
   /**
    * The symbol name is where the given address should belong to.
    */
@@ -239,13 +239,13 @@ typedef struct blazesym_csym {
    */
   size_t line;
   size_t column;
-} blazesym_csym;
+} blaze_sym;
 
 /**
  * `blazesym_entry` is the output of symbolization for an address for C API.
  *
  * Every address has an `blazesym_entry` in
- * [`blazesym_result::entries`] to collect symbols found by BlazeSym.
+ * [`blazesym_result::entries`] to collect symbols found.
  */
 typedef struct blazesym_entry {
   /**
@@ -255,9 +255,9 @@ typedef struct blazesym_entry {
   /**
    * All symbols found.
    *
-   * `syms` is an array of blazesym_csym in the size `size`.
+   * `syms` is an array of [`blaze_sym`] in the size `size`.
    */
-  const struct blazesym_csym *syms;
+  const struct blaze_sym *syms;
 } blazesym_entry;
 
 /**
