@@ -18,7 +18,7 @@
 //! let process_id: u32 = std::process::id(); // <some process id>
 //! // Load all symbols of loaded files of the given process.
 //! let src = Source::Process(Process::new(process_id.into()));
-//! let symbolizer = Symbolizer::new().unwrap();
+//! let symbolizer = Symbolizer::new();
 //!
 //! let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
 //! let symlist = symbolizer.symbolize(&src,      // Pass this configuration every time

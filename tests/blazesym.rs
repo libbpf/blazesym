@@ -23,7 +23,7 @@ fn error_on_non_existent_source() {
         symbolize::Source::Gsym(symbolize::Gsym::new(non_existent)),
         symbolize::Source::Elf(symbolize::Elf::new(non_existent)),
     ];
-    let symbolizer = Symbolizer::new().unwrap();
+    let symbolizer = Symbolizer::new();
 
     for src in srcs {
         let err = symbolizer.symbolize(&src, &[0x2000100]).unwrap_err();
@@ -38,9 +38,8 @@ fn symbolize_gsym() {
         .join("data")
         .join("test.gsym");
 
-    let features = vec![symbolize::SymbolizerFeature::LineNumberInfo(true)];
     let src = symbolize::Source::Gsym(symbolize::Gsym::new(test_gsym));
-    let symbolizer = Symbolizer::with_opts(&features).unwrap();
+    let symbolizer = Symbolizer::new();
 
     let results = symbolizer
         .symbolize(&src, &[0x2000100])
@@ -65,7 +64,7 @@ fn symbolize_dwarf() {
         symbolize::SymbolizerFeature::DebugInfoSymbols(true),
     ];
     let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
-    let symbolizer = Symbolizer::with_opts(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features);
     let results = symbolizer
         .symbolize(&src, &[0x2000100])
         .unwrap()
@@ -83,7 +82,7 @@ fn symbolize_dwarf() {
 fn symbolize_process() {
     let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
     let addrs = [symbolize_process as Addr, Symbolizer::new as Addr];
-    let symbolizer = Symbolizer::new().unwrap();
+    let symbolizer = Symbolizer::new();
     let results = symbolizer
         .symbolize(&src, &addrs)
         .unwrap()
@@ -110,7 +109,7 @@ fn lookup_dwarf() {
         symbolize::SymbolizerFeature::DebugInfoSymbols(true),
     ];
     let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
-    let symbolizer = Symbolizer::with_opts(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features);
     let results = symbolizer
         .find_addrs(&src, &["factorial"])
         .unwrap()
@@ -154,7 +153,7 @@ fn normalize_user_address() {
         elf.base_address = 0x1000;
 
         let src = symbolize::Source::Elf(elf);
-        let symbolizer = Symbolizer::new().unwrap();
+        let symbolizer = Symbolizer::new();
         let results = symbolizer
             .symbolize(&src, &[norm_addr.0])
             .unwrap()

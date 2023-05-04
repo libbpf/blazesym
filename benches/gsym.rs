@@ -19,7 +19,7 @@ fn symbolize_end_to_end() {
         SymbolizerFeature::LineNumberInfo(true),
     ];
     let src = Source::Gsym(Gsym::new(gsym_vmlinux));
-    let symbolizer = Symbolizer::with_opts(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features);
 
     let results = symbolizer
         .symbolize(&src, &[0xffffffff8110ecb0])
