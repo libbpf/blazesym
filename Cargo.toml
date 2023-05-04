@@ -1,11 +1,27 @@
 [package]
 name = "blazesym"
-description = "BlazeSym is a library that symbolizes addresses where symbol names, source file names, and line numbers can be acquired."
-version = "0.1.0"
-authors = ["Kui-Feng <thinker.li@gmail.com>"]
+description = "blazesym is a library that can be used for address symbolization and more."
+version = "0.2.0-alpha.0"
+edition = "2021"
+rust-version = "1.63"
+authors = ["Daniel Müller <deso@posteo.net>", "Kui-Feng <thinker.li@gmail.com>"]
 license-file = "LICENSE"
 repository = "https://github.com/libbpf/blazesym"
-edition = "2021"
+readme = "README.md"
+categories = [
+  "algorithms",
+  "api-bindings",
+  "development-tools::debugging",
+  "os::unix-apis",
+  "value-formatting",
+]
+keywords = [
+  "dwarf",
+  "elf",
+  "gsym",
+  "symbolization",
+  "tracing",
+]
 exclude = ["data/dwarf-example", "data/kallsyms.xz"]
 autobenches = false
 

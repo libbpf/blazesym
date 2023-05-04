@@ -56,7 +56,7 @@ project manager (e.g., `cargo build`).
 Consumption from a Rust project should happen via `Cargo.toml`:
 ```toml
 [dependencies]
-blazesym = "*"
+blazesym = "0.2.0-alpha.0"
 ```
 
 For a quick set of examples please refer to the [`examples/` folder](examples/).
