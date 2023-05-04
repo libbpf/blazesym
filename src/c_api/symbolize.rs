@@ -205,7 +205,7 @@ pub struct blaze_entry {
 /// `blaze_result` is the result of symbolization for C API.
 ///
 /// Instances of [`blaze_result`] are returned by any of the `blaze_symbolize_*`
-/// variants. They should be freed by calling [`blazesym_result_free`].
+/// variants. They should be freed by calling [`blaze_result_free`].
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_result {
@@ -292,7 +292,7 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 ///
 /// # Safety
 ///
-/// The returned pointer should be freed by [`blazesym_result_free()`].
+/// The returned pointer should be freed by [`blaze_result_free`].
 unsafe fn convert_symbolizedresults_to_c(
     results: Vec<Vec<SymbolizedResult>>,
 ) -> *const blaze_result {
@@ -320,9 +320,7 @@ unsafe fn convert_symbolizedresults_to_c(
     let result_ptr = raw_buf as *mut blaze_result;
     let mut entry_last = unsafe { &mut (*result_ptr).entries as *mut blaze_entry };
     let mut csym_last = unsafe {
-        raw_buf.add(
-            mem::size_of::<blaze_result>() + mem::size_of::<blaze_entry>() * results.len(),
-        )
+        raw_buf.add(mem::size_of::<blaze_result>() + mem::size_of::<blaze_entry>() * results.len())
     } as *mut blaze_sym;
     let mut cstr_last = unsafe {
         raw_buf.add(
@@ -343,7 +341,7 @@ unsafe fn convert_symbolizedresults_to_c(
 
     unsafe { (*result_ptr).size = results.len() };
 
-    // Convert all SymbolizedResults to blazesym_entrys and blazesym_csyms
+    // Convert all `SymbolizedResult`s to `blaze_entry`s and `blazesym_sym`s.
     for entry in results {
         unsafe { (*entry_last).size = entry.len() };
         unsafe { (*entry_last).syms = csym_last };
@@ -400,7 +398,7 @@ unsafe fn blaze_symbolize_impl(
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
-/// calling [`blazesym_result_free()`].
+/// calling [`blaze_result_free`].
 ///
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -424,7 +422,7 @@ pub unsafe extern "C" fn blaze_symbolize_process(
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
-/// calling [`blazesym_result_free()`].
+/// calling [`blaze_result_free`].
 ///
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -448,7 +446,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel(
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
-/// calling [`blazesym_result_free()`].
+/// calling [`blaze_result_free`].
 ///
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -472,7 +470,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
-/// calling [`blazesym_result_free()`].
+/// calling [`blaze_result_free`].
 ///
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -498,7 +496,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym(
 /// The pointer must have been returned by any of the `blaze_symbolize_*`
 /// variants.
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_result_free(results: *const blaze_result) {
+pub unsafe extern "C" fn blaze_result_free(results: *const blaze_result) {
     if results.is_null() {
         return
     }

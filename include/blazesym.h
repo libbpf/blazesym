@@ -264,7 +264,7 @@ typedef struct blaze_entry {
  * `blaze_result` is the result of symbolization for C API.
  *
  * Instances of [`blaze_result`] are returned by any of the `blaze_symbolize_*`
- * variants. They should be freed by calling [`blazesym_result_free`].
+ * variants. They should be freed by calling [`blaze_result_free`].
  */
 typedef struct blaze_result {
   /**
@@ -528,7 +528,7 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  *
  * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
- * calling [`blazesym_result_free()`].
+ * calling [`blaze_result_free`].
  *
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -546,7 +546,7 @@ const struct blaze_result *blaze_symbolize_process(blaze_symbolizer *symbolizer,
  *
  * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
- * calling [`blazesym_result_free()`].
+ * calling [`blaze_result_free`].
  *
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -564,7 +564,7 @@ const struct blaze_result *blaze_symbolize_kernel(blaze_symbolizer *symbolizer,
  *
  * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
- * calling [`blazesym_result_free()`].
+ * calling [`blaze_result_free`].
  *
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -582,7 +582,7 @@ const struct blaze_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
  *
  * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
- * calling [`blazesym_result_free()`].
+ * calling [`blaze_result_free`].
  *
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
@@ -602,6 +602,6 @@ const struct blaze_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
  * The pointer must have been returned by any of the `blaze_symbolize_*`
  * variants.
  */
-void blazesym_result_free(const struct blaze_result *results);
+void blaze_result_free(const struct blaze_result *results);
 
 #endif /* __blazesym_h_ */
