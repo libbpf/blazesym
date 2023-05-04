@@ -41,28 +41,6 @@ typedef enum blaze_user_addr_meta_kind {
 } blaze_user_addr_meta_kind;
 
 /**
- * Types of symbol sources and debug information for C API.
- */
-typedef enum blazesym_src_type {
-  /**
-   * Symbols and debug information from an ELF file.
-   */
-  BLAZESYM_SRC_T_ELF,
-  /**
-   * Symbols and debug information from a kernel image and its kallsyms.
-   */
-  BLAZESYM_SRC_T_KERNEL,
-  /**
-   * Symbols and debug information from a process, including loaded object files.
-   */
-  BLAZESYM_SRC_T_PROCESS,
-  /**
-   * Symbols and debug information from a gsym file.
-   */
-  BLAZESYM_SRC_T_GSYM,
-} blazesym_src_type;
-
-/**
  * An inspector of various "sources".
  *
  * Object of this type can be used to perform inspections of supported sources.
@@ -285,9 +263,9 @@ typedef struct blazesym_entry {
 /**
  * `blazesym_result` is the result of symbolization for C API.
  *
- * The instances of blazesym_result are returned from
- * [`blaze_symbolize()`]. They should be freed by calling
- * [`blazesym_result_free()`].
+ * The instances of blazesym_result are returned by any of the
+ * `blaze_symbolize_*` variants. They should be freed by calling
+ * [`blazesym_result_free`].
  */
 typedef struct blazesym_result {
   /**
@@ -303,6 +281,49 @@ typedef struct blazesym_result {
    */
   struct blazesym_entry entries[0];
 } blazesym_result;
+
+/**
+ * The parameters to load symbols and debug information from a process.
+ *
+ * Load all ELF files in a process as the sources of symbols and debug
+ * information.
+ */
+typedef struct blazesym_ssc_process {
+  /**
+   * It is the PID of a process to symbolize.
+   *
+   * BlazeSym will parse `/proc/<pid>/maps` and load all the object
+   * files.
+   */
+  uint32_t pid;
+} blazesym_ssc_process;
+
+/**
+ * The parameters to load symbols and debug information from a kernel.
+ *
+ * Use a kernel image and a snapshot of its kallsyms as a source of symbols and
+ * debug information.
+ */
+typedef struct blazesym_ssc_kernel {
+  /**
+   * The path of a copy of kallsyms.
+   *
+   * It can be `"/proc/kallsyms"` for the running kernel on the
+   * device.  However, you can make copies for later.  In that situation,
+   * you should give the path of a copy.
+   * Passing a `NULL`, by default, will result in `"/proc/kallsyms"`.
+   */
+  const char *kallsyms;
+  /**
+   * The path of a kernel image.
+   *
+   * The path of a kernel image should be, for instance,
+   * `"/boot/vmlinux-xxxx"`.  For a `NULL` value, it will locate the
+   * kernel image of the running kernel in `"/boot/"` or
+   * `"/usr/lib/debug/boot/"`.
+   */
+  const char *kernel_image;
+} blazesym_ssc_kernel;
 
 /**
  * The parameters to load symbols and debug information from an ELF.
@@ -347,49 +368,6 @@ typedef struct blazesym_ssc_elf {
 } blazesym_ssc_elf;
 
 /**
- * The parameters to load symbols and debug information from a kernel.
- *
- * Use a kernel image and a snapshot of its kallsyms as a source of symbols and
- * debug information.
- */
-typedef struct blazesym_ssc_kernel {
-  /**
-   * The path of a copy of kallsyms.
-   *
-   * It can be `"/proc/kallsyms"` for the running kernel on the
-   * device.  However, you can make copies for later.  In that situation,
-   * you should give the path of a copy.
-   * Passing a `NULL`, by default, will result in `"/proc/kallsyms"`.
-   */
-  const char *kallsyms;
-  /**
-   * The path of a kernel image.
-   *
-   * The path of a kernel image should be, for instance,
-   * `"/boot/vmlinux-xxxx"`.  For a `NULL` value, it will locate the
-   * kernel image of the running kernel in `"/boot/"` or
-   * `"/usr/lib/debug/boot/"`.
-   */
-  const char *kernel_image;
-} blazesym_ssc_kernel;
-
-/**
- * The parameters to load symbols and debug information from a process.
- *
- * Load all ELF files in a process as the sources of symbols and debug
- * information.
- */
-typedef struct blazesym_ssc_process {
-  /**
-   * It is the PID of a process to symbolize.
-   *
-   * BlazeSym will parse `/proc/<pid>/maps` and load all the object
-   * files.
-   */
-  uint32_t pid;
-} blazesym_ssc_process;
-
-/**
  * The parameters to load symbols and debug information from a gsym file.
  */
 typedef struct blazesym_ssc_gsym {
@@ -402,39 +380,6 @@ typedef struct blazesym_ssc_gsym {
    */
   uintptr_t base_address;
 } blazesym_ssc_gsym;
-
-/**
- * Parameters of a symbol source.
- */
-typedef union blazesym_ssc_params {
-  /**
-   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_ELF`].
-   */
-  struct blazesym_ssc_elf elf;
-  /**
-   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_KERNEL`].
-   */
-  struct blazesym_ssc_kernel kernel;
-  /**
-   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_PROCESS`].
-   */
-  struct blazesym_ssc_process process;
-  /**
-   * The variant for [`blazesym_src_type::BLAZESYM_SRC_T_GSYM`].
-   */
-  struct blazesym_ssc_gsym gsym;
-} blazesym_ssc_params;
-
-/**
- * Description of a source of symbols and debug information for C API.
- */
-typedef struct blazesym_sym_src_cfg {
-  /**
-   * A type of symbol source.
-   */
-  enum blazesym_src_type src_type;
-  union blazesym_ssc_params params;
-} blazesym_sym_src_cfg;
 
 /**
  * Lookup symbol information in an ELF file.
@@ -580,27 +525,83 @@ blaze_symbolizer *blaze_symbolizer_new_opts(const struct blaze_symbolizer_opts *
 void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
 
 /**
- * Symbolize addresses with the sources of symbols and debug info.
+ * Symbolize addresses of a process.
  *
  * Return an array of [`blazesym_result`] with the same size as the
- * number of input addresses.  The caller should free the returned
- * array by calling [`blazesym_result_free()`].
+ * number of input addresses. The caller should free the returned array by
+ * calling [`blazesym_result_free()`].
  *
  * # Safety
- *
- * The returned pointer should be freed by [`blazesym_result_free()`].
+ * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+ * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+ * [`blazesym_ssc_process`] object. `addrs` must represent an array of
+ * `addr_cnt` objects.
  */
-const struct blazesym_result *blaze_symbolize(blaze_symbolizer *symbolizer,
-                                              const struct blazesym_sym_src_cfg *src,
-                                              const uintptr_t *addrs,
-                                              size_t addr_cnt);
+const struct blazesym_result *blaze_symbolize_process(blaze_symbolizer *symbolizer,
+                                                      const struct blazesym_ssc_process *src,
+                                                      const uintptr_t *addrs,
+                                                      size_t addr_cnt);
 
 /**
- * Free an array returned by [`blaze_symbolize`].
+ * Symbolize kernel addresses.
+ *
+ * Return an array of [`blazesym_result`] with the same size as the
+ * number of input addresses. The caller should free the returned array by
+ * calling [`blazesym_result_free()`].
  *
  * # Safety
+ * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+ * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+ * [`blazesym_ssc_kernel`] object. `addrs` must represent an array of
+ * `addr_cnt` objects.
+ */
+const struct blazesym_result *blaze_symbolize_kernel(blaze_symbolizer *symbolizer,
+                                                     const struct blazesym_ssc_kernel *src,
+                                                     const uintptr_t *addrs,
+                                                     size_t addr_cnt);
+
+/**
+ * Symbolize addresses in an ELF file.
  *
- * The pointer must have been returned by [`blaze_symbolize`].
+ * Return an array of [`blazesym_result`] with the same size as the
+ * number of input addresses. The caller should free the returned array by
+ * calling [`blazesym_result_free()`].
+ *
+ * # Safety
+ * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+ * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+ * [`blazesym_ssc_elf`] object. `addrs` must represent an array of
+ * `addr_cnt` objects.
+ */
+const struct blazesym_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
+                                                  const struct blazesym_ssc_elf *src,
+                                                  const uintptr_t *addrs,
+                                                  size_t addr_cnt);
+
+/**
+ * Symbolize addresses in a Gsym file.
+ *
+ * Return an array of [`blazesym_result`] with the same size as the
+ * number of input addresses. The caller should free the returned array by
+ * calling [`blazesym_result_free()`].
+ *
+ * # Safety
+ * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+ * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+ * [`blazesym_ssc_gsym`] object. `addrs` must represent an array of
+ * `addr_cnt` objects.
+ */
+const struct blazesym_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
+                                                   const struct blazesym_ssc_gsym *src,
+                                                   const uintptr_t *addrs,
+                                                   size_t addr_cnt);
+
+/**
+ * Free an array returned by any of the `blaze_symbolize_*` variants.
+ *
+ * # Safety
+ * The pointer must have been returned by any of the `blaze_symbolize_*`
+ * variants.
  */
 void blazesym_result_free(const struct blazesym_result *results);
 

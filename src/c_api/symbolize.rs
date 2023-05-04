@@ -4,11 +4,10 @@ use std::alloc::Layout;
 use std::ffi::CStr;
 use std::ffi::OsStr;
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
 use std::mem;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
+use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 
@@ -24,21 +23,6 @@ use crate::symbolize::Symbolizer;
 use crate::util::slice_from_user_array;
 use crate::Addr;
 
-
-/// Types of symbol sources and debug information for C API.
-#[repr(C)]
-#[allow(unused)]
-#[derive(Debug)]
-pub enum blazesym_src_type {
-    /// Symbols and debug information from an ELF file.
-    BLAZESYM_SRC_T_ELF,
-    /// Symbols and debug information from a kernel image and its kallsyms.
-    BLAZESYM_SRC_T_KERNEL,
-    /// Symbols and debug information from a process, including loaded object files.
-    BLAZESYM_SRC_T_PROCESS,
-    /// Symbols and debug information from a gsym file.
-    BLAZESYM_SRC_T_GSYM,
-}
 
 /// The parameters to load symbols and debug information from an ELF.
 ///
@@ -78,6 +62,18 @@ pub struct blazesym_ssc_elf {
     pub base_address: Addr,
 }
 
+impl From<&blazesym_ssc_elf> for Elf {
+    fn from(elf: &blazesym_ssc_elf) -> Self {
+        let blazesym_ssc_elf { path, base_address } = elf;
+        Self {
+            path: unsafe { from_cstr(*path) },
+            base_address: *base_address,
+            _non_exhaustive: (),
+        }
+    }
+}
+
+
 /// The parameters to load symbols and debug information from a kernel.
 ///
 /// Use a kernel image and a snapshot of its kallsyms as a source of symbols and
@@ -101,6 +97,21 @@ pub struct blazesym_ssc_kernel {
     pub kernel_image: *const c_char,
 }
 
+impl From<&blazesym_ssc_kernel> for Kernel {
+    fn from(kernel: &blazesym_ssc_kernel) -> Self {
+        let blazesym_ssc_kernel {
+            kallsyms,
+            kernel_image,
+        } = kernel;
+        Self {
+            kallsyms: (kallsyms.is_null()).then(|| unsafe { from_cstr(*kallsyms) }),
+            kernel_image: (kernel_image.is_null()).then(|| unsafe { from_cstr(*kernel_image) }),
+            _non_exhaustive: (),
+        }
+    }
+}
+
+
 /// The parameters to load symbols and debug information from a process.
 ///
 /// Load all ELF files in a process as the sources of symbols and debug
@@ -115,6 +126,17 @@ pub struct blazesym_ssc_process {
     pub pid: u32,
 }
 
+impl From<&blazesym_ssc_process> for Process {
+    fn from(process: &blazesym_ssc_process) -> Self {
+        let blazesym_ssc_process { pid } = process;
+        Self {
+            pid: (*pid).into(),
+            _non_exhaustive: (),
+        }
+    }
+}
+
+
 /// The parameters to load symbols and debug information from a gsym file.
 #[repr(C)]
 #[derive(Debug)]
@@ -125,83 +147,13 @@ pub struct blazesym_ssc_gsym {
     pub base_address: Addr,
 }
 
-/// Parameters of a symbol source.
-#[repr(C)]
-pub union blazesym_ssc_params {
-    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_ELF`].
-    pub elf: mem::ManuallyDrop<blazesym_ssc_elf>,
-    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_KERNEL`].
-    pub kernel: mem::ManuallyDrop<blazesym_ssc_kernel>,
-    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_PROCESS`].
-    pub process: mem::ManuallyDrop<blazesym_ssc_process>,
-    /// The variant for [`blazesym_src_type::BLAZESYM_SRC_T_GSYM`].
-    pub gsym: mem::ManuallyDrop<blazesym_ssc_gsym>,
-}
-
-impl Debug for blazesym_ssc_params {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct(stringify!(blazesym_ssc_params)).finish()
-    }
-}
-
-
-/// Description of a source of symbols and debug information for C API.
-#[repr(C)]
-#[derive(Debug)]
-pub struct blazesym_sym_src_cfg {
-    /// A type of symbol source.
-    pub src_type: blazesym_src_type,
-    pub params: blazesym_ssc_params,
-}
-
-impl From<&blazesym_sym_src_cfg> for Source {
-    fn from(src: &blazesym_sym_src_cfg) -> Self {
-        match src.src_type {
-            blazesym_src_type::BLAZESYM_SRC_T_ELF => {
-                // SAFETY: `elf` is the union variant used for `BLAZESYM_SRC_T_ELF`.
-                let elf = unsafe { &src.params.elf };
-                Source::Elf(Elf {
-                    path: unsafe { from_cstr(elf.path) },
-                    base_address: elf.base_address,
-                    _non_exhaustive: (),
-                })
-            }
-            blazesym_src_type::BLAZESYM_SRC_T_KERNEL => {
-                // SAFETY: `kernel` is the union variant used for `BLAZESYM_SRC_T_KERNEL`.
-                let kernel = unsafe { &src.params.kernel };
-                let kallsyms = kernel.kallsyms;
-                let kernel_image = kernel.kernel_image;
-                Source::Kernel(Kernel {
-                    kallsyms: if !kallsyms.is_null() {
-                        Some(unsafe { from_cstr(kallsyms) })
-                    } else {
-                        None
-                    },
-                    kernel_image: if !kernel_image.is_null() {
-                        Some(unsafe { from_cstr(kernel_image) })
-                    } else {
-                        None
-                    },
-                    _non_exhaustive: (),
-                })
-            }
-            blazesym_src_type::BLAZESYM_SRC_T_PROCESS => {
-                // SAFETY: `process` is the union variant used for `BLAZESYM_SRC_T_PROCESS`.
-                let pid = unsafe { src.params.process.pid };
-                Source::Process(Process {
-                    pid: pid.into(),
-                    _non_exhaustive: (),
-                })
-            }
-            blazesym_src_type::BLAZESYM_SRC_T_GSYM => {
-                // SAFETY: `gsym` is the union variant used for `BLAZESYM_SRC_T_GSYM`.
-                let gsym = unsafe { &src.params.gsym };
-                Source::Gsym(Gsym {
-                    path: unsafe { from_cstr(gsym.path) },
-                    base_address: gsym.base_address,
-                    _non_exhaustive: (),
-                })
-            }
+impl From<&blazesym_ssc_gsym> for Gsym {
+    fn from(gsym: &blazesym_ssc_gsym) -> Self {
+        let blazesym_ssc_gsym { path, base_address } = gsym;
+        Self {
+            path: unsafe { from_cstr(*path) },
+            base_address: *base_address,
+            _non_exhaustive: (),
         }
     }
 }
@@ -251,9 +203,9 @@ pub struct blazesym_entry {
 
 /// `blazesym_result` is the result of symbolization for C API.
 ///
-/// The instances of blazesym_result are returned from
-/// [`blaze_symbolize()`]. They should be freed by calling
-/// [`blazesym_result_free()`].
+/// The instances of blazesym_result are returned by any of the
+/// `blaze_symbolize_*` variants. They should be freed by calling
+/// [`blazesym_result_free`].
 #[repr(C)]
 #[derive(Debug)]
 pub struct blazesym_result {
@@ -270,10 +222,12 @@ pub struct blazesym_result {
 /// Create a `PathBuf` from a pointer of C string
 ///
 /// # Safety
-///
-/// C string should be terminated with a null byte.
+/// The provided `cstr` should be terminated with a NUL byte.
 unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
-    PathBuf::from(unsafe { CStr::from_ptr(cstr) }.to_str().unwrap())
+    Path::new(OsStr::from_bytes(
+        unsafe { CStr::from_ptr(cstr) }.to_bytes(),
+    ))
+    .to_path_buf()
 }
 
 
@@ -414,31 +368,19 @@ unsafe fn convert_symbolizedresults_to_c(
     result_ptr
 }
 
-/// Symbolize addresses with the sources of symbols and debug info.
-///
-/// Return an array of [`blazesym_result`] with the same size as the
-/// number of input addresses.  The caller should free the returned
-/// array by calling [`blazesym_result_free()`].
-///
-/// # Safety
-///
-/// The returned pointer should be freed by [`blazesym_result_free()`].
-#[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize(
+unsafe fn blaze_symbolize_impl(
     symbolizer: *mut blaze_symbolizer,
-    src: *const blazesym_sym_src_cfg,
+    src: Source,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
-    // SAFETY: The caller ensures that the pointer is valid.
-    let src = Source::from(unsafe { &*src });
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
-    let addresses = unsafe { slice_from_user_array(addrs, addr_cnt) };
+    let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
 
-    let result = symbolizer.symbolize(&src, addresses);
+    let result = symbolizer.symbolize(&src, addrs);
 
     match result {
         Ok(results) if results.is_empty() => {
@@ -453,11 +395,108 @@ pub unsafe extern "C" fn blaze_symbolize(
     }
 }
 
-/// Free an array returned by [`blaze_symbolize`].
+
+/// Symbolize addresses of a process.
+///
+/// Return an array of [`blazesym_result`] with the same size as the
+/// number of input addresses. The caller should free the returned array by
+/// calling [`blazesym_result_free()`].
 ///
 /// # Safety
+/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+/// [`blazesym_ssc_process`] object. `addrs` must represent an array of
+/// `addr_cnt` objects.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_process(
+    symbolizer: *mut blaze_symbolizer,
+    src: *const blazesym_ssc_process,
+    addrs: *const Addr,
+    addr_cnt: usize,
+) -> *const blazesym_result {
+    // SAFETY: The caller ensures that the pointer is valid.
+    let src = Source::from(Process::from(unsafe { &*src }));
+    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+}
+
+
+/// Symbolize kernel addresses.
 ///
-/// The pointer must have been returned by [`blaze_symbolize`].
+/// Return an array of [`blazesym_result`] with the same size as the
+/// number of input addresses. The caller should free the returned array by
+/// calling [`blazesym_result_free()`].
+///
+/// # Safety
+/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+/// [`blazesym_ssc_kernel`] object. `addrs` must represent an array of
+/// `addr_cnt` objects.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_kernel(
+    symbolizer: *mut blaze_symbolizer,
+    src: *const blazesym_ssc_kernel,
+    addrs: *const Addr,
+    addr_cnt: usize,
+) -> *const blazesym_result {
+    // SAFETY: The caller ensures that the pointer is valid.
+    let src = Source::from(Kernel::from(unsafe { &*src }));
+    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+}
+
+
+/// Symbolize addresses in an ELF file.
+///
+/// Return an array of [`blazesym_result`] with the same size as the
+/// number of input addresses. The caller should free the returned array by
+/// calling [`blazesym_result_free()`].
+///
+/// # Safety
+/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+/// [`blazesym_ssc_elf`] object. `addrs` must represent an array of
+/// `addr_cnt` objects.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_elf(
+    symbolizer: *mut blaze_symbolizer,
+    src: *const blazesym_ssc_elf,
+    addrs: *const Addr,
+    addr_cnt: usize,
+) -> *const blazesym_result {
+    // SAFETY: The caller ensures that the pointer is valid.
+    let src = Source::from(Elf::from(unsafe { &*src }));
+    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+}
+
+
+/// Symbolize addresses in a Gsym file.
+///
+/// Return an array of [`blazesym_result`] with the same size as the
+/// number of input addresses. The caller should free the returned array by
+/// calling [`blazesym_result_free()`].
+///
+/// # Safety
+/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+/// [`blazesym_ssc_gsym`] object. `addrs` must represent an array of
+/// `addr_cnt` objects.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_gsym(
+    symbolizer: *mut blaze_symbolizer,
+    src: *const blazesym_ssc_gsym,
+    addrs: *const Addr,
+    addr_cnt: usize,
+) -> *const blazesym_result {
+    // SAFETY: The caller ensures that the pointer is valid.
+    let src = Source::from(Gsym::from(unsafe { &*src }));
+    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+}
+
+
+/// Free an array returned by any of the `blaze_symbolize_*` variants.
+///
+/// # Safety
+/// The pointer must have been returned by any of the `blaze_symbolize_*`
+/// variants.
 #[no_mangle]
 pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
     if results.is_null() {
