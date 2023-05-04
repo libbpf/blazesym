@@ -10,7 +10,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
+use crate::inspect::SymInfo;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::SymResolver;
@@ -85,7 +85,7 @@ impl SymResolver for GsymResolver {
         find_addr_impl(self, addr).unwrap_or_default()
     }
 
-    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
         // It is inefficient to find the address of a symbol with
         // GSYM.  We may support it in the future if needed.
         None

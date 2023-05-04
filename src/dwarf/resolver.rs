@@ -11,8 +11,8 @@ use std::rc::Rc;
 
 use crate::elf::ElfParser;
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
-use crate::inspect::SymbolType;
+use crate::inspect::SymInfo;
+use crate::inspect::SymType;
 use crate::util::find_match_or_lower_bound_by;
 use crate::Addr;
 
@@ -150,12 +150,8 @@ impl DwarfResolver {
     ///
     /// * `name` - is the symbol name to find.
     /// * `opts` - is the context giving additional parameters.
-    pub(crate) fn find_addr(
-        &self,
-        name: &str,
-        opts: &FindAddrOpts,
-    ) -> Result<Vec<SymbolInfo>, Error> {
-        if let SymbolType::Variable = opts.sym_type {
+    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
+        if let SymType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
         let elf_r = self.parser.find_addr(name, opts)?;
@@ -187,7 +183,7 @@ impl DwarfResolver {
                 sym_type,
                 ..
             } = debug_info_syms[idx];
-            found.push(SymbolInfo {
+            found.push(SymInfo {
                 name: name.to_string(),
                 address: address as Addr,
                 size,
@@ -240,7 +236,7 @@ mod tests {
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
-            sym_type: SymbolType::Function,
+            sym_type: SymType::Function,
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref(), true, true).unwrap();
 
@@ -261,7 +257,7 @@ mod tests {
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
-            sym_type: SymbolType::Variable,
+            sym_type: SymType::Variable,
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref(), true, true).unwrap();
 

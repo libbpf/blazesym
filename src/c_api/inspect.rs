@@ -19,8 +19,8 @@ use crate::inspect;
 use crate::inspect::Elf;
 use crate::inspect::Inspector;
 use crate::inspect::Source;
-use crate::inspect::SymbolInfo;
-use crate::inspect::SymbolType;
+use crate::inspect::SymInfo;
+use crate::inspect::SymType;
 use crate::log::error;
 use crate::util::slice_from_user_array;
 use crate::Addr;
@@ -112,9 +112,9 @@ pub struct blaze_sym_info {
 }
 
 
-/// Convert [`SymbolInfo`] objects as returned by
+/// Convert [`SymInfo`] objects as returned by
 /// [`Symbolizer::find_addrs`] to a C array.
-fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaze_sym_info {
+fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_sym_info {
     let mut sym_cnt = 0;
     let mut str_buf_sz = 0;
 
@@ -145,7 +145,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
 
     for syms in syms_list {
         unsafe { *syms_ptr = sym_ptr };
-        for SymbolInfo {
+        for SymInfo {
             name,
             address,
             size,
@@ -177,9 +177,9 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymbolInfo>>) -> *const *const blaz
                     address,
                     size,
                     sym_type: match sym_type {
-                        SymbolType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
-                        SymbolType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
-                        SymbolType::Unknown => blaze_sym_type::BLAZE_SYM_UNKNOWN,
+                        SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
+                        SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
+                        SymType::Unknown => blaze_sym_type::BLAZE_SYM_UNKNOWN,
                     },
                     file_offset,
                     obj_file_name,

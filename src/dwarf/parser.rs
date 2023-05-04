@@ -11,7 +11,7 @@ use std::mem;
 use std::path::Path;
 
 use crate::elf::ElfParser;
-use crate::inspect::SymbolType;
+use crate::inspect::SymType;
 use crate::util::decode_leb128;
 use crate::util::decode_leb128_s;
 use crate::util::decode_udword;
@@ -656,7 +656,7 @@ pub(crate) struct DWSymInfo<'a> {
     pub name: &'a str,
     pub address: Addr,
     pub size: usize,
-    pub sym_type: SymbolType, // A function or a variable.
+    pub sym_type: SymType, // A function or a variable.
 }
 
 fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
@@ -748,7 +748,7 @@ fn parse_die_subprogram<'a>(
             name,
             address,
             size: size as usize,
-            sym_type: SymbolType::Function,
+            sym_type: SymType::Function,
         })),
         _ => Ok(None),
     }

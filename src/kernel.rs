@@ -10,7 +10,7 @@ use std::rc::Rc;
 
 use crate::elf::ElfResolver;
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
+use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
@@ -54,7 +54,7 @@ impl SymResolver for KernelResolver {
         }
     }
 
-    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
         None
     }
 

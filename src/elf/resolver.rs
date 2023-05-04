@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
+use crate::inspect::SymInfo;
 use crate::log::warn;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
@@ -133,7 +133,7 @@ impl SymResolver for ElfResolver {
         }
     }
 
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
         let mut addr_res = match &self.backend {
             ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
             ElfBackend::Elf(parser) => parser.find_addr(name, opts),

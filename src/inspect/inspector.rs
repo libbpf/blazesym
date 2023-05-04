@@ -7,8 +7,8 @@ use crate::SymResolver;
 use super::source::Elf;
 use super::source::Source;
 use super::FindAddrOpts;
-use super::SymbolInfo;
-use super::SymbolType;
+use super::SymInfo;
+use super::SymType;
 
 
 /// An inspector of various "sources".
@@ -29,11 +29,11 @@ impl Inspector {
 
     /// Look up information (address etc.) about a list of symbols,
     /// given their names.
-    pub fn lookup(&self, names: &[&str], src: &Source) -> Result<Vec<Vec<SymbolInfo>>> {
+    pub fn lookup(&self, names: &[&str], src: &Source) -> Result<Vec<Vec<SymInfo>>> {
         let opts = FindAddrOpts {
             offset_in_file: true,
             obj_file_name: true,
-            sym_type: SymbolType::Unknown,
+            sym_type: SymType::Unknown,
         };
 
         match src {
