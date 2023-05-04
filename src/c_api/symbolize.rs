@@ -30,7 +30,7 @@ use crate::Addr;
 /// process.
 #[repr(C)]
 #[derive(Debug)]
-pub struct blazesym_ssc_elf {
+pub struct blaze_symbolize_src_elf {
     /// The path to the ELF file.
     ///
     /// The referenced file may be an executable or shared object. For example,
@@ -62,9 +62,9 @@ pub struct blazesym_ssc_elf {
     pub base_address: Addr,
 }
 
-impl From<&blazesym_ssc_elf> for Elf {
-    fn from(elf: &blazesym_ssc_elf) -> Self {
-        let blazesym_ssc_elf { path, base_address } = elf;
+impl From<&blaze_symbolize_src_elf> for Elf {
+    fn from(elf: &blaze_symbolize_src_elf) -> Self {
+        let blaze_symbolize_src_elf { path, base_address } = elf;
         Self {
             path: unsafe { from_cstr(*path) },
             base_address: *base_address,
@@ -80,7 +80,7 @@ impl From<&blazesym_ssc_elf> for Elf {
 /// debug information.
 #[repr(C)]
 #[derive(Debug)]
-pub struct blazesym_ssc_kernel {
+pub struct blaze_symbolize_src_kernel {
     /// The path of a copy of kallsyms.
     ///
     /// It can be `"/proc/kallsyms"` for the running kernel on the
@@ -97,9 +97,9 @@ pub struct blazesym_ssc_kernel {
     pub kernel_image: *const c_char,
 }
 
-impl From<&blazesym_ssc_kernel> for Kernel {
-    fn from(kernel: &blazesym_ssc_kernel) -> Self {
-        let blazesym_ssc_kernel {
+impl From<&blaze_symbolize_src_kernel> for Kernel {
+    fn from(kernel: &blaze_symbolize_src_kernel) -> Self {
+        let blaze_symbolize_src_kernel {
             kallsyms,
             kernel_image,
         } = kernel;
@@ -118,7 +118,7 @@ impl From<&blazesym_ssc_kernel> for Kernel {
 /// information.
 #[repr(C)]
 #[derive(Debug)]
-pub struct blazesym_ssc_process {
+pub struct blaze_symbolize_src_process {
     /// It is the PID of a process to symbolize.
     ///
     /// BlazeSym will parse `/proc/<pid>/maps` and load all the object
@@ -126,9 +126,9 @@ pub struct blazesym_ssc_process {
     pub pid: u32,
 }
 
-impl From<&blazesym_ssc_process> for Process {
-    fn from(process: &blazesym_ssc_process) -> Self {
-        let blazesym_ssc_process { pid } = process;
+impl From<&blaze_symbolize_src_process> for Process {
+    fn from(process: &blaze_symbolize_src_process) -> Self {
+        let blaze_symbolize_src_process { pid } = process;
         Self {
             pid: (*pid).into(),
             _non_exhaustive: (),
@@ -140,16 +140,16 @@ impl From<&blazesym_ssc_process> for Process {
 /// The parameters to load symbols and debug information from a gsym file.
 #[repr(C)]
 #[derive(Debug)]
-pub struct blazesym_ssc_gsym {
+pub struct blaze_symbolize_src_gsym {
     /// The path to a gsym file.
     pub path: *const c_char,
     /// The base address is where the file's executable segment(s) is loaded.
     pub base_address: Addr,
 }
 
-impl From<&blazesym_ssc_gsym> for Gsym {
-    fn from(gsym: &blazesym_ssc_gsym) -> Self {
-        let blazesym_ssc_gsym { path, base_address } = gsym;
+impl From<&blaze_symbolize_src_gsym> for Gsym {
+    fn from(gsym: &blaze_symbolize_src_gsym) -> Self {
+        let blaze_symbolize_src_gsym { path, base_address } = gsym;
         Self {
             path: unsafe { from_cstr(*path) },
             base_address: *base_address,
@@ -405,12 +405,12 @@ unsafe fn blaze_symbolize_impl(
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
 /// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blazesym_ssc_process`] object. `addrs` must represent an array of
+/// [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_process(
     symbolizer: *mut blaze_symbolizer,
-    src: *const blazesym_ssc_process,
+    src: *const blaze_symbolize_src_process,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
@@ -429,12 +429,12 @@ pub unsafe extern "C" fn blaze_symbolize_process(
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
 /// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blazesym_ssc_kernel`] object. `addrs` must represent an array of
+/// [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_kernel(
     symbolizer: *mut blaze_symbolizer,
-    src: *const blazesym_ssc_kernel,
+    src: *const blaze_symbolize_src_kernel,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
@@ -453,12 +453,12 @@ pub unsafe extern "C" fn blaze_symbolize_kernel(
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
 /// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blazesym_ssc_elf`] object. `addrs` must represent an array of
+/// [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_elf(
     symbolizer: *mut blaze_symbolizer,
-    src: *const blazesym_ssc_elf,
+    src: *const blaze_symbolize_src_elf,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {
@@ -477,12 +477,12 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
 /// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blazesym_ssc_gsym`] object. `addrs` must represent an array of
+/// [`blaze_symbolize_src_gsym`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_gsym(
     symbolizer: *mut blaze_symbolizer,
-    src: *const blazesym_ssc_gsym,
+    src: *const blaze_symbolize_src_gsym,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blazesym_result {

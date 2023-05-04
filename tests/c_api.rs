@@ -19,6 +19,9 @@ use blazesym::c_api::blaze_normalizer_new;
 use blazesym::c_api::blaze_symbolize_elf;
 use blazesym::c_api::blaze_symbolize_gsym;
 use blazesym::c_api::blaze_symbolize_process;
+use blazesym::c_api::blaze_symbolize_src_elf;
+use blazesym::c_api::blaze_symbolize_src_gsym;
+use blazesym::c_api::blaze_symbolize_src_process;
 use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
@@ -26,9 +29,6 @@ use blazesym::c_api::blaze_symbolizer_opts;
 use blazesym::c_api::blaze_syms_free;
 use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_result_free;
-use blazesym::c_api::blazesym_ssc_elf;
-use blazesym::c_api::blazesym_ssc_gsym;
-use blazesym::c_api::blazesym_ssc_process;
 use blazesym::Addr;
 
 
@@ -61,7 +61,7 @@ fn symbolize_from_elf() {
         .join("test-dwarf.bin");
     let test_dwarf_c = CString::new(test_dwarf.to_str().unwrap()).unwrap();
 
-    let elf_src = blazesym_ssc_elf {
+    let elf_src = blaze_symbolize_src_elf {
         path: test_dwarf_c.as_ptr(),
         base_address: 0,
     };
@@ -97,7 +97,7 @@ fn symbolize_from_gsym() {
         .join("data")
         .join("test.gsym");
     let test_gsym_c = CString::new(test_gsym.to_str().unwrap()).unwrap();
-    let gsym_src = blazesym_ssc_gsym {
+    let gsym_src = blaze_symbolize_src_gsym {
         path: test_gsym_c.as_ptr(),
         base_address: 0,
     };
@@ -130,7 +130,7 @@ fn symbolize_from_gsym() {
 /// Make sure that we can symbolize an address in a process.
 #[test]
 fn symbolize_in_process() {
-    let process_src = blazesym_ssc_process { pid: 0 };
+    let process_src = blaze_symbolize_src_process { pid: 0 };
 
     let symbolizer = blaze_symbolizer_new();
     let addrs = [blaze_symbolizer_new as Addr];
