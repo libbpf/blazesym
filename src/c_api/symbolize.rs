@@ -165,13 +165,14 @@ impl From<&blaze_symbolize_src_gsym> for Gsym {
 /// [`blaze_symbolizer_free`].
 pub type blaze_symbolizer = Symbolizer;
 
-/// The result of symbolization of an address for C API.
+
+/// The result of symbolization of an address.
 ///
-/// A `blazesym_csym` is the information of a symbol found for an
-/// address.  One address may result in several symbols.
+/// A `blaze_sym` is the information of a symbol found for an
+/// address. One address may result in several symbols.
 #[repr(C)]
 #[derive(Debug)]
-pub struct blazesym_csym {
+pub struct blaze_sym {
     /// The symbol name is where the given address should belong to.
     pub symbol: *const c_char,
     /// The address (i.e.,the first byte) is where the symbol is located.
@@ -189,7 +190,7 @@ pub struct blazesym_csym {
 /// `blazesym_entry` is the output of symbolization for an address for C API.
 ///
 /// Every address has an `blazesym_entry` in
-/// [`blazesym_result::entries`] to collect symbols found by BlazeSym.
+/// [`blazesym_result::entries`] to collect symbols found.
 #[repr(C)]
 #[derive(Debug)]
 pub struct blazesym_entry {
@@ -197,8 +198,8 @@ pub struct blazesym_entry {
     pub size: usize,
     /// All symbols found.
     ///
-    /// `syms` is an array of blazesym_csym in the size `size`.
-    pub syms: *const blazesym_csym,
+    /// `syms` is an array of [`blaze_sym`] in the size `size`.
+    pub syms: *const blaze_sym,
 }
 
 /// `blazesym_result` is the result of symbolization for C API.
@@ -297,7 +298,7 @@ unsafe fn convert_symbolizedresults_to_c(
     results: Vec<Vec<SymbolizedResult>>,
 ) -> *const blazesym_result {
     // Allocate a buffer to contain a blazesym_result, all
-    // blazesym_csym, and C strings of symbol and path.
+    // blaze_sym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
         acc + result.symbol.len() + result.path.as_os_str().len() + 2
     });
@@ -305,7 +306,7 @@ unsafe fn convert_symbolizedresults_to_c(
     let buf_size = strtab_size
         + mem::size_of::<blazesym_result>()
         + mem::size_of::<blazesym_entry>() * results.len()
-        + mem::size_of::<blazesym_csym>() * all_csym_size;
+        + mem::size_of::<blaze_sym>() * all_csym_size;
     let raw_buf_with_sz =
         unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
     if raw_buf_with_sz.is_null() {
@@ -323,12 +324,12 @@ unsafe fn convert_symbolizedresults_to_c(
         raw_buf.add(
             mem::size_of::<blazesym_result>() + mem::size_of::<blazesym_entry>() * results.len(),
         )
-    } as *mut blazesym_csym;
+    } as *mut blaze_sym;
     let mut cstr_last = unsafe {
         raw_buf.add(
             mem::size_of::<blazesym_result>()
                 + mem::size_of::<blazesym_entry>() * results.len()
-                + mem::size_of::<blazesym_csym>() * all_csym_size,
+                + mem::size_of::<blaze_sym>() * all_csym_size,
         )
     } as *mut c_char;
 
