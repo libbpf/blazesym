@@ -187,13 +187,13 @@ pub struct blaze_sym {
     pub column: usize,
 }
 
-/// `blazesym_entry` is the output of symbolization for an address for C API.
+/// `blaze_entry` is the output of symbolization for an address for C API.
 ///
-/// Every address has an `blazesym_entry` in
+/// Every address has an `blaze_entry` in
 /// [`blaze_result::entries`] to collect symbols found.
 #[repr(C)]
 #[derive(Debug)]
-pub struct blazesym_entry {
+pub struct blaze_entry {
     /// The number of symbols found for an address.
     pub size: usize,
     /// All symbols found.
@@ -216,7 +216,7 @@ pub struct blaze_result {
     /// Symbolization occurs based on the order of addresses.
     /// Therefore, every address must have an entry here on the same
     /// order.
-    pub entries: [blazesym_entry; 0],
+    pub entries: [blaze_entry; 0],
 }
 
 /// Create a `PathBuf` from a pointer of C string
@@ -304,7 +304,7 @@ unsafe fn convert_symbolizedresults_to_c(
     let all_csym_size = results.iter().flatten().count();
     let buf_size = strtab_size
         + mem::size_of::<blaze_result>()
-        + mem::size_of::<blazesym_entry>() * results.len()
+        + mem::size_of::<blaze_entry>() * results.len()
         + mem::size_of::<blaze_sym>() * all_csym_size;
     let raw_buf_with_sz =
         unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
@@ -318,15 +318,16 @@ unsafe fn convert_symbolizedresults_to_c(
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
 
     let result_ptr = raw_buf as *mut blaze_result;
-    let mut entry_last = unsafe { &mut (*result_ptr).entries as *mut blazesym_entry };
+    let mut entry_last = unsafe { &mut (*result_ptr).entries as *mut blaze_entry };
     let mut csym_last = unsafe {
-        raw_buf
-            .add(mem::size_of::<blaze_result>() + mem::size_of::<blazesym_entry>() * results.len())
+        raw_buf.add(
+            mem::size_of::<blaze_result>() + mem::size_of::<blaze_entry>() * results.len(),
+        )
     } as *mut blaze_sym;
     let mut cstr_last = unsafe {
         raw_buf.add(
             mem::size_of::<blaze_result>()
-                + mem::size_of::<blazesym_entry>() * results.len()
+                + mem::size_of::<blaze_entry>() * results.len()
                 + mem::size_of::<blaze_sym>() * all_csym_size,
         )
     } as *mut c_char;
