@@ -245,7 +245,7 @@ typedef struct blaze_sym {
  * `blazesym_entry` is the output of symbolization for an address for C API.
  *
  * Every address has an `blazesym_entry` in
- * [`blazesym_result::entries`] to collect symbols found.
+ * [`blaze_result::entries`] to collect symbols found.
  */
 typedef struct blazesym_entry {
   /**
@@ -261,13 +261,12 @@ typedef struct blazesym_entry {
 } blazesym_entry;
 
 /**
- * `blazesym_result` is the result of symbolization for C API.
+ * `blaze_result` is the result of symbolization for C API.
  *
- * The instances of blazesym_result are returned by any of the
- * `blaze_symbolize_*` variants. They should be freed by calling
- * [`blazesym_result_free`].
+ * Instances of [`blaze_result`] are returned by any of the `blaze_symbolize_*`
+ * variants. They should be freed by calling [`blazesym_result_free`].
  */
-typedef struct blazesym_result {
+typedef struct blaze_result {
   /**
    * The number of addresses being symbolized.
    */
@@ -280,7 +279,7 @@ typedef struct blazesym_result {
    * order.
    */
   struct blazesym_entry entries[0];
-} blazesym_result;
+} blaze_result;
 
 /**
  * The parameters to load symbols and debug information from a process.
@@ -527,7 +526,7 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
 /**
  * Symbolize addresses of a process.
  *
- * Return an array of [`blazesym_result`] with the same size as the
+ * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
  * calling [`blazesym_result_free()`].
  *
@@ -537,15 +536,15 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  * [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blazesym_result *blaze_symbolize_process(blaze_symbolizer *symbolizer,
-                                                      const struct blaze_symbolize_src_process *src,
-                                                      const uintptr_t *addrs,
-                                                      size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_process(blaze_symbolizer *symbolizer,
+                                                   const struct blaze_symbolize_src_process *src,
+                                                   const uintptr_t *addrs,
+                                                   size_t addr_cnt);
 
 /**
  * Symbolize kernel addresses.
  *
- * Return an array of [`blazesym_result`] with the same size as the
+ * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
  * calling [`blazesym_result_free()`].
  *
@@ -555,15 +554,15 @@ const struct blazesym_result *blaze_symbolize_process(blaze_symbolizer *symboliz
  * [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blazesym_result *blaze_symbolize_kernel(blaze_symbolizer *symbolizer,
-                                                     const struct blaze_symbolize_src_kernel *src,
-                                                     const uintptr_t *addrs,
-                                                     size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_kernel(blaze_symbolizer *symbolizer,
+                                                  const struct blaze_symbolize_src_kernel *src,
+                                                  const uintptr_t *addrs,
+                                                  size_t addr_cnt);
 
 /**
  * Symbolize addresses in an ELF file.
  *
- * Return an array of [`blazesym_result`] with the same size as the
+ * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
  * calling [`blazesym_result_free()`].
  *
@@ -573,15 +572,15 @@ const struct blazesym_result *blaze_symbolize_kernel(blaze_symbolizer *symbolize
  * [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blazesym_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
-                                                  const struct blaze_symbolize_src_elf *src,
-                                                  const uintptr_t *addrs,
-                                                  size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
+                                               const struct blaze_symbolize_src_elf *src,
+                                               const uintptr_t *addrs,
+                                               size_t addr_cnt);
 
 /**
  * Symbolize addresses in a Gsym file.
  *
- * Return an array of [`blazesym_result`] with the same size as the
+ * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
  * calling [`blazesym_result_free()`].
  *
@@ -591,10 +590,10 @@ const struct blazesym_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
  * [`blaze_symbolize_src_gsym`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blazesym_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
-                                                   const struct blaze_symbolize_src_gsym *src,
-                                                   const uintptr_t *addrs,
-                                                   size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
+                                                const struct blaze_symbolize_src_gsym *src,
+                                                const uintptr_t *addrs,
+                                                size_t addr_cnt);
 
 /**
  * Free an array returned by any of the `blaze_symbolize_*` variants.
@@ -603,6 +602,6 @@ const struct blazesym_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
  * The pointer must have been returned by any of the `blaze_symbolize_*`
  * variants.
  */
-void blazesym_result_free(const struct blazesym_result *results);
+void blazesym_result_free(const struct blaze_result *results);
 
 #endif /* __blazesym_h_ */

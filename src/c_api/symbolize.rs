@@ -190,7 +190,7 @@ pub struct blaze_sym {
 /// `blazesym_entry` is the output of symbolization for an address for C API.
 ///
 /// Every address has an `blazesym_entry` in
-/// [`blazesym_result::entries`] to collect symbols found.
+/// [`blaze_result::entries`] to collect symbols found.
 #[repr(C)]
 #[derive(Debug)]
 pub struct blazesym_entry {
@@ -202,14 +202,13 @@ pub struct blazesym_entry {
     pub syms: *const blaze_sym,
 }
 
-/// `blazesym_result` is the result of symbolization for C API.
+/// `blaze_result` is the result of symbolization for C API.
 ///
-/// The instances of blazesym_result are returned by any of the
-/// `blaze_symbolize_*` variants. They should be freed by calling
-/// [`blazesym_result_free`].
+/// Instances of [`blaze_result`] are returned by any of the `blaze_symbolize_*`
+/// variants. They should be freed by calling [`blazesym_result_free`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blazesym_result {
+pub struct blaze_result {
     /// The number of addresses being symbolized.
     pub size: usize,
     /// The entries for addresses.
@@ -289,22 +288,22 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
     }
 }
 
-/// Convert SymbolizedResults to blazesym_results.
+/// Convert [`SymbolizedResult`] objects to [`blaze_result`] ones.
 ///
 /// # Safety
 ///
 /// The returned pointer should be freed by [`blazesym_result_free()`].
 unsafe fn convert_symbolizedresults_to_c(
     results: Vec<Vec<SymbolizedResult>>,
-) -> *const blazesym_result {
-    // Allocate a buffer to contain a blazesym_result, all
+) -> *const blaze_result {
+    // Allocate a buffer to contain a blaze_result, all
     // blaze_sym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
         acc + result.symbol.len() + result.path.as_os_str().len() + 2
     });
     let all_csym_size = results.iter().flatten().count();
     let buf_size = strtab_size
-        + mem::size_of::<blazesym_result>()
+        + mem::size_of::<blaze_result>()
         + mem::size_of::<blazesym_entry>() * results.len()
         + mem::size_of::<blaze_sym>() * all_csym_size;
     let raw_buf_with_sz =
@@ -318,16 +317,15 @@ unsafe fn convert_symbolizedresults_to_c(
 
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
 
-    let result_ptr = raw_buf as *mut blazesym_result;
+    let result_ptr = raw_buf as *mut blaze_result;
     let mut entry_last = unsafe { &mut (*result_ptr).entries as *mut blazesym_entry };
     let mut csym_last = unsafe {
-        raw_buf.add(
-            mem::size_of::<blazesym_result>() + mem::size_of::<blazesym_entry>() * results.len(),
-        )
+        raw_buf
+            .add(mem::size_of::<blaze_result>() + mem::size_of::<blazesym_entry>() * results.len())
     } as *mut blaze_sym;
     let mut cstr_last = unsafe {
         raw_buf.add(
-            mem::size_of::<blazesym_result>()
+            mem::size_of::<blaze_result>()
                 + mem::size_of::<blazesym_entry>() * results.len()
                 + mem::size_of::<blaze_sym>() * all_csym_size,
         )
@@ -374,7 +372,7 @@ unsafe fn blaze_symbolize_impl(
     src: Source,
     addrs: *const Addr,
     addr_cnt: usize,
-) -> *const blazesym_result {
+) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid and the count
@@ -399,7 +397,7 @@ unsafe fn blaze_symbolize_impl(
 
 /// Symbolize addresses of a process.
 ///
-/// Return an array of [`blazesym_result`] with the same size as the
+/// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
 /// calling [`blazesym_result_free()`].
 ///
@@ -414,7 +412,7 @@ pub unsafe extern "C" fn blaze_symbolize_process(
     src: *const blaze_symbolize_src_process,
     addrs: *const Addr,
     addr_cnt: usize,
-) -> *const blazesym_result {
+) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Process::from(unsafe { &*src }));
     unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
@@ -423,7 +421,7 @@ pub unsafe extern "C" fn blaze_symbolize_process(
 
 /// Symbolize kernel addresses.
 ///
-/// Return an array of [`blazesym_result`] with the same size as the
+/// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
 /// calling [`blazesym_result_free()`].
 ///
@@ -438,7 +436,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel(
     src: *const blaze_symbolize_src_kernel,
     addrs: *const Addr,
     addr_cnt: usize,
-) -> *const blazesym_result {
+) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Kernel::from(unsafe { &*src }));
     unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
@@ -447,7 +445,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel(
 
 /// Symbolize addresses in an ELF file.
 ///
-/// Return an array of [`blazesym_result`] with the same size as the
+/// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
 /// calling [`blazesym_result_free()`].
 ///
@@ -462,7 +460,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
     src: *const blaze_symbolize_src_elf,
     addrs: *const Addr,
     addr_cnt: usize,
-) -> *const blazesym_result {
+) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Elf::from(unsafe { &*src }));
     unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
@@ -471,7 +469,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 
 /// Symbolize addresses in a Gsym file.
 ///
-/// Return an array of [`blazesym_result`] with the same size as the
+/// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
 /// calling [`blazesym_result_free()`].
 ///
@@ -486,7 +484,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym(
     src: *const blaze_symbolize_src_gsym,
     addrs: *const Addr,
     addr_cnt: usize,
-) -> *const blazesym_result {
+) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Gsym::from(unsafe { &*src }));
     unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
@@ -499,7 +497,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym(
 /// The pointer must have been returned by any of the `blaze_symbolize_*`
 /// variants.
 #[no_mangle]
-pub unsafe extern "C" fn blazesym_result_free(results: *const blazesym_result) {
+pub unsafe extern "C" fn blazesym_result_free(results: *const blaze_result) {
     if results.is_null() {
         return
     }
