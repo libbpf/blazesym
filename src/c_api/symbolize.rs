@@ -21,7 +21,6 @@ use crate::symbolize::Process;
 use crate::symbolize::Source;
 use crate::symbolize::SymbolizedResult;
 use crate::symbolize::Symbolizer;
-use crate::symbolize::SymbolizerFeature;
 use crate::util::slice_from_user_array;
 use crate::Addr;
 
@@ -208,47 +207,6 @@ impl From<&blazesym_sym_src_cfg> for Source {
 }
 
 
-/// Names of the BlazeSym features.
-#[repr(C)]
-#[allow(unused)]
-#[derive(Debug)]
-pub enum blazesym_feature_name {
-    /// Enable or disable returning line numbers of addresses.
-    ///
-    /// Users should set `blazesym_feature.params.enable` to enable or
-    /// disable the feature.
-    BLAZESYM_LINE_NUMBER_INFO,
-    /// Enable or disable loading symbols from DWARF.
-    ///
-    /// Users should set `blazesym_feature.params.enable` to enable or
-    /// disable the feature. This feature is disabled by default.
-    BLAZESYM_DEBUG_INFO_SYMBOLS,
-}
-
-#[repr(C)]
-pub union blazesym_feature_params {
-    pub enable: bool,
-}
-
-impl Debug for blazesym_feature_params {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct(stringify!(blazesym_feature_params))
-            // SAFETY: There is only one variant.
-            .field("enable", &unsafe { self.enable })
-            .finish()
-    }
-}
-
-/// Setting of the blazesym features.
-///
-/// Contain parameters to enable, disable, or customize a feature.
-#[repr(C)]
-#[derive(Debug)]
-pub struct blazesym_feature {
-    pub feature: blazesym_feature_name,
-    pub params: blazesym_feature_params,
-}
-
 /// A placeholder symbolizer for C API.
 ///
 /// It is returned by [`blaze_symbolizer_new`] and should be free by
@@ -319,7 +277,20 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 }
 
 
-/// Create an instance of blazesym a symbolizer for C API.
+/// Options for configuring `blaze_symbolizer` objects.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_symbolizer_opts {
+    /// Whether to enable usage of debug symbols.
+    pub debug_syms: bool,
+    /// Whether to attempt to gather source code location information.
+    ///
+    /// This setting implies `debug_syms` (and forces it to `true`).
+    pub src_location: bool,
+}
+
+
+/// Create an instance of a symbolizer.
 #[no_mangle]
 pub extern "C" fn blaze_symbolizer_new() -> *mut blaze_symbolizer {
     let symbolizer = Symbolizer::new();
@@ -327,34 +298,25 @@ pub extern "C" fn blaze_symbolizer_new() -> *mut blaze_symbolizer {
     Box::into_raw(symbolizer_box)
 }
 
-/// Create an instance of blazesym a symbolizer for C API.
+/// Create an instance of a symbolizer with configurable options.
 ///
 /// # Safety
-///
-/// `features` needs to be a valid pointer to `feature_cnt` elements.
+/// `opts` needs to be a valid pointer.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolizer_new_opts(
-    features: *const blazesym_feature,
-    feature_cnt: usize,
+    opts: *const blaze_symbolizer_opts,
 ) -> *mut blaze_symbolizer {
-    // SAFETY: The caller needs to ensure that `features` is a valid pointer and
-    //         that it points to `feature_cnt` elements.
-    let features_v = unsafe { slice_from_user_array(features, feature_cnt) };
-    let features_r = features_v
-        .iter()
-        .map(|x| -> SymbolizerFeature {
-            match x.feature {
-                blazesym_feature_name::BLAZESYM_LINE_NUMBER_INFO => {
-                    SymbolizerFeature::LineNumberInfo(unsafe { x.params.enable })
-                }
-                blazesym_feature_name::BLAZESYM_DEBUG_INFO_SYMBOLS => {
-                    SymbolizerFeature::DebugInfoSymbols(unsafe { x.params.enable })
-                }
-            }
-        })
-        .collect::<Vec<_>>();
+    // SAFETY: The caller ensures that the pointer is valid.
+    let opts = unsafe { &*opts };
+    let blaze_symbolizer_opts {
+        debug_syms,
+        src_location,
+    } = opts;
 
-    let symbolizer = Symbolizer::with_opts(&features_r);
+    let symbolizer = Symbolizer::builder()
+        .enable_debug_syms(*debug_syms)
+        .enable_src_location(*src_location)
+        .build();
     let symbolizer_box = Box::new(symbolizer);
     Box::into_raw(symbolizer_box)
 }

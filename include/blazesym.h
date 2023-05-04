@@ -41,26 +41,6 @@ typedef enum blaze_user_addr_meta_kind {
 } blaze_user_addr_meta_kind;
 
 /**
- * Names of the BlazeSym features.
- */
-typedef enum blazesym_feature_name {
-  /**
-   * Enable or disable returning line numbers of addresses.
-   *
-   * Users should set `blazesym_feature.params.enable` to enable or
-   * disable the feature.
-   */
-  BLAZESYM_LINE_NUMBER_INFO,
-  /**
-   * Enable or disable loading symbols from DWARF.
-   *
-   * Users should set `blazesym_feature.params.enable` to enable or
-   * disable the feature. This feature is disabled by default.
-   */
-  BLAZESYM_DEBUG_INFO_SYMBOLS,
-} blazesym_feature_name;
-
-/**
  * Types of symbol sources and debug information for C API.
  */
 typedef enum blazesym_src_type {
@@ -238,19 +218,21 @@ typedef struct blaze_normalized_user_addrs {
  */
 typedef struct blaze_symbolizer blaze_symbolizer;
 
-typedef union blazesym_feature_params {
-  bool enable;
-} blazesym_feature_params;
-
 /**
- * Setting of the blazesym features.
- *
- * Contain parameters to enable, disable, or customize a feature.
+ * Options for configuring `blaze_symbolizer` objects.
  */
-typedef struct blazesym_feature {
-  enum blazesym_feature_name feature;
-  union blazesym_feature_params params;
-} blazesym_feature;
+typedef struct blaze_symbolizer_opts {
+  /**
+   * Whether to enable usage of debug symbols.
+   */
+  bool debug_syms;
+  /**
+   * Whether to attempt to gather source code location information.
+   *
+   * This setting implies `debug_syms` (and forces it to `true`).
+   */
+  bool src_location;
+} blaze_symbolizer_opts;
 
 /**
  * The result of symbolization of an address for C API.
@@ -575,19 +557,17 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs_sorted(const stru
 void blaze_user_addrs_free(struct blaze_normalized_user_addrs *addrs);
 
 /**
- * Create an instance of blazesym a symbolizer for C API.
+ * Create an instance of a symbolizer.
  */
 blaze_symbolizer *blaze_symbolizer_new(void);
 
 /**
- * Create an instance of blazesym a symbolizer for C API.
+ * Create an instance of a symbolizer with configurable options.
  *
  * # Safety
- *
- * `features` needs to be a valid pointer to `feature_cnt` elements.
+ * `opts` needs to be a valid pointer.
  */
-blaze_symbolizer *blaze_symbolizer_new_opts(const struct blazesym_feature *features,
-                                            size_t feature_cnt);
+blaze_symbolizer *blaze_symbolizer_new_opts(const struct blaze_symbolizer_opts *opts);
 
 /**
  * Free an instance of blazesym a symbolizer for C API.

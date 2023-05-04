@@ -59,12 +59,8 @@ fn symbolize_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-dwarf.bin");
-    let features = [
-        symbolize::SymbolizerFeature::LineNumberInfo(true),
-        symbolize::SymbolizerFeature::DebugInfoSymbols(true),
-    ];
     let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
-    let symbolizer = Symbolizer::with_opts(&features);
+    let symbolizer = Symbolizer::new();
     let results = symbolizer
         .symbolize(&src, &[0x2000100])
         .unwrap()
@@ -104,12 +100,8 @@ fn lookup_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-dwarf.bin");
-    let features = [
-        symbolize::SymbolizerFeature::LineNumberInfo(true),
-        symbolize::SymbolizerFeature::DebugInfoSymbols(true),
-    ];
     let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
-    let symbolizer = Symbolizer::with_opts(&features);
+    let symbolizer = Symbolizer::new();
     let results = symbolizer
         .find_addrs(&src, &["factorial"])
         .unwrap()

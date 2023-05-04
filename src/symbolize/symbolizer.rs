@@ -59,22 +59,59 @@ pub struct SymbolizedResult {
 }
 
 
-/// Switches in the features of Symbolizer.
+/// A builder for configurable construction of [`Symbolizer`] objects.
 ///
-/// Passing variants of this `enum` to [`Symbolizer::with_opts`] will enable
-/// (true) or disable (false) respective features of a symbolizer.
-#[derive(Debug)]
-pub enum SymbolizerFeature {
-    /// Switch on or off the feature of returning file names and line numbers of addresses.
+/// By default all features are enabled.
+#[derive(Clone, Debug)]
+pub struct Builder {
+    /// Whether to enable usage of debug symbols.
+    debug_syms: bool,
+    /// Whether to attempt to gather source code location information.
     ///
-    /// By default, it is true.  However, if it is false,
-    /// the symbolizer will not return the line number information.
-    LineNumberInfo(bool), // default is true.
-    /// Switch on or off the feature of parsing symbols (subprogram) from DWARF.
+    /// This setting implies usage of debug symbols and forces the corresponding
+    /// flag to `true`.
+    src_location: bool,
+}
+
+impl Builder {
+    /// Enable/disable line number information.
+    pub fn enable_src_location(mut self, enable: bool) -> Builder {
+        self.src_location = enable;
+        self
+    }
+
+    /// Enable/disable usage of debug symbols.
     ///
-    /// By default, it is false. BlazeSym parses symbols from DWARF
-    /// only if the user of BlazeSym enables it.
-    DebugInfoSymbols(bool),
+    /// That can be useful in cases where ELF symbol information is stripped.
+    pub fn enable_debug_syms(mut self, enable: bool) -> Builder {
+        self.debug_syms = enable;
+        self
+    }
+
+    /// Create the [`Symbolizer`] object.
+    pub fn build(self) -> Symbolizer {
+        let Builder {
+            debug_syms,
+            src_location,
+        } = self;
+        let ksym_cache = KSymCache::new();
+        let elf_cache = ElfCache::new(src_location, debug_syms);
+
+        Symbolizer {
+            ksym_cache,
+            elf_cache,
+            src_location,
+        }
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self {
+            src_location: true,
+            debug_syms: true,
+        }
+    }
 }
 
 
@@ -83,52 +120,19 @@ pub enum SymbolizerFeature {
 pub struct Symbolizer {
     ksym_cache: KSymCache,
     elf_cache: ElfCache,
-    line_number_info: bool,
+    src_location: bool,
 }
 
 impl Symbolizer {
     /// Create a new [`Symbolizer`].
     pub fn new() -> Self {
-        let ksym_cache = KSymCache::new();
-
-        let line_number_info = true;
-        let debug_info_symbols = false;
-        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
-
-        Self {
-            ksym_cache,
-            elf_cache,
-            line_number_info,
-        }
+        Builder::default().build()
     }
 
-    /// Create a new [`Symbolizer`] with the provided set of features.
-    ///
-    /// This constructor works like [`Symbolizer::new`] except it receives a
-    /// list of [`SymbolizerFeature`] to turn on or off some features.
-    pub fn with_opts(features: &[SymbolizerFeature]) -> Symbolizer {
-        let mut line_number_info = true;
-        let mut debug_info_symbols = false;
-
-        for feature in features {
-            match feature {
-                SymbolizerFeature::LineNumberInfo(enabled) => {
-                    line_number_info = *enabled;
-                }
-                SymbolizerFeature::DebugInfoSymbols(enabled) => {
-                    debug_info_symbols = *enabled;
-                }
-            }
-        }
-
-        let ksym_cache = KSymCache::new();
-        let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
-
-        Self {
-            ksym_cache,
-            elf_cache,
-            line_number_info,
-        }
+    /// Retrieve a [`Builder`] object for configurable construction of a
+    /// [`Symbolizer`].
+    pub fn builder() -> Builder {
+        Builder::default()
     }
 
     /// Find the addresses of a list of symbol names.
@@ -173,7 +177,7 @@ impl Symbolizer {
         resolver: &dyn SymResolver,
     ) -> Vec<SymbolizedResult> {
         let res_syms = resolver.find_symbols(addr);
-        let linfo = if self.line_number_info {
+        let linfo = if self.src_location {
             resolver.find_line_info(addr)
         } else {
             None
