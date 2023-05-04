@@ -379,7 +379,7 @@ mod tests {
     use std::mem::transmute;
 
     use crate::inspect::FindAddrOpts;
-    use crate::inspect::SymbolType;
+    use crate::inspect::SymType;
     use crate::mmap::Mmap;
 
 
@@ -508,7 +508,7 @@ mod tests {
         // object.
         let elf_parser = ElfParser::from_mmap(mmap.clone()).unwrap();
         let opts = FindAddrOpts {
-            sym_type: SymbolType::Function,
+            sym_type: SymType::Function,
             ..Default::default()
         };
         let symbols = elf_parser.find_addr("the_answer", &opts).unwrap();

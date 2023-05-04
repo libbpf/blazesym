@@ -10,19 +10,22 @@ pub use source::Elf;
 pub use source::Source;
 
 
-/// Types of symbols.
+/// The type of a symbol.
 #[derive(Clone, Copy, Debug, Default)]
-pub enum SymbolType {
+pub enum SymType {
+    /// The symbol type is unknown.
     #[default]
     Unknown,
+    /// The symbol is a function.
     Function,
+    /// The symbol is a variable.
     Variable,
 }
 
 
-/// Information of a symbol.
+/// Information about a symbol.
 #[derive(Debug)]
-pub struct SymbolInfo {
+pub struct SymInfo {
     /// The name of the symbol; for example, a function name.
     pub name: String,
     /// Start address (the first byte) of the symbol
@@ -30,7 +33,7 @@ pub struct SymbolInfo {
     /// The size of the symbol. The size of a function for example.
     pub size: usize,
     /// A function or a variable.
-    pub sym_type: SymbolType,
+    pub sym_type: SymType,
     /// The offset in the object file.
     pub file_offset: u64,
     /// The file name of the shared object.
@@ -50,5 +53,5 @@ pub(crate) struct FindAddrOpts {
     pub obj_file_name: bool,
     /// Return the symbol(s) matching a given type. Unknown, by default,
     /// means all types.
-    pub sym_type: SymbolType,
+    pub sym_type: SymType,
 }

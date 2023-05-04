@@ -5,7 +5,7 @@ use std::path::Path;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
+use crate::inspect::SymInfo;
 use crate::ksym::KSymCache;
 use crate::symbolize;
 use crate::symbolize::AddrLineInfo;
@@ -27,7 +27,7 @@ where
     /// the given address.
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)>;
     /// Find the address and size of a symbol name.
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>>;
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>>;
     /// Find the file name and the line number of an address.
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo>;
     /// Translate an address (virtual) in a process to the file offset

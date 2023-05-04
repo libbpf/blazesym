@@ -12,8 +12,8 @@ use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
-use crate::inspect::SymbolType;
+use crate::inspect::SymInfo;
+use crate::inspect::SymType;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::SymResolver;
@@ -136,18 +136,18 @@ impl SymResolver for KSymResolver {
             .collect()
     }
 
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymbolInfo>> {
-        if let SymbolType::Variable = opts.sym_type {
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
+        if let SymType::Variable = opts.sym_type {
             return None
         }
         self.ensure_sym_to_addr();
 
         self.sym_to_addr.borrow().get(name).map(|addr| {
-            vec![SymbolInfo {
+            vec![SymInfo {
                 name: name.to_string(),
                 address: *addr,
                 size: 0,
-                sym_type: SymbolType::Function,
+                sym_type: SymType::Function,
                 file_offset: 0,
                 obj_file_name: None,
             }]
@@ -259,7 +259,7 @@ mod tests {
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
-            sym_type: SymbolType::Function,
+            sym_type: SymType::Function,
         };
         let found = resolver.find_addr(&name, &opts);
         assert!(found.is_some());

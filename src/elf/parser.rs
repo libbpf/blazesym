@@ -10,8 +10,8 @@ use std::ops::Deref as _;
 use std::path::Path;
 
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
-use crate::inspect::SymbolType;
+use crate::inspect::SymInfo;
+use crate::inspect::SymType;
 use crate::mmap::Mmap;
 use crate::util::find_match_or_lower_bound_by;
 use crate::util::search_address_opt_key;
@@ -440,12 +440,8 @@ impl ElfParser {
         Ok((name, sym.st_value as Addr))
     }
 
-    pub(crate) fn find_addr(
-        &self,
-        name: &str,
-        opts: &FindAddrOpts,
-    ) -> Result<Vec<SymbolInfo>, Error> {
-        if let SymbolType::Variable = opts.sym_type {
+    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
+        if let SymType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
 
@@ -474,11 +470,11 @@ impl ElfParser {
                         )
                     })?;
                     if sym_ref.st_shndx != SHN_UNDEF {
-                        found.push(SymbolInfo {
+                        found.push(SymInfo {
                             name: name.to_string(),
                             address: sym_ref.st_value as Addr,
                             size: sym_ref.st_size as usize,
-                            sym_type: SymbolType::Function,
+                            sym_type: SymType::Function,
                             file_offset: 0,
                             obj_file_name: None,
                         });

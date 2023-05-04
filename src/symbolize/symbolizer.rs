@@ -7,8 +7,8 @@ use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
 use crate::gsym::GsymResolver;
 use crate::inspect::FindAddrOpts;
-use crate::inspect::SymbolInfo;
-use crate::inspect::SymbolType;
+use crate::inspect::SymInfo;
+use crate::inspect::SymType;
 use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
 use crate::ksym::KALLSYMS;
@@ -135,11 +135,11 @@ impl Symbolizer {
     ///
     /// Find the addresses of a list of symbol names using the provided
     /// configuration.
-    pub fn find_addrs(&self, src: &Source, names: &[&str]) -> Result<Vec<Vec<SymbolInfo>>> {
+    pub fn find_addrs(&self, src: &Source, names: &[&str]) -> Result<Vec<Vec<SymInfo>>> {
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
-            sym_type: SymbolType::Unknown,
+            sym_type: SymType::Unknown,
         };
 
         let resolver_map = ResolverMap::new(&[src], &self.ksym_cache, &self.elf_cache)?;
