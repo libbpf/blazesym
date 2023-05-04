@@ -209,13 +209,13 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
 /// Lookup symbol information in an ELF file.
 ///
 /// Return an array with the same size as the input names. The caller should
-/// free the returned array by calling [`blaze_syms_free`].
+/// free the returned array by calling [`blaze_inspect_syms_free`].
 ///
 /// Every name in the input name list may have more than one address.
 /// The respective entry in the returned array is an array containing
 /// all addresses and ended with a null (0x0).
 ///
-/// The returned pointer should be freed by [`blaze_syms_free`].
+/// The returned pointer should be freed by [`blaze_inspect_syms_free`].
 ///
 /// # Safety
 /// The `inspector` object should have been created using
@@ -260,7 +260,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
 /// The pointer must be returned by [`blaze_inspect_syms_elf`].
 ///
 #[no_mangle]
-pub unsafe extern "C" fn blaze_syms_free(syms: *const *const blaze_sym_info) {
+pub unsafe extern "C" fn blaze_inspect_syms_free(syms: *const *const blaze_sym_info) {
     if syms.is_null() {
         return
     }

@@ -10,6 +10,7 @@ use blazesym::inspect;
 
 use blazesym::c_api::blaze_inspect_elf_src;
 use blazesym::c_api::blaze_inspect_syms_elf;
+use blazesym::c_api::blaze_inspect_syms_free;
 use blazesym::c_api::blaze_inspector_free;
 use blazesym::c_api::blaze_inspector_new;
 use blazesym::c_api::blaze_normalize_user_addrs;
@@ -26,7 +27,6 @@ use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
 use blazesym::c_api::blaze_symbolizer_opts;
-use blazesym::c_api::blaze_syms_free;
 use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_result_free;
 use blazesym::Addr;
@@ -253,6 +253,6 @@ fn lookup_dwarf() {
     );
     assert_eq!(sym_info.address, 0x2000100);
 
-    let () = unsafe { blaze_syms_free(result) };
+    let () = unsafe { blaze_inspect_syms_free(result) };
     let () = unsafe { blaze_inspector_free(inspector) };
 }
