@@ -2,7 +2,6 @@
 
 use std::ffi::CStr;
 use std::ffi::CString;
-use std::mem::ManuallyDrop;
 use std::path::Path;
 use std::ptr;
 use std::slice;
@@ -17,7 +16,8 @@ use blazesym::c_api::blaze_normalize_user_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
-use blazesym::c_api::blaze_symbolize;
+use blazesym::c_api::blaze_symbolize_elf;
+use blazesym::c_api::blaze_symbolize_gsym;
 use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
@@ -25,11 +25,8 @@ use blazesym::c_api::blaze_symbolizer_opts;
 use blazesym::c_api::blaze_syms_free;
 use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_result_free;
-use blazesym::c_api::blazesym_src_type;
 use blazesym::c_api::blazesym_ssc_elf;
 use blazesym::c_api::blazesym_ssc_gsym;
-use blazesym::c_api::blazesym_ssc_params;
-use blazesym::c_api::blazesym_sym_src_cfg;
 use blazesym::Addr;
 
 
@@ -54,61 +51,77 @@ fn symbolizer_creation_with_opts() {
 }
 
 
-/// Make sure that we can symbolize an address.
+/// Make sure that we can symbolize an address in an ELF file.
 #[test]
-fn symbolize_from_file() {
-    fn test(src: blazesym_sym_src_cfg) {
-        let symbolizer = blaze_symbolizer_new();
-        let addrs = [0x2000100];
-        let result = unsafe { blaze_symbolize(symbolizer, &src, addrs.as_ptr(), addrs.len()) };
-
-        assert!(!result.is_null());
-
-        let result = unsafe { &*result };
-        assert_eq!(result.size, 1);
-        let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
-        let entry = &entries[0];
-        assert_eq!(entry.size, 1);
-
-        let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
-        let sym = &syms[0];
-        assert_eq!(
-            unsafe { CStr::from_ptr(sym.symbol) },
-            CStr::from_bytes_with_nul(b"factorial\0").unwrap()
-        );
-
-        let () = unsafe { blazesym_result_free(result) };
-        let () = unsafe { blaze_symbolizer_free(symbolizer) };
-    }
-
+fn symbolize_from_elf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-dwarf.bin");
     let test_dwarf_c = CString::new(test_dwarf.to_str().unwrap()).unwrap();
 
-    let elf_src = ManuallyDrop::new(blazesym_ssc_elf {
+    let elf_src = blazesym_ssc_elf {
         path: test_dwarf_c.as_ptr(),
         base_address: 0,
-    });
-    let src = blazesym_sym_src_cfg {
-        src_type: blazesym_src_type::BLAZESYM_SRC_T_ELF,
-        params: blazesym_ssc_params { elf: elf_src },
     };
-    test(src);
 
+    let symbolizer = blaze_symbolizer_new();
+    let addrs = [0x2000100];
+    let result = unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+
+    assert!(!result.is_null());
+
+    let result = unsafe { &*result };
+    assert_eq!(result.size, 1);
+    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
+    let entry = &entries[0];
+    assert_eq!(entry.size, 1);
+
+    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
+    let sym = &syms[0];
+    assert_eq!(
+        unsafe { CStr::from_ptr(sym.symbol) },
+        CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+    );
+
+    let () = unsafe { blazesym_result_free(result) };
+    let () = unsafe { blaze_symbolizer_free(symbolizer) };
+}
+
+
+/// Make sure that we can symbolize an address in a Gsym file.
+#[test]
+fn symbolize_from_gsym() {
     let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test.gsym");
     let test_gsym_c = CString::new(test_gsym.to_str().unwrap()).unwrap();
-    let gsym_src = ManuallyDrop::new(blazesym_ssc_gsym {
+    let gsym_src = blazesym_ssc_gsym {
         path: test_gsym_c.as_ptr(),
         base_address: 0,
-    });
-    let src = blazesym_sym_src_cfg {
-        src_type: blazesym_src_type::BLAZESYM_SRC_T_GSYM,
-        params: blazesym_ssc_params { gsym: gsym_src },
     };
-    test(src);
+
+    let symbolizer = blaze_symbolizer_new();
+    let addrs = [0x2000100];
+    let result =
+        unsafe { blaze_symbolize_gsym(symbolizer, &gsym_src, addrs.as_ptr(), addrs.len()) };
+
+    assert!(!result.is_null());
+
+    let result = unsafe { &*result };
+    assert_eq!(result.size, 1);
+    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
+    let entry = &entries[0];
+    assert_eq!(entry.size, 1);
+
+    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
+    let sym = &syms[0];
+    assert_eq!(
+        unsafe { CStr::from_ptr(sym.symbol) },
+        CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+    );
+
+    let () = unsafe { blazesym_result_free(result) };
+    let () = unsafe { blaze_symbolizer_free(symbolizer) };
 }
 
 
