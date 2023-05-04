@@ -7,46 +7,19 @@
 //! operation: looking up addresses from symbol names. That can be useful, for
 //! example, for configuring breakpoints or tracepoints.
 //!
-//! Here an example illustrating usage of the symbolization functionality:
-//! ```no_run
-//! use blazesym::Addr;
-//! use blazesym::symbolize::Symbolizer;
-//! use blazesym::symbolize::Source;
-//! use blazesym::symbolize::Process;
-//! use blazesym::symbolize::SymbolizedResult;
+//! ## Overview
+//! The crate is organized via public modules that expose functionality
+//! pertaining a certain topic. Specifically, these areas are currently covered:
 //!
-//! let process_id: u32 = std::process::id(); // <some process id>
-//! // Load all symbols of loaded files of the given process.
-//! let src = Source::Process(Process::new(process_id.into()));
-//! let symbolizer = Symbolizer::new();
+//! - [`symbolize`] covers address symbolization functionality
+//! - [`inspect`] contains APIs for inspecting files such as ELF and Gsym to
+//!   lookup addresses to symbol names, for example
+//! - [`normalize`] exposes address normalization functionality
 //!
-//! let stack: [Addr; 2] = [0xff023, 0x17ff93b];  // Addresses of instructions
-//! let symlist = symbolizer.symbolize(&src,      // Pass this configuration every time
-//!                                    &stack).unwrap();
-//! for i in 0..stack.len() {
-//!   let addr = stack[i];
-//!
-//!   if symlist.len() <= i || symlist[i].len() == 0 {  // Unknown address
-//!     println!("0x{addr:016x}");
-//!     continue;
-//!   }
-//!
-//!   let sym_results = &symlist[i];
-//!   if sym_results.len() > 1 {
-//!     // One address may get several results (e.g., when defined in multiple
-//!     // compilation units)
-//!     println!("0x{addr:016x} ({} entries)", sym_results.len());
-//!
-//!     for result in sym_results {
-//!       let SymbolizedResult {symbol, addr, path, line, column} = result;
-//!       println!("    {symbol}@0x{addr:016x} {}:{line}", path.display());
-//!     }
-//!   } else {
-//!     let SymbolizedResult {symbol, addr, path, line, column} = &sym_results[0];
-//!     println!("0x{addr:016x} {symbol}@0x{addr:016x} {}:{line}", path.display());
-//!   }
-//! }
-//! ```
+//! C API bindings are defined in a cross-cutting manner as part of the
+//! [`c_api`] module (note that Rust code should not have to consume these
+//! functions and on the ABI level this module organization has no relevance for
+//! C).
 
 #![allow(clippy::collapsible_if, clippy::let_and_return, clippy::let_unit_value)]
 #![deny(unsafe_op_in_unsafe_fn)]
