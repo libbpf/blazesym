@@ -69,7 +69,7 @@ For C interoperability, the aforementioned build will produce `libblazesym.a` as
 well as `libblazesym.so` in the respective target folder (e.g.,
 `<project-root>/target/debug/`).
 
-In your C programs include [`blazesym.h`][include/blazesym.h] (provided as part
+In your C programs include [`blazesym.h`](include/blazesym.h) (provided as part
 of the library) from your source code and then link against the static or shared
 library, respectively. When linking statically, you may also need to link:
 ```text
