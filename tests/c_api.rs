@@ -18,6 +18,7 @@ use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
 use blazesym::c_api::blaze_symbolize_elf;
 use blazesym::c_api::blaze_symbolize_gsym;
+use blazesym::c_api::blaze_symbolize_process;
 use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
@@ -27,6 +28,7 @@ use blazesym::c_api::blaze_user_addrs_free;
 use blazesym::c_api::blazesym_result_free;
 use blazesym::c_api::blazesym_ssc_elf;
 use blazesym::c_api::blazesym_ssc_gsym;
+use blazesym::c_api::blazesym_ssc_process;
 use blazesym::Addr;
 
 
@@ -118,6 +120,36 @@ fn symbolize_from_gsym() {
     assert_eq!(
         unsafe { CStr::from_ptr(sym.symbol) },
         CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+    );
+
+    let () = unsafe { blazesym_result_free(result) };
+    let () = unsafe { blaze_symbolizer_free(symbolizer) };
+}
+
+
+/// Make sure that we can symbolize an address in a process.
+#[test]
+fn symbolize_in_process() {
+    let process_src = blazesym_ssc_process { pid: 0 };
+
+    let symbolizer = blaze_symbolizer_new();
+    let addrs = [blaze_symbolizer_new as Addr];
+    let result =
+        unsafe { blaze_symbolize_process(symbolizer, &process_src, addrs.as_ptr(), addrs.len()) };
+
+    assert!(!result.is_null());
+
+    let result = unsafe { &*result };
+    assert_eq!(result.size, 1);
+    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
+    let entry = &entries[0];
+    assert_eq!(entry.size, 1);
+
+    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
+    let sym = &syms[0];
+    assert_eq!(
+        unsafe { CStr::from_ptr(sym.symbol) },
+        CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()
     );
 
     let () = unsafe { blazesym_result_free(result) };
