@@ -20,7 +20,7 @@ fn symbolize_process() {
         c_api::blaze_inspector_free as Addr,
     ];
 
-    let symbolizer = Symbolizer::new().unwrap();
+    let symbolizer = Symbolizer::new();
     let results = symbolizer.symbolize(&src, &addrs).unwrap();
     assert_eq!(results.len(), addrs.len());
 }

@@ -19,7 +19,7 @@ fn symbolize_end_to_end() {
         SymbolizerFeature::LineNumberInfo(true),
     ];
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
-    let symbolizer = Symbolizer::with_opts(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features);
 
     let results = symbolizer
         .symbolize(&src, &[0xffffffff8110ecb0])
@@ -44,7 +44,7 @@ fn lookup_end_to_end() {
     ];
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
 
-    let symbolizer = Symbolizer::with_opts(&features).unwrap();
+    let symbolizer = Symbolizer::with_opts(&features);
     let results = symbolizer
         .find_addrs(&src, &["abort_creds"])
         .unwrap()

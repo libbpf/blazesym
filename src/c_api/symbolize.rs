@@ -322,10 +322,7 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 /// Create an instance of blazesym a symbolizer for C API.
 #[no_mangle]
 pub extern "C" fn blaze_symbolizer_new() -> *mut blaze_symbolizer {
-    let symbolizer = match Symbolizer::new() {
-        Ok(s) => s,
-        Err(_) => return ptr::null_mut(),
-    };
+    let symbolizer = Symbolizer::new();
     let symbolizer_box = Box::new(symbolizer);
     Box::into_raw(symbolizer_box)
 }
@@ -357,10 +354,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
         })
         .collect::<Vec<_>>();
 
-    let symbolizer = match Symbolizer::with_opts(&features_r) {
-        Ok(s) => s,
-        Err(_) => return ptr::null_mut(),
-    };
+    let symbolizer = Symbolizer::with_opts(&features_r);
     let symbolizer_box = Box::new(symbolizer);
     Box::into_raw(symbolizer_box)
 }

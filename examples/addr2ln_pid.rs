@@ -34,8 +34,8 @@ print its symbol, the file name of the source, and the line number.",
         .with_context(|| format!("failed to parse address: {addr_str}"))?;
 
     let src = Source::Process(Process::new(pid.into()));
-    let resolver = Symbolizer::new().unwrap();
-    let symlist = resolver
+    let symbolizer = Symbolizer::new();
+    let symlist = symbolizer
         .symbolize(&src, &[addr])
         .with_context(|| format!("failed to symbolize address {addr}"))?;
     if !symlist[0].is_empty() {

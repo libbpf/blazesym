@@ -22,7 +22,7 @@ fn main() -> Result<()> {
     let bin_name = &args[1];
     let mut addr_str = &args[2][..];
     let src = Source::Elf(Elf::new(bin_name));
-    let resolver = Symbolizer::new().unwrap();
+    let symbolizer = Symbolizer::new();
 
     if &addr_str[0..2] == "0x" {
         // Remove prefixed 0x
@@ -31,7 +31,7 @@ fn main() -> Result<()> {
     let addr = Addr::from_str_radix(addr_str, 16)
         .with_context(|| format!("failed to parse address: {addr_str}"))?;
 
-    let results = resolver
+    let results = symbolizer
         .symbolize(&src, &[addr])
         .with_context(|| format!("failed to symbolize address {addr}"))?;
     if results.len() == 1 && !results[0].is_empty() {

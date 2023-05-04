@@ -88,25 +88,25 @@ pub struct Symbolizer {
 
 impl Symbolizer {
     /// Create a new [`Symbolizer`].
-    pub fn new() -> Result<Symbolizer> {
+    pub fn new() -> Self {
         let ksym_cache = KSymCache::new();
 
         let line_number_info = true;
         let debug_info_symbols = false;
         let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
 
-        Ok(Symbolizer {
+        Self {
             ksym_cache,
             elf_cache,
             line_number_info,
-        })
+        }
     }
 
     /// Create a new [`Symbolizer`] with the provided set of features.
     ///
     /// This constructor works like [`Symbolizer::new`] except it receives a
     /// list of [`SymbolizerFeature`] to turn on or off some features.
-    pub fn with_opts(features: &[SymbolizerFeature]) -> Result<Symbolizer> {
+    pub fn with_opts(features: &[SymbolizerFeature]) -> Symbolizer {
         let mut line_number_info = true;
         let mut debug_info_symbols = false;
 
@@ -124,11 +124,11 @@ impl Symbolizer {
         let ksym_cache = KSymCache::new();
         let elf_cache = ElfCache::new(line_number_info, debug_info_symbols);
 
-        Ok(Symbolizer {
+        Self {
             ksym_cache,
             elf_cache,
             line_number_info,
-        })
+        }
     }
 
     /// Find the addresses of a list of symbol names.
@@ -376,5 +376,11 @@ impl Symbolizer {
                 Ok(symbols)
             }
         }
+    }
+}
+
+impl Default for Symbolizer {
+    fn default() -> Self {
+        Self::new()
     }
 }
