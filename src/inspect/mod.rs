@@ -1,3 +1,19 @@
+//! Functionality for inspecting files such as ELF or Gsym.
+//!
+//! ```no_run
+//! use blazesym::inspect;
+//! use blazesym::inspect::Inspector;
+//!
+//! let src = inspect::Source::Elf(inspect::Elf::new("/usr/bin/libc.so"));
+//! let inspector = Inspector::new();
+//! let results = inspector
+//!     .lookup(&["fopen"], &src)
+//!     .unwrap();
+//!
+//! // `results` contains a list of addresses of `fopen` symbols in `libc`.
+//! // There probably will only be a single one.
+//! ```
+
 mod inspector;
 mod source;
 

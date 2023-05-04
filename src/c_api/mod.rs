@@ -1,3 +1,5 @@
+//! C API bindings for the library.
+
 #[allow(non_camel_case_types)]
 mod inspect;
 #[allow(non_camel_case_types)]

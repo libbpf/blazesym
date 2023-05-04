@@ -116,7 +116,7 @@ fn lookup_dwarf() {
 
 /// Check that we can normalize user addresses in our own shared object.
 #[test]
-fn normalize_user_address() {
+fn normalize_user_addr() {
     fn test(so: &str) {
         let test_so = Path::new(&env!("CARGO_MANIFEST_DIR")).join("data").join(so);
         let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
