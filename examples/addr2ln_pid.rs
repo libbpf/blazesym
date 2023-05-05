@@ -23,21 +23,17 @@ print its symbol, the file name of the source, and the line number.",
     }
 
     let pid = args[1].parse::<u32>().unwrap();
-    let mut addr_str = &args[2][..];
+    let addr_str = &args[2][..];
     println!("PID: {pid}");
 
-    if addr_str.len() > 2 && &addr_str[0..2] == "0x" {
-        // Remove prefixed 0x
-        addr_str = &addr_str[2..];
-    }
-    let addr = Addr::from_str_radix(addr_str, 16)
+    let addr = Addr::from_str_radix(addr_str.trim_start_matches("0x"), 16)
         .with_context(|| format!("failed to parse address: {addr_str}"))?;
 
     let src = Source::Process(Process::new(pid.into()));
     let symbolizer = Symbolizer::new();
     let symlist = symbolizer
         .symbolize(&src, &[addr])
-        .with_context(|| format!("failed to symbolize address {addr}"))?;
+        .with_context(|| format!("failed to symbolize address 0x{addr:x}"))?;
     if !symlist[0].is_empty() {
         let SymbolizedResult {
             symbol,

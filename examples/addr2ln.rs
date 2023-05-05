@@ -20,20 +20,16 @@ fn main() -> Result<()> {
     }
 
     let bin_name = &args[1];
-    let mut addr_str = &args[2][..];
+    let addr_str = &args[2][..];
     let src = Source::Elf(Elf::new(bin_name));
     let symbolizer = Symbolizer::new();
 
-    if &addr_str[0..2] == "0x" {
-        // Remove prefixed 0x
-        addr_str = &addr_str[2..];
-    }
-    let addr = Addr::from_str_radix(addr_str, 16)
+    let addr = Addr::from_str_radix(addr_str.trim_start_matches("0x"), 16)
         .with_context(|| format!("failed to parse address: {addr_str}"))?;
 
     let results = symbolizer
         .symbolize(&src, &[addr])
-        .with_context(|| format!("failed to symbolize address {addr}"))?;
+        .with_context(|| format!("failed to symbolize address 0x{addr:x}"))?;
     if results.len() == 1 && !results[0].is_empty() {
         let result = &results[0][0];
         println!(
