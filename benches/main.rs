@@ -1,7 +1,7 @@
 #![allow(clippy::let_and_return, clippy::let_unit_value)]
 
-mod dwarf;
 mod gsym;
+mod inspect;
 mod normalize;
 mod symbolize;
 
@@ -18,7 +18,7 @@ fn benchmark(c: &mut Criterion) {
     group.warm_up_time(Duration::from_secs(5));
     group.confidence_level(0.98);
     group.significance_level(0.02);
-    dwarf::benchmark(&mut group);
+    inspect::benchmark(&mut group);
     gsym::benchmark(&mut group);
     normalize::benchmark(&mut group);
     symbolize::benchmark(&mut group);
