@@ -6,9 +6,6 @@ use std::path::PathBuf;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
 use crate::gsym::GsymResolver;
-use crate::inspect::FindAddrOpts;
-use crate::inspect::SymInfo;
-use crate::inspect::SymType;
 use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
 use crate::ksym::KALLSYMS;
@@ -17,7 +14,6 @@ use crate::normalize::Binary;
 use crate::normalize::NormalizedUserAddrs;
 use crate::normalize::Normalizer;
 use crate::normalize::UserAddrMeta;
-use crate::resolver::ResolverMap;
 use crate::util::uname_release;
 use crate::Addr;
 use crate::Pid;
@@ -133,41 +129,6 @@ impl Symbolizer {
     /// [`Symbolizer`].
     pub fn builder() -> Builder {
         Builder::default()
-    }
-
-    /// Find the addresses of a list of symbol names.
-    ///
-    /// Find the addresses of a list of symbol names using the provided
-    /// configuration.
-    pub fn find_addrs(&self, src: &Source, names: &[&str]) -> Result<Vec<Vec<SymInfo>>> {
-        let opts = FindAddrOpts {
-            offset_in_file: false,
-            obj_file_name: false,
-            sym_type: SymType::Unknown,
-        };
-
-        let resolver_map = ResolverMap::new(&[src], &self.ksym_cache, &self.elf_cache)?;
-        let mut syms_list = vec![];
-        for name in names {
-            let mut found = vec![];
-            for (_, resolver) in &resolver_map.resolvers {
-                if let Some(mut syms) = resolver.find_addr(name, &opts) {
-                    for sym in &mut syms {
-                        if opts.offset_in_file {
-                            if let Some(off) = resolver.addr_file_off(sym.address) {
-                                sym.file_offset = off;
-                            }
-                        }
-                        if opts.obj_file_name {
-                            sym.obj_file_name = Some(resolver.get_obj_file_name().to_path_buf());
-                        }
-                    }
-                    found.append(&mut syms);
-                }
-            }
-            syms_list.push(found);
-        }
-        Ok(syms_list)
     }
 
     /// Symbolize an address using the provided [`SymResolver`].

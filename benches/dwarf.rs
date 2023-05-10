@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use blazesym::inspect;
+use blazesym::inspect::Inspector;
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
@@ -33,11 +35,11 @@ fn lookup_end_to_end() {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64");
-    let src = Source::Elf(Elf::new(dwarf_vmlinux));
+    let src = inspect::Source::Elf(inspect::Elf::new(dwarf_vmlinux));
 
-    let symbolizer = Symbolizer::new();
-    let results = symbolizer
-        .find_addrs(&src, &["abort_creds"])
+    let inspector = Inspector::new();
+    let results = inspector
+        .lookup(&["abort_creds"], &src)
         .unwrap()
         .into_iter()
         .flatten()
