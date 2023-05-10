@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::path::PathBuf;
 
 
@@ -38,4 +39,13 @@ impl From<Elf> for Source {
 pub enum Source {
     /// The source is an ELF file.
     Elf(Elf),
+}
+
+impl Source {
+    /// Retrieve the path to the source, if it has any.
+    pub fn path(&self) -> Option<&Path> {
+        match self {
+            Self::Elf(elf) => Some(&elf.path),
+        }
+    }
 }

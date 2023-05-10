@@ -178,6 +178,11 @@ fn inspect() {
 
         let result = results.first().unwrap();
         assert_eq!(result.address, 0x2000100);
+        assert_ne!(result.file_offset, 0);
+        assert_eq!(
+            result.obj_file_name.as_deref().unwrap(),
+            src.path().unwrap()
+        );
     }
 
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))

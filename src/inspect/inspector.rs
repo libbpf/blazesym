@@ -60,7 +60,22 @@ impl Inspector {
                 let resolver = ElfResolver::with_backend(path, 0, backend)?;
                 let syms = names
                     .iter()
-                    .map(|name| resolver.find_addr(name, &opts).unwrap_or_default())
+                    .map(|name| {
+                        let mut syms = resolver.find_addr(name, &opts).unwrap_or_default();
+                        let () = syms.iter_mut().for_each(|sym| {
+                            if opts.offset_in_file {
+                                if let Some(off) = resolver.addr_file_off(sym.address) {
+                                    sym.file_offset = off;
+                                }
+                            }
+                            if opts.obj_file_name {
+                                sym.obj_file_name =
+                                    Some(resolver.get_obj_file_name().to_path_buf());
+                            }
+                        });
+
+                        syms
+                    })
                     .collect();
 
                 Ok(syms)
