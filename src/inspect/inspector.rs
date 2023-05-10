@@ -1,6 +1,9 @@
 use std::io::Result;
+use std::rc::Rc;
 
 use crate::dwarf::DwarfResolver;
+use crate::elf::ElfBackend;
+use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::SymResolver;
 
@@ -42,24 +45,25 @@ impl Inspector {
                 debug_info,
                 _non_exhaustive: (),
             }) => {
-                let symbols = if *debug_info {
+                let backend = if *debug_info {
                     let debug_line_info = true;
                     let debug_info_symbols = true;
-                    let resolver = DwarfResolver::open(path, debug_line_info, debug_info_symbols)?;
-
-                    names
-                        .iter()
-                        .map(|name| resolver.find_addr(name, &opts).ok().unwrap_or_default())
-                        .collect()
+                    let dwarf = DwarfResolver::open(path, debug_line_info, debug_info_symbols)?;
+                    let backend = ElfBackend::Dwarf(Rc::new(dwarf));
+                    backend
                 } else {
-                    let resolver = ElfResolver::new(path)?;
-                    names
-                        .iter()
-                        .map(|name| resolver.find_addr(name, &opts).unwrap_or_default())
-                        .collect()
+                    let elf = ElfParser::open(path)?;
+                    let backend = ElfBackend::Elf(Rc::new(elf));
+                    backend
                 };
 
-                Ok(symbols)
+                let resolver = ElfResolver::with_backend(path, 0, backend)?;
+                let syms = names
+                    .iter()
+                    .map(|name| resolver.find_addr(name, &opts).unwrap_or_default())
+                    .collect();
+
+                Ok(syms)
             }
         }
     }
