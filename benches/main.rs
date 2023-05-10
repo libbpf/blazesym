@@ -1,6 +1,5 @@
 #![allow(clippy::let_and_return, clippy::let_unit_value)]
 
-mod gsym;
 mod inspect;
 mod normalize;
 mod symbolize;
@@ -19,7 +18,6 @@ fn benchmark(c: &mut Criterion) {
     group.confidence_level(0.98);
     group.significance_level(0.02);
     inspect::benchmark(&mut group);
-    gsym::benchmark(&mut group);
     normalize::benchmark(&mut group);
     symbolize::benchmark(&mut group);
 }
