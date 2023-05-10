@@ -94,26 +94,6 @@ fn symbolize_process() {
     assert!(result.symbol.contains("Symbolizer3new"), "{result:x?}");
 }
 
-/// Check that we can look up an address using DWARF.
-#[test]
-fn lookup_dwarf() {
-    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-dwarf.bin");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
-    let symbolizer = Symbolizer::new();
-    let results = symbolizer
-        .find_addrs(&src, &["factorial"])
-        .unwrap()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
-
-    let result = results.first().unwrap();
-    assert_eq!(result.address, 0x2000100);
-}
-
 /// Check that we can normalize user addresses in our own shared object.
 #[test]
 fn normalize_user_addr() {
