@@ -2,6 +2,7 @@ use std::path::Path;
 
 use blazesym::c_api;
 use blazesym::symbolize::Elf;
+use blazesym::symbolize::Gsym;
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
@@ -49,6 +50,27 @@ fn symbolize_dwarf() {
     assert_eq!(result.symbol, "abort_creds");
 }
 
+/// Symbolize an address in a GSYM file, end-to-end, i.e., including all
+/// necessary setup.
+fn symbolize_gsym() {
+    let gsym_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("vmlinux-5.17.12-100.fc34.x86_64.gsym");
+    let src = Source::Gsym(Gsym::new(gsym_vmlinux));
+    let symbolizer = Symbolizer::new();
+
+    let results = symbolizer
+        .symbolize(&src, &[0xffffffff8110ecb0])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = results.first().unwrap();
+    assert_eq!(result.symbol, "abort_creds");
+}
+
 pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
 where
     M: Measurement,
@@ -59,6 +81,9 @@ where
     if cfg!(feature = "generate-bench-files") {
         group.bench_function(stringify!(symbolize::symbolize_dwarf), |b| {
             b.iter(symbolize_dwarf)
+        });
+        group.bench_function(stringify!(symbolize::symbolize_gsym), |b| {
+            b.iter(symbolize_gsym)
         });
     }
 }
