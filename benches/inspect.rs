@@ -7,8 +7,9 @@ use criterion::measurement::Measurement;
 use criterion::BenchmarkGroup;
 
 
-/// Lookup an address, end-to-end, i.e., including all necessary setup.
-fn lookup_end_to_end() {
+/// Lookup an address in a DWARF file, end-to-end, i.e., including all necessary
+/// setup.
+fn lookup_dwarf() {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64");
@@ -32,8 +33,6 @@ where
     M: Measurement,
 {
     if cfg!(feature = "generate-bench-files") {
-        group.bench_function(stringify!(dwarf::lookup_end_to_end), |b| {
-            b.iter(lookup_end_to_end)
-        });
+        group.bench_function(stringify!(inspect::lookup_dwarf), |b| b.iter(lookup_dwarf));
     }
 }
