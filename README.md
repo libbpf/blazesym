@@ -6,6 +6,8 @@
 
 # blazesym
 
+- [Changelog](CHANGELOG.md)
+
 **blazesym** is a library that can be used to symbolize addresses. Address
 symbolization is a common problem in tracing contexts, for example, where users
 want to reason about functions by name, but low level components report only the

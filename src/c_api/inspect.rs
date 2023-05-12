@@ -87,7 +87,7 @@ impl From<&blaze_inspect_elf_src> for Elf {
 
 /// The type of a symbol.
 #[repr(C)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
 pub enum blaze_sym_type {
     /// That type could not be determined (possibly because the source does not
     /// contains information about the type).
@@ -96,6 +96,16 @@ pub enum blaze_sym_type {
     BLAZE_SYM_FUNC,
     /// The symbol is a variable.
     BLAZE_SYM_VAR,
+}
+
+impl From<SymType> for blaze_sym_type {
+    fn from(other: SymType) -> Self {
+        match other {
+            SymType::Unknown => blaze_sym_type::BLAZE_SYM_UNKNOWN,
+            SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
+            SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
+        }
+    }
 }
 
 
@@ -128,8 +138,8 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
         }
     }
 
-    let array_sz = ((mem::size_of::<*const u64>() * syms_list.len() + mem::size_of::<u64>() - 1)
-        % mem::size_of::<u64>())
+    let array_sz = (mem::size_of::<*const u64>() * syms_list.len() + mem::size_of::<u64>() - 1)
+        / mem::size_of::<u64>()
         * mem::size_of::<u64>();
     let sym_buf_sz = mem::size_of::<blaze_sym_info>() * sym_cnt;
     let buf_size = array_sz + sym_buf_sz + str_buf_sz;
@@ -297,5 +307,126 @@ pub unsafe extern "C" fn blaze_inspector_free(inspector: *mut Inspector) {
         // SAFETY: The caller needs to ensure that `inspector` is a
         //         valid pointer.
         drop(unsafe { Box::from_raw(inspector) });
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use test_log::test;
+
+
+    /// Check that we can properly convert a "syms list" into the corresponding
+    /// C representation.
+    #[test]
+    fn syms_list_conversion() {
+        fn test(syms: Vec<Vec<SymInfo>>) {
+            let copy = syms.clone();
+            let ptr = convert_syms_list_to_c(syms);
+
+            for (i, list) in copy.into_iter().enumerate() {
+                for (j, sym) in list.into_iter().enumerate() {
+                    let c_sym = unsafe { &(*(*ptr.add(i)).add(j)) };
+                    assert_eq!(
+                        unsafe { CStr::from_ptr(c_sym.name) }.to_bytes(),
+                        CString::new(sym.name).unwrap().to_bytes()
+                    );
+                    assert_eq!(c_sym.address, sym.address);
+                    assert_eq!(c_sym.size, sym.size);
+                    assert_eq!(c_sym.sym_type, blaze_sym_type::from(sym.sym_type));
+                    assert_eq!(c_sym.file_offset, sym.file_offset);
+                    assert_eq!(
+                        unsafe { CStr::from_ptr(c_sym.obj_file_name) }.to_bytes(),
+                        CString::new(
+                            sym.obj_file_name
+                                .as_deref()
+                                .unwrap()
+                                .as_os_str()
+                                .to_os_string()
+                                .into_vec()
+                        )
+                        .unwrap()
+                        .to_bytes()
+                    );
+                }
+            }
+
+            let () = unsafe { blaze_inspect_syms_free(ptr) };
+        }
+
+        // Test conversion of no symbols.
+        let syms = vec![];
+        test(syms);
+
+        // Test conversion with a single symbol.
+        let syms = vec![vec![SymInfo {
+            name: "sym1".to_string(),
+            address: 0xdeadbeef,
+            size: 42,
+            sym_type: SymType::Function,
+            file_offset: 1337,
+            obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+        }]];
+        test(syms);
+
+        // Test conversion of two symbols in one result.
+        let syms = vec![vec![
+            SymInfo {
+                name: "sym1".to_string(),
+                address: 0xdeadbeef,
+                size: 42,
+                sym_type: SymType::Function,
+                file_offset: 1337,
+                obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+            },
+            SymInfo {
+                name: "sym2".to_string(),
+                address: 0xdeadbeef + 52,
+                size: 45,
+                sym_type: SymType::Unknown,
+                file_offset: 1338,
+                obj_file_name: Some(PathBuf::from("other.so")),
+            },
+        ]];
+        test(syms);
+
+        // Test conversion of two symbols spread over two results.
+        let syms = vec![
+            vec![SymInfo {
+                name: "sym1".to_string(),
+                address: 0xdeadbeef,
+                size: 42,
+                sym_type: SymType::Function,
+                file_offset: 1337,
+                obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+            }],
+            vec![SymInfo {
+                name: "sym2".to_string(),
+                address: 0xdeadbeef + 52,
+                size: 45,
+                sym_type: SymType::Unknown,
+                file_offset: 1338,
+                obj_file_name: Some(PathBuf::from("other.so")),
+            }],
+        ];
+        test(syms);
+
+        // Test conversion of a `SymInfo` vector with many elements.
+        let sym = SymInfo {
+            name: "sym1".to_string(),
+            address: 0xdeadbeef,
+            size: 42,
+            sym_type: SymType::Function,
+            file_offset: 1337,
+            obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+        };
+        let syms = vec![(0..200).map(|_| sym.clone()).collect()];
+        test(syms);
+
+        // Test conversion of many `SymInfo` vectors.
+        let syms = (0..200).map(|_| vec![sym.clone()]).collect();
+        test(syms);
     }
 }
