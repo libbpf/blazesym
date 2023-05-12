@@ -19,7 +19,7 @@ keywords = [
   "dwarf",
   "elf",
   "gsym",
-  "symbolization",
+  "stacktrace",
   "tracing",
 ]
 exclude = ["data/dwarf-example", "data/kallsyms.xz"]
