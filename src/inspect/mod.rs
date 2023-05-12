@@ -40,7 +40,7 @@ pub enum SymType {
 
 
 /// Information about a symbol.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct SymInfo {
     /// The name of the symbol; for example, a function name.
     pub name: String,
