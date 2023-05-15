@@ -38,36 +38,13 @@ pub struct blaze_symbolize_src_elf {
     /// passing "/lib/libc.so.xxx" will load symbols and debug information from
     /// libc.
     pub path: *const c_char,
-    /// The base address is where the file's executable segment(s) is loaded.
-    ///
-    /// It should be the address
-    /// in the process mapping to the executable segment's first byte.
-    /// For example, in /proc/&lt;pid&gt;/maps
-    ///
-    /// ```text
-    ///     7fe1b2dc4000-7fe1b2f80000 r-xp 00000000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    ///     7fe1b2f80000-7fe1b3180000 ---p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    ///     7fe1b3180000-7fe1b3184000 r--p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    ///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    /// ```
-    ///
-    /// It reveals that the executable segment of libc-2.28.so was
-    /// loaded at 0x7fe1b2dc4000.  This base address is used to
-    /// translate an address in the segment to the corresponding
-    /// address in the ELF file.
-    ///
-    /// A loader would load an executable segment with the permission of `x`
-    /// (executable).  For example, the first block is with the
-    /// permission of `r-xp`.
-    pub base_address: Addr,
 }
 
 impl From<&blaze_symbolize_src_elf> for Elf {
     fn from(elf: &blaze_symbolize_src_elf) -> Self {
-        let blaze_symbolize_src_elf { path, base_address } = elf;
+        let blaze_symbolize_src_elf { path } = elf;
         Self {
             path: unsafe { from_cstr(*path) },
-            base_address: *base_address,
             _non_exhaustive: (),
         }
     }
@@ -143,16 +120,13 @@ impl From<&blaze_symbolize_src_process> for Process {
 pub struct blaze_symbolize_src_gsym {
     /// The path to a gsym file.
     pub path: *const c_char,
-    /// The base address is where the file's executable segment(s) is loaded.
-    pub base_address: Addr,
 }
 
 impl From<&blaze_symbolize_src_gsym> for Gsym {
     fn from(gsym: &blaze_symbolize_src_gsym) -> Self {
-        let blaze_symbolize_src_gsym { path, base_address } = gsym;
+        let blaze_symbolize_src_gsym { path } = gsym;
         Self {
             path: unsafe { from_cstr(*path) },
-            base_address: *base_address,
             _non_exhaustive: (),
         }
     }
