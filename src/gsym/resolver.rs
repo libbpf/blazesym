@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::Error;
-use std::io::ErrorKind;
 use std::io::Read as _;
 use std::mem;
 use std::path::Path;
@@ -29,7 +28,6 @@ pub struct GsymResolver {
     ctx: GsymContext<'static>,
     _data: Vec<u8>,
     loaded_address: Addr,
-    range: (Addr, Addr),
 }
 
 impl GsymResolver {
@@ -38,12 +36,6 @@ impl GsymResolver {
         let mut data = vec![];
         fo.read_to_end(&mut data)?;
         let ctx = GsymContext::parse_header(&data)?;
-        let range = ctx.address_range().ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidData,
-                "failed to determine gsym resolver address range",
-            )
-        })?;
 
         Ok(GsymResolver {
             file_name,
@@ -53,19 +45,11 @@ impl GsymResolver {
             ctx: unsafe { mem::transmute(ctx) },
             _data: data,
             loaded_address,
-            range,
         })
     }
 }
 
 impl SymResolver for GsymResolver {
-    fn get_address_range(&self) -> (Addr, Addr) {
-        (
-            self.loaded_address + self.range.0,
-            self.loaded_address + self.range.1,
-        )
-    }
-
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         fn find_addr_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
             let addr = addr.checked_sub(gsym.loaded_address)?;

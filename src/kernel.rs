@@ -42,10 +42,6 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn get_address_range(&self) -> (Addr, Addr) {
-        (0xffffffff80000000, 0xffffffffffffffff)
-    }
-
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
             ksym_resolver.find_symbols(addr)

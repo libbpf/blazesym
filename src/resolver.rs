@@ -15,8 +15,6 @@ pub(crate) trait SymResolver
 where
     Self: Debug,
 {
-    /// Return the range that this resolver serves in an address space.
-    fn get_address_range(&self) -> (Addr, Addr);
     /// Find the names and the start addresses of a symbol found for
     /// the given address.
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)>;
