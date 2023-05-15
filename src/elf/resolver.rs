@@ -36,7 +36,6 @@ pub struct ElfResolver {
     loaded_address: Addr,
     loaded_to_virt: Addr,
     foff_to_virt: usize,
-    size: usize,
     file_name: PathBuf,
 }
 
@@ -86,14 +85,12 @@ impl ElfResolver {
         };
         let loaded_to_virt = low_addr;
         let foff_to_virt = low_addr - low_off;
-        let size = max_addr - low_addr;
 
         Ok(ElfResolver {
             backend,
             loaded_address,
             loaded_to_virt: loaded_to_virt as Addr,
             foff_to_virt: foff_to_virt as usize,
-            size: size as usize,
             file_name: file_name.to_path_buf(),
         })
     }
@@ -107,10 +104,6 @@ impl ElfResolver {
 }
 
 impl SymResolver for ElfResolver {
-    fn get_address_range(&self) -> (Addr, Addr) {
-        (self.loaded_address, self.loaded_address + self.size)
-    }
-
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         let parser = self.get_parser();
 

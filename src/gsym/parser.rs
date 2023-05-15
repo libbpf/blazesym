@@ -150,11 +150,6 @@ impl GsymContext<'_> {
         })?
     }
 
-    #[inline]
-    fn num_addresses(&self) -> usize {
-        self.header.num_addrs as usize
-    }
-
     /// Find the index of an entry in the address table potentially containing the
     /// given address.
     ///
@@ -206,18 +201,6 @@ impl GsymContext<'_> {
         let info = AddrInfo { size, name, data };
 
         Some(info)
-    }
-
-    /// Retrieve the [start, end] address range
-    pub fn address_range(&self) -> Option<(Addr, Addr)> {
-        let len = self.num_addresses();
-        if len == 0 {
-            return Some((0, 0))
-        }
-
-        let start = self.addr_at(0)?;
-        let end = self.addr_at(len - 1)? + self.addr_info(len - 1)?.size as Addr;
-        Some((start, end))
     }
 
     /// Get the string at the given offset from the String Table.

@@ -126,10 +126,6 @@ impl KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn get_address_range(&self) -> (Addr, Addr) {
-        (0xffffffff80000000, 0xffffffffffffffff)
-    }
-
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         self.find_addresses_ksym(addr)
             .map(|sym| (sym.name.as_str(), sym.addr))
