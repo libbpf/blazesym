@@ -57,7 +57,7 @@ impl Inspector {
                     backend
                 };
 
-                let resolver = ElfResolver::with_backend(path, 0, backend)?;
+                let resolver = ElfResolver::with_backend(path, backend)?;
                 let syms = names
                     .iter()
                     .map(|name| {
