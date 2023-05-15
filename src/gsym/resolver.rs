@@ -180,12 +180,14 @@ mod tests {
             .join("test.gsym");
         let resolver = GsymResolver::new(test_gsym).unwrap();
 
-        // `main` resides at address 0x2000000, and it's located at line 20.
+        // `main` resides at address 0x2000000, and it's located at the given
+        // line.
         let info = resolver.find_line_info(0x2000000).unwrap();
-        assert_eq!(info.line, 20);
+        assert_eq!(info.line, 34);
         assert!(info.path.ends_with("test-stable-addresses.c"));
 
-        // `factorial` resides at address 0x2000100, and it's located at line 8.
+        // `factorial` resides at address 0x2000100, and it's located at the
+        // given line.
         let info = resolver.find_line_info(0x2000100).unwrap();
         assert_eq!(info.line, 8);
         assert!(info.path.ends_with("test-stable-addresses.c"));

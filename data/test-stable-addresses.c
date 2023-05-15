@@ -6,19 +6,34 @@ extern void foo(void);
 
 __attribute__((section(".text.factorial"))) unsigned int
 factorial(unsigned int n) {
-	if (n == 0)
-		return 1;
-	return factorial(n - 1) * n;
+  if (n == 0)
+    return 1;
+  return factorial(n - 1) * n;
 }
 
 __attribute__((noinline)) static void
 factorial_wrapper() {
-	factorial(5);
+  factorial(5);
 }
+
+// A dummy function that should not actually be called. It just contains a bunch
+// of signature bytes that we use for offset verification later on.
+asm(
+  ".globl dummy\n"
+  ".type dummy, @function\n"
+  "dummy:\n"
+  ".byte 0xde\n"
+  ".byte 0xad\n"
+  ".byte 0xbe\n"
+  ".byte 0xef\n"
+);
+
+extern void dummy(void);
 
 __attribute__((section(".text.main"))) int
 main(int argc, const char *argv[]) {
-	factorial_wrapper();
-	foo();
-	return 0;
+  factorial_wrapper();
+  foo();
+  dummy();
+  return 0;
 }

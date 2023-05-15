@@ -139,9 +139,23 @@ impl SymResolver for ElfResolver {
         }
     }
 
+    /// Find the file offset of the symbol at address `addr`.
+    // TODO: See if we could make this a constant time calculation by supplying
+    //       the ELF symbol index (and potentially an offset from it) [this will
+    //       require a bit of a larger rework, including on call sites].
     fn addr_file_off(&self, addr: Addr) -> Option<u64> {
-        let offset = addr - self.loaded_address + self.loaded_to_virt - self.foff_to_virt;
-        Some(offset as u64)
+        let addr = addr as u64;
+        let parser = self.get_parser();
+        let phdrs = parser.program_headers().ok()?;
+        let offset = phdrs.iter().find_map(|phdr| {
+            if phdr.p_type == PT_LOAD {
+                if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
+                    return Some(addr - phdr.p_vaddr + phdr.p_offset)
+                }
+            }
+            None
+        })?;
+        Some(offset)
     }
 
     fn get_obj_file_name(&self) -> &Path {
@@ -155,5 +169,30 @@ impl Debug for ElfResolver {
             ElfBackend::Dwarf(_) => write!(f, "DWARF {}", self.file_name.display()),
             ElfBackend::Elf(_) => write!(f, "ELF {}", self.file_name.display()),
         }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::path::Path;
+    use std::rc::Rc;
+
+
+    /// Check that we fail finding an offset for an address not
+    /// representing a symbol in an ELF file.
+    #[test]
+    fn addr_without_offset() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-dwarf.bin");
+        let elf = ElfParser::open(&path).unwrap();
+        let backend = ElfBackend::Elf(Rc::new(elf));
+        let resolver = ElfResolver::with_backend(&path, backend).unwrap();
+
+        assert_eq!(resolver.addr_file_off(0x0), None);
+        assert_eq!(resolver.addr_file_off(0xffffffffffffffff), None);
     }
 }
