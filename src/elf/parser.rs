@@ -375,13 +375,6 @@ impl ElfParser {
         }
     }
 
-    pub fn file_type(&self) -> Result<u16, Error> {
-        let mut cache = self.cache.borrow_mut();
-        let ehdr = cache.ensure_ehdr()?;
-
-        Ok(ehdr.e_type)
-    }
-
     /// Retrieve the data corresponding to the ELF section at index `idx`.
     pub fn section_data(&self, idx: usize) -> Result<&[u8], Error> {
         let mut cache = self.cache.borrow_mut();

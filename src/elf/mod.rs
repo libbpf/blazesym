@@ -1,7 +1,7 @@
 mod cache;
 mod parser;
 mod resolver;
-#[allow(non_camel_case_types)]
+#[allow(dead_code, non_camel_case_types)]
 pub(crate) mod types;
 
 pub(crate) use cache::ElfBackend;
