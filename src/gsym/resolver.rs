@@ -27,11 +27,10 @@ pub struct GsymResolver {
     file_name: PathBuf,
     ctx: GsymContext<'static>,
     _data: Vec<u8>,
-    loaded_address: Addr,
 }
 
 impl GsymResolver {
-    pub fn new(file_name: PathBuf, loaded_address: Addr) -> Result<GsymResolver, Error> {
+    pub fn new(file_name: PathBuf) -> Result<GsymResolver, Error> {
         let mut fo = File::open(&file_name)?;
         let mut data = vec![];
         fo.read_to_end(&mut data)?;
@@ -44,7 +43,6 @@ impl GsymResolver {
             // lifetime of ctx.
             ctx: unsafe { mem::transmute(ctx) },
             _data: data,
-            loaded_address,
         })
     }
 }
@@ -52,7 +50,6 @@ impl GsymResolver {
 impl SymResolver for GsymResolver {
     fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
         fn find_addr_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
-            let addr = addr.checked_sub(gsym.loaded_address)?;
             let idx = gsym.ctx.find_addr(addr)?;
 
             let found = gsym.ctx.addr_at(idx)?;
@@ -63,7 +60,7 @@ impl SymResolver for GsymResolver {
             let info = gsym.ctx.addr_info(idx)?;
             let name = gsym.ctx.get_str(info.name as usize)?;
 
-            Some(vec![(name, found + gsym.loaded_address)])
+            Some(vec![(name, found)])
         }
 
         find_addr_impl(self, addr).unwrap_or_default()
@@ -90,7 +87,6 @@ impl SymResolver for GsymResolver {
     ///
     /// The `AddrLineInfo` corresponding to the address or `None`.
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
-        let addr = addr.checked_sub(self.loaded_address)?;
         let idx = self.ctx.find_addr(addr)?;
         let symaddr = self.ctx.addr_at(idx)?;
         if addr < symaddr {
@@ -182,7 +178,7 @@ mod tests {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.gsym");
-        let resolver = GsymResolver::new(test_gsym, 0).unwrap();
+        let resolver = GsymResolver::new(test_gsym).unwrap();
 
         // `main` resides at address 0x2000000, and it's located at line 20.
         let info = resolver.find_line_info(0x2000000).unwrap();
