@@ -318,11 +318,10 @@ impl Symbolizer {
         match src {
             Source::Elf(Elf {
                 path,
-                base_address,
                 _non_exhaustive: (),
             }) => {
                 let backend = self.elf_cache.find(path)?;
-                let resolver = ElfResolver::with_backend(path, *base_address, backend)?;
+                let resolver = ElfResolver::with_backend(path, 0, backend)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }
@@ -333,10 +332,9 @@ impl Symbolizer {
             }) => self.symbolize_user_addrs(addrs, *pid),
             Source::Gsym(Gsym {
                 path,
-                base_address,
                 _non_exhaustive: (),
             }) => {
-                let resolver = GsymResolver::new(path.clone(), *base_address)?;
+                let resolver = GsymResolver::new(path.clone(), 0)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }

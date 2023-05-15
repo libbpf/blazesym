@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use crate::Addr;
 use crate::Pid;
 
 #[cfg(doc)]
@@ -16,27 +15,6 @@ pub struct Elf {
     /// For example, passing `"/bin/sh"` will load symbols and debug information from `sh`.
     /// Whereas passing `"/lib/libc.so.xxx"` will load symbols and debug information from the libc.
     pub path: PathBuf,
-    /// The address where the executable segment loaded.
-    ///
-    /// The address in the process should be the executable segment's
-    /// first byte.  For example, in `/proc/<pid>/maps`.
-    ///
-    /// ```text
-    ///     7fe1b2dc4000-7fe1b2f80000 r-xp 00000000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    ///     7fe1b2f80000-7fe1b3180000 ---p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    ///     7fe1b3180000-7fe1b3184000 r--p 001bc000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    ///     7fe1b3184000-7fe1b3186000 rw-p 001c0000 00:1d 71695032                   /usr/lib64/libc-2.28.so
-    /// ```
-    ///
-    /// It reveals that the executable segment of libc-2.28.so was
-    /// loaded at 0x7fe1b2dc4000.  This base address is used to
-    /// translate an address in the segment to the corresponding
-    /// address in the ELF file.
-    ///
-    /// A loader would load an executable segment with the permission of
-    /// `x`.  For example, the first block is with the permission of
-    /// `r-xp`.
-    pub base_address: Addr,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub(crate) _non_exhaustive: (),
@@ -47,7 +25,6 @@ impl Elf {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
-            base_address: 0,
             _non_exhaustive: (),
         }
     }
@@ -126,8 +103,6 @@ impl From<Process> for Source {
 pub struct Gsym {
     /// The path to the gsym file.
     pub path: PathBuf,
-    /// The base address.
-    pub base_address: Addr,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub(crate) _non_exhaustive: (),
@@ -138,7 +113,6 @@ impl Gsym {
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
-            base_address: 0,
             _non_exhaustive: (),
         }
     }

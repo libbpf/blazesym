@@ -120,10 +120,7 @@ fn normalize_user_addr() {
         let meta = &norm_addrs.meta[norm_addr.1];
         assert_eq!(meta.binary().unwrap().path, test_so);
 
-        let mut elf = symbolize::Elf::new(test_so);
-        // TODO: Fix our symbolizer. Base address should be 0.
-        elf.base_address = 0x1000;
-
+        let elf = symbolize::Elf::new(test_so);
         let src = symbolize::Source::Elf(elf);
         let symbolizer = Symbolizer::new();
         let results = symbolizer
