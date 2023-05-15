@@ -1,6 +1,7 @@
 #![allow(clippy::let_and_return, clippy::let_unit_value)]
 
 use std::ffi::CString;
+use std::fs::read as read_file;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::os::unix::ffi::OsStringExt as _;
@@ -176,4 +177,38 @@ fn inspect() {
     elf.debug_info = false;
     let src = inspect::Source::Elf(elf);
     let () = test(src);
+}
+
+
+/// Read four bytes at the given `offset` in the file identified by `path`.
+fn read_4bytes_at(path: &Path, offset: u64) -> [u8; 4] {
+    let offset = offset as usize;
+    let content = read_file(path).unwrap();
+    let slice = &content[offset..offset + 4];
+    <[u8; 4]>::try_from(slice).unwrap()
+}
+
+
+/// Check that we can correctly retrieve the file offset in an ELF file.
+#[test]
+fn inspect_file_offset_elf() {
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-no-dwarf.bin");
+    let elf = inspect::Elf::new(test_elf);
+    let src = inspect::Source::Elf(elf);
+
+    let inspector = Inspector::new();
+    let results = inspector
+        .lookup(&["dummy"], &src)
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = results.first().unwrap();
+    assert_ne!(result.file_offset, 0);
+    let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset);
+    assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);
 }
