@@ -40,11 +40,7 @@ pub struct ElfResolver {
 }
 
 impl ElfResolver {
-    pub(crate) fn with_backend(
-        file_name: &Path,
-        loaded_address: Addr,
-        backend: ElfBackend,
-    ) -> Result<ElfResolver> {
+    pub(crate) fn with_backend(file_name: &Path, backend: ElfBackend) -> Result<ElfResolver> {
         let parser = match &backend {
             ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
             ElfBackend::Elf(parser) => parser,
@@ -81,7 +77,7 @@ impl ElfResolver {
         let loaded_address = if e_type == ET_EXEC {
             low_addr as Addr
         } else {
-            loaded_address
+            0
         };
         let loaded_to_virt = low_addr;
         let foff_to_virt = low_addr - low_off;

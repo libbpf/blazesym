@@ -196,7 +196,7 @@ impl Symbolizer {
 
     fn resolve_addr_in_binary(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
         let backend = self.elf_cache.find(path)?;
-        let resolver = ElfResolver::with_backend(path, 0, backend)?;
+        let resolver = ElfResolver::with_backend(path, backend)?;
         let symbols = self.symbolize_with_resolver(addr, &resolver);
         Ok(symbols)
     }
@@ -268,7 +268,7 @@ impl Symbolizer {
 
         let elf_resolver = if let Some(image) = kernel_image {
             let backend = self.elf_cache.find(image)?;
-            let elf_resolver = ElfResolver::with_backend(image, 0, backend)?;
+            let elf_resolver = ElfResolver::with_backend(image, backend)?;
             Some(elf_resolver)
         } else {
             let release = uname_release()?.to_str().unwrap().to_string();
@@ -283,7 +283,7 @@ impl Symbolizer {
                 let result = self.elf_cache.find(&image);
                 match result {
                     Ok(backend) => {
-                        let result = ElfResolver::with_backend(&image, 0, backend);
+                        let result = ElfResolver::with_backend(&image, backend);
                         match result {
                             Ok(resolver) => Some(resolver),
                             Err(err) => {
@@ -321,7 +321,7 @@ impl Symbolizer {
                 _non_exhaustive: (),
             }) => {
                 let backend = self.elf_cache.find(path)?;
-                let resolver = ElfResolver::with_backend(path, 0, backend)?;
+                let resolver = ElfResolver::with_backend(path, backend)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }
