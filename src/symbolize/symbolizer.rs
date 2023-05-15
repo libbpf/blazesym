@@ -334,7 +334,7 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let resolver = GsymResolver::new(path.clone(), 0)?;
+                let resolver = GsymResolver::new(path.clone())?;
                 let symbols = self.symbolize_addrs(addrs, &resolver);
                 Ok(symbols)
             }
