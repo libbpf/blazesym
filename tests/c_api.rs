@@ -249,7 +249,7 @@ fn lookup_dwarf() {
         unsafe { CStr::from_ptr(sym_info.name) },
         CStr::from_bytes_with_nul(b"factorial\0").unwrap()
     );
-    assert_eq!(sym_info.address, 0x2000100);
+    assert_eq!(sym_info.addr, 0x2000100);
 
     let () = unsafe { blaze_inspect_syms_free(result) };
     let () = unsafe { blaze_inspector_free(inspector) };

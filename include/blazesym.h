@@ -71,7 +71,7 @@ typedef struct blaze_symbolizer blaze_symbolizer;
  */
 typedef struct blaze_sym_info {
   const char *name;
-  uintptr_t address;
+  uintptr_t addr;
   size_t size;
   uint64_t file_offset;
   const char *obj_file_name;

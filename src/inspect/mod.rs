@@ -44,8 +44,8 @@ pub enum SymType {
 pub struct SymInfo {
     /// The name of the symbol; for example, a function name.
     pub name: String,
-    /// Start address (the first byte) of the symbol
-    pub address: Addr,
+    /// Start address (the first byte) of the symbol.
+    pub addr: Addr,
     /// The size of the symbol. The size of a function for example.
     pub size: usize,
     /// A function or a variable.

@@ -406,14 +406,14 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_symbol(&self, address: Addr, st_type: u8) -> Result<(&str, Addr), Error> {
+    pub fn find_symbol(&self, addr: Addr, st_type: u8) -> Result<(&str, Addr), Error> {
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
         //         available.
         let symtab = cache.symtab.as_ref().unwrap();
 
-        let idx_r = search_address_opt_key(symtab, address, &|sym: &&Elf64_Sym| {
+        let idx_r = search_address_opt_key(symtab, addr, &|sym: &&Elf64_Sym| {
             if sym.st_info & 0xf != st_type || sym.st_shndx == SHN_UNDEF {
                 None
             } else {
@@ -465,7 +465,7 @@ impl ElfParser {
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymInfo {
                             name: name.to_string(),
-                            address: sym_ref.st_value as Addr,
+                            addr: sym_ref.st_value as Addr,
                             size: sym_ref.st_size as usize,
                             sym_type: SymType::Function,
                             file_offset: 0,
@@ -571,7 +571,7 @@ mod tests {
         let opts = FindAddrOpts::default();
         let addr_r = parser.find_addr(sym_name, &opts).unwrap();
         assert_eq!(addr_r.len(), 1);
-        assert!(addr_r.iter().any(|x| x.address == addr));
+        assert!(addr_r.iter().any(|x| x.addr == addr));
     }
 
     /// Make sure that we can look up a symbol in an ELF file.
@@ -587,12 +587,12 @@ mod tests {
         assert_eq!(syms.len(), 1);
         let sym = &syms[0];
         assert_eq!(sym.name, "factorial");
-        assert_eq!(sym.address, 0x2000100);
+        assert_eq!(sym.addr, 0x2000100);
 
         let syms = parser.find_addr("factorial_wrapper", &opts).unwrap();
         assert_eq!(syms.len(), 2);
         assert_eq!(syms[0].name, "factorial_wrapper");
         assert_eq!(syms[1].name, "factorial_wrapper");
-        assert_ne!(syms[0].address, syms[1].address);
+        assert_ne!(syms[0].addr, syms[1].addr);
     }
 }

@@ -114,7 +114,7 @@ impl From<SymType> for blaze_sym_type {
 #[derive(Debug)]
 pub struct blaze_sym_info {
     pub name: *const c_char,
-    pub address: Addr,
+    pub addr: Addr,
     pub size: usize,
     pub file_offset: u64,
     pub obj_file_name: *const c_char,
@@ -157,7 +157,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
         unsafe { *syms_ptr = sym_ptr };
         for SymInfo {
             name,
-            address,
+            addr,
             size,
             sym_type,
             file_offset,
@@ -184,7 +184,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
             unsafe {
                 (*sym_ptr) = blaze_sym_info {
                     name: name_ptr,
-                    address,
+                    addr,
                     size,
                     sym_type: match sym_type {
                         SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
@@ -200,7 +200,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
         unsafe {
             (*sym_ptr) = blaze_sym_info {
                 name: ptr::null(),
-                address: 0,
+                addr: 0,
                 size: 0,
                 sym_type: blaze_sym_type::BLAZE_SYM_UNKNOWN,
                 file_offset: 0,
@@ -333,7 +333,7 @@ mod tests {
                         unsafe { CStr::from_ptr(c_sym.name) }.to_bytes(),
                         CString::new(sym.name).unwrap().to_bytes()
                     );
-                    assert_eq!(c_sym.address, sym.address);
+                    assert_eq!(c_sym.addr, sym.addr);
                     assert_eq!(c_sym.size, sym.size);
                     assert_eq!(c_sym.sym_type, blaze_sym_type::from(sym.sym_type));
                     assert_eq!(c_sym.file_offset, sym.file_offset);
@@ -363,7 +363,7 @@ mod tests {
         // Test conversion with a single symbol.
         let syms = vec![vec![SymInfo {
             name: "sym1".to_string(),
-            address: 0xdeadbeef,
+            addr: 0xdeadbeef,
             size: 42,
             sym_type: SymType::Function,
             file_offset: 1337,
@@ -375,7 +375,7 @@ mod tests {
         let syms = vec![vec![
             SymInfo {
                 name: "sym1".to_string(),
-                address: 0xdeadbeef,
+                addr: 0xdeadbeef,
                 size: 42,
                 sym_type: SymType::Function,
                 file_offset: 1337,
@@ -383,7 +383,7 @@ mod tests {
             },
             SymInfo {
                 name: "sym2".to_string(),
-                address: 0xdeadbeef + 52,
+                addr: 0xdeadbeef + 52,
                 size: 45,
                 sym_type: SymType::Unknown,
                 file_offset: 1338,
@@ -396,7 +396,7 @@ mod tests {
         let syms = vec![
             vec![SymInfo {
                 name: "sym1".to_string(),
-                address: 0xdeadbeef,
+                addr: 0xdeadbeef,
                 size: 42,
                 sym_type: SymType::Function,
                 file_offset: 1337,
@@ -404,7 +404,7 @@ mod tests {
             }],
             vec![SymInfo {
                 name: "sym2".to_string(),
-                address: 0xdeadbeef + 52,
+                addr: 0xdeadbeef + 52,
                 size: 45,
                 sym_type: SymType::Unknown,
                 file_offset: 1338,
@@ -416,7 +416,7 @@ mod tests {
         // Test conversion of a `SymInfo` vector with many elements.
         let sym = SymInfo {
             name: "sym1".to_string(),
-            address: 0xdeadbeef,
+            addr: 0xdeadbeef,
             size: 42,
             sym_type: SymType::Function,
             file_offset: 1337,

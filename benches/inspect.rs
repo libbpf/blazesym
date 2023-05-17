@@ -25,7 +25,7 @@ fn lookup_dwarf() {
     assert_eq!(results.len(), 1);
 
     let result = results.first().unwrap();
-    assert_eq!(result.address, 0xffffffff8110ecb0);
+    assert_eq!(result.addr, 0xffffffff8110ecb0);
 }
 
 pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
