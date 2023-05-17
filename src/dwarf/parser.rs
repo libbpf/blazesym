@@ -94,8 +94,8 @@ pub(crate) struct DebugLineCU {
 }
 
 impl DebugLineCU {
-    pub(crate) fn find_line(&self, address: Addr) -> Option<(&Path, &OsStr, usize)> {
-        let idx = find_match_or_lower_bound_by(&self.matrix, address, |dls| dls.address)?;
+    pub(crate) fn find_line(&self, addr: Addr) -> Option<(&Path, &OsStr, usize)> {
+        let idx = find_match_or_lower_bound_by(&self.matrix, addr, |dls| dls.addr)?;
         let states = &self.matrix[idx];
         if states.end_sequence {
             // This is the first byte after the last instruction
@@ -255,7 +255,7 @@ fn parse_debug_line_cu(data: &mut &[u8], addresses: &[Addr]) -> Result<DebugLine
 
     #[cfg(debug_assertions)]
     for i in 1..matrix.len() {
-        if matrix[i].address < matrix[i - 1].address && !matrix[i - 1].end_sequence {
+        if matrix[i].addr < matrix[i - 1].addr && !matrix[i - 1].end_sequence {
             panic!(
                 "Not in ascending order @ [{}] {:?} [{}] {:?}",
                 i - 1,
@@ -277,7 +277,7 @@ fn parse_debug_line_cu(data: &mut &[u8], addresses: &[Addr]) -> Result<DebugLine
 
 #[derive(Clone, Debug)]
 pub(crate) struct DebugLineStates {
-    pub address: Addr,
+    pub addr: Addr,
     file: usize,
     line: usize,
     column: usize,
@@ -292,7 +292,7 @@ pub(crate) struct DebugLineStates {
 impl DebugLineStates {
     fn new(prologue: &DebugLinePrologue) -> DebugLineStates {
         DebugLineStates {
-            address: 0,
+            addr: 0,
             file: 1,
             line: 1,
             column: 0,
@@ -306,7 +306,7 @@ impl DebugLineStates {
     }
 
     fn reset(&mut self, prologue: &DebugLinePrologue) {
-        self.address = 0;
+        self.addr = 0;
         self.file = 1;
         self.line = 1;
         self.column = 0;
@@ -372,13 +372,13 @@ fn run_debug_line_stmt(
                     }
                     DW_LINE_SET_ADDRESS => match insn_size - 1 {
                         4 => {
-                            let address = decode_uword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-                            states.address = address as Addr;
+                            let addr = decode_uword(&stmts[(ip + 1 + bytes as usize + 1)..]);
+                            states.addr = addr as Addr;
                             Ok((1 + bytes as usize + insn_size as usize, false))
                         }
                         8 => {
-                            let address = decode_udword(&stmts[(ip + 1 + bytes as usize + 1)..]);
-                            states.address = address as Addr;
+                            let addr = decode_udword(&stmts[(ip + 1 + bytes as usize + 1)..]);
+                            states.addr = addr as Addr;
                             Ok((1 + bytes as usize + insn_size as usize, false))
                         }
                         _ => Err(Error::new(
@@ -427,7 +427,7 @@ fn run_debug_line_stmt(
         DW_LNS_COPY => Ok((1, true)),
         DW_LNS_ADVANCE_PC => {
             if let Some((adv, bytes)) = decode_leb128(&stmts[(ip + 1)..]) {
-                states.address += (adv * u64::from(prologue.minimum_instruction_length)) as Addr;
+                states.addr += (adv * u64::from(prologue.minimum_instruction_length)) as Addr;
                 Ok((1 + bytes as usize, false))
             } else {
                 Err(Error::new(
@@ -479,13 +479,13 @@ fn run_debug_line_stmt(
         }
         DW_LNS_CONST_ADD_PC => {
             let addr_adv = (255 - opcode_base) / prologue.line_range;
-            states.address += Addr::from(addr_adv * prologue.minimum_instruction_length);
+            states.addr += Addr::from(addr_adv * prologue.minimum_instruction_length);
             Ok((1, false))
         }
         DW_LNS_FIXED_ADVANCE_PC => {
             if (ip + 3) < stmts.len() {
                 let addr_adv = decode_uhalf(&stmts[(ip + 1)..]);
-                states.address +=
+                states.addr +=
                     Addr::from(addr_adv * u16::from(prologue.minimum_instruction_length));
                 Ok((1, false))
             } else {
@@ -509,7 +509,7 @@ fn run_debug_line_stmt(
             })?;
             let desired_line_incr = opcode_offset % prologue.line_range;
             let addr_adv = opcode_offset / prologue.line_range;
-            states.address += Addr::from(addr_adv * prologue.minimum_instruction_length);
+            states.addr += Addr::from(addr_adv * prologue.minimum_instruction_length);
             states.line = (states.line as i64
                 + (desired_line_incr as i16 + prologue.line_base as i16) as i64
                     * prologue.minimum_instruction_length as i64)
@@ -537,7 +537,7 @@ fn run_debug_line_stmts(
             Ok((sz, emit)) => {
                 ip += sz;
                 if emit {
-                    if states_cur.address == 0 {
+                    if states_cur.addr == 0 {
                         // This is a special case. Somehow, rust
                         // compiler generate debug_line for some
                         // builtin code starting from 0.  And, it
@@ -548,13 +548,13 @@ fn run_debug_line_stmts(
                         if !addresses.is_empty() {
                             let mut pushed = false;
                             for addr in addresses {
-                                if *addr == states_cur.address
-                                    || (states_last.address != 0
+                                if *addr == states_cur.addr
+                                    || (states_last.addr != 0
                                         && !states_last.end_sequence
-                                        && *addr < states_cur.address
-                                        && *addr > states_last.address)
+                                        && *addr < states_cur.addr
+                                        && *addr > states_last.addr)
                                 {
-                                    if !last_ip_pushed && *addr != states_cur.address {
+                                    if !last_ip_pushed && *addr != states_cur.addr {
                                         // The address falls between current and last emitted row.
                                         matrix.push(states_last.clone());
                                     }
@@ -568,7 +568,7 @@ fn run_debug_line_stmts(
                         } else {
                             matrix.push(states_cur.clone());
                         }
-                        if states_last.address > states_cur.address {
+                        if states_last.addr > states_cur.addr {
                             should_sort = true;
                         }
                     }
@@ -583,7 +583,7 @@ fn run_debug_line_stmts(
     }
 
     if should_sort {
-        matrix.sort_by_key(|x| x.address);
+        matrix.sort_by_key(|x| x.addr);
     }
 
     Ok(matrix)
@@ -620,7 +620,7 @@ pub(crate) fn parse_debug_line_elf_parser(
                 // Remove addresses found in this CU from not_found.
                 while i < not_found.len() {
                     let addr = addresses[i];
-                    if addr == row.address || (addr < row.address && addr > last_row.address) {
+                    if addr == row.addr || (addr < row.addr && addr > last_row.addr) {
                         not_found.remove(i);
                     } else {
                         i += 1;
@@ -654,7 +654,7 @@ pub(crate) fn parse_debug_line_elf_parser(
 #[derive(Clone, Debug)]
 pub(crate) struct DWSymInfo<'a> {
     pub name: &'a str,
-    pub address: Addr,
+    pub addr: Addr,
     pub size: usize,
     pub sym_type: SymType, // A function or a variable.
 }
@@ -744,9 +744,9 @@ fn parse_die_subprogram<'a>(
     }
 
     match (addr, name_str) {
-        (Some(address), Some(name)) => Ok(Some(DWSymInfo {
+        (Some(addr), Some(name)) => Ok(Some(DWSymInfo {
             name,
-            address,
+            addr,
             size: size as usize,
             sym_type: SymType::Function,
         })),
@@ -983,11 +983,11 @@ mod tests {
         let matrix = result.unwrap();
         assert_eq!(matrix.len(), 3);
         assert_eq!(matrix[0].line, 545);
-        assert_eq!(matrix[0].address, 0x18b30);
+        assert_eq!(matrix[0].addr, 0x18b30);
         assert_eq!(matrix[1].line, 547);
-        assert_eq!(matrix[1].address, 0x18b43);
+        assert_eq!(matrix[1].addr, 0x18b43);
         assert_eq!(matrix[2].line, 547);
-        assert_eq!(matrix[2].address, 0x18b48);
+        assert_eq!(matrix[2].addr, 0x18b48);
     }
 
     #[test]
@@ -1044,27 +1044,27 @@ mod tests {
 
         assert_eq!(matrix.len(), 19);
         assert_eq!(matrix[0].line, 789);
-        assert_eq!(matrix[0].address, 0x18c70);
+        assert_eq!(matrix[0].addr, 0x18c70);
         assert!(matrix[0].is_stmt);
 
         assert_eq!(matrix[1].line, 791);
-        assert_eq!(matrix[1].address, 0x18c7c);
+        assert_eq!(matrix[1].addr, 0x18c7c);
         assert!(matrix[1].is_stmt);
 
         assert_eq!(matrix[2].line, 791);
-        assert_eq!(matrix[2].address, 0x18c81);
+        assert_eq!(matrix[2].addr, 0x18c81);
         assert!(!matrix[2].is_stmt);
 
         assert_eq!(matrix[13].line, 792);
-        assert_eq!(matrix[13].address, 0x18cba);
+        assert_eq!(matrix[13].addr, 0x18cba);
         assert!(!matrix[13].is_stmt);
 
         assert_eq!(matrix[14].line, 0);
-        assert_eq!(matrix[14].address, 0x18cc4);
+        assert_eq!(matrix[14].addr, 0x18cc4);
         assert!(!matrix[14].is_stmt);
 
         assert_eq!(matrix[18].line, 794);
-        assert_eq!(matrix[18].address, 0x18cde);
+        assert_eq!(matrix[18].addr, 0x18cde);
         assert!(matrix[18].is_stmt);
     }
 
