@@ -186,7 +186,7 @@ impl DwarfResolver {
             } = debug_info_syms[idx];
             found.push(SymInfo {
                 name: name.to_string(),
-                address: addr as Addr,
+                addr: addr as Addr,
                 size,
                 sym_type,
                 file_offset: 0,
@@ -246,7 +246,7 @@ mod tests {
 
         // `factorial` resides at address 0x2000100.
         let symbol = symbols.first().unwrap();
-        assert_eq!(symbol.address, 0x2000100);
+        assert_eq!(symbol.addr, 0x2000100);
     }
 
     /// Check that we fail to look up variables.

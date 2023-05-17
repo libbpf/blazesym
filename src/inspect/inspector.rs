@@ -64,7 +64,7 @@ impl Inspector {
                         let mut syms = resolver.find_addr(name, &opts).unwrap_or_default();
                         let () = syms.iter_mut().for_each(|sym| {
                             if opts.offset_in_file {
-                                if let Some(off) = resolver.addr_file_off(sym.address) {
+                                if let Some(off) = resolver.addr_file_off(sym.addr) {
                                     sym.file_offset = off;
                                 }
                             }

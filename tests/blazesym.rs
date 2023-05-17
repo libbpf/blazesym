@@ -155,7 +155,7 @@ fn inspect() {
         assert_eq!(results.len(), 1);
 
         let result = results.first().unwrap();
-        assert_eq!(result.address, 0x2000100);
+        assert_eq!(result.addr, 0x2000100);
         assert_ne!(result.file_offset, 0);
         assert_eq!(
             result.obj_file_name.as_deref().unwrap(),

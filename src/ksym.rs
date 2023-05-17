@@ -141,7 +141,7 @@ impl SymResolver for KSymResolver {
         self.sym_to_addr.borrow().get(name).map(|addr| {
             vec![SymInfo {
                 name: name.to_string(),
-                address: *addr,
+                addr: *addr,
                 size: 0,
                 sym_type: SymType::Function,
                 file_offset: 0,
@@ -259,7 +259,7 @@ mod tests {
         };
         let found = resolver.find_addr(&name, &opts);
         assert!(found.is_some());
-        assert!(found.unwrap().iter().any(|x| x.address == addr));
+        assert!(found.unwrap().iter().any(|x| x.addr == addr));
     }
 
     #[test]
