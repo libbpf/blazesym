@@ -345,12 +345,11 @@ pub(crate) struct ElfParser {
 impl ElfParser {
     /// Create an `ElfParser` from an open file.
     pub fn open_file(file: File) -> Result<ElfParser, Error> {
-        let mmap = Mmap::map(&file)?;
-        Self::from_mmap(mmap)
+        Mmap::map(&file).map(Self::from_mmap)
     }
 
     /// Create an `ElfParser` from mmap'ed data.
-    pub fn from_mmap(mmap: Mmap) -> Result<ElfParser, Error> {
+    pub fn from_mmap(mmap: Mmap) -> ElfParser {
         // We transmute the mmap's lifetime to static here as that is a
         // necessity for self-referentiality.
         // SAFETY: We never hand out any 'static references to cache
@@ -361,7 +360,7 @@ impl ElfParser {
             _mmap: mmap,
             cache: RefCell::new(Cache::new(elf_data)),
         };
-        Ok(parser)
+        parser
     }
 
     /// Create an `ElfParser` for a path.
