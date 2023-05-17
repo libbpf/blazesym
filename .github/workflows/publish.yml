@@ -18,6 +18,26 @@ jobs:
         profile: minimal
         toolchain: stable
         override: true
+    - name: Dry-run package creation
+      run: cargo package --no-verify
+    - name: Create git tag
+      env:
+        version: ${{ needs.version.outputs.version }}
+      run: |
+        curl --location \
+          --request POST \
+          --url https://api.github.com/repos/${{ github.repository }}/releases \
+          --header "Accept: application/vnd.github+json" \
+          --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+          --header "X-GitHub-Api-Version: 2022-11-28" \
+          --data "{
+              \"tag_name\":\"v${version}\",
+              \"target_commitish\":\"${{ github.ref }}\",
+              \"name\":\"v${version}\",
+              \"draft\":false,
+              \"prerelease\":false,
+              \"generate_release_notes\":false
+            }"
     - name: Publish
       run: cargo publish --no-verify --token "${CARGO_REGISTRY_TOKEN}"
       env:
