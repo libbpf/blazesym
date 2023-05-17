@@ -4,11 +4,28 @@ on:
   workflow_dispatch:
 
 jobs:
+  version:
+    name: Retrieve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+    - uses: actions/checkout@v3
+    - id: version
+      shell: bash
+      run: |
+        cargo generate-lockfile
+        version="$(cargo pkgid | cut -d '#' -f2 | grep -o '[^:]*$')"
+        if [ -z "${version}" ]; then
+          echo "Invalid version number"
+          exit 1
+        fi
+        echo "version=${version}" >> $GITHUB_OUTPUT
   test:
     uses: ./.github/workflows/test.yml
     secrets: inherit
   publish:
-    needs: [test]
+    needs: [test, version]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
