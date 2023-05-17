@@ -21,6 +21,10 @@ use super::meta::Unknown;
 use super::meta::UserAddrMeta;
 
 
+/// A typedef for functions reading build IDs.
+type BuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
+
+
 /// A type capturing normalized addresses along with captured meta data.
 ///
 /// This type enables "remote" symbolization. That is to say, it represents the
@@ -186,15 +190,83 @@ fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
 }
 
 
-fn normalize_sorted_user_addrs_with_entries<A, E, F>(
+trait Handler {
+    /// Handle an unknown address.
+    fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()>;
+
+    /// Handle an address residing in the provided [`PathMapsEntry`].
+    fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()>;
+}
+
+
+struct NormalizationHandler {
+    /// The normalized user addresses we are building up.
+    normalized: NormalizedUserAddrs,
+    /// Lookup table from path (as used in each proc maps entry) to index into
+    /// `normalized.meta`.
+    meta_lookup: HashMap<PathBuf, usize>,
+    /// The index of the `Unknown` entry in `meta_lookup`, used for all unknown
+    /// addresses.
+    unknown_idx: Option<usize>,
+    /// The function used for retrieving build IDs.
+    get_build_id: &'static BuildIdFn,
+}
+
+impl NormalizationHandler {
+    /// Instantiate a new `NormalizationHandler` object.
+    fn new(addr_count: usize, get_build_id: &'static BuildIdFn) -> Self {
+        Self {
+            normalized: NormalizedUserAddrs {
+                addrs: Vec::with_capacity(addr_count),
+                meta: Vec::new(),
+            },
+            meta_lookup: HashMap::<PathBuf, usize>::new(),
+            unknown_idx: None,
+            get_build_id,
+        }
+    }
+}
+
+impl Handler for NormalizationHandler {
+    fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()> {
+        self.unknown_idx = self.normalized.add_unknown_addr(addr, self.unknown_idx);
+        Ok(())
+    }
+
+    fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+        let meta_idx = if let Some(meta_idx) = self.meta_lookup.get(&entry.path.symbolic_path) {
+            *meta_idx
+        } else {
+            let binary = Binary {
+                path: entry.path.symbolic_path.to_path_buf(),
+                build_id: (self.get_build_id)(&entry.path.maps_file)?,
+                _non_exhaustive: (),
+            };
+
+            let meta_idx = self.normalized.meta.len();
+            let () = self.normalized.meta.push(UserAddrMeta::Binary(binary));
+            let _ref = self
+                .meta_lookup
+                .insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
+            meta_idx
+        };
+
+        let normalized_addr = normalize_elf_addr(addr, entry)?;
+        let () = self.normalized.addrs.push((normalized_addr, meta_idx));
+        Ok(())
+    }
+}
+
+
+fn normalize_sorted_user_addrs_with_entries<A, E, H>(
     addrs: A,
     entries: E,
-    get_build_id: F,
-) -> Result<NormalizedUserAddrs>
+    mut handler: H,
+) -> Result<H>
 where
     A: ExactSizeIterator<Item = Addr> + Clone,
     E: Iterator<Item = Result<maps::MapsEntry>>,
-    F: Fn(&Path) -> Result<Option<Vec<u8>>>,
+    H: Handler,
 {
     let mut entries = entries.filter_map(|result| match result {
         Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
@@ -207,17 +279,6 @@ where
             "proc maps does not contain relevant entries",
         )
     })??;
-
-    // Lookup table from path (as used in each proc maps entry) to index into
-    // `normalized.meta`.
-    let mut meta_lookup = HashMap::<PathBuf, usize>::new();
-    let mut normalized = NormalizedUserAddrs {
-        addrs: Vec::with_capacity(addrs.len()),
-        meta: Vec::new(),
-    };
-    // The index of the Unknown entry without any build ID information,
-    // used for all unknown addresses.
-    let mut unknown_idx = None;
 
     let mut prev_addr = addrs.clone().next().unwrap_or_default();
     // We effectively do a single pass over `addrs`, advancing to the next
@@ -240,7 +301,7 @@ where
                 // cannot normalize. We have to assume that addresses
                 // were valid and the ELF object was just unmapped,
                 // similar to above.
-                unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
+                let () = handler.handle_unknown_addr(addr)?;
                 continue 'main
             };
         }
@@ -251,30 +312,14 @@ where
         // happen, for example, if an ELF object was unmapped between
         // address capture and normalization.
         if addr < entry.range.start {
-            unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
+            let () = handler.handle_unknown_addr(addr)?;
             continue 'main
         }
 
-        let meta_idx = if let Some(meta_idx) = meta_lookup.get(&entry.path.symbolic_path) {
-            *meta_idx
-        } else {
-            let binary = Binary {
-                path: entry.path.symbolic_path.to_path_buf(),
-                build_id: get_build_id(&entry.path.maps_file)?,
-                _non_exhaustive: (),
-            };
-
-            let meta_idx = normalized.meta.len();
-            let () = normalized.meta.push(UserAddrMeta::Binary(binary));
-            let _ref = meta_lookup.insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
-            meta_idx
-        };
-
-        let normalized_addr = normalize_elf_addr(addr, &entry)?;
-        let () = normalized.addrs.push((normalized_addr, meta_idx));
+        let () = handler.handle_entry_addr(addr, &entry)?;
     }
 
-    Ok(normalized)
+    Ok(handler)
 }
 
 
@@ -320,7 +365,9 @@ impl Normalizer {
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
         let entries = maps::parse(pid)?;
-        normalize_sorted_user_addrs_with_entries(addrs, entries, read_build_id)
+        let handler = NormalizationHandler::new(addrs.len(), &read_build_id);
+        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
+        Ok(handler.normalized)
     }
 
     /// Normalize `addresses` belonging to a process.
@@ -588,12 +635,14 @@ mod tests {
             let entries = maps::parse_file(maps.as_bytes(), pid);
             let addrs = [unknown_addr as Addr];
 
+            let handler = NormalizationHandler::new(addrs.len(), &read_no_build_id);
             let norm_addrs = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
-                read_no_build_id,
+                handler,
             )
-            .unwrap();
+            .unwrap()
+            .normalized;
             assert_eq!(norm_addrs.addrs.len(), 1);
             assert_eq!(norm_addrs.meta.len(), 1);
             assert_eq!(norm_addrs.meta[0], Unknown::default().into());
