@@ -54,7 +54,7 @@ impl DwarfResolver {
             if dlcu.matrix.is_empty() {
                 continue
             }
-            let first_addr = dlcu.matrix[0].address;
+            let first_addr = dlcu.matrix[0].addr;
             addr_to_dlcu.push((first_addr, idx as u32));
         }
         addr_to_dlcu.sort_by_key(|v| v.0);
@@ -106,9 +106,9 @@ impl DwarfResolver {
         Self::open_for_addresses(filename, &[], debug_line_info, debug_info_symbols)
     }
 
-    fn find_dlcu_index(&self, address: Addr) -> Option<usize> {
+    fn find_dlcu_index(&self, addr: Addr) -> Option<usize> {
         let a2a = &self.addr_to_dlcu;
-        let a2a_idx = find_match_or_lower_bound_by(a2a, address, |a2dlcu| a2dlcu.0)?;
+        let a2a_idx = find_match_or_lower_bound_by(a2a, addr, |a2dlcu| a2dlcu.0)?;
         let dlcu_idx = a2a[a2a_idx].1 as usize;
 
         Some(dlcu_idx)
@@ -116,13 +116,14 @@ impl DwarfResolver {
 
     /// Find line information of an address.
     ///
-    /// `address` is an offset from the head of the loaded binary/or
-    /// shared object.  This function returns a tuple of `(dir_name, file_name, line_no)`.
-    pub fn find_line(&self, address: Addr) -> Option<(&Path, &OsStr, usize)> {
-        let idx = self.find_dlcu_index(address)?;
+    /// `addr` is an offset from the head of the loaded binary/or shared
+    /// object. This function returns a tuple of `(dir_name, file_name,
+    /// line_no)`.
+    pub fn find_line(&self, addr: Addr) -> Option<(&Path, &OsStr, usize)> {
+        let idx = self.find_dlcu_index(addr)?;
         let dlcu = &self.debug_line_cus[idx];
 
-        dlcu.find_line(address)
+        dlcu.find_line(addr)
     }
 
     /// Extract the symbol information from DWARf if having not done it before.
@@ -178,14 +179,14 @@ impl DwarfResolver {
         let mut found = vec![];
         while debug_info_syms[idx].name.eq(name) {
             let DWSymInfo {
-                address,
+                addr,
                 size,
                 sym_type,
                 ..
             } = debug_info_syms[idx];
             found.push(SymInfo {
                 name: name.to_string(),
-                address: address as Addr,
+                address: addr as Addr,
                 size,
                 sym_type,
                 file_offset: 0,
