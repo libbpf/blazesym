@@ -186,6 +186,98 @@ fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
 }
 
 
+fn normalize_sorted_user_addrs_with_entries<A, E, F>(
+    addrs: A,
+    entries: E,
+    get_build_id: F,
+) -> Result<NormalizedUserAddrs>
+where
+    A: ExactSizeIterator<Item = Addr> + Clone,
+    E: Iterator<Item = Result<maps::MapsEntry>>,
+    F: Fn(&Path) -> Result<Option<Vec<u8>>>,
+{
+    let mut entries = entries.filter_map(|result| match result {
+        Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
+        Err(err) => Some(Err(err)),
+    });
+
+    let mut entry = entries.next().ok_or_else(|| {
+        Error::new(
+            ErrorKind::UnexpectedEof,
+            "proc maps does not contain relevant entries",
+        )
+    })??;
+
+    // Lookup table from path (as used in each proc maps entry) to index into
+    // `normalized.meta`.
+    let mut meta_lookup = HashMap::<PathBuf, usize>::new();
+    let mut normalized = NormalizedUserAddrs {
+        addrs: Vec::with_capacity(addrs.len()),
+        meta: Vec::new(),
+    };
+    // The index of the Unknown entry without any build ID information,
+    // used for all unknown addresses.
+    let mut unknown_idx = None;
+
+    let mut prev_addr = addrs.clone().next().unwrap_or_default();
+    // We effectively do a single pass over `addrs`, advancing to the next
+    // proc maps entry whenever the current address is not (or no longer)
+    // contained in the current entry's range.
+    'main: for addr in addrs {
+        if addr < prev_addr {
+            return Err(Error::new(
+                ErrorKind::InvalidInput,
+                "addresses to normalize are not sorted",
+            ))
+        }
+        prev_addr = addr;
+
+        while addr >= entry.range.end {
+            entry = if let Some(entry) = entries.next() {
+                entry?
+            } else {
+                // If there are no proc maps entries left to check, we
+                // cannot normalize. We have to assume that addresses
+                // were valid and the ELF object was just unmapped,
+                // similar to above.
+                unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
+                continue 'main
+            };
+        }
+
+        // proc maps entries are always sorted by start address. If the
+        // current address lies before the start address at this point,
+        // that means that we cannot find a suitable entry. This could
+        // happen, for example, if an ELF object was unmapped between
+        // address capture and normalization.
+        if addr < entry.range.start {
+            unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
+            continue 'main
+        }
+
+        let meta_idx = if let Some(meta_idx) = meta_lookup.get(&entry.path.symbolic_path) {
+            *meta_idx
+        } else {
+            let binary = Binary {
+                path: entry.path.symbolic_path.to_path_buf(),
+                build_id: get_build_id(&entry.path.maps_file)?,
+                _non_exhaustive: (),
+            };
+
+            let meta_idx = normalized.meta.len();
+            let () = normalized.meta.push(UserAddrMeta::Binary(binary));
+            let _ref = meta_lookup.insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
+            meta_idx
+        };
+
+        let normalized_addr = normalize_elf_addr(addr, &entry)?;
+        let () = normalized.addrs.push((normalized_addr, meta_idx));
+    }
+
+    Ok(normalized)
+}
+
+
 /// A normalizer for addresses.
 ///
 /// Address normalization is the process of taking virtual absolute
@@ -203,98 +295,6 @@ impl Normalizer {
     /// Create a new `Normalizer`.
     pub fn new() -> Self {
         Self { _private: () }
-    }
-
-    fn normalize_user_addrs_with_entries<A, E, F>(
-        &self,
-        addrs: A,
-        entries: E,
-        get_build_id: F,
-    ) -> Result<NormalizedUserAddrs>
-    where
-        A: ExactSizeIterator<Item = Addr> + Clone,
-        E: Iterator<Item = Result<maps::MapsEntry>>,
-        F: Fn(&Path) -> Result<Option<Vec<u8>>>,
-    {
-        let mut entries = entries.filter_map(|result| match result {
-            Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
-            Err(err) => Some(Err(err)),
-        });
-
-        let mut entry = entries.next().ok_or_else(|| {
-            Error::new(
-                ErrorKind::UnexpectedEof,
-                "proc maps does not contain relevant entries",
-            )
-        })??;
-
-        // Lookup table from path (as used in each proc maps entry) to index into
-        // `normalized.meta`.
-        let mut meta_lookup = HashMap::<PathBuf, usize>::new();
-        let mut normalized = NormalizedUserAddrs {
-            addrs: Vec::with_capacity(addrs.len()),
-            meta: Vec::new(),
-        };
-        // The index of the Unknown entry without any build ID information,
-        // used for all unknown addresses.
-        let mut unknown_idx = None;
-
-        let mut prev_addr = addrs.clone().next().unwrap_or_default();
-        // We effectively do a single pass over `addrs`, advancing to the next
-        // proc maps entry whenever the current address is not (or no longer)
-        // contained in the current entry's range.
-        'main: for addr in addrs {
-            if addr < prev_addr {
-                return Err(Error::new(
-                    ErrorKind::InvalidInput,
-                    "addresses to normalize are not sorted",
-                ))
-            }
-            prev_addr = addr;
-
-            while addr >= entry.range.end {
-                entry = if let Some(entry) = entries.next() {
-                    entry?
-                } else {
-                    // If there are no proc maps entries left to check, we
-                    // cannot normalize. We have to assume that addresses
-                    // were valid and the ELF object was just unmapped,
-                    // similar to above.
-                    unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
-                    continue 'main
-                };
-            }
-
-            // proc maps entries are always sorted by start address. If the
-            // current address lies before the start address at this point,
-            // that means that we cannot find a suitable entry. This could
-            // happen, for example, if an ELF object was unmapped between
-            // address capture and normalization.
-            if addr < entry.range.start {
-                unknown_idx = normalized.add_unknown_addr(addr, unknown_idx);
-                continue 'main
-            }
-
-            let meta_idx = if let Some(meta_idx) = meta_lookup.get(&entry.path.symbolic_path) {
-                *meta_idx
-            } else {
-                let binary = Binary {
-                    path: entry.path.symbolic_path.to_path_buf(),
-                    build_id: get_build_id(&entry.path.maps_file)?,
-                    _non_exhaustive: (),
-                };
-
-                let meta_idx = normalized.meta.len();
-                let () = normalized.meta.push(UserAddrMeta::Binary(binary));
-                let _ref = meta_lookup.insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
-                meta_idx
-            };
-
-            let normalized_addr = normalize_elf_addr(addr, &entry)?;
-            let () = normalized.addrs.push((normalized_addr, meta_idx));
-        }
-
-        Ok(normalized)
     }
 
     /// Normalize all `addrs` in a given process. The `addrs` array has to
@@ -320,7 +320,7 @@ impl Normalizer {
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
         let entries = maps::parse(pid)?;
-        self.normalize_user_addrs_with_entries(addrs, entries, read_build_id)
+        normalize_sorted_user_addrs_with_entries(addrs, entries, read_build_id)
     }
 
     /// Normalize `addresses` belonging to a process.
@@ -588,14 +588,12 @@ mod tests {
             let entries = maps::parse_file(maps.as_bytes(), pid);
             let addrs = [unknown_addr as Addr];
 
-            let normalizer = Normalizer::new();
-            let norm_addrs = normalizer
-                .normalize_user_addrs_with_entries(
-                    addrs.as_slice().iter().copied(),
-                    entries,
-                    read_no_build_id,
-                )
-                .unwrap();
+            let norm_addrs = normalize_sorted_user_addrs_with_entries(
+                addrs.as_slice().iter().copied(),
+                entries,
+                read_no_build_id,
+            )
+            .unwrap();
             assert_eq!(norm_addrs.addrs.len(), 1);
             assert_eq!(norm_addrs.meta.len(), 1);
             assert_eq!(norm_addrs.meta[0], Unknown::default().into());
