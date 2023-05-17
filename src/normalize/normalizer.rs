@@ -108,32 +108,35 @@ fn read_build_id(path: &Path) -> Result<Option<Vec<u8>>> {
 }
 
 
+fn normalize_elf_offset_with_parser(offset: u64, parser: &ElfParser) -> Result<Option<Addr>> {
+    let phdrs = parser.program_headers()?;
+    let addr = phdrs.iter().find_map(|phdr| {
+        if phdr.p_type == elf::types::PT_LOAD {
+            if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&offset) {
+                return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
+            }
+        }
+        None
+    });
+
+    Ok(addr)
+}
+
 /// Normalize a virtual address belonging to an ELF file represented by the
 /// provided [`PathMapsEntry`].
 fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
-    let file_off = virt_addr - entry.range.start + entry.offset as usize;
+    let file_off = virt_addr as u64 - entry.range.start as u64 + entry.offset;
     let parser = ElfParser::open(&entry.path.maps_file)?;
-    let phdrs = parser.program_headers()?;
-    let addr = phdrs
-        .iter()
-        .find_map(|phdr| {
-            if phdr.p_type == elf::types::PT_LOAD {
-                if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&(file_off as u64)) {
-                    return Some(file_off - phdr.p_offset as usize + phdr.p_vaddr as usize)
-                }
-            }
-            None
-        })
-        .ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                format!(
-                    "failed to find ELF segment in {} that contains file offset 0x{:x}",
-                    entry.path.symbolic_path.display(),
-                    entry.offset,
-                ),
-            )
-        })?;
+    let addr = normalize_elf_offset_with_parser(file_off, &parser)?.ok_or_else(|| {
+        Error::new(
+            ErrorKind::InvalidInput,
+            format!(
+                "failed to find ELF segment in {} that contains file offset 0x{:x}",
+                entry.path.symbolic_path.display(),
+                entry.offset,
+            ),
+        )
+    })?;
 
     Ok(addr)
 }
