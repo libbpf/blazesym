@@ -27,3 +27,7 @@ pub use meta::Unknown;
 pub use meta::UserAddrMeta;
 pub use normalizer::NormalizedUserAddrs;
 pub use normalizer::Normalizer;
+
+pub(crate) use normalizer::normalize_elf_addr;
+pub(crate) use normalizer::normalize_sorted_user_addrs_with_entries;
+pub(crate) use normalizer::Handler;
