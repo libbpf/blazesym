@@ -9,6 +9,7 @@ Unreleased
 - Added support for using DWARF information for symbol lookup (instead of just
   ELF symbols; so far DWARF was only used for mapping names to symbol
   information)
+- Renamed `normalize::UserAddrMeta::Binary` variant to `Elf`
 
 
 0.2.0-alpha.2

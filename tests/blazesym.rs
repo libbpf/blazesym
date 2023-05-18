@@ -179,7 +179,7 @@ fn normalize_user_addr() {
 
         let norm_addr = norm_addrs.addrs[0];
         let meta = &norm_addrs.meta[norm_addr.1];
-        assert_eq!(meta.binary().unwrap().path, test_so);
+        assert_eq!(meta.elf().unwrap().path, test_so);
 
         let elf = symbolize::Elf::new(test_so);
         let src = symbolize::Source::Elf(elf);

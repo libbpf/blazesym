@@ -17,7 +17,7 @@ use crate::util::ReadRaw as _;
 use crate::Addr;
 use crate::Pid;
 
-use super::meta::Binary;
+use super::meta::Elf;
 use super::meta::Unknown;
 use super::meta::UserAddrMeta;
 
@@ -222,14 +222,14 @@ impl Handler for NormalizationHandler {
         let meta_idx = if let Some(meta_idx) = self.meta_lookup.get(&entry.path.symbolic_path) {
             *meta_idx
         } else {
-            let binary = Binary {
+            let elf = Elf {
                 path: entry.path.symbolic_path.to_path_buf(),
                 build_id: (self.get_build_id)(&entry.path.maps_file)?,
                 _non_exhaustive: (),
             };
 
             let meta_idx = self.normalized.meta.len();
-            let () = self.normalized.meta.push(UserAddrMeta::Binary(binary));
+            let () = self.normalized.meta.push(UserAddrMeta::Elf(elf));
             let _ref = self
                 .meta_lookup
                 .insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
@@ -496,7 +496,7 @@ mod tests {
 
         let errno_meta_idx = addrs[errno_idx].1;
         assert!(meta[errno_meta_idx]
-            .binary()
+            .elf()
             .unwrap()
             .path
             .file_name()
@@ -546,12 +546,12 @@ mod tests {
         let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("libtest-so.so");
-        let expected_binary = Binary {
+        let expected_elf = Elf {
             build_id: Some(read_build_id(&so_path).unwrap().unwrap()),
             path: so_path,
             _non_exhaustive: (),
         };
-        assert_eq!(meta, &UserAddrMeta::Binary(expected_binary));
+        assert_eq!(meta, &UserAddrMeta::Elf(expected_elf));
     }
 
     /// Check that we correctly handle normalization of an address not
