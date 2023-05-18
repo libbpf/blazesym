@@ -1,12 +1,54 @@
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::io::Error;
+use std::io::Result;
+use std::iter;
 use std::mem::align_of;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::os::unix::io::RawFd;
 use std::ptr::NonNull;
 use std::slice;
+
+
+/// Reorder elements of `array` based on index information in `indices`.
+fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
+    debug_assert_eq!(array.len(), indices.len());
+
+    let mut indices = indices;
+    // Sort the entries in `array` based on the indexes in `indices`
+    // (second member).
+    for i in 0..array.len() {
+        while indices[i].1 != i {
+            let () = array.swap(i, indices[i].1);
+            let idx = indices[i].1;
+            let () = indices.swap(i, idx);
+        }
+    }
+}
+
+
+/// Take a slice `slice` of unordered elements, sort them into a vector, then
+/// invoke a function `handle` on the vector, take the result of this function
+/// and "extract" a mutable reference to a slice, reordered this slice in such a
+/// way that the original order of `slice` is preserved.
+pub(crate) fn with_ordered_elems<T, U, E, H, R>(slice: &[T], extract: E, handle: H) -> Result<R>
+where
+    T: Copy + Ord,
+    E: FnOnce(&mut R) -> &mut [U],
+    H: FnOnce(iter::Map<slice::Iter<'_, (T, usize)>, fn(&(T, usize)) -> T>) -> Result<R>,
+{
+    let mut vec = slice
+        .iter()
+        .enumerate()
+        .map(|(idx, t)| (*t, idx))
+        .collect::<Vec<_>>();
+    let () = vec.sort_unstable();
+
+    let mut result = handle(vec.iter().map(|(t, _idx)| *t))?;
+    let () = reorder(extract(&mut result), vec);
+    Ok(result)
+}
 
 
 /// "Safely" create a slice from a user provided array.
@@ -21,7 +63,7 @@ pub(crate) unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: us
     unsafe { slice::from_raw_parts(items, num_items) }
 }
 
-pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat, Error> {
+pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
     if rc < 0 {
@@ -32,7 +74,7 @@ pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat, Error> {
     Ok(unsafe { dst.assume_init() })
 }
 
-pub(crate) fn uname_release() -> Result<CString, Error> {
+pub(crate) fn uname_release() -> Result<CString> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::uname(dst.as_mut_ptr()) };
     if rc < 0 {
@@ -385,6 +427,90 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
 mod tests {
     use super::*;
 
+    use std::cmp::Ordering;
+
+
+    /// Check whether an iterator represents a sorted sequence.
+    // Copy of iterator::is_sorted_by used while it is still unstable.
+    pub fn is_sorted_by<I, F>(mut iter: I, compare: F) -> bool
+    where
+        I: Iterator,
+        F: FnMut(&I::Item, &I::Item) -> Option<Ordering>,
+    {
+        #[inline]
+        fn check<'a, T>(
+            last: &'a mut T,
+            mut compare: impl FnMut(&T, &T) -> Option<Ordering> + 'a,
+        ) -> impl FnMut(T) -> bool + 'a {
+            move |curr| {
+                if let Some(Ordering::Greater) | None = compare(last, &curr) {
+                    return false
+                }
+                *last = curr;
+                true
+            }
+        }
+
+        let mut last = match iter.next() {
+            Some(e) => e,
+            None => return true,
+        };
+
+        iter.all(check(&mut last, compare))
+    }
+
+    /// Check whether an iterator represents a sorted sequence.
+    #[inline]
+    fn is_sorted<I>(iter: I) -> bool
+    where
+        I: Iterator,
+        I::Item: PartialOrd,
+    {
+        is_sorted_by(iter, PartialOrd::partial_cmp)
+    }
+
+
+    /// Make sure that we can detect sorted slices.
+    #[test]
+    fn sorted_check() {
+        assert!(is_sorted([1, 5, 6].iter()));
+        assert!(!is_sorted([1, 5, 6, 0].iter()));
+    }
+
+    /// Check that we can reorder elements in an array as expected.
+    #[test]
+    fn array_reordering() {
+        let mut array = vec![];
+        reorder::<usize, ()>(&mut array, vec![]);
+
+        let mut array = vec![8];
+        reorder(&mut array, vec![((), 0)]);
+        assert_eq!(array, vec![8]);
+
+        let mut array = vec![8, 1, 4, 0, 3];
+        reorder(
+            &mut array,
+            [4, 1, 3, 0, 2].into_iter().map(|x| ((), x)).collect(),
+        );
+        assert_eq!(array, vec![0, 1, 3, 4, 8]);
+    }
+
+    /// Check that `with_ordered_elems` works as it should.
+    #[test]
+    fn with_element_ordering() {
+        let vec = vec![5u8, 0, 1, 99, 6, 2];
+        let result = with_ordered_elems(
+            &vec,
+            |x: &mut Vec<u8>| x.as_mut_slice(),
+            |iter| {
+                let vec = iter.collect::<Vec<_>>();
+                assert!(is_sorted(vec.iter()));
+                Ok(vec.into_iter().map(|x| x + 2).collect::<Vec<_>>())
+            },
+        )
+        .unwrap();
+        assert_eq!(result, vec.into_iter().map(|x| x + 2).collect::<Vec<_>>());
+    }
 
     /// Make sure that `[u8]::ensure` works as expected.
     #[test]

@@ -12,6 +12,7 @@ use crate::elf::ElfParser;
 use crate::log::warn;
 use crate::maps;
 use crate::maps::PathMapsEntry;
+use crate::util;
 use crate::util::ReadRaw as _;
 use crate::Addr;
 use crate::Pid;
@@ -169,23 +170,6 @@ impl NormalizedUserAddrs {
 
         let () = self.addrs.push((addr, unknown_idx));
         Some(unknown_idx)
-    }
-}
-
-
-/// Reorder elements of `array` based on index information in `indices`.
-fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
-    debug_assert_eq!(array.len(), indices.len());
-
-    let mut indices = indices;
-    // Sort the entries in `array` based on the indexes in `indices`
-    // (second member).
-    for i in 0..array.len() {
-        while indices[i].1 != i {
-            let () = array.swap(i, indices[i].1);
-            let idx = indices[i].1;
-            let () = indices.swap(i, idx);
-        }
     }
 }
 
@@ -406,18 +390,11 @@ impl Normalizer {
     /// `addrs` array does not have to be sorted, but otherwise the
     /// functions behave identically.
     pub fn normalize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<NormalizedUserAddrs> {
-        let mut addrs = addrs
-            .iter()
-            .enumerate()
-            .map(|(idx, addr)| (*addr, idx))
-            .collect::<Vec<_>>();
-        let () = addrs.sort_unstable();
-
-        let mut normalized =
-            self.normalize_user_addrs_sorted_impl(addrs.iter().map(|(addr, _idx)| *addr), pid)?;
-
-        let () = reorder(&mut normalized.addrs, addrs);
-        Ok(normalized)
+        util::with_ordered_elems(
+            addrs,
+            |normalized: &mut NormalizedUserAddrs| normalized.addrs.as_mut_slice(),
+            |sorted_addrs| self.normalize_user_addrs_sorted_impl(sorted_addrs, pid),
+        )
     }
 }
 
@@ -431,25 +408,6 @@ mod tests {
     use crate::inspect::FindAddrOpts;
     use crate::inspect::SymType;
     use crate::mmap::Mmap;
-
-
-    /// Check that we can reorder elements in an array as expected.
-    #[test]
-    fn array_reordering() {
-        let mut array = vec![];
-        reorder::<usize, ()>(&mut array, vec![]);
-
-        let mut array = vec![8];
-        reorder(&mut array, vec![((), 0)]);
-        assert_eq!(array, vec![8]);
-
-        let mut array = vec![8, 1, 4, 0, 3];
-        reorder(
-            &mut array,
-            [4, 1, 3, 0, 2].into_iter().map(|x| ((), x)).collect(),
-        );
-        assert_eq!(array, vec![0, 1, 3, 4, 8]);
-    }
 
 
     /// Check that we can read a binary's build ID.
