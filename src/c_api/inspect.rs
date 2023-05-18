@@ -32,7 +32,7 @@ use crate::Addr;
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_inspect_elf_src {
-    /// The path to the binary. This member is always present.
+    /// The path to the ELF file. This member is always present.
     path: *const c_char,
     /// Whether or not to consult debug information to satisfy the request (if
     /// present).

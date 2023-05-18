@@ -11,7 +11,7 @@ use std::ptr;
 use std::slice;
 
 use crate::log::error;
-use crate::normalize::Binary;
+use crate::normalize::Elf;
 use crate::normalize::NormalizedUserAddrs;
 use crate::normalize::Normalizer;
 use crate::normalize::Unknown;
@@ -75,26 +75,26 @@ impl From<(Addr, usize)> for blaze_normalized_addr {
 pub enum blaze_user_addr_meta_kind {
     /// [`blaze_user_addr_meta_variant::unknown`] is valid.
     BLAZE_USER_ADDR_UNKNOWN,
-    /// [`blaze_user_addr_meta_variant::binary`] is valid.
-    BLAZE_USER_ADDR_BINARY,
+    /// [`blaze_user_addr_meta_variant::elf`] is valid.
+    BLAZE_USER_ADDR_ELF,
 }
 
 
-/// C compatible version of [`Binary`].
+/// C compatible version of [`Elf`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_user_addr_meta_binary {
-    /// The path to the binary. This member is always present.
+pub struct blaze_user_addr_meta_elf {
+    /// The path to the ELF file. This member is always present.
     path: *mut c_char,
     /// The length of the build ID, in bytes.
     build_id_len: usize,
-    /// The optional build ID of the binary, if found.
+    /// The optional build ID of the ELF file, if found.
     build_id: *mut u8,
 }
 
-impl From<Binary> for blaze_user_addr_meta_binary {
-    fn from(other: Binary) -> Self {
-        let Binary {
+impl From<Elf> for blaze_user_addr_meta_elf {
+    fn from(other: Elf) -> Self {
+        let Elf {
             path,
             build_id,
             _non_exhaustive: (),
@@ -123,15 +123,15 @@ impl From<Binary> for blaze_user_addr_meta_binary {
     }
 }
 
-impl From<blaze_user_addr_meta_binary> for Binary {
-    fn from(other: blaze_user_addr_meta_binary) -> Self {
-        let blaze_user_addr_meta_binary {
+impl From<blaze_user_addr_meta_elf> for Elf {
+    fn from(other: blaze_user_addr_meta_elf) -> Self {
+        let blaze_user_addr_meta_elf {
             path,
             build_id_len,
             build_id,
         } = other;
 
-        Binary {
+        Elf {
             path: PathBuf::from(OsString::from_vec(
                 unsafe { CString::from_raw(path) }.into_bytes(),
             )),
@@ -173,8 +173,8 @@ impl From<blaze_user_addr_meta_unknown> for Unknown {
 /// The actual variant data in [`blaze_user_addr_meta`].
 #[repr(C)]
 pub union blaze_user_addr_meta_variant {
-    /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY`].
-    pub binary: ManuallyDrop<blaze_user_addr_meta_binary>,
+    /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF`].
+    pub elf: ManuallyDrop<blaze_user_addr_meta_elf>,
     /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
     pub unknown: ManuallyDrop<blaze_user_addr_meta_unknown>,
 }
@@ -200,10 +200,10 @@ pub struct blaze_user_addr_meta {
 impl From<UserAddrMeta> for blaze_user_addr_meta {
     fn from(other: UserAddrMeta) -> Self {
         match other {
-            UserAddrMeta::Binary(binary) => Self {
-                kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY,
+            UserAddrMeta::Elf(elf) => Self {
+                kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF,
                 variant: blaze_user_addr_meta_variant {
-                    binary: ManuallyDrop::new(blaze_user_addr_meta_binary::from(binary)),
+                    elf: ManuallyDrop::new(blaze_user_addr_meta_elf::from(elf)),
                 },
             },
             UserAddrMeta::Unknown(unknown) => Self {
@@ -374,10 +374,8 @@ pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user
 
     for addr_meta in addr_metas {
         match addr_meta.kind {
-            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY => {
-                let _binary = Binary::from(ManuallyDrop::into_inner(unsafe {
-                    addr_meta.variant.binary
-                }));
+            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF => {
+                let _elf = Elf::from(ManuallyDrop::into_inner(unsafe { addr_meta.variant.elf }));
             }
             blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN => {
                 let _unknown = Unknown::from(ManuallyDrop::into_inner(unsafe {

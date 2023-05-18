@@ -5,13 +5,12 @@ use std::path::PathBuf;
 type BuildId = Vec<u8>;
 
 
-/// Meta information about a user space binary (executable, shared object, APK,
-/// ...).
+/// Meta information about an ELF file (executable, shared object, ...).
 #[derive(Clone, Debug, PartialEq)]
-pub struct Binary {
-    /// The canonical absolute path to the binary, including its name.
+pub struct Elf {
+    /// The canonical absolute path to the ELF file, including its name.
     pub path: PathBuf,
-    /// The binary's build ID, if available.
+    /// The ELF file's build ID, if available.
     pub build_id: Option<BuildId>,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
@@ -40,15 +39,15 @@ impl From<Unknown> for UserAddrMeta {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum UserAddrMeta {
-    Binary(Binary),
+    Elf(Elf),
     Unknown(Unknown),
 }
 
 impl UserAddrMeta {
-    /// Retrieve the [`Binary`] of this enum, if this variant is active.
-    pub fn binary(&self) -> Option<&Binary> {
+    /// Retrieve the [`Elf`] of this enum, if this variant is active.
+    pub fn elf(&self) -> Option<&Elf> {
         match self {
-            Self::Binary(binary) => Some(binary),
+            Self::Elf(elf) => Some(elf),
             _ => None,
         }
     }

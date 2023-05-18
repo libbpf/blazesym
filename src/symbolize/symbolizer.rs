@@ -198,7 +198,7 @@ impl Symbolizer {
             .collect()
     }
 
-    fn resolve_addr_in_binary(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
+    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
         let backend = self.elf_cache.find(path)?;
         let resolver = ElfResolver::with_backend(path, backend)?;
         let symbols = self.symbolize_with_resolver(addr, &resolver);
@@ -224,7 +224,7 @@ impl Symbolizer {
             fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let path = &entry.path.maps_file;
                 let norm_addr = normalize_elf_addr(addr, entry)?;
-                let symbols = self.symbolizer.resolve_addr_in_binary(norm_addr, path)?;
+                let symbols = self.symbolizer.resolve_addr_in_elf(norm_addr, path)?;
                 let () = self.all_symbols.push(symbols);
                 Ok(())
             }

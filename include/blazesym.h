@@ -35,9 +35,9 @@ typedef enum blaze_user_addr_meta_kind {
    */
   BLAZE_USER_ADDR_UNKNOWN,
   /**
-   * [`blaze_user_addr_meta_variant::binary`] is valid.
+   * [`blaze_user_addr_meta_variant::elf`] is valid.
    */
-  BLAZE_USER_ADDR_BINARY,
+  BLAZE_USER_ADDR_ELF,
 } blaze_user_addr_meta_kind;
 
 /**
@@ -85,7 +85,7 @@ typedef struct blaze_sym_info {
  */
 typedef struct blaze_inspect_elf_src {
   /**
-   * The path to the binary. This member is always present.
+   * The path to the ELF file. This member is always present.
    */
   const char *path;
   /**
@@ -96,11 +96,11 @@ typedef struct blaze_inspect_elf_src {
 } blaze_inspect_elf_src;
 
 /**
- * C compatible version of [`Binary`].
+ * C compatible version of [`Elf`].
  */
-typedef struct blaze_user_addr_meta_binary {
+typedef struct blaze_user_addr_meta_elf {
   /**
-   * The path to the binary. This member is always present.
+   * The path to the ELF file. This member is always present.
    */
   char *path;
   /**
@@ -108,10 +108,10 @@ typedef struct blaze_user_addr_meta_binary {
    */
   size_t build_id_len;
   /**
-   * The optional build ID of the binary, if found.
+   * The optional build ID of the ELF file, if found.
    */
   uint8_t *build_id;
-} blaze_user_addr_meta_binary;
+} blaze_user_addr_meta_elf;
 
 /**
  * C compatible version of [`Unknown`].
@@ -125,9 +125,9 @@ typedef struct blaze_user_addr_meta_unknown {
  */
 typedef union blaze_user_addr_meta_variant {
   /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_BINARY`].
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF`].
    */
-  struct blaze_user_addr_meta_binary binary;
+  struct blaze_user_addr_meta_elf elf;
   /**
    * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
    */

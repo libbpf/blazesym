@@ -22,14 +22,14 @@
 //! assert_eq!(norm_addrs.addrs.len(), 1);
 //!
 //! let (addr, meta_idx) = norm_addrs.addrs[0];
-//! // fopen (0x7f5f8e23a790) corresponds to address 0x77790 within Binary(Binary { path: "/usr/lib64/libc.so.6", build_id: Some([...]), ... })
+//! // fopen (0x7f5f8e23a790) corresponds to address 0x77790 within Elf(Elf { path: "/usr/lib64/libc.so.6", build_id: Some([...]), ... })
 //! println!("fopen (0x{fopen_addr:x}) corresponds to address 0x{addr:x} within {:?}", norm_addrs.meta[meta_idx]);
 //! ```
 
 mod meta;
 mod normalizer;
 
-pub use meta::Binary;
+pub use meta::Elf;
 pub use meta::Unknown;
 pub use meta::UserAddrMeta;
 pub use normalizer::NormalizedUserAddrs;
