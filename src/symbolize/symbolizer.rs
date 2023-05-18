@@ -10,10 +10,12 @@ use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
 use crate::ksym::KALLSYMS;
 use crate::log;
-use crate::normalize::Binary;
-use crate::normalize::NormalizedUserAddrs;
-use crate::normalize::Normalizer;
-use crate::normalize::UserAddrMeta;
+use crate::maps;
+use crate::maps::PathMapsEntry;
+use crate::normalize;
+use crate::normalize::normalize_elf_addr;
+use crate::normalize::normalize_sorted_user_addrs_with_entries;
+use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
 use crate::Pid;
@@ -204,37 +206,40 @@ impl Symbolizer {
     /// Symbolize the given list of user space addresses in the provided
     /// process.
     fn symbolize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<Vec<Vec<SymbolizedResult>>> {
-        // TODO: We don't really *need to* use the
-        //       `normalize_user_addrs` API here, which allocates a
-        //       bunch etc. Rather, we could use internal APIs to only
-        //       process necessary bits of proc maps as we go and while
-        //       we have addresses to symbolize left.
-        let normalizer = Normalizer::new();
-        let normalized = normalizer.normalize_user_addrs(addrs, pid)?;
+        struct SymbolizeHandler<'sym> {
+            /// The "outer" `Symbolizer` instance.
+            symbolizer: &'sym Symbolizer,
+            /// Symbols representing the symbolized addresses.
+            all_symbols: Vec<Vec<SymbolizedResult>>,
+        }
 
-        let NormalizedUserAddrs {
-            addrs: norm_addrs,
-            meta: metas,
-        } = normalized;
+        impl normalize::Handler for SymbolizeHandler<'_> {
+            fn handle_unknown_addr(&mut self, _addr: Addr) -> Result<()> {
+                let () = self.all_symbols.push(Vec::new());
+                Ok(())
+            }
 
-        let symbols = norm_addrs.into_iter().try_fold(
-            Vec::with_capacity(addrs.len()),
-            |mut all_symbols, (addr, meta_idx)| {
-                let meta = &metas[meta_idx];
+            fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+                let path = &entry.path.maps_file;
+                let norm_addr = normalize_elf_addr(addr, entry)?;
+                let symbols = self.symbolizer.resolve_addr_in_binary(norm_addr, path)?;
+                let () = self.all_symbols.push(symbols);
+                Ok(())
+            }
+        }
 
-                match meta {
-                    UserAddrMeta::Binary(Binary { path, .. }) => {
-                        let symbols = self.resolve_addr_in_binary(addr, path)?;
-                        all_symbols.push(symbols);
-                    }
-                    UserAddrMeta::Unknown(_unknown) => all_symbols.push(Vec::new()),
-                }
+        let entries = maps::parse(pid)?;
+        let handler = SymbolizeHandler {
+            symbolizer: self,
+            all_symbols: Vec::with_capacity(addrs.len()),
+        };
 
-                Result::Ok(all_symbols)
-            },
+        let handler = util::with_ordered_elems(
+            addrs,
+            |handler: &mut SymbolizeHandler<'_>| handler.all_symbols.as_mut_slice(),
+            |sorted_addrs| normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, handler),
         )?;
-
-        Ok(symbols)
+        Ok(handler.all_symbols)
     }
 
     fn symbolize_kernel_addrs(

@@ -129,7 +129,7 @@ fn normalize_elf_offset_with_parser(offset: u64, parser: &ElfParser) -> Result<O
 
 /// Normalize a virtual address belonging to an ELF file represented by the
 /// provided [`PathMapsEntry`].
-fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
+pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
     let file_off = virt_addr as u64 - entry.range.start as u64 + entry.offset;
     let parser = ElfParser::open(&entry.path.maps_file)?;
     let addr = normalize_elf_offset_with_parser(file_off, &parser)?.ok_or_else(|| {
@@ -174,7 +174,7 @@ impl NormalizedUserAddrs {
 }
 
 
-trait Handler {
+pub(crate) trait Handler {
     /// Handle an unknown address.
     fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()>;
 
@@ -242,7 +242,7 @@ impl Handler for NormalizationHandler {
 }
 
 
-fn normalize_sorted_user_addrs_with_entries<A, E, H>(
+pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, H>(
     addrs: A,
     entries: E,
     mut handler: H,
