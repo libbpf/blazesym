@@ -67,12 +67,8 @@ unsafe impl crate::util::Pod for BuildIdNote {}
 // TODO: Currently look up is always performed based on section name, but there
 //       is also the possibility of iterating notes and checking checking
 //       Elf64_Nhdr.n_type for NT_GNU_BUILD_ID, specifically.
-#[cfg_attr(feature = "tracing", crate::log::instrument)]
-fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
+fn read_build_id(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
     let build_id_section = ".note.gnu.build-id";
-    let file = File::open(path)?;
-    let parser = ElfParser::open_file(file)?;
-
     // The build ID is contained in the `.note.gnu.build-id` section. See
     // elf(5).
     if let Ok(Some(idx)) = parser.find_section(build_id_section) {
@@ -81,8 +77,7 @@ fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
         let shdr = parser.section_headers()?.get(idx).unwrap();
         if shdr.sh_type != elf::types::SHT_NOTE {
             warn!(
-                "build ID section {build_id_section} of {} is of unsupported type ({})",
-                path.display(),
+                "build ID section {build_id_section} is of unsupported type ({})",
                 shdr.sh_type
             );
             return Ok(None)
@@ -111,6 +106,14 @@ fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
     } else {
         Ok(None)
     }
+}
+
+/// Attempt to read an ELF binary's build ID.
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
+fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
+    let file = File::open(path)?;
+    let parser = ElfParser::open_file(file)?;
+    read_build_id(&parser)
 }
 
 
