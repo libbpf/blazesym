@@ -68,7 +68,7 @@ unsafe impl crate::util::Pod for BuildIdNote {}
 //       is also the possibility of iterating notes and checking checking
 //       Elf64_Nhdr.n_type for NT_GNU_BUILD_ID, specifically.
 #[cfg_attr(feature = "tracing", crate::log::instrument)]
-fn read_build_id(path: &Path) -> Result<Option<Vec<u8>>> {
+fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
     let build_id_section = ".note.gnu.build-id";
     let file = File::open(path)?;
     let parser = ElfParser::open_file(file)?;
@@ -350,7 +350,7 @@ impl Normalizer {
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
         let entries = maps::parse(pid)?;
-        let handler = NormalizationHandler::new(addrs.len(), &read_build_id);
+        let handler = NormalizationHandler::new(addrs.len(), &read_build_id_from_elf);
         let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
         Ok(handler.normalized)
     }
@@ -418,7 +418,7 @@ mod tests {
             .join("data")
             .join("libtest-so.so");
 
-        let build_id = read_build_id(&elf).unwrap().unwrap();
+        let build_id = read_build_id_from_elf(&elf).unwrap().unwrap();
         // The file contains a sha1 build ID, which is always 40 hex digits.
         assert_eq!(build_id.len(), 20, "'{build_id:?}'");
 
@@ -426,7 +426,7 @@ mod tests {
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-no-debug.bin");
-        let build_id = read_build_id(&elf).unwrap();
+        let build_id = read_build_id_from_elf(&elf).unwrap();
         assert_eq!(build_id, None);
     }
 
@@ -547,7 +547,7 @@ mod tests {
             .join("data")
             .join("libtest-so.so");
         let expected_elf = Elf {
-            build_id: Some(read_build_id(&so_path).unwrap().unwrap()),
+            build_id: Some(read_build_id_from_elf(&so_path).unwrap().unwrap()),
             path: so_path,
             _non_exhaustive: (),
         };
