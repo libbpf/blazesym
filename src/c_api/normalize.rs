@@ -147,20 +147,22 @@ impl From<blaze_user_addr_meta_binary> for Binary {
 /// C compatible version of [`Unknown`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_user_addr_meta_unknown {}
+pub struct blaze_user_addr_meta_unknown {
+    __unused: u8,
+}
 
 impl From<Unknown> for blaze_user_addr_meta_unknown {
     fn from(other: Unknown) -> Self {
         let Unknown {
             _non_exhaustive: (),
         } = other;
-        Self {}
+        Self { __unused: 0 }
     }
 }
 
 impl From<blaze_user_addr_meta_unknown> for Unknown {
     fn from(other: blaze_user_addr_meta_unknown) -> Self {
-        let blaze_user_addr_meta_unknown {} = other;
+        let blaze_user_addr_meta_unknown { __unused } = other;
         Unknown {
             _non_exhaustive: (),
         }
@@ -408,7 +410,7 @@ mod tests {
     /// [`blaze_user_addr_meta_variant`].
     #[test]
     fn debug_meta_variant() {
-        let unknown = blaze_user_addr_meta_unknown {};
+        let unknown = blaze_user_addr_meta_unknown { __unused: 0 };
         let variant = blaze_user_addr_meta_variant {
             unknown: ManuallyDrop::new(unknown),
         };

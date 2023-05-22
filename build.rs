@@ -94,22 +94,25 @@ where
     }
 }
 
-/// Compile `src` into `dst` using `cc`.
-fn cc(src: &Path, dst: &str, options: &[&str]) {
+/// Compile `src` into `dst` using the provided compiler.
+fn compile(compiler: &str, src: &Path, dst: &str, options: &[&str]) {
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
 
-    // Ideally we'd use the `cc` crate here, but it seemingly can't be convinced
-    // to create binaries.
     run(
-        "cc",
+        compiler,
         options
             .iter()
             .map(OsStr::new)
             .chain([src.as_os_str(), "-o".as_ref(), dst.as_os_str()]),
     )
-    .expect("failed to run `cc`")
+    .unwrap_or_else(|err| panic!("failed to run `{compiler}`: {err}"))
+}
+
+/// Compile `src` into `dst` using `cc`.
+fn cc(src: &Path, dst: &str, options: &[&str]) {
+    compile("cc", src, dst, options)
 }
 
 /// Convert debug information contained in `src` into GSYM in `dst` using
@@ -355,9 +358,9 @@ fn main() {
         // smoke test that cbindgen didn't screw up completely.
         let out_dir = env::var_os("OUT_DIR").unwrap();
         let out_dir = Path::new(&out_dir);
-        let blaze_src = out_dir.join("blazesym.c");
+        let blaze_src_c = out_dir.join("blazesym.c");
         let () = write(
-            &blaze_src,
+            &blaze_src_c,
             r#"
 #include <blazesym.h>
 
@@ -368,10 +371,38 @@ int main() {
         )
         .unwrap();
 
+        let blaze_src_cxx = out_dir.join("blazesym.cpp");
+        let _bytes = copy(&blaze_src_c, &blaze_src_cxx).expect("failed to copy file");
+
         cc(
-            &blaze_src,
+            &blaze_src_c,
             "blazesym.bin",
-            &["-I", Path::new(crate_dir).join("include").to_str().unwrap()],
+            &[
+                "-Wall",
+                "-Wextra",
+                "-Werror",
+                "-I",
+                Path::new(crate_dir).join("include").to_str().unwrap(),
+            ],
         );
+
+        // Best-effort check that C++ can compile the thing as well. Hopefully
+        // all flags are supported...
+        for cxx in ["clang++", "g++"] {
+            if which::which(cxx).is_ok() {
+                compile(
+                    cxx,
+                    &blaze_src_cxx,
+                    &format!("blazesym_cxx_{cxx}.bin"),
+                    &[
+                        "-Wall",
+                        "-Wextra",
+                        "-Werror",
+                        "-I",
+                        Path::new(crate_dir).join("include").to_str().unwrap(),
+                    ],
+                );
+            }
+        }
     }
 }
