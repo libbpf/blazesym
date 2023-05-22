@@ -352,6 +352,10 @@ typedef struct blaze_symbolize_src_gsym {
   const char *path;
 } blaze_symbolize_src_gsym;
 
+#ifdef __cplusplus
+extern "C" {
+#endif // __cplusplus
+
 /**
  * Lookup symbol information in an ELF file.
  *
@@ -577,5 +581,9 @@ const struct blaze_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
  * variants.
  */
 void blaze_result_free(const struct blaze_result *results);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif // __cplusplus
 
 #endif /* __blazesym_h_ */

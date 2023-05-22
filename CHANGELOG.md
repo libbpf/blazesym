@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added `extern "C"` guards in `blazesym.h` header for easy of use from C++ code
+
+
 0.2.0-alpha.1
 -------------
 - Removed no longer necessary `base_address` member from various types
