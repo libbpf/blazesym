@@ -87,7 +87,7 @@ typedef struct blaze_inspect_elf_src {
   /**
    * The path to the binary. This member is always present.
    */
-  char *path;
+  const char *path;
   /**
    * Whether or not to consult debug information to satisfy the request (if
    * present).
