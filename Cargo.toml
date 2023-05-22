@@ -37,7 +37,7 @@ default = ["lru"]
 # up-to-date version of this header should already be available in the
 # include/ directory, so this feature is only necessary when APIs are
 # changed.
-generate-c-header = ["cbindgen"]
+generate-c-header = ["cbindgen", "which"]
 # Enable this feature to opt in to the generation of test files. Having test
 # files created is necessary for running tests.
 generate-test-files = ["xz2", "zip"]
@@ -74,4 +74,5 @@ test-log = "0.2"
 cbindgen = {version = "0.24", optional = true}
 libc = "0.2.137"
 xz2 = {version = "0.1.7", optional = true}
+which = {version = "4.4.0", optional = true}
 zip = {version = "0.6.4", optional = true, default-features = false}

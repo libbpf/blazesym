@@ -117,7 +117,7 @@ typedef struct blaze_user_addr_meta_binary {
  * C compatible version of [`Unknown`].
  */
 typedef struct blaze_user_addr_meta_unknown {
-
+  uint8_t __unused;
 } blaze_user_addr_meta_unknown;
 
 /**
