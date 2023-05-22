@@ -44,7 +44,7 @@ generate-test-files = ["xz2", "zip"]
 # Enable this feature to opt in to the generation of benchmark files.
 # This feature is required for some of the benchmarks. Note that git-lfs
 # needs to be installed in this case.
-generate-bench-files = ["xz2"]
+generate-bench-files = ["reqwest", "xz2"]
 # Disable generation of test files. This feature takes preference over
 # `generate-test-files`.
 dont-generate-test-files = []
@@ -73,6 +73,7 @@ test-log = "0.2"
 [build-dependencies]
 cbindgen = {version = "0.24", optional = true}
 libc = "0.2.137"
+reqwest = {version = "0.11.18", optional = true, features = ["blocking"]}
 xz2 = {version = "0.1.7", optional = true}
 which = {version = "4.4.0", optional = true}
 zip = {version = "0.6.4", optional = true, default-features = false}

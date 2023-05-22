@@ -315,6 +315,41 @@ fn prepare_test_files(crate_root: &Path) {
     zip(files.as_slice(), &dst);
 }
 
+/// Download a multi-part file split into `part_count` pieces.
+#[cfg(feature = "reqwest")]
+fn download_multi_part(base_url: &reqwest::Url, part_count: usize, dst: &Path) {
+    use std::fs::File;
+    use std::io::Write as _;
+
+    let mut dst = File::create(dst).unwrap();
+    for part in 1..=part_count {
+        let url = reqwest::Url::parse(&format!("{}.part{part}", base_url.as_str())).unwrap();
+        let response = reqwest::blocking::get(url).unwrap();
+        let _count = dst.write(&response.bytes().unwrap()).unwrap();
+    }
+}
+
+/// Download large benchmark related files for later use.
+#[cfg(feature = "reqwest")]
+fn download_bench_files(crate_root: &Path) {
+    use reqwest::Url;
+
+    let large_file_url =
+        Url::parse("https://github.com/danielocfb/blazesym-data/raw/main/").unwrap();
+    let file = "vmlinux-5.17.12-100.fc34.x86_64.xz";
+
+    download_multi_part(
+        &large_file_url.join(file).unwrap(),
+        2,
+        &crate_root.join("data").join(file),
+    );
+}
+
+#[cfg(not(feature = "reqwest"))]
+fn download_bench_files(_crate_root: &Path) {
+    unimplemented!()
+}
+
 /// Prepare benchmark files.
 fn prepare_bench_files(crate_root: &Path) {
     let vmlinux = Path::new(crate_root)
@@ -340,6 +375,7 @@ fn main() {
     }
 
     if cfg!(feature = "generate-bench-files") {
+        download_bench_files(crate_dir.as_ref());
         prepare_bench_files(crate_dir.as_ref());
     }
 
