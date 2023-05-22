@@ -102,7 +102,10 @@ impl<'mmap> Cache<'mmap> {
             && ehdr.e_ident[2] == b'L'
             && ehdr.e_ident[3] == b'F')
         {
-            return Err(Error::new(ErrorKind::InvalidData, "e_ident is wrong"))
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                format!("encountered unexpected e_ident: {:x?}", &ehdr.e_ident[0..4]),
+            ))
         }
         self.ehdr = Some(ehdr);
         Ok(ehdr)
