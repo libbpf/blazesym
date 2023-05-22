@@ -339,10 +339,12 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     }
 }
 
-/// Free an object as returned by [`blaze_normalized_user_addrs`].
+/// Free an object as returned by [`blaze_normalized_user_addrs`] or
+/// [`blaze_normalize_user_addrs_sorted`].
 ///
 /// # Safety
 /// The provided object should have been created by
+/// [`blaze_normalized_user_addrs`] or
 /// [`blaze_normalize_user_addrs_sorted`].
 #[no_mangle]
 pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user_addrs) {
