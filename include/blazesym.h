@@ -464,10 +464,12 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs_sorted(const stru
                                                                       uint32_t pid);
 
 /**
- * Free an object as returned by [`blaze_normalized_user_addrs`].
+ * Free an object as returned by [`blaze_normalized_user_addrs`] or
+ * [`blaze_normalize_user_addrs_sorted`].
  *
  * # Safety
  * The provided object should have been created by
+ * [`blaze_normalized_user_addrs`] or
  * [`blaze_normalize_user_addrs_sorted`].
  */
 void blaze_user_addrs_free(struct blaze_normalized_user_addrs *addrs);
