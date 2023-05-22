@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -63,57 +64,67 @@ struct BuildIdNote {
 unsafe impl crate::util::Pod for BuildIdNote {}
 
 
-/// Attempt to read an ELF binary's build ID.
-// TODO: Currently look up is always performed based on section name, but there
-//       is also the possibility of iterating notes and checking checking
-//       Elf64_Nhdr.n_type for NT_GNU_BUILD_ID, specifically.
-fn read_build_id(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
-    let build_id_section = ".note.gnu.build-id";
-    // The build ID is contained in the `.note.gnu.build-id` section. See
-    // elf(5).
-    if let Ok(Some(idx)) = parser.find_section(build_id_section) {
-        // SANITY: We just found the index so the section should always be
-        //         found.
-        let shdr = parser.section_headers()?.get(idx).unwrap();
-        if shdr.sh_type != elf::types::SHT_NOTE {
-            warn!(
-                "build ID section {build_id_section} is of unsupported type ({})",
-                shdr.sh_type
-            );
-            return Ok(None)
-        }
-
-        // SANITY: We just found the index so the section should always be
-        //         found.
-        let mut bytes = parser.section_data(idx).unwrap();
-        let header = bytes.read_pod_ref::<BuildIdNote>().ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidData,
-                "failed to read build ID section header",
-            )
-        })?;
-        if &header.name != b"GNU\0" {
-            warn!(
-                "encountered unsupported build ID type {:?}; ignoring",
-                header.name
-            );
-            Ok(None)
-        } else {
-            // Every byte following the header is part of the build ID.
-            let build_id = bytes.to_vec();
-            Ok(Some(build_id))
-        }
-    } else {
-        Ok(None)
-    }
+trait BuildIdReader: 'static {
+    fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>>;
+    fn read_build_id(parser: &ElfParser) -> Result<Option<Vec<u8>>>;
 }
 
-/// Attempt to read an ELF binary's build ID.
-#[cfg_attr(feature = "tracing", crate::log::instrument)]
-fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
-    let file = File::open(path)?;
-    let parser = ElfParser::open_file(file)?;
-    read_build_id(&parser)
+
+struct DefaultBuildIdReader;
+
+impl BuildIdReader for DefaultBuildIdReader {
+    /// Attempt to read an ELF binary's build ID.
+    #[cfg_attr(feature = "tracing", crate::log::instrument)]
+    fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
+        let file = File::open(path)?;
+        let parser = ElfParser::open_file(file)?;
+        Self::read_build_id(&parser)
+    }
+
+    /// Attempt to read an ELF binary's build ID.
+    // TODO: Currently look up is always performed based on section name, but there
+    //       is also the possibility of iterating notes and checking checking
+    //       Elf64_Nhdr.n_type for NT_GNU_BUILD_ID, specifically.
+    fn read_build_id(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
+        let build_id_section = ".note.gnu.build-id";
+        // The build ID is contained in the `.note.gnu.build-id` section. See
+        // elf(5).
+        if let Ok(Some(idx)) = parser.find_section(build_id_section) {
+            // SANITY: We just found the index so the section should always be
+            //         found.
+            let shdr = parser.section_headers()?.get(idx).unwrap();
+            if shdr.sh_type != elf::types::SHT_NOTE {
+                warn!(
+                    "build ID section {build_id_section} is of unsupported type ({})",
+                    shdr.sh_type
+                );
+                return Ok(None)
+            }
+
+            // SANITY: We just found the index so the section should always be
+            //         found.
+            let mut bytes = parser.section_data(idx).unwrap();
+            let header = bytes.read_pod_ref::<BuildIdNote>().ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    "failed to read build ID section header",
+                )
+            })?;
+            if &header.name != b"GNU\0" {
+                warn!(
+                    "encountered unsupported build ID type {:?}; ignoring",
+                    header.name
+                );
+                Ok(None)
+            } else {
+                // Every byte following the header is part of the build ID.
+                let build_id = bytes.to_vec();
+                Ok(Some(build_id))
+            }
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 
@@ -187,7 +198,7 @@ pub(crate) trait Handler {
 }
 
 
-struct NormalizationHandler {
+struct NormalizationHandler<R> {
     /// The normalized user addresses we are building up.
     normalized: NormalizedUserAddrs,
     /// Lookup table from path (as used in each proc maps entry) to index into
@@ -196,13 +207,13 @@ struct NormalizationHandler {
     /// The index of the `Unknown` entry in `meta_lookup`, used for all unknown
     /// addresses.
     unknown_idx: Option<usize>,
-    /// The function used for retrieving build IDs.
-    get_build_id: &'static BuildIdFn,
+    #[doc(hidden)]
+    _phanton: PhantomData<R>,
 }
 
-impl NormalizationHandler {
+impl<R> NormalizationHandler<R> {
     /// Instantiate a new `NormalizationHandler` object.
-    fn new(addr_count: usize, get_build_id: &'static BuildIdFn) -> Self {
+    fn new(addr_count: usize) -> Self {
         Self {
             normalized: NormalizedUserAddrs {
                 addrs: Vec::with_capacity(addr_count),
@@ -210,12 +221,15 @@ impl NormalizationHandler {
             },
             meta_lookup: HashMap::<PathBuf, usize>::new(),
             unknown_idx: None,
-            get_build_id,
+            _phanton: PhantomData,
         }
     }
 }
 
-impl Handler for NormalizationHandler {
+impl<R> Handler for NormalizationHandler<R>
+where
+    R: BuildIdReader,
+{
     fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()> {
         self.unknown_idx = self.normalized.add_unknown_addr(addr, self.unknown_idx);
         Ok(())
@@ -227,7 +241,7 @@ impl Handler for NormalizationHandler {
         } else {
             let elf = Elf {
                 path: entry.path.symbolic_path.to_path_buf(),
-                build_id: (self.get_build_id)(&entry.path.maps_file)?,
+                build_id: R::read_build_id_from_elf(&entry.path.maps_file)?,
                 _non_exhaustive: (),
             };
 
@@ -353,7 +367,7 @@ impl Normalizer {
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
         let entries = maps::parse(pid)?;
-        let handler = NormalizationHandler::new(addrs.len(), &read_build_id_from_elf);
+        let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs.len());
         let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
         Ok(handler.normalized)
     }
@@ -421,7 +435,9 @@ mod tests {
             .join("data")
             .join("libtest-so.so");
 
-        let build_id = read_build_id_from_elf(&elf).unwrap().unwrap();
+        let build_id = DefaultBuildIdReader::read_build_id_from_elf(&elf)
+            .unwrap()
+            .unwrap();
         // The file contains a sha1 build ID, which is always 40 hex digits.
         assert_eq!(build_id.len(), 20, "'{build_id:?}'");
 
@@ -429,7 +445,7 @@ mod tests {
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-no-debug.bin");
-        let build_id = read_build_id_from_elf(&elf).unwrap();
+        let build_id = DefaultBuildIdReader::read_build_id_from_elf(&elf).unwrap();
         assert_eq!(build_id, None);
     }
 
@@ -550,7 +566,11 @@ mod tests {
             .join("data")
             .join("libtest-so.so");
         let expected_elf = Elf {
-            build_id: Some(read_build_id_from_elf(&so_path).unwrap().unwrap()),
+            build_id: Some(
+                DefaultBuildIdReader::read_build_id_from_elf(&so_path)
+                    .unwrap()
+                    .unwrap(),
+            ),
             path: so_path,
             _non_exhaustive: (),
         };
@@ -561,8 +581,15 @@ mod tests {
     /// in any executable segment.
     #[test]
     fn user_address_normalization_static_maps() {
-        fn read_no_build_id(_path: &Path) -> Result<Option<Vec<u8>>> {
-            Ok(None)
+        struct NoBuildIdReader;
+
+        impl BuildIdReader for NoBuildIdReader {
+            fn read_build_id_from_elf(_path: &Path) -> Result<Option<Vec<u8>>> {
+                Ok(None)
+            }
+            fn read_build_id(_parser: &ElfParser) -> Result<Option<Vec<u8>>> {
+                Ok(None)
+            }
         }
 
         fn test(unknown_addr: Addr) {
@@ -597,7 +624,7 @@ mod tests {
             let entries = maps::parse_file(maps.as_bytes(), pid);
             let addrs = [unknown_addr as Addr];
 
-            let handler = NormalizationHandler::new(addrs.len(), &read_no_build_id);
+            let handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
             let norm_addrs = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
