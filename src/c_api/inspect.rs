@@ -33,7 +33,7 @@ use crate::Addr;
 #[derive(Debug)]
 pub struct blaze_inspect_elf_src {
     /// The path to the binary. This member is always present.
-    path: *mut c_char,
+    path: *const c_char,
     /// Whether or not to consult debug information to satisfy the request (if
     /// present).
     debug_info: bool,
@@ -61,7 +61,7 @@ impl From<blaze_inspect_elf_src> for Elf {
 
         Elf {
             path: PathBuf::from(OsString::from_vec(
-                unsafe { CString::from_raw(path) }.into_bytes(),
+                unsafe { CString::from_raw(path as *mut _) }.into_bytes(),
             )),
             debug_info,
             _non_exhaustive: (),

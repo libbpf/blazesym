@@ -3,6 +3,7 @@ Unreleased
 - Added `extern "C"` guards in `blazesym.h` header for easy of use from C++ code
 - Added unused member variable to `blaze_user_addr_meta_unknown` type for
   compliance with C standard, stating undefined behavior for empty structs
+- Changed `blaze_inspect_elf_src::path` type to `*const _`
 
 
 0.2.0-alpha.1
