@@ -38,7 +38,7 @@ impl From<Elf> for Source {
 
 
 /// Linux Kernel's binary image and a copy of /proc/kallsyms
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Kernel {
     /// The path of a kallsyms copy.
     ///

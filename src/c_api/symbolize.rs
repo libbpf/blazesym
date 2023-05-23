@@ -56,7 +56,7 @@ impl From<&blaze_symbolize_src_elf> for Elf {
 /// Use a kernel image and a snapshot of its kallsyms as a source of symbols and
 /// debug information.
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct blaze_symbolize_src_kernel {
     /// The path of a copy of kallsyms.
     ///
@@ -81,8 +81,8 @@ impl From<&blaze_symbolize_src_kernel> for Kernel {
             kernel_image,
         } = kernel;
         Self {
-            kallsyms: (kallsyms.is_null()).then(|| unsafe { from_cstr(*kallsyms) }),
-            kernel_image: (kernel_image.is_null()).then(|| unsafe { from_cstr(*kernel_image) }),
+            kallsyms: (!kallsyms.is_null()).then(|| unsafe { from_cstr(*kallsyms) }),
+            kernel_image: (!kernel_image.is_null()).then(|| unsafe { from_cstr(*kernel_image) }),
             _non_exhaustive: (),
         }
     }
@@ -478,4 +478,32 @@ pub unsafe extern "C" fn blaze_result_free(results: *const blaze_result) {
     let raw_buf_with_sz = unsafe { (results as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
     let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
     unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Check that we can convert an [`Unknown`] into a
+    /// [`blaze_user_addr_meta_unknown`] and back.
+    #[test]
+    fn kernel_conversion() {
+        let kernel = blaze_symbolize_src_kernel {
+            kallsyms: ptr::null(),
+            kernel_image: ptr::null(),
+        };
+        let kernel = Kernel::from(&kernel);
+        assert_eq!(kernel.kallsyms, None);
+        assert_eq!(kernel.kernel_image, None);
+
+        let kernel = blaze_symbolize_src_kernel {
+            kallsyms: b"/proc/kallsyms\0" as *const _ as *const c_char,
+            kernel_image: b"/boot/image\0" as *const _ as *const c_char,
+        };
+        let kernel = Kernel::from(&kernel);
+        assert_eq!(kernel.kallsyms, Some(PathBuf::from("/proc/kallsyms")));
+        assert_eq!(kernel.kernel_image, Some(PathBuf::from("/boot/image")));
+    }
 }

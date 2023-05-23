@@ -4,6 +4,8 @@ Unreleased
 - Added unused member variable to `blaze_user_addr_meta_unknown` type for
   compliance with C standard, stating undefined behavior for empty structs
 - Changed `blaze_inspect_elf_src::path` type to `*const _`
+- Fixed incorrect `NULL` checks when working with `blaze_symbolize_src_kernel`
+  objects
 - Switched away from using Git LFS for large benchmark files towards
   on-demand downloading from a different repository, controlled by
   `generate-bench-files` feature
