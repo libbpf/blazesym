@@ -1,7 +1,7 @@
 [package]
 name = "blazesym"
 description = "blazesym is a library that can be used for address symbolization and more."
-version = "0.2.0-alpha.1"
+version = "0.2.0-alpha.2"
 edition = "2021"
 rust-version = "1.63"
 authors = ["Daniel Müller <deso@posteo.net>", "Kui-Feng <thinker.li@gmail.com>"]
