@@ -1,6 +1,5 @@
 #[cfg(test)]
 use std::env;
-use std::ffi::CStr;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -11,8 +10,23 @@ use std::io::Result;
 use std::mem;
 use std::path::Path;
 
+use gimli::constants;
+use gimli::read::AttributeValue;
+use gimli::read::DebugAbbrev;
+use gimli::read::DebugInfo;
+use gimli::read::DebugStr;
+use gimli::read::EndianSlice;
+use gimli::read::UnitHeader;
+use gimli::Abbreviations;
+use gimli::DebuggingInformationEntry;
+use gimli::LittleEndian;
+use gimli::Section as _;
+use gimli::SectionId;
+use gimli::UnitSectionOffset;
+
 use crate::elf::ElfParser;
 use crate::inspect::SymType;
+use crate::log::warn;
 use crate::util::decode_leb128;
 use crate::util::decode_leb128_s;
 use crate::util::decode_udword;
@@ -23,8 +37,22 @@ use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Addr;
 
-use super::constants;
-use super::debug_info;
+
+/// The gimli reader type we currently use. Could be made generic if
+/// need be, but we keep things simple while we can.
+type R<'dat> = EndianSlice<'dat, LittleEndian>;
+
+
+fn format_offset(offset: UnitSectionOffset<usize>) -> String {
+    match offset {
+        UnitSectionOffset::DebugInfoOffset(o) => {
+            format!(".debug_info+0x{:08x}", o.0)
+        }
+        UnitSectionOffset::DebugTypesOffset(o) => {
+            format!(".debug_types+0x{:08x}", o.0)
+        }
+    }
+}
 
 
 #[repr(C, packed)]
@@ -660,18 +688,6 @@ pub(crate) struct DWSymInfo<'a> {
     pub sym_type: SymType, // A function or a variable.
 }
 
-fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
-    for (name, _form, _opt, value) in die {
-        if name == constants::DW_AT_sibling {
-            if let debug_info::AttrValue::Unsigned(off) = value {
-                return Some(off as usize)
-            }
-            return None
-        }
-    }
-    None
-}
-
 /// Parse a DIE that declares a subprogram. (a function)
 ///
 /// We already know the given DIE is a declaration of a subprogram.
@@ -684,71 +700,116 @@ fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
 /// * `str_data` - is the content of the `.debug_str` section.
 ///
 /// Return a [`DWSymInfo`] if it finds the address of the subprogram.
-fn parse_die_subprogram<'a>(
-    die: &mut debug_info::DIE<'a>,
-    str_data: &'a [u8],
-) -> Result<Option<DWSymInfo<'a>>> {
-    let mut addr: Option<Addr> = None;
-    let mut name_str: Option<&str> = None;
-    let mut size = 0;
+// TODO: Having a single function for a single subprogram may not be
+//       sufficient to get all relevant symbol information. See
+//       https://stackoverflow.com/a/59674438
+// TODO: We likely need to handle DW_AT_ranges; see
+//       https://reviews.llvm.org/D78489
+fn parse_die_subprogram<'dat>(
+    entry: &DebuggingInformationEntry<R<'dat>>,
+    debug_str: &DebugStr<R<'dat>>,
+) -> Result<Option<DWSymInfo<'dat>>> {
+    let mut addr = None;
+    let mut name = None;
+    let mut size = None;
+    let mut high_pc = None;
+    let mut linkage_name = None;
 
-    for (name, _form, _opt, value) in die {
-        match name {
+    let mut attrs = entry.attrs();
+    while let Some(attr) = attrs.next().map_err(|err| {
+        Error::new(
+            ErrorKind::InvalidData,
+            format!("failed to read next DIE attribute: {err}"),
+        )
+    })? {
+        match attr.name() {
             constants::DW_AT_linkage_name | constants::DW_AT_name => {
-                if name_str.is_some() {
+                let attr_name = || {
+                    attr.name()
+                        .static_string()
+                        .unwrap_or("DW_AT_name/DW_AT_linkage_name")
+                };
+
+                let name_slice = match attr.value() {
+                    AttributeValue::String(string) => string,
+                    AttributeValue::DebugStrRef(..) => {
+                        let string = attr.string_value(debug_str).ok_or_else(|| {
+                            Error::new(
+                                ErrorKind::InvalidData,
+                                format!(
+                                    "encountered invalid string reference in {} attribute",
+                                    attr_name()
+                                ),
+                            )
+                        })?;
+                        string
+                    }
+                    _ => {
+                        warn!("encountered unexpected attribute value for {}", attr_name());
+                        continue
+                    }
+                };
+
+                let name_ = name_slice.to_string().map_err(|err| {
+                    Error::new(
+                        ErrorKind::InvalidData,
+                        format!(
+                            "{} attribute does not contain valid string: {err}",
+                            attr_name()
+                        ),
+                    )
+                })?;
+                if attr.name() == constants::DW_AT_name {
+                    name = Some(name_);
+                } else {
+                    linkage_name = Some(name_);
+                }
+            }
+            constants::DW_AT_low_pc => match attr.value() {
+                AttributeValue::Addr(addr_) => {
+                    addr = Some(addr_);
+                }
+                _ => {
+                    warn!(
+                        "encountered unexpected attribute for {}",
+                        attr.name().static_string().unwrap_or("DW_AT_low_pc")
+                    );
                     continue
                 }
-                name_str = Some(match value {
-                    debug_info::AttrValue::Unsigned(str_off) => unsafe {
-                        CStr::from_ptr(str_data[str_off as usize..].as_ptr().cast())
-                            .to_str()
-                            .map_err(|_e| {
-                                Error::new(
-                                    ErrorKind::InvalidData,
-                                    "fail to extract the name of a subprogram",
-                                )
-                            })?
-                    },
-                    debug_info::AttrValue::String(s) => s,
-                    _ => {
-                        return Err(Error::new(
-                            ErrorKind::InvalidData,
-                            "fail to parse DW_AT_linkage_name {}",
-                        ))
-                    }
-                });
-            }
-            constants::DW_AT_lo_pc => match value {
-                debug_info::AttrValue::Unsigned(pc) => {
-                    addr = Some(pc as Addr);
+            },
+            constants::DW_AT_high_pc => match attr.value() {
+                AttributeValue::Addr(addr) => {
+                    high_pc = Some(addr);
+                }
+                AttributeValue::Data8(offset) => {
+                    // It's an offset from "low_pc", i.e., the size.
+                    size = Some(offset);
                 }
                 _ => {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "fail to parse DW_AT_lo_pc",
-                    ))
+                    warn!(
+                        "encountered unexpected attribute for {}",
+                        attr.name().static_string().unwrap_or("DW_AT_high_pc")
+                    );
+                    continue
                 }
             },
-            constants::DW_AT_hi_pc => match value {
-                debug_info::AttrValue::Unsigned(sz) => {
-                    size = sz;
-                }
-                _ => {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        "fail to parse DW_AT_lo_pc",
-                    ))
-                }
-            },
-            _ => {}
+            _ => (),
         }
     }
 
-    match (addr, name_str) {
+    name = name.or(linkage_name);
+    size = match (size, addr, high_pc) {
+        (None, Some(low_pc), Some(high_pc)) => high_pc.checked_sub(low_pc),
+        _ => size,
+    };
+
+    match (addr, name) {
         (Some(addr), Some(name)) => Ok(Some(DWSymInfo {
             name,
-            addr,
-            size: size as usize,
+            addr: addr as Addr,
+            // TODO: `size` really should be an `Option` inside
+            //       `DWSymInfo`.
+            size: size.unwrap_or(0) as usize,
             sym_type: SymType::Function,
         })),
         _ => Ok(None),
@@ -756,43 +817,41 @@ fn parse_die_subprogram<'a>(
 }
 
 /// Walk through all DIEs of a compile unit to extract symbols.
-///
-/// # Arguments
-///
-/// * `dieiter` - is an iterator returned by the iterator that is
-///               returned by an [`UnitIter`].  [`UnitIter`] returns
-///               an [`UnitHeader`] and an [`DIEIter`].
-/// * `str_data` - is the content of the `.debug_str` section.
-/// * `found_syms` - the Vec to append the found symbols.
-fn debug_info_parse_symbols_cu<'a>(
-    mut dieiter: debug_info::DIEIter<'a>,
-    str_data: &'a [u8],
-    found_syms: &mut Vec<DWSymInfo<'a>>,
-) {
-    while let Some(mut die) = dieiter.next() {
-        if die.tag == 0 || die.tag == constants::DW_TAG_namespace {
-            continue
-        }
-
-        assert!(die.abbrev.is_some());
-        if die.tag != constants::DW_TAG_subprogram {
-            if die.abbrev.unwrap().has_children {
-                if let Some(sibling_off) = find_die_sibling(&mut die) {
-                    dieiter.seek_to_sibling(sibling_off);
-                    continue
-                }
-                // Skip this DIE quickly, or the iterator will
-                // recalculate the size of the DIE.
-                die.exhaust().unwrap();
+fn debug_info_parse_symbols_cu<'dat>(
+    unit: UnitHeader<R<'dat>>,
+    abbrevs: &Abbreviations,
+    debug_str: &DebugStr<R<'dat>>,
+    found_syms: &mut Vec<DWSymInfo<'dat>>,
+) -> Result<()> {
+    let mut entries = unit.entries(abbrevs);
+    while let Some((_, entry)) = entries.next_dfs().map_err(|err| {
+        Error::new(
+            ErrorKind::InvalidData,
+            format!("failed to find next DIE: {err}"),
+        )
+    })? {
+        if entry.tag() == constants::DW_TAG_subprogram {
+            if let Some(sym) = parse_die_subprogram(entry, debug_str)? {
+                let () = found_syms.push(sym);
             }
-            continue
-        }
-
-        if let Ok(Some(syminfo)) = parse_die_subprogram(&mut die, str_data) {
-            found_syms.push(syminfo);
         }
     }
+    Ok(())
 }
+
+
+fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
+    let result = parser.find_section(id.name());
+    let data = match result {
+        Ok(idx) => parser.section_data(idx)?,
+        // Make sure to return empty data if a section does not exist.
+        Err(err) if err.kind() == ErrorKind::NotFound => &[],
+        Err(err) => return Err(err),
+    };
+    let reader = EndianSlice::new(data, LittleEndian);
+    Ok(reader)
+}
+
 
 /// Parse the addresses of symbols from the `.debug_info` section.
 ///
@@ -800,20 +859,32 @@ fn debug_info_parse_symbols_cu<'a>(
 ///
 /// * `parser` - is an ELF parser.
 pub(crate) fn debug_info_parse_symbols(parser: &ElfParser) -> Result<Vec<DWSymInfo<'_>>> {
-    let info_sect_idx = parser.find_section(".debug_info")?;
-    let info_data = parser.section_data(info_sect_idx)?;
-    let abbrev_sect_idx = parser.find_section(".debug_abbrev")?;
-    let abbrev_data = parser.section_data(abbrev_sect_idx)?;
-    let units = debug_info::UnitIter::new(info_data, abbrev_data);
-    let str_sect_idx = parser.find_section(".debug_str")?;
-    let str_data = parser.section_data(str_sect_idx)?;
+    let debug_abbrev_data = load_section(parser, DebugAbbrev::<R>::id())?;
+    let debug_info_data = load_section(parser, DebugInfo::<R>::id())?;
+    let debug_str_data = load_section(parser, DebugStr::<R>::id())?;
+    let debug_abbrev = DebugAbbrev::from(debug_abbrev_data);
+    let debug_info = DebugInfo::from(debug_info_data);
+    let debug_str = DebugStr::from(debug_str_data);
+    let mut units = debug_info.units();
+    let mut syms = Vec::new();
 
-    let mut syms = Vec::<DWSymInfo>::new();
+    while let Some(unit) = units.next().map_err(|err| {
+        Error::new(
+            ErrorKind::InvalidData,
+            format!("failed to iterate DWARF units: {err}"),
+        )
+    })? {
+        let abbrevs = unit.abbreviations(&debug_abbrev).map_err(|err| {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "failed to retrieve abbreviations for unit header @ {}: {err}",
+                    format_offset(unit.offset())
+                ),
+            )
+        })?;
 
-    for (uhdr, dieiter) in units {
-        if let debug_info::UnitHeader::CompileV4(_) = uhdr {
-            debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
-        }
+        let () = debug_info_parse_symbols_cu(unit, &abbrevs, &debug_str, &mut syms)?;
     }
     Ok(syms)
 }
@@ -1060,13 +1131,22 @@ mod tests {
 
     #[test]
     fn test_debug_info_parse_symbols() {
-        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-dwarf-v4.bin");
+        let binaries = [
+            "test-dwarf-v2.bin",
+            "test-dwarf-v3.bin",
+            "test-dwarf-v4.bin",
+            "test-dwarf-v5.bin",
+        ];
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let syms = debug_info_parse_symbols(&parser).unwrap();
-        assert!(syms.iter().any(|sym| sym.name == "fibonacci"))
+        for binary in binaries {
+            let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(binary);
+
+            let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+            let syms = debug_info_parse_symbols(&parser).unwrap();
+            assert!(syms.iter().any(|sym| sym.name == "fibonacci"))
+        }
     }
 
     /// Benchmark the [`debug_info_parse_symbols`] function.

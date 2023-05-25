@@ -283,8 +283,10 @@ fn prepare_test_files(crate_root: &Path) {
 
     let src = crate_root.join("data").join("test-exe.c");
     cc(&src, "test-no-debug.bin", &["-g0", "-Wl,--build-id=none"]);
-    cc(&src, "test-dwarf-v4.bin", &["-gdwarf-4"]);
-    cc(&src, "test-dwarf-v5.bin", &["-gdwarf-5"]);
+    cc(&src, "test-dwarf-v2.bin", &["-gstrict-dwarf", "-gdwarf-2"]);
+    cc(&src, "test-dwarf-v3.bin", &["-gstrict-dwarf", "-gdwarf-3"]);
+    cc(&src, "test-dwarf-v4.bin", &["-gstrict-dwarf", "-gdwarf-4"]);
+    cc(&src, "test-dwarf-v5.bin", &["-gstrict-dwarf", "-gdwarf-5"]);
 
     let src = crate_root.join("data").join("test-stable-addresses.c");
     let src_cu2 = crate_root.join("data").join("test-stable-addresses-cu2.c");
