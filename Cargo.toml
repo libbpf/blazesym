@@ -34,7 +34,7 @@ crate-type = ["cdylib", "rlib", "staticlib"]
 [features]
 default = ["dwarf", "lru"]
 # Enable this feature to enable DWARF support.
-dwarf = []
+dwarf = ["gimli"]
 # Enable this feature to re-generate the library's C header file. An
 # up-to-date version of this header should already be available in the
 # include/ directory, so this feature is only necessary when APIs are
@@ -64,6 +64,7 @@ debug = true
 
 [dependencies]
 libc = "0.2.137"
+gimli = {version = "0.27.2", optional = true}
 log = {version = "0.4.17", optional = true}
 lru = {version = "0.10", optional = true}
 

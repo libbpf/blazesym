@@ -1,3 +1,10 @@
+Unreleased
+----------
+- Switched to using `gimli` for DWARF support
+  - Added support for DWARF versions v2, v3, and v5 for symbol lookup
+  - Introduced `dwarf` feature to make dependency optional
+
+
 0.2.0-alpha.2
 -------------
 - Added `extern "C"` guards in `blazesym.h` header for easy of use from C++ code
