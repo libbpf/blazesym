@@ -7,6 +7,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::mem;
 use std::path::Path;
 
@@ -128,7 +129,7 @@ impl DebugLineCU {
 }
 
 /// Parse the list of directory paths for a CU.
-fn parse_debug_line_dirs(data: &mut &[u8]) -> Result<Vec<String>, Error> {
+fn parse_debug_line_dirs(data: &mut &[u8]) -> Result<Vec<String>> {
     let mut strs = Vec::<String>::new();
 
     loop {
@@ -152,7 +153,7 @@ fn parse_debug_line_dirs(data: &mut &[u8]) -> Result<Vec<String>, Error> {
 }
 
 /// Parse the list of file information for a CU.
-fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>, Error> {
+fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>> {
     let mut strs = Vec::<DebugLineFileInfo>::new();
 
     loop {
@@ -193,7 +194,7 @@ fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>, Er
     }
 }
 
-fn parse_debug_line_cu(data: &mut &[u8], addresses: &[Addr]) -> Result<DebugLineCU, Error> {
+fn parse_debug_line_cu(data: &mut &[u8], addresses: &[Addr]) -> Result<DebugLineCU> {
     let prologue_v2_size: usize = mem::size_of::<DebugLinePrologueV2>();
     let prologue_v4_size: usize = mem::size_of::<DebugLinePrologue>();
 
@@ -330,7 +331,7 @@ fn run_debug_line_stmt(
     prologue: &DebugLinePrologue,
     ip: usize,
     states: &mut DebugLineStates,
-) -> Result<(usize, bool), Error> {
+) -> Result<(usize, bool)> {
     // Standard opcodes
     const DW_LNS_EXT: u8 = 0;
     const DW_LNS_COPY: u8 = 1;
@@ -523,7 +524,7 @@ fn run_debug_line_stmts(
     stmts: &[u8],
     prologue: &DebugLinePrologue,
     addresses: &[Addr],
-) -> Result<Vec<DebugLineStates>, Error> {
+) -> Result<Vec<DebugLineStates>> {
     let mut ip = 0;
     let mut matrix = Vec::<DebugLineStates>::new();
     let mut should_sort = false;
@@ -594,7 +595,7 @@ fn run_debug_line_stmts(
 pub(crate) fn parse_debug_line_elf_parser(
     parser: &ElfParser,
     addresses: &[Addr],
-) -> Result<Vec<DebugLineCU>, Error> {
+) -> Result<Vec<DebugLineCU>> {
     let debug_line_idx = parser.find_section(".debug_line")?;
     let debug_line_sz = parser.get_section_size(debug_line_idx)?;
     let mut remain_sz = debug_line_sz;
@@ -686,7 +687,7 @@ fn find_die_sibling(die: &mut debug_info::DIE<'_>) -> Option<usize> {
 fn parse_die_subprogram<'a>(
     die: &mut debug_info::DIE<'a>,
     str_data: &'a [u8],
-) -> Result<Option<DWSymInfo<'a>>, Error> {
+) -> Result<Option<DWSymInfo<'a>>> {
     let mut addr: Option<Addr> = None;
     let mut name_str: Option<&str> = None;
     let mut size = 0;
@@ -804,7 +805,7 @@ fn debug_info_parse_symbols_cu<'a>(
 pub(crate) fn debug_info_parse_symbols<'a>(
     parser: &'a ElfParser,
     cond: Option<&(dyn Fn(&DWSymInfo<'a>) -> bool + Send + Sync)>,
-) -> Result<Vec<DWSymInfo<'a>>, Error> {
+) -> Result<Vec<DWSymInfo<'a>>> {
     let info_sect_idx = parser.find_section(".debug_info")?;
     let info_data = parser.section_data(info_sect_idx)?;
     let abbrev_sect_idx = parser.find_section(".debug_abbrev")?;
@@ -853,7 +854,7 @@ mod tests {
         aranges: Vec<(u64, u64)>,
     }
 
-    fn parse_aranges_cu(data: &[u8]) -> Result<(ArangesCU, usize), Error> {
+    fn parse_aranges_cu(data: &[u8]) -> Result<(ArangesCU, usize)> {
         if data.len() < 12 {
             return Err(Error::new(
                 ErrorKind::InvalidData,
@@ -925,7 +926,7 @@ mod tests {
         ))
     }
 
-    fn parse_aranges_elf_parser(parser: &ElfParser) -> Result<Vec<ArangesCU>, Error> {
+    fn parse_aranges_elf_parser(parser: &ElfParser) -> Result<Vec<ArangesCU>> {
         let debug_aranges_idx = parser.find_section(".debug_aranges")?;
 
         let raw_data = parser.read_section_raw(debug_aranges_idx)?;
@@ -941,7 +942,7 @@ mod tests {
         Ok(acus)
     }
 
-    fn parse_aranges_elf(filename: &Path) -> Result<Vec<ArangesCU>, Error> {
+    fn parse_aranges_elf(filename: &Path) -> Result<Vec<ArangesCU>> {
         let parser = ElfParser::open(filename)?;
         parse_aranges_elf_parser(&parser)
     }
