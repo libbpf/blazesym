@@ -799,13 +799,7 @@ fn debug_info_parse_symbols_cu<'a>(
 /// # Arguments
 ///
 /// * `parser` - is an ELF parser.
-/// * `cond` - is a function to check if we have found the information
-///            we need.  The function will stop earlier if the
-///            condition is met.
-pub(crate) fn debug_info_parse_symbols<'a>(
-    parser: &'a ElfParser,
-    cond: Option<&(dyn Fn(&DWSymInfo<'a>) -> bool + Send + Sync)>,
-) -> Result<Vec<DWSymInfo<'a>>> {
+pub(crate) fn debug_info_parse_symbols(parser: &ElfParser) -> Result<Vec<DWSymInfo<'_>>> {
     let info_sect_idx = parser.find_section(".debug_info")?;
     let info_data = parser.section_data(info_sect_idx)?;
     let abbrev_sect_idx = parser.find_section(".debug_abbrev")?;
@@ -816,23 +810,9 @@ pub(crate) fn debug_info_parse_symbols<'a>(
 
     let mut syms = Vec::<DWSymInfo>::new();
 
-    if let Some(cond) = cond {
-        'outer: for (uhdr, dieiter) in units {
-            if let debug_info::UnitHeader::CompileV4(_) = uhdr {
-                let saved_sz = syms.len();
-                debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
-                for sym in &syms[saved_sz..] {
-                    if !cond(sym) {
-                        break 'outer
-                    }
-                }
-            }
-        }
-    } else {
-        for (uhdr, dieiter) in units {
-            if let debug_info::UnitHeader::CompileV4(_) = uhdr {
-                debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
-            }
+    for (uhdr, dieiter) in units {
+        if let debug_info::UnitHeader::CompileV4(_) = uhdr {
+            debug_info_parse_symbols_cu(dieiter, str_data, &mut syms);
         }
     }
     Ok(syms)
@@ -1085,7 +1065,7 @@ mod tests {
             .join("test-dwarf-v4.bin");
 
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let syms = debug_info_parse_symbols(&parser, None).unwrap();
+        let syms = debug_info_parse_symbols(&parser).unwrap();
         assert!(syms.iter().any(|sym| sym.name == "fibonacci"))
     }
 
@@ -1096,6 +1076,6 @@ mod tests {
         let bin_name = env::args().next().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
 
-        let () = b.iter(|| debug_info_parse_symbols(&parser, None).unwrap());
+        let () = b.iter(|| debug_info_parse_symbols(&parser).unwrap());
     }
 }
