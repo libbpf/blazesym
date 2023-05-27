@@ -41,6 +41,7 @@ impl ElfResolver {
 
     fn get_parser(&self) -> &ElfParser {
         match &self.backend {
+            #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
             ElfBackend::Elf(parser) => parser,
         }
@@ -64,12 +65,14 @@ impl SymResolver for ElfResolver {
 
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
         match &self.backend {
+            #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
             ElfBackend::Elf(parser) => parser.find_addr(name, opts),
         }
         .ok()
     }
 
+    #[cfg(feature = "dwarf")]
     fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             let (directory, file, line) = dwarf.find_line(addr)?;
@@ -81,6 +84,11 @@ impl SymResolver for ElfResolver {
         } else {
             None
         }
+    }
+
+    #[cfg(not(feature = "dwarf"))]
+    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
+        None
     }
 
     /// Find the file offset of the symbol at address `addr`.
@@ -110,6 +118,7 @@ impl SymResolver for ElfResolver {
 impl Debug for ElfResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self.backend {
+            #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(_) => write!(f, "DWARF {}", self.file_name.display()),
             ElfBackend::Elf(_) => write!(f, "ELF {}", self.file_name.display()),
         }

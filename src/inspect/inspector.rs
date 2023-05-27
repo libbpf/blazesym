@@ -1,6 +1,7 @@
 use std::io::Result;
 use std::rc::Rc;
 
+#[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
 use crate::elf::ElfBackend;
 use crate::elf::ElfParser;
@@ -45,6 +46,7 @@ impl Inspector {
                 debug_info,
                 _non_exhaustive: (),
             }) => {
+                #[cfg(feature = "dwarf")]
                 let backend = if *debug_info {
                     let debug_line_info = true;
                     let debug_info_symbols = true;
@@ -52,6 +54,13 @@ impl Inspector {
                     let backend = ElfBackend::Dwarf(Rc::new(dwarf));
                     backend
                 } else {
+                    let elf = ElfParser::open(path)?;
+                    let backend = ElfBackend::Elf(Rc::new(elf));
+                    backend
+                };
+
+                #[cfg(not(feature = "dwarf"))]
+                let backend = {
                     let elf = ElfParser::open(path)?;
                     let backend = ElfBackend::Elf(Rc::new(elf));
                     backend
