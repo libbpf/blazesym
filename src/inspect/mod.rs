@@ -14,6 +14,7 @@
 //! // There probably will only be a single one.
 //! ```
 
+#[cfg_attr(not(feature = "dwarf"), allow(unused_variables))]
 mod inspector;
 mod source;
 

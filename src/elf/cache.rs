@@ -11,6 +11,7 @@ use std::rc::Rc;
 #[cfg(feature = "lru")]
 use lru::LruCache;
 
+#[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
 use crate::util::fstat;
 
@@ -21,11 +22,13 @@ const DFL_CACHE_MAX: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1024) }
 
 #[derive(Clone, Debug)]
 pub(crate) enum ElfBackend {
+    #[cfg(feature = "dwarf")]
     Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
-    Elf(Rc<ElfParser>),       // ELF w/o DWARF
+    Elf(Rc<ElfParser>), // ELF w/o DWARF
 }
 
 #[cfg(test)]
+#[cfg(feature = "dwarf")]
 impl ElfBackend {
     pub fn to_dwarf(&self) -> Option<Rc<DwarfResolver>> {
         if let Self::Dwarf(dwarf) = self {
@@ -58,6 +61,8 @@ impl ElfCacheEntry {
     ) -> Result<ElfCacheEntry, Error> {
         let stat = fstat(file.as_raw_fd())?;
         let parser = Rc::new(ElfParser::open_file(file)?);
+
+        #[cfg(feature = "dwarf")]
         let backend = if let Ok(dwarf) = DwarfResolver::from_parser_for_addresses(
             Rc::clone(&parser),
             &[],
@@ -68,6 +73,9 @@ impl ElfCacheEntry {
         } else {
             ElfBackend::Elf(parser)
         };
+
+        #[cfg(not(feature = "dwarf"))]
+        let backend = ElfBackend::Elf(parser);
 
         Ok(ElfCacheEntry {
             dev: stat.st_dev,
@@ -167,6 +175,7 @@ impl ElfCache {
 }
 
 #[cfg(test)]
+#[cfg(feature = "dwarf")]
 mod tests {
     use super::*;
 
@@ -181,7 +190,9 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let cache = ElfCache::new(true, false);
+        let src_locations = true;
+        let debug_syms = false;
+        let cache = ElfCache::new(src_locations, debug_syms);
         let backend_first = cache.find(Path::new(&bin_name));
         let backend_second = cache.find(Path::new(&bin_name));
         assert!(backend_first.is_ok());

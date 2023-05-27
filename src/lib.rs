@@ -31,6 +31,7 @@
 extern crate test;
 
 pub mod c_api;
+#[cfg(feature = "dwarf")]
 mod dwarf;
 mod elf;
 mod gsym;
