@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::io::Error;
@@ -87,6 +88,35 @@ pub(crate) fn uname_release() -> Result<CString> {
     //         success.
     let release = unsafe { CStr::from_ptr(uname.release.as_ptr()) }.to_owned();
     Ok(release)
+}
+
+pub(crate) fn find_lowest_match_by<T, F>(slice: &[T], mut f: F) -> Option<usize>
+where
+    F: FnMut(&T) -> Ordering,
+{
+    let idx = slice.partition_point(|e| f(e).is_lt());
+    if let Some(e) = slice.get(idx) {
+        if f(e).is_eq() {
+            return Some(idx)
+        }
+    }
+    None
+}
+
+pub(crate) fn find_lowest_match_by_key<T, B, F>(slice: &[T], b: &B, mut f: F) -> Option<usize>
+where
+    F: FnMut(&T) -> B,
+    B: Ord,
+{
+    find_lowest_match_by(slice, |k| f(k).cmp(b))
+}
+
+#[cfg(test)]
+pub(crate) fn find_lowest_match<T>(slice: &[T], item: &T) -> Option<usize>
+where
+    T: Ord,
+{
+    find_lowest_match_by(slice, |elem| elem.cmp(item))
 }
 
 /// See `find_match_or_lower_bound`, but allow the user to pass in a comparison
@@ -673,6 +703,48 @@ mod tests {
     /// Test that we correctly binary search for a lower bound.
     #[test]
     fn search_lower_bound() {
+        fn test(f: impl Fn(&[u16], &u16) -> Option<usize>) {
+            let data = [];
+            assert_eq!(f(&data, &0), None);
+
+            let data = [5];
+            assert_eq!(f(&data, &0), None);
+            assert_eq!(f(&data, &1), None);
+            assert_eq!(f(&data, &4), None);
+            assert_eq!(f(&data, &5), Some(0));
+            assert_eq!(f(&data, &6), None);
+
+            let data = [5, 5];
+            assert_eq!(f(&data, &5), Some(0));
+
+            let data = [5, 5, 5];
+            assert_eq!(f(&data, &5), Some(0));
+
+            let data = [5, 5, 5, 5];
+            assert_eq!(f(&data, &5), Some(0));
+
+            let data = [4, 5, 5, 5, 5];
+            assert_eq!(f(&data, &5), Some(1));
+
+            let data = [1, 4, 42, 43, 99];
+            assert_eq!(f(&data, &0), None);
+            assert_eq!(f(&data, &1), Some(0));
+            assert_eq!(f(&data, &4), Some(1));
+            assert_eq!(f(&data, &5), None);
+            assert_eq!(f(&data, &41), None);
+            assert_eq!(f(&data, &98), None);
+            assert_eq!(f(&data, &99), Some(4));
+            assert_eq!(f(&data, &100), None);
+            assert_eq!(f(&data, &1337), None);
+        }
+
+        test(find_lowest_match);
+        test(|data, item| find_lowest_match_by_key(data, item, |elem| *elem));
+    }
+
+    /// Test that we correctly binary search for a match or a lower bound.
+    #[test]
+    fn search_match_or_lower_bound() {
         let data = [];
         assert_eq!(find_match_or_lower_bound(&data, &0), None);
 
