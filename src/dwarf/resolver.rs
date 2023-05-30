@@ -15,6 +15,7 @@ use crate::elf::ElfParser;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
+use crate::util::find_lowest_match_by_key;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 
@@ -22,6 +23,28 @@ use super::parser::debug_info_parse_symbols;
 use super::parser::parse_debug_line_elf_parser;
 use super::parser::DWSymInfo;
 use super::parser::DebugLineCU;
+
+
+impl From<&DWSymInfo<'_>> for SymInfo {
+    fn from(other: &DWSymInfo) -> Self {
+        let DWSymInfo {
+            name,
+            addr,
+            size,
+            sym_type,
+            ..
+        } = other;
+
+        SymInfo {
+            name: name.to_string(),
+            addr: *addr as Addr,
+            size: *size,
+            sym_type: *sym_type,
+            file_offset: 0,
+            obj_file_name: None,
+        }
+    }
+}
 
 
 struct Cache<'mmap> {
@@ -211,35 +234,18 @@ impl DwarfResolver {
         //         available.
         let debug_syms = cache.debug_syms.as_ref().unwrap();
 
-        let mut idx = match debug_syms.binary_search_by_key(&name, |sym| sym.name) {
-            Ok(idx) => idx,
-            _ => return Ok(vec![]),
+        let idx = if let Some(idx) = find_lowest_match_by_key(debug_syms, &name, |sym| sym.name) {
+            idx
+        } else {
+            return Ok(Vec::new())
         };
-        while idx > 0 && debug_syms[idx].name == name {
-            idx -= 1;
-        }
-        if debug_syms[idx].name != name {
-            idx += 1;
-        }
-        let mut found = vec![];
-        while debug_syms[idx].name == name {
-            let DWSymInfo {
-                addr,
-                size,
-                sym_type,
-                ..
-            } = debug_syms[idx];
-            found.push(SymInfo {
-                name: name.to_string(),
-                addr: addr as Addr,
-                size,
-                sym_type,
-                file_offset: 0,
-                obj_file_name: None,
-            });
-            idx += 1;
-        }
-        Ok(found)
+
+        let syms = debug_syms[idx..]
+            .iter()
+            .take_while(|item| item.name == name)
+            .map(SymInfo::from)
+            .collect();
+        Ok(syms)
     }
 
     #[cfg(test)]
