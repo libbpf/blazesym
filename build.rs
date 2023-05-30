@@ -169,18 +169,32 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
     let () = adjust_mtime(&dst).unwrap();
 }
 
-/// Strip all non-debug information from an ELF binary, in an attempt to
-/// leave only DWARF remains and necessary ELF bits.
-fn dwarf_mostly(src: &Path, dst: &str) {
+/// Invoke `strip` on a copy of `src` placed at `dst`.
+fn strip(src: &Path, dst: &str, options: &[&str]) {
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
 
     let _bytes = copy(src, &dst).expect("failed to copy file");
 
-    let () = run("strip", ["--only-keep-debug".as_ref(), dst.as_os_str()])
-        .expect("failed to run `strip`");
+    let () = run(
+        "strip",
+        options.iter().map(OsStr::new).chain([dst.as_os_str()]),
+    )
+    .expect("failed to run `strip`");
     let () = adjust_mtime(&dst).unwrap();
+}
+
+/// Strip most non-debug information from an ELF binary, in an attempt to
+/// leave only DWARF remains and necessary ELF bits.
+fn dwarf_mostly(src: &Path, dst: &str) {
+    strip(src, dst, &["--only-keep-debug"])
+}
+
+/// Strip all non-debug information from an ELF binary, in an attempt to
+/// leave only DWARF remains.
+fn dwarf_only(src: &Path, dst: &str) {
+    strip(src, dst, &["--keep-section=.debug_*"])
 }
 
 /// Unpack an xz compressed file.
@@ -326,6 +340,7 @@ fn prepare_test_files(crate_root: &Path) {
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test.gsym");
     dwarf_mostly(&src, "test-dwarf.bin");
+    dwarf_only(&src, "test-dwarf-only.bin");
 
     let src = crate_root.join("data").join("kallsyms.xz");
     let mut dst = src.clone();
