@@ -74,7 +74,7 @@ fn read_build_id(path: &Path) -> Result<Option<Vec<u8>>> {
 
     // The build ID is contained in the `.note.gnu.build-id` section. See
     // elf(5).
-    if let Ok(idx) = parser.find_section(build_id_section) {
+    if let Ok(Some(idx)) = parser.find_section(build_id_section) {
         // SANITY: We just found the index so the section should always be
         //         found.
         let shdr = parser.section_headers()?.get(idx).unwrap();

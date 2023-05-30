@@ -624,7 +624,12 @@ pub(crate) fn parse_debug_line_elf_parser(
     parser: &ElfParser,
     addresses: &[Addr],
 ) -> Result<Vec<DebugLineCU>> {
-    let debug_line_idx = parser.find_section(".debug_line")?;
+    let debug_line_idx = parser.find_section(".debug_line")?.ok_or_else(|| {
+        Error::new(
+            ErrorKind::NotFound,
+            "unable to find ELF section .debug_line",
+        )
+    })?;
     let debug_line_sz = parser.get_section_size(debug_line_idx)?;
     let mut remain_sz = debug_line_sz;
     let prologue_size: usize = mem::size_of::<DebugLinePrologueV2>();
@@ -843,9 +848,9 @@ fn debug_info_parse_symbols_cu<'dat>(
 fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
     let result = parser.find_section(id.name());
     let data = match result {
-        Ok(idx) => parser.section_data(idx)?,
+        Ok(Some(idx)) => parser.section_data(idx)?,
         // Make sure to return empty data if a section does not exist.
-        Err(err) if err.kind() == ErrorKind::NotFound => &[],
+        Ok(None) => &[],
         Err(err) => return Err(err),
     };
     let reader = EndianSlice::new(data, LittleEndian);

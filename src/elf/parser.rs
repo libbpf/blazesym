@@ -215,17 +215,14 @@ impl<'mmap> Cache<'mmap> {
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
-    fn find_section(&mut self, name: &str) -> Result<usize, Error> {
+    fn find_section(&mut self, name: &str) -> Result<Option<usize>, Error> {
         let ehdr = self.ensure_ehdr()?;
         for i in 1..ehdr.e_shnum.into() {
             if self.section_name(i)? == name {
-                return Ok(i)
+                return Ok(Some(i))
             }
         }
-        Err(Error::new(
-            ErrorKind::NotFound,
-            format!("unable to find ELF section: {name}"),
-        ))
+        Ok(None)
     }
 
     // Note: This function should really return a reference to
@@ -236,10 +233,14 @@ impl<'mmap> Cache<'mmap> {
             return Ok(())
         }
 
-        let idx = if let Ok(idx) = self.find_section(".symtab") {
+        let idx = if let Some(idx) = self.find_section(".symtab")? {
+            idx
+        } else if let Some(idx) = self.find_section(".dynsym")? {
             idx
         } else {
-            self.find_section(".dynsym")?
+            // Neither symbol table exists. Fake an empty one.
+            self.symtab = Some(Vec::new());
+            return Ok(())
         };
         let mut symtab = self.section_data(idx)?;
 
@@ -272,12 +273,14 @@ impl<'mmap> Cache<'mmap> {
             return Ok(strtab)
         }
 
-        let idx = if let Ok(idx) = self.find_section(".strtab") {
-            idx
+        let strtab = if let Some(idx) = self.find_section(".strtab")? {
+            self.section_data(idx)?
+        } else if let Some(idx) = self.find_section(".dynstr")? {
+            self.section_data(idx)?
         } else {
-            self.find_section(".dynstr")?
+            &[]
         };
-        let strtab = self.section_data(idx)?;
+
         self.strtab = Some(strtab);
         Ok(strtab)
     }
@@ -395,7 +398,7 @@ impl ElfParser {
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
-    pub fn find_section(&self, name: &str) -> Result<usize, Error> {
+    pub fn find_section(&self, name: &str) -> Result<Option<usize>, Error> {
         let mut cache = self.cache.borrow_mut();
         let index = cache.find_section(name)?;
         Ok(index)
