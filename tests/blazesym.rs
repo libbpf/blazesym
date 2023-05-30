@@ -169,6 +169,12 @@ fn inspect() {
     let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
     let () = test(src);
 
+    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-dwarf-only.bin");
+    let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
+    let () = test(src);
+
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
