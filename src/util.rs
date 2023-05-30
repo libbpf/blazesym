@@ -200,11 +200,6 @@ pub fn search_address_opt_key<T, V: Ord>(
 
 
 #[inline]
-pub fn decode_leb128_128(mut data: &[u8]) -> Option<(u128, u8)> {
-    data.read_u128_leb128()
-}
-
-#[inline]
 pub fn decode_leb128(mut data: &[u8]) -> Option<(u64, u8)> {
     data.read_u128_leb128().map(|(v, s)| (v as u64, s))
 }

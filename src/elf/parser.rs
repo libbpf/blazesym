@@ -383,13 +383,6 @@ impl ElfParser {
         cache.section_data(idx)
     }
 
-    /// Read the raw data of the section of a given index.
-    #[cfg(test)]
-    pub fn read_section_raw(&self, sect_idx: usize) -> Result<&[u8], Error> {
-        let mut cache = self.cache.borrow_mut();
-        cache.section_data(sect_idx)
-    }
-
     pub fn get_section_size(&self, sect_idx: usize) -> Result<usize, Error> {
         let mut cache = self.cache.borrow_mut();
         let shdrs = cache.ensure_shdrs()?;

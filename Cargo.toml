@@ -22,7 +22,7 @@ keywords = [
   "stacktrace",
   "tracing",
 ]
-exclude = ["data/dwarf-example", "data/kallsyms.xz"]
+exclude = ["data/kallsyms.xz"]
 autobenches = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
