@@ -3,6 +3,8 @@ use std::cell::RefCell;
 use std::env;
 use std::ffi::OsStr;
 use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::mem;
@@ -22,14 +24,57 @@ use super::parser::DWSymInfo;
 use super::parser::DebugLineCU;
 
 
+struct Cache<'mmap> {
+    /// The ELF parser object used for reading data.
+    parser: &'mmap ElfParser,
+    /// Debug symbols, ordered by symbol name.
+    debug_syms: Option<Vec<DWSymInfo<'mmap>>>,
+}
+
+impl<'mmap> Cache<'mmap> {
+    /// Create a new `Cache` using the provided ELF parser.
+    fn new(parser: &'mmap ElfParser) -> Self {
+        Self {
+            parser,
+            debug_syms: None,
+        }
+    }
+
+    /// Extract the symbol information from DWARF if having not done it before.
+    // Note: This function should really return a reference to
+    //       `self.debug_syms`, but current borrow checker limitations
+    //       effectively prevent us from doing so.
+    fn ensure_debug_syms(&mut self) -> Result<(), Error> {
+        if self.debug_syms.is_some() {
+            return Ok(())
+        }
+
+        let mut debug_syms = debug_info_parse_symbols(self.parser)?;
+        debug_syms.sort_by_key(|sym| sym.name);
+        self.debug_syms = Some(debug_syms);
+        Ok(())
+    }
+}
+
+impl Debug for Cache<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        write!(f, "Cache")
+    }
+}
+
 /// DwarfResolver provides abilities to query DWARF information of binaries.
 #[derive(Debug)]
 pub(crate) struct DwarfResolver {
+    /// A cache for relevant parts of the DWARF file.
+    /// SAFETY: We must not hand out references with a 'static lifetime to
+    ///         this member. Rather, they should never outlive `self`.
+    ///         Furthermore, this member has to be listed before `parser`
+    ///         to make sure we never end up with a dangling reference.
+    cache: RefCell<Cache<'static>>,
     parser: Rc<ElfParser>,
     debug_line_cus: Vec<DebugLineCU>,
     addr_to_dlcu: Vec<(Addr, u32)>,
     enable_debug_info_syms: bool,
-    debug_info_syms: RefCell<Option<Vec<DWSymInfo<'static>>>>,
 }
 
 impl DwarfResolver {
@@ -60,11 +105,15 @@ impl DwarfResolver {
         addr_to_dlcu.sort_by_key(|v| v.0);
 
         Ok(DwarfResolver {
+            cache: RefCell::new(Cache::new(unsafe {
+                // SAFETY: We own the parser and never hand out any 'static
+                //         references to cache data.
+                mem::transmute::<_, &'static ElfParser>(parser.as_ref())
+            })),
             parser,
             debug_line_cus,
             addr_to_dlcu,
             enable_debug_info_syms: debug_info_symbols,
-            debug_info_syms: RefCell::new(None),
         })
     }
 
@@ -127,15 +176,9 @@ impl DwarfResolver {
     }
 
     /// Extract the symbol information from DWARf if having not done it before.
-    fn ensure_debug_info_syms(&self) -> Result<(), Error> {
+    fn ensure_debug_syms(&self, cache: &mut Cache) -> Result<(), Error> {
         if self.enable_debug_info_syms {
-            let mut dis_ref = self.debug_info_syms.borrow_mut();
-            if dis_ref.is_some() {
-                return Ok(())
-            }
-            let mut debug_info_syms = debug_info_parse_symbols(&self.parser)?;
-            debug_info_syms.sort_by_key(|v: &DWSymInfo| -> &str { v.name });
-            *dis_ref = Some(unsafe { mem::transmute(debug_info_syms) });
+            let () = cache.ensure_debug_syms()?;
             Ok(())
         } else {
             Err(Error::new(
@@ -162,28 +205,30 @@ impl DwarfResolver {
             return Ok(elf_r)
         }
 
-        self.ensure_debug_info_syms()?;
-        let dis_ref = self.debug_info_syms.borrow();
-        let debug_info_syms = dis_ref.as_ref().unwrap();
-        let mut idx =
-            match debug_info_syms.binary_search_by_key(&name.to_string(), |v| v.name.to_string()) {
-                Ok(idx) => idx,
-                _ => return Ok(vec![]),
-            };
-        while idx > 0 && debug_info_syms[idx].name.eq(name) {
+        let mut cache = self.cache.borrow_mut();
+        let () = self.ensure_debug_syms(&mut cache)?;
+        // SANITY: The above `ensure_debug_syms` ensures we have `debug_syms`
+        //         available.
+        let debug_syms = cache.debug_syms.as_ref().unwrap();
+
+        let mut idx = match debug_syms.binary_search_by_key(&name, |sym| sym.name) {
+            Ok(idx) => idx,
+            _ => return Ok(vec![]),
+        };
+        while idx > 0 && debug_syms[idx].name == name {
             idx -= 1;
         }
-        if !debug_info_syms[idx].name.eq(name) {
+        if debug_syms[idx].name != name {
             idx += 1;
         }
         let mut found = vec![];
-        while debug_info_syms[idx].name.eq(name) {
+        while debug_syms[idx].name == name {
             let DWSymInfo {
                 addr,
                 size,
                 sym_type,
                 ..
-            } = debug_info_syms[idx];
+            } = debug_syms[idx];
             found.push(SymInfo {
                 name: name.to_string(),
                 addr: addr as Addr,
