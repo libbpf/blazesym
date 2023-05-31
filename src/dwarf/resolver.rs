@@ -13,7 +13,7 @@ use crate::elf::ElfParser;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
-use crate::util::find_match_or_lower_bound_by;
+use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 
 use super::parser::debug_info_parse_symbols;
@@ -108,7 +108,7 @@ impl DwarfResolver {
 
     fn find_dlcu_index(&self, addr: Addr) -> Option<usize> {
         let a2a = &self.addr_to_dlcu;
-        let a2a_idx = find_match_or_lower_bound_by(a2a, addr, |a2dlcu| a2dlcu.0)?;
+        let a2a_idx = find_match_or_lower_bound_by_key(a2a, addr, |a2dlcu| a2dlcu.0)?;
         let dlcu_idx = a2a[a2a_idx].1 as usize;
 
         Some(dlcu_idx)

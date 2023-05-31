@@ -91,7 +91,11 @@ pub(crate) fn uname_release() -> Result<CString> {
 
 /// See `find_match_or_lower_bound`, but allow the user to pass in a comparison
 /// function for increased flexibility.
-pub(crate) fn find_match_or_lower_bound_by<T, U, F>(slice: &[T], item: U, mut f: F) -> Option<usize>
+pub(crate) fn find_match_or_lower_bound_by_key<T, U, F>(
+    slice: &[T],
+    item: U,
+    mut f: F,
+) -> Option<usize>
 where
     U: Ord,
     F: FnMut(&T) -> U,
@@ -135,7 +139,7 @@ pub(crate) fn find_match_or_lower_bound<T>(slice: &[T], item: T) -> Option<usize
 where
     T: Copy + Ord,
 {
-    find_match_or_lower_bound_by(slice, item, |e| *e)
+    find_match_or_lower_bound_by_key(slice, item, |e| *e)
 }
 
 
