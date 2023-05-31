@@ -32,6 +32,22 @@ fn error_on_non_existent_source() {
     }
 }
 
+/// Find the size of a function called `name` inside an ELF file `elf`.
+fn find_function_size(name: &str, elf: &Path) -> usize {
+    let src = inspect::Source::Elf(inspect::Elf::new(elf));
+    let inspector = Inspector::new();
+    let results = inspector
+        .lookup(&[name], &src)
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let size = results.first().unwrap().size;
+    size
+}
+
 /// Check that we can correctly symbolize an address using GSYM.
 #[test]
 fn symbolize_gsym() {
@@ -52,6 +68,26 @@ fn symbolize_gsym() {
 
     let result = results.first().unwrap();
     assert_eq!(result.symbol, "factorial");
+
+    let test_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.bin");
+    let size = find_function_size("factorial", &test_bin);
+    assert_ne!(size, 0);
+
+    for offset in 1..size {
+        let results = symbolizer
+            .symbolize(&src, &[0x2000100 + offset])
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
+
+        let result = results.first().unwrap();
+        assert_eq!(result.symbol, "factorial");
+        assert_eq!(result.addr, 0x2000100);
+    }
 }
 
 /// Check that we can symbolize an address using DWARF.
@@ -60,7 +96,7 @@ fn symbolize_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-dwarf.bin");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
+    let src = symbolize::Source::Elf(symbolize::Elf::new(&test_dwarf));
     let symbolizer = Symbolizer::new();
     let results = symbolizer
         .symbolize(&src, &[0x2000100])
@@ -72,6 +108,27 @@ fn symbolize_dwarf() {
 
     let result = results.first().unwrap();
     assert_eq!(result.symbol, "factorial");
+    assert_eq!(result.addr, 0x2000100);
+
+    // Inquire symbol size.
+    let size = find_function_size("factorial", &test_dwarf);
+    assert_ne!(size, 0);
+
+    // Now check that we can symbolize addresses at a positive offset from the
+    // start of the function.
+    for offset in 1..size {
+        let results = symbolizer
+            .symbolize(&src, &[0x2000100 + offset])
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
+
+        let result = results.first().unwrap();
+        assert_eq!(result.symbol, "factorial");
+        assert_eq!(result.addr, 0x2000100);
+    }
 }
 
 /// Check that we can symbolize addresses inside our own process.
