@@ -404,7 +404,7 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_symbol(&self, addr: Addr, st_type: u8) -> Result<(&str, Addr), Error> {
+    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<(&str, Addr), Error> {
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
@@ -547,7 +547,7 @@ mod tests {
 
         let (sym_name, addr) = parser.pick_symtab_addr();
 
-        let sym_r = parser.find_symbol(addr, STT_FUNC);
+        let sym_r = parser.find_sym(addr, STT_FUNC);
         assert!(sym_r.is_ok());
         let (sym_name_ret, addr_ret) = sym_r.unwrap();
         assert_eq!(addr_ret, addr);
