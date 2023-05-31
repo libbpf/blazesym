@@ -52,7 +52,7 @@ impl SymResolver for ElfResolver {
     fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
         let parser = self.get_parser();
 
-        match parser.find_symbol(addr, STT_FUNC) {
+        match parser.find_sym(addr, STT_FUNC) {
             Ok((name, start_addr)) => {
                 vec![(name, start_addr)]
             }
