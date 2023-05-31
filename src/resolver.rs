@@ -17,7 +17,7 @@ where
 {
     /// Find the names and the start addresses of a symbol found for
     /// the given address.
-    fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)>;
+    fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)>;
     /// Find the address and size of a symbol name.
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>>;
     /// Find the file name and the line number of an address.

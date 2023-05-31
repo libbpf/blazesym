@@ -48,7 +48,7 @@ impl GsymResolver {
 }
 
 impl SymResolver for GsymResolver {
-    fn find_symbols(&self, addr: Addr) -> Vec<(&str, Addr)> {
+    fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
         fn find_addr_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
             let idx = gsym.ctx.find_addr(addr)?;
 

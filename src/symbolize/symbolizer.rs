@@ -139,7 +139,7 @@ impl Symbolizer {
         addr: Addr,
         resolver: &dyn SymResolver,
     ) -> Vec<SymbolizedResult> {
-        let res_syms = resolver.find_symbols(addr);
+        let res_syms = resolver.find_syms(addr);
         let linfo = if self.src_location {
             resolver.find_line_info(addr)
         } else {
