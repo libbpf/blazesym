@@ -404,7 +404,7 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<(&str, Addr), Error> {
+    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr)>, Error> {
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
@@ -419,16 +419,13 @@ impl ElfParser {
             }
         });
         if idx_r.is_none() {
-            return Err(Error::new(
-                ErrorKind::NotFound,
-                "Does not found a symbol for the given address",
-            ))
+            return Ok(None)
         }
         let idx = idx_r.unwrap();
 
         let sym = cache.symbol(idx)?;
         let name = cache.symbol_name(sym)?;
-        Ok((name, sym.st_value as Addr))
+        Ok(Some((name, sym.st_value as Addr)))
     }
 
     pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
@@ -547,9 +544,8 @@ mod tests {
 
         let (sym_name, addr) = parser.pick_symtab_addr();
 
-        let sym_r = parser.find_sym(addr, STT_FUNC);
-        assert!(sym_r.is_ok());
-        let (sym_name_ret, addr_ret) = sym_r.unwrap();
+        let sym = parser.find_sym(addr, STT_FUNC).unwrap().unwrap();
+        let (sym_name_ret, addr_ret) = sym;
         assert_eq!(addr_ret, addr);
         assert_eq!(sym_name_ret, sym_name);
     }

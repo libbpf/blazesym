@@ -53,8 +53,12 @@ impl SymResolver for ElfResolver {
         let parser = self.get_parser();
 
         match parser.find_sym(addr, STT_FUNC) {
-            Ok((name, start_addr)) => {
+            Ok(Some((name, start_addr))) => {
                 vec![(name, start_addr)]
+            }
+            Ok(None) => {
+                warn!("no symbol found for address 0x{addr:x}");
+                vec![]
             }
             Err(err) => {
                 warn!("no symbol found for address 0x{addr:x}: {err}");
