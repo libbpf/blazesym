@@ -46,12 +46,68 @@ impl From<&DWSymInfo<'_>> for SymInfo {
     }
 }
 
+#[derive(Clone, Debug)]
+enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
+impl<A, B, T> Iterator for Either<A, B>
+where
+    A: Iterator<Item = T>,
+    B: Iterator<Item = T>,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::A(a) => a.next(),
+            Self::B(b) => b.next(),
+        }
+    }
+}
+
+
+/// A type managing lookup of symbols.
+struct DebugSyms<'mmap> {
+    /// Debug symbols, ordered by name.
+    syms: Box<[DWSymInfo<'mmap>]>,
+}
+
+impl<'mmap> DebugSyms<'mmap> {
+    /// Create a new `DebugSyms` object from the given set of symbols.
+    fn new(mut syms: Vec<DWSymInfo<'mmap>>) -> Self {
+        let () = syms.sort_by_key(|sym| sym.name);
+        Self {
+            syms: syms.into_boxed_slice(),
+        }
+    }
+
+    /// Find a symbol by name.
+    fn find_by_name<'slf>(
+        &'slf self,
+        name: &'slf str,
+    ) -> impl Iterator<Item = &'slf DWSymInfo<'mmap>> + Clone + 'slf {
+        let idx = if let Some(idx) = find_lowest_match_by_key(&self.syms, &name, |sym| sym.name) {
+            idx
+        } else {
+            return Either::A([].into_iter())
+        };
+
+        let syms = self.syms[idx..]
+            .iter()
+            .take_while(move |item| item.name == name);
+
+        Either::B(syms)
+    }
+}
+
 
 struct Cache<'mmap> {
     /// The ELF parser object used for reading data.
     parser: &'mmap ElfParser,
-    /// Debug symbols, ordered by symbol name.
-    debug_syms: Option<Vec<DWSymInfo<'mmap>>>,
+    /// Cached debug symbols.
+    debug_syms: Option<DebugSyms<'mmap>>,
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -72,9 +128,8 @@ impl<'mmap> Cache<'mmap> {
             return Ok(())
         }
 
-        let mut debug_syms = debug_info_parse_symbols(self.parser)?;
-        debug_syms.sort_by_key(|sym| sym.name);
-        self.debug_syms = Some(debug_syms);
+        let debug_syms = debug_info_parse_symbols(self.parser)?;
+        self.debug_syms = Some(DebugSyms::new(debug_syms));
         Ok(())
     }
 }
@@ -233,18 +288,8 @@ impl DwarfResolver {
         // SANITY: The above `ensure_debug_syms` ensures we have `debug_syms`
         //         available.
         let debug_syms = cache.debug_syms.as_ref().unwrap();
+        let syms = debug_syms.find_by_name(name).map(SymInfo::from).collect();
 
-        let idx = if let Some(idx) = find_lowest_match_by_key(debug_syms, &name, |sym| sym.name) {
-            idx
-        } else {
-            return Ok(Vec::new())
-        };
-
-        let syms = debug_syms[idx..]
-            .iter()
-            .take_while(|item| item.name == name)
-            .map(SymInfo::from)
-            .collect();
         Ok(syms)
     }
 
@@ -264,6 +309,43 @@ mod tests {
 
     use test_log::test;
 
+    fn mksym(name: &'static str, addr: Addr) -> DWSymInfo<'static> {
+        DWSymInfo {
+            name,
+            addr,
+            size: 0,
+            sym_type: SymType::Function,
+        }
+    }
+
+    fn mksyms(syms: &[(&'static str, Addr)]) -> DebugSyms<'static> {
+        let syms = syms.iter().map(|(name, addr)| mksym(name, *addr)).collect();
+        DebugSyms::new(syms)
+    }
+
+    /// Check that our `DebugSyms` type allows for proper lookup by name.
+    #[test]
+    fn debug_symbol_by_name_lookup() {
+        let syms = [];
+        let syms = mksyms(&syms);
+        assert_eq!(syms.find_by_name("").count(), 0);
+        assert_eq!(syms.find_by_name("foobar").count(), 0);
+
+        let syms = [("foobar", 0x123), ("foobar", 0x126), ("bar", 0x127)];
+        let syms = mksyms(&syms);
+        assert_eq!(syms.find_by_name("").count(), 0);
+
+        let found = syms.find_by_name("foobar").collect::<Vec<_>>();
+        // Reported symbols are guaranteed to be ordered in increasing order of
+        // address.
+        assert_eq!(found.len(), 2);
+        assert_eq!(found[0].addr, 0x123);
+        assert_eq!(found[1].addr, 0x126);
+
+        let found = syms.find_by_name("bar").collect::<Vec<_>>();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].addr, 0x127);
+    }
 
     #[test]
     fn test_dwarf_resolver() {
