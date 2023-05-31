@@ -13,7 +13,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::mmap::Mmap;
-use crate::util::find_match_or_lower_bound_by;
+use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -446,7 +446,7 @@ impl ElfParser {
         //         `str2symtab` available.
         let str2symtab = cache.str2symtab.as_ref().unwrap();
 
-        let r = find_match_or_lower_bound_by(str2symtab, name, |&(name, _i)| name);
+        let r = find_match_or_lower_bound_by_key(str2symtab, name, |&(name, _i)| name);
         match r {
             Some(idx) => {
                 let mut found = vec![];

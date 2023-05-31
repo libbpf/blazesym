@@ -32,7 +32,7 @@ use crate::util::decode_leb128_s;
 use crate::util::decode_udword;
 use crate::util::decode_uhalf;
 use crate::util::decode_uword;
-use crate::util::find_match_or_lower_bound_by;
+use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -124,7 +124,7 @@ pub(crate) struct DebugLineCU {
 
 impl DebugLineCU {
     pub(crate) fn find_line(&self, addr: Addr) -> Option<(&Path, &OsStr, usize)> {
-        let idx = find_match_or_lower_bound_by(&self.matrix, addr, |dls| dls.addr)?;
+        let idx = find_match_or_lower_bound_by_key(&self.matrix, addr, |dls| dls.addr)?;
         let states = &self.matrix[idx];
         if states.end_sequence {
             // This is the first byte after the last instruction
