@@ -1,3 +1,4 @@
+use std::hint::black_box;
 use std::path::Path;
 
 use blazesym::inspect;
@@ -17,7 +18,7 @@ fn lookup_dwarf() {
 
     let inspector = Inspector::new();
     let results = inspector
-        .lookup(&["abort_creds"], &src)
+        .lookup(black_box(&["abort_creds"]), black_box(&src))
         .unwrap()
         .into_iter()
         .flatten()

@@ -898,6 +898,9 @@ pub(crate) fn debug_info_parse_symbols(parser: &ElfParser) -> Result<Vec<DWSymIn
 mod tests {
     use super::*;
 
+    #[cfg(feature = "nightly")]
+    use std::hint::black_box;
+
     use test_log::test;
 
     #[cfg(feature = "nightly")]
@@ -1053,6 +1056,6 @@ mod tests {
         let bin_name = env::args().next().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
 
-        let () = b.iter(|| debug_info_parse_symbols(&parser).unwrap());
+        let () = b.iter(|| debug_info_parse_symbols(black_box(&parser)).unwrap());
     }
 }

@@ -61,6 +61,9 @@ harness = false
 
 [profile.bench]
 debug = true
+opt-level = 3
+lto = true
+codegen-units = 1
 
 [dependencies]
 libc = "0.2.137"

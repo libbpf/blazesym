@@ -700,9 +700,9 @@ mod tests {
         assert_eq!(slice.read_cstr(), None);
     }
 
-    /// Test that we correctly binary search for a lower bound.
+    /// Test that we correctly binary search for a lowest match.
     #[test]
-    fn search_lower_bound() {
+    fn search_lowest_match() {
         fn test(f: impl Fn(&[u16], &u16) -> Option<usize>) {
             let data = [];
             assert_eq!(f(&data, &0), None);
