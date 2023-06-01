@@ -1,3 +1,4 @@
+use std::hint::black_box;
 use std::path::Path;
 
 use blazesym::c_api;
@@ -25,7 +26,9 @@ fn symbolize_process() {
     ];
 
     let symbolizer = Symbolizer::new();
-    let results = symbolizer.symbolize(&src, &addrs).unwrap();
+    let results = symbolizer
+        .symbolize(black_box(&src), black_box(&addrs))
+        .unwrap();
     assert_eq!(results.len(), addrs.len());
 }
 
@@ -39,7 +42,7 @@ fn symbolize_dwarf() {
     let symbolizer = Symbolizer::new();
 
     let results = symbolizer
-        .symbolize(&src, &[0xffffffff8110ecb0])
+        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
         .unwrap()
         .into_iter()
         .flatten()
@@ -60,7 +63,7 @@ fn symbolize_gsym() {
     let symbolizer = Symbolizer::new();
 
     let results = symbolizer
-        .symbolize(&src, &[0xffffffff8110ecb0])
+        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
         .unwrap()
         .into_iter()
         .flatten()

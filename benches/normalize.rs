@@ -1,3 +1,5 @@
+use std::hint::black_box;
+
 use blazesym::c_api;
 use blazesym::normalize::Normalizer;
 use blazesym::Addr;
@@ -19,7 +21,7 @@ fn normalize_process() {
 
     let normalizer = Normalizer::new();
     let norm_addrs = normalizer
-        .normalize_user_addrs_sorted(addrs.as_slice(), 0.into())
+        .normalize_user_addrs_sorted(black_box(addrs.as_slice()), black_box(0.into()))
         .unwrap();
     assert_eq!(norm_addrs.addrs.len(), 5);
 }
