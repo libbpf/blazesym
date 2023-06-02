@@ -294,7 +294,7 @@ mod tests {
     fn test_parse_context() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.gsym");
+            .join("test-stable-addresses.gsym");
         let mut gsym_fo = File::open(test_gsym).unwrap();
         let mut data = vec![];
 
@@ -314,7 +314,7 @@ mod tests {
     fn test_find_addr() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.gsym");
+            .join("test-stable-addresses.gsym");
         let mut gsym_fo = File::open(test_gsym).unwrap();
         let mut data = vec![];
 

@@ -338,7 +338,7 @@ fn prepare_test_files(crate_root: &Path) {
     );
 
     let src = crate_root.join("data").join("test-stable-addresses.bin");
-    gsym(&src, "test.gsym");
+    gsym(&src, "test-stable-addresses.gsym");
     dwarf_mostly(&src, "test-dwarf.bin");
     dwarf_only(&src, "test-dwarf-only.bin");
 

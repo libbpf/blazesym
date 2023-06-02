@@ -1,4 +1,4 @@
-/* The sample program is used to generate test.gsym.
+/* The sample program is used to generate test-stable-addresses*.
  *
  * Chosen functions are placed in dedicated sections to allow for control placement.
  */

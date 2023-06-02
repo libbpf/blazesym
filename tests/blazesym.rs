@@ -53,7 +53,7 @@ fn find_function_size(name: &str, elf: &Path) -> usize {
 fn symbolize_gsym() {
     let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test.gsym");
+        .join("test-stable-addresses.gsym");
 
     let src = symbolize::Source::Gsym(symbolize::Gsym::new(test_gsym));
     let symbolizer = Symbolizer::new();
