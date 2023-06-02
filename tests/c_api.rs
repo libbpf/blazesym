@@ -233,7 +233,7 @@ fn inspector_creation() {
 fn lookup_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-dwarf.bin");
+        .join("test-stable-addresses-dwarf-only.bin");
 
     let src = blaze_inspect_elf_src::from(inspect::Elf::new(test_dwarf));
     let factorial = CString::new("factorial").unwrap();
