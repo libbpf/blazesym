@@ -15,6 +15,8 @@ use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::Pid;
 
+use test_log::test;
+
 
 /// Make sure that we fail symbolization when providing a non-existent source.
 #[test]
