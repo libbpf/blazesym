@@ -693,6 +693,14 @@ pub(crate) struct DWSymInfo<'a> {
     pub sym_type: SymType, // A function or a variable.
 }
 
+impl DWSymInfo<'_> {
+    /// Check whether this symbol contains the provided address.
+    pub fn contains(&self, addr: Addr) -> bool {
+        (self.size == 0 && self.addr == addr)
+            || (self.size != 0 && (self.addr..self.addr + self.size).contains(&addr))
+    }
+}
+
 /// Parse a DIE that declares a subprogram. (a function)
 ///
 /// We already know the given DIE is a declaration of a subprogram.

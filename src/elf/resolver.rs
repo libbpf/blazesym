@@ -7,7 +7,6 @@ use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::log::warn;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::SymResolver;
@@ -49,21 +48,21 @@ impl ElfResolver {
 }
 
 impl SymResolver for ElfResolver {
+    // TODO: Need to better handle errors.
     fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
         let parser = self.get_parser();
+        if let Ok(Some((name, start_addr))) = parser.find_sym(addr, STT_FUNC) {
+            // We found the address in ELF.
+            // TODO: Long term we probably want a different heuristic here, as
+            //       there can be valid differences between the two formats
+            //       (e.g., DWARF could contain more symbols).
+            return vec![(name, start_addr)]
+        }
 
-        match parser.find_sym(addr, STT_FUNC) {
-            Ok(Some((name, start_addr))) => {
-                vec![(name, start_addr)]
-            }
-            Ok(None) => {
-                warn!("no symbol found for address 0x{addr:x}");
-                vec![]
-            }
-            Err(err) => {
-                warn!("no symbol found for address 0x{addr:x}: {err}");
-                vec![]
-            }
+        match &self.backend {
+            #[cfg(feature = "dwarf")]
+            ElfBackend::Dwarf(dwarf) => dwarf.find_syms(addr).unwrap_or_default(),
+            ElfBackend::Elf(_) => Vec::new(),
         }
     }
 
