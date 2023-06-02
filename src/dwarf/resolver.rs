@@ -70,16 +70,32 @@ where
 
 /// A type managing lookup of symbols.
 struct DebugSyms<'mmap> {
-    /// Debug symbols, ordered by name.
+    /// Debug symbols, ordered by address.
     syms: Box<[DWSymInfo<'mmap>]>,
+    /// An index on top of `syms` sorted by name.
+    // TODO: The index could be optimized to use smaller-than-word-size integers
+    //       if we work with only a few symbols.
+    by_name_idx: Box<[usize]>,
 }
 
 impl<'mmap> DebugSyms<'mmap> {
     /// Create a new `DebugSyms` object from the given set of symbols.
-    fn new(mut syms: Vec<DWSymInfo<'mmap>>) -> Self {
-        let () = syms.sort_by_key(|sym| sym.name);
+    fn new(syms: Vec<DWSymInfo<'mmap>>) -> Self {
+        let mut syms = syms;
+        let () = syms.sort_by_key(|sym| sym.addr);
+
+        let mut by_name_idx = (0..syms.len()).collect::<Vec<_>>();
+        let () = by_name_idx.sort_by(|idx1, idx2| {
+            let sym1 = &syms[*idx1];
+            let sym2 = &syms[*idx2];
+            sym1.name
+                .cmp(sym2.name)
+                .then_with(|| sym1.addr.cmp(&sym2.addr))
+        });
+
         Self {
             syms: syms.into_boxed_slice(),
+            by_name_idx: by_name_idx.into_boxed_slice(),
         }
     }
 
@@ -88,15 +104,22 @@ impl<'mmap> DebugSyms<'mmap> {
         &'slf self,
         name: &'slf str,
     ) -> impl Iterator<Item = &'slf DWSymInfo<'mmap>> + Clone + 'slf {
-        let idx = if let Some(idx) = find_lowest_match_by_key(&self.syms, &name, |sym| sym.name) {
+        let idx = if let Some(idx) =
+            find_lowest_match_by_key(&self.by_name_idx, &name, |idx| self.syms[*idx].name)
+        {
             idx
         } else {
             return Either::A([].into_iter())
         };
 
-        let syms = self.syms[idx..]
-            .iter()
-            .take_while(move |item| item.name == name);
+        let syms = self.by_name_idx[idx..].iter().map_while(move |idx| {
+            let sym = &self.syms[*idx];
+            if sym.name == name {
+                Some(sym)
+            } else {
+                None
+            }
+        });
 
         Either::B(syms)
     }
