@@ -83,6 +83,14 @@ pub(crate) struct Elf64_Sym {
     pub st_size: Elf64_Xword, /* Associated symbol size */
 }
 
+impl Elf64_Sym {
+    /// Check whether this symbols contains the provided address.
+    pub fn contains(&self, addr: Elf64_Addr) -> bool {
+        (self.st_size == 0 && self.st_value == addr)
+            || (self.st_size != 0 && (self.st_value..self.st_value + self.st_size).contains(&addr))
+    }
+}
+
 // SAFETY: `Elf64_Sym` is valid for any bit pattern.
 unsafe impl crate::util::Pod for Elf64_Sym {}
 

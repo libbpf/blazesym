@@ -82,7 +82,11 @@ impl<'mmap> DebugSyms<'mmap> {
     /// Create a new `DebugSyms` object from the given set of symbols.
     fn new(syms: Vec<DWSymInfo<'mmap>>) -> Self {
         let mut syms = syms;
-        let () = syms.sort_by_key(|sym| sym.addr);
+        let () = syms.sort_by(|sym1, sym2| {
+            sym1.addr
+                .cmp(&sym2.addr)
+                .then_with(|| sym1.size.cmp(&sym2.size).reverse())
+        });
 
         let mut by_name_idx = (0..syms.len()).collect::<Vec<_>>();
         let () = by_name_idx.sort_by(|idx1, idx2| {
@@ -97,6 +101,24 @@ impl<'mmap> DebugSyms<'mmap> {
             syms: syms.into_boxed_slice(),
             by_name_idx: by_name_idx.into_boxed_slice(),
         }
+    }
+
+    /// Find a symbol by address.
+    fn find_by_addr<'slf>(
+        &'slf self,
+        addr: Addr,
+    ) -> impl Iterator<Item = &'slf DWSymInfo<'mmap>> + Clone + 'slf {
+        let idx =
+            if let Some(idx) = find_match_or_lower_bound_by_key(&self.syms, addr, |sym| sym.addr) {
+                idx
+            } else {
+                return Either::A([].into_iter())
+            };
+
+        let syms = self.syms[idx..]
+            .iter()
+            .take_while(move |sym| sym.contains(addr));
+        Either::B(syms)
     }
 
     /// Find a symbol by name.
@@ -289,6 +311,21 @@ impl DwarfResolver {
         }
     }
 
+    /// Lookup the symbol(s) at an address.
+    pub(crate) fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>, Error> {
+        let mut cache = self.cache.borrow_mut();
+        let () = self.ensure_debug_syms(&mut cache)?;
+        // SANITY: The above `ensure_debug_syms` ensures we have `debug_syms`
+        //         available.
+        let debug_syms = cache.debug_syms.as_ref().unwrap();
+        let syms = debug_syms
+            .find_by_addr(addr)
+            .map(|sym| (sym.name, sym.addr))
+            .collect();
+
+        Ok(syms)
+    }
+
     /// Find the address of a symbol from DWARF.
     ///
     /// # Arguments
@@ -338,6 +375,36 @@ mod tests {
     fn mksyms(syms: &[(&'static str, Addr)]) -> DebugSyms<'static> {
         let syms = syms.iter().map(|(name, addr)| mksym(name, *addr)).collect();
         DebugSyms::new(syms)
+    }
+
+    /// Check that our `DebugSyms` type allows for proper lookup by address.
+    #[test]
+    fn debug_symbol_by_addr_lookup() {
+        let syms = [];
+        let syms = mksyms(&syms);
+        assert_eq!(syms.find_by_addr(0).count(), 0);
+        assert_eq!(syms.find_by_addr(42).count(), 0);
+        assert_eq!(syms.find_by_addr(0xfffffffff).count(), 0);
+
+        let syms = [
+            ("dead", 0xdeadbeef),
+            ("foo", 0x42),
+            ("bar", 0xffff),
+            ("inlined-foo", 0x42),
+        ];
+        let syms = mksyms(&syms);
+        assert_eq!(syms.find_by_addr(0).count(), 0);
+
+        let found = syms.find_by_addr(0xdeadbeef).collect::<Vec<_>>();
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].name, "dead");
+        assert_eq!(found[0].addr, 0xdeadbeef);
+
+        let mut found = syms.find_by_addr(0x42).collect::<Vec<_>>();
+        let () = found.sort_by_key(|sym| sym.name);
+        assert_eq!(found.len(), 2);
+        assert_eq!(found[0].name, "foo");
+        assert_eq!(found[1].name, "inlined-foo");
     }
 
     /// Check that our `DebugSyms` type allows for proper lookup by name.

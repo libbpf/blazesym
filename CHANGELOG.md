@@ -3,6 +3,9 @@ Unreleased
 - Switched to using `gimli` for DWARF support
   - Added support for DWARF versions v2, v3, and v5 for symbol lookup
   - Introduced `dwarf` feature to make dependency optional
+- Added support for using DWARF information for symbol lookup (instead of just
+  ELF symbols; so far DWARF was only used for mapping names to symbol
+  information)
 
 
 0.2.0-alpha.2

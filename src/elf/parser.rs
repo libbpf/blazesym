@@ -427,10 +427,7 @@ impl ElfParser {
                     }
 
                     let addr = addr as u64;
-                    if (sym.st_size == 0 && sym.st_value == addr)
-                        || (sym.st_size != 0
-                            && (sym.st_value..sym.st_value + sym.st_size).contains(&addr))
-                    {
+                    if sym.contains(addr) {
                         let name = match symbol_name(strtab, sym) {
                             Ok(name) => name,
                             Err(err) => return Some(Err(err)),
