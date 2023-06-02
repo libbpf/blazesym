@@ -173,66 +173,6 @@ where
 }
 
 
-/// Do binary search but skip entries not having a key.
-pub fn search_address_opt_key<T, V: Ord>(
-    data: &[T],
-    address: V,
-    keyfn: &dyn Fn(&T) -> Option<V>,
-) -> Option<usize> {
-    let mut left = 0;
-    let mut right = data.len();
-
-    while left < right {
-        let left_key = keyfn(&data[left]);
-        if left_key.is_some() {
-            break
-        }
-        left += 1;
-    }
-
-    if left == right {
-        return None
-    }
-
-    if address < keyfn(&data[left]).unwrap() {
-        return None
-    }
-
-    while (left + 1) < right {
-        let mut v = (left + right) / 2;
-
-        let v_saved = v;
-        // Skip entries not having a key
-        while v < right {
-            let key = keyfn(&data[v]);
-            if key.is_some() {
-                break
-            }
-            v += 1;
-        }
-        // All entries at the right side haven't keys.
-        // Shrink to the left side.
-        if v == right {
-            right = v_saved;
-            continue
-        }
-
-        let key = keyfn(&data[v]).unwrap();
-
-        if key == address {
-            return Some(v)
-        }
-        if address < key {
-            right = v;
-        } else {
-            left = v;
-        }
-    }
-
-    Some(left)
-}
-
-
 #[inline]
 pub fn decode_leb128(mut data: &[u8]) -> Option<(u64, u8)> {
     data.read_u128_leb128().map(|(v, s)| (v as u64, s))

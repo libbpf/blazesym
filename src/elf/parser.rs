@@ -14,7 +14,6 @@ use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::mmap::Mmap;
 use crate::util::find_match_or_lower_bound_by_key;
-use crate::util::search_address_opt_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
 
@@ -25,6 +24,24 @@ use super::types::Elf64_Sym;
 use super::types::SHN_UNDEF;
 #[cfg(test)]
 use super::types::STT_FUNC;
+
+
+fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str, Error> {
+    let name = strtab
+        .get(sym.st_name as usize..)
+        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "string table index out of bounds"))?
+        .read_cstr()
+        .ok_or_else(|| {
+            Error::new(
+                ErrorKind::InvalidInput,
+                "no valid string found in string table",
+            )
+        })?
+        .to_str()
+        .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid symbol name"))?;
+
+    Ok(name)
+}
 
 
 struct Cache<'mmap> {
@@ -178,6 +195,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(name)
     }
 
+    #[cfg(test)]
     fn symbol(&mut self, idx: usize) -> Result<&'mmap Elf64_Sym, Error> {
         let () = self.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
@@ -191,25 +209,6 @@ impl<'mmap> Cache<'mmap> {
         })?;
 
         Ok(symbol)
-    }
-
-    fn symbol_name(&mut self, sym: &Elf64_Sym) -> Result<&'mmap str, Error> {
-        let strtab = self.ensure_strtab()?;
-
-        let name = strtab
-            .get(sym.st_name as usize..)
-            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "string table index out of bounds"))?
-            .read_cstr()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    "no valid string found in string table",
-                )
-            })?
-            .to_str()
-            .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid symbol name"))?;
-
-        Ok(name)
     }
 
     /// Find the section of a given name.
@@ -262,7 +261,13 @@ impl<'mmap> Cache<'mmap> {
             })?
             .iter()
             .collect::<Vec<&Elf64_Sym>>();
-        let () = symtab.sort_by_key(|x| x.st_value);
+        // Order symbols by address and those with equal address descending by
+        // size.
+        let () = symtab.sort_by(|sym1, sym2| {
+            sym1.st_value
+                .cmp(&sym2.st_value)
+                .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
+        });
 
         self.symtab = Some(symtab);
         Ok(())
@@ -406,26 +411,38 @@ impl ElfParser {
 
     pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr)>, Error> {
         let mut cache = self.cache.borrow_mut();
+        let strtab = cache.ensure_strtab()?;
         let () = cache.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
         //         available.
         let symtab = cache.symtab.as_ref().unwrap();
 
-        let idx_r = search_address_opt_key(symtab, addr, &|sym: &&Elf64_Sym| {
-            if sym.st_info & 0xf != st_type || sym.st_shndx == SHN_UNDEF {
-                None
-            } else {
-                Some(sym.st_value as Addr)
-            }
-        });
-        if idx_r.is_none() {
-            return Ok(None)
-        }
-        let idx = idx_r.unwrap();
+        match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
+            None => Ok(None),
+            Some(idx) => symtab[idx..]
+                .iter()
+                .find_map(|sym| {
+                    if sym.st_shndx == SHN_UNDEF || sym.st_info & 0xf != st_type {
+                        return None
+                    }
 
-        let sym = cache.symbol(idx)?;
-        let name = cache.symbol_name(sym)?;
-        Ok(Some((name, sym.st_value as Addr)))
+                    let addr = addr as u64;
+                    if (sym.st_size == 0 && sym.st_value == addr)
+                        || (sym.st_size != 0
+                            && (sym.st_value..sym.st_value + sym.st_size).contains(&addr))
+                    {
+                        let name = match symbol_name(strtab, sym) {
+                            Ok(name) => name,
+                            Err(err) => return Some(Err(err)),
+                        };
+                        let addr = sym.st_value as Addr;
+                        Some(Ok((name, addr)))
+                    } else {
+                        None
+                    }
+                })
+                .transpose(),
+        }
     }
 
     pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
@@ -477,8 +494,9 @@ impl ElfParser {
     #[cfg(test)]
     fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
         let mut cache = self.cache.borrow_mut();
+        let strtab = cache.ensure_strtab()?;
         let sym = cache.symbol(idx)?;
-        let name = cache.symbol_name(sym)?;
+        let name = symbol_name(strtab, sym)?;
         Ok(name)
     }
 
