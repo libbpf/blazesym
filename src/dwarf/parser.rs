@@ -735,27 +735,17 @@ fn parse_die_subprogram<'dat>(
                         .unwrap_or("DW_AT_name/DW_AT_linkage_name")
                 };
 
-                let name_slice = match attr.value() {
-                    AttributeValue::String(string) => string,
-                    AttributeValue::DebugStrRef(..) => {
-                        let string = attr.string_value(debug_str).ok_or_else(|| {
-                            Error::new(
-                                ErrorKind::InvalidData,
-                                format!(
-                                    "encountered invalid string reference in {} attribute",
-                                    attr_name()
-                                ),
-                            )
-                        })?;
-                        string
-                    }
-                    _ => {
-                        warn!("encountered unexpected attribute value for {}", attr_name());
-                        continue
-                    }
+                let string = if let Some(string) = attr.string_value(debug_str) {
+                    string
+                } else {
+                    warn!(
+                        "encountered unexpected attribute for {}",
+                        attr.name().static_string().unwrap_or_else(attr_name)
+                    );
+                    continue
                 };
 
-                let name_ = name_slice.to_string().map_err(|err| {
+                let name_ = string.to_string().map_err(|err| {
                     Error::new(
                         ErrorKind::InvalidData,
                         format!(
@@ -779,23 +769,22 @@ fn parse_die_subprogram<'dat>(
                         "encountered unexpected attribute for {}",
                         attr.name().static_string().unwrap_or("DW_AT_low_pc")
                     );
-                    continue
                 }
             },
             constants::DW_AT_high_pc => match attr.value() {
                 AttributeValue::Addr(addr) => {
                     high_pc = Some(addr);
                 }
-                AttributeValue::Data8(offset) => {
-                    // It's an offset from "low_pc", i.e., the size.
-                    size = Some(offset);
-                }
                 _ => {
-                    warn!(
-                        "encountered unexpected attribute for {}",
-                        attr.name().static_string().unwrap_or("DW_AT_high_pc")
-                    );
-                    continue
+                    if let Some(udata) = attr.value().udata_value() {
+                        // It's an offset from "low_pc", i.e., the size.
+                        size = Some(udata)
+                    } else {
+                        warn!(
+                            "encountered unexpected attribute for {}",
+                            attr.name().static_string().unwrap_or("DW_AT_high_pc")
+                        );
+                    }
                 }
             },
             _ => (),
