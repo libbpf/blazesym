@@ -111,6 +111,7 @@ fn symbolize_dwarf() {
     let result = results.first().unwrap();
     assert_eq!(result.symbol, "factorial");
     assert_eq!(result.addr, 0x2000100);
+    assert_eq!(result.line, 8);
 
     // Inquire symbol size.
     let size = find_function_size("factorial", &test_dwarf);

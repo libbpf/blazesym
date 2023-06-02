@@ -8,6 +8,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem;
+use std::os::unix::ffi::OsStrExt;
 use std::path::Path;
 
 use gimli::constants;
@@ -19,9 +20,12 @@ use gimli::read::EndianSlice;
 use gimli::read::UnitHeader;
 use gimli::Abbreviations;
 use gimli::DebuggingInformationEntry;
+use gimli::Dwarf;
+use gimli::IncompleteLineProgram;
 use gimli::LittleEndian;
 use gimli::Section as _;
 use gimli::SectionId;
+use gimli::Unit;
 use gimli::UnitSectionOffset;
 
 use crate::elf::ElfParser;
@@ -595,41 +599,124 @@ fn run_debug_line_stmts(
     Ok(matrix)
 }
 
-/// Parse DWARF line information and return a full version of debug_line matrix.
-pub(crate) fn parse_debug_line_elf_parser(parser: &ElfParser) -> Result<Vec<DebugLineCU>> {
-    let debug_line_idx = parser.find_section(".debug_line")?.ok_or_else(|| {
+
+pub(crate) struct AddrSrcInfo<'dwarf> {
+    pub addr: Addr,
+    pub line: u32,
+    pub _col: u32,
+    pub dir: Option<&'dwarf Path>,
+    pub file: Option<&'dwarf OsStr>,
+}
+
+fn parse_debug_line_program<'dwarf>(
+    dwarf: &Dwarf<R<'dwarf>>,
+    unit: &Unit<R<'dwarf>>,
+    program: IncompleteLineProgram<R<'dwarf>, usize>,
+    results: &mut Vec<AddrSrcInfo<'dwarf>>,
+) -> Result<()> {
+    let mut rows = program.rows();
+    let mut last_file_idx = u64::MAX;
+    let mut last_file = None;
+    let mut last_dir = None;
+
+    while let Some((header, row)) = rows.next_row().map_err(|err| {
         Error::new(
-            ErrorKind::NotFound,
-            "unable to find ELF section .debug_line",
+            ErrorKind::InvalidData,
+            format!("failed to retrieve DWARF source location row: {err}"),
         )
-    })?;
-    let debug_line_sz = parser.get_section_size(debug_line_idx)?;
-    let mut remain_sz = debug_line_sz;
-    let prologue_size: usize = mem::size_of::<DebugLinePrologueV2>();
-
-    let data = &mut parser.section_data(debug_line_idx)?;
-
-    let mut all_cus = Vec::<DebugLineCU>::new();
-    while remain_sz > prologue_size {
-        let debug_line_cu = parse_debug_line_cu(data)?;
-        let prologue = &debug_line_cu.prologue;
-        remain_sz -= prologue.total_length as usize + 4;
-
-        if debug_line_cu.matrix.is_empty() {
+    })? {
+        // End of sequence indicates a possible gap in addresses.
+        if row.end_sequence() {
             continue
         }
+        // Determine line/column. DWARF line/column is never 0.
+        let line = match row.line() {
+            Some(line) => line.get(),
+            None => 0,
+        };
+        let col = match row.column() {
+            gimli::ColumnType::Column(column) => column.get(),
+            gimli::ColumnType::LeftEdge => 0,
+        };
 
-        all_cus.push(debug_line_cu);
+        (last_dir, last_file) = if last_file_idx != row.file_index() {
+            last_file_idx = row.file_index();
+
+            if let Some(file) = row.file(header) {
+                let dir = if let Some(dir) = file.directory(header) {
+                    let dir = dwarf.attr_string(unit, dir).map_err(|err| {
+                        Error::new(
+                            ErrorKind::InvalidData,
+                            format!(
+                                "failed to retrieve DWARF directory attribute value string: {err}"
+                            ),
+                        )
+                    })?;
+                    let dir = Path::new(OsStr::from_bytes(dir.slice()));
+                    Some(dir)
+                } else {
+                    None
+                };
+
+                let file_name = dwarf.attr_string(unit, file.path_name()).map_err(|err| {
+                    Error::new(
+                        ErrorKind::InvalidData,
+                        format!("failed to retrieve DWARF path name attribute value string: {err}"),
+                    )
+                })?;
+                let file_name = OsStr::from_bytes(file_name.slice());
+
+                (dir, Some(file_name))
+            } else {
+                // The file changed but no file information is available. Tough
+                // luck.
+                (None, None)
+            }
+        } else {
+            (last_dir, last_file)
+        };
+
+        let src_info = AddrSrcInfo {
+            addr: row.address() as Addr,
+            line: line.try_into().unwrap_or(u32::MAX),
+            _col: col.try_into().unwrap_or(u32::MAX),
+            dir: last_dir,
+            file: last_file,
+        };
+        let () = results.push(src_info);
     }
 
-    if remain_sz != 0 {
-        return Err(Error::new(
+    Ok(())
+}
+
+/// Parse DWARF line information and return a full version of debug_line matrix.
+pub(crate) fn parse_debug_line_elf_parser(parser: &ElfParser) -> Result<Vec<AddrSrcInfo>> {
+    let mut results = Vec::new();
+    let mut load_section = |section| self::load_section(parser, section);
+    let dwarf = Dwarf::<R>::load(&mut load_section)?;
+
+    let mut iter = dwarf.units();
+    while let Some(header) = iter.next().map_err(|err| {
+        Error::new(
             ErrorKind::InvalidData,
-            "encountered remaining garbage data at the end",
-        ))
-    }
+            format!("failed to iterate DWARF unit headers: {err}"),
+        )
+    })? {
+        let unit = dwarf.unit(header).map_err(|err| {
+            Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "failed to retrieve DWARF unit for unit header @ {}: {err}",
+                    format_offset(header.offset())
+                ),
+            )
+        })?;
 
-    Ok(all_cus)
+        if let Some(program) = unit.line_program.clone() {
+            parse_debug_line_program(&dwarf, &unit, program, &mut results)?;
+        }
+    }
+    Ok(results)
 }
 
 
@@ -822,7 +909,7 @@ pub(crate) fn debug_info_parse_symbols(parser: &ElfParser) -> Result<Vec<DWSymIn
     while let Some(unit) = units.next().map_err(|err| {
         Error::new(
             ErrorKind::InvalidData,
-            format!("failed to iterate DWARF units: {err}"),
+            format!("failed to iterate DWARF unit headers: {err}"),
         )
     })? {
         let abbrevs = unit.abbreviations(&debug_abbrev).map_err(|err| {
@@ -855,12 +942,21 @@ mod tests {
 
     #[test]
     fn test_parse_debug_line_elf() {
-        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-dwarf-v4.bin");
+        let binaries = [
+            "test-dwarf-v2.bin",
+            "test-dwarf-v3.bin",
+            "test-dwarf-v4.bin",
+            "test-dwarf-v5.bin",
+        ];
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let _line = parse_debug_line_elf_parser(&parser).unwrap();
+        for binary in binaries {
+            let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(binary);
+
+            let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+            let _lines = parse_debug_line_elf_parser(&parser).unwrap();
+        }
     }
 
     #[test]

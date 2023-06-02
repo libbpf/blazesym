@@ -21,8 +21,8 @@ use crate::Addr;
 
 use super::parser::debug_info_parse_symbols;
 use super::parser::parse_debug_line_elf_parser;
+use super::parser::AddrSrcInfo;
 use super::parser::DWSymInfo;
-use super::parser::DebugLineCU;
 
 
 impl From<&DWSymInfo<'_>> for SymInfo {
@@ -153,6 +153,9 @@ struct Cache<'mmap> {
     parser: &'mmap ElfParser,
     /// Cached debug symbols.
     debug_syms: Option<DebugSyms<'mmap>>,
+    /// Source location information for individual addresses; ordered by
+    /// [`AddrSrcInfo::addr`].
+    addr_info: Option<Vec<AddrSrcInfo<'mmap>>>,
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -161,6 +164,7 @@ impl<'mmap> Cache<'mmap> {
         Self {
             parser,
             debug_syms: None,
+            addr_info: None,
         }
     }
 
@@ -176,6 +180,26 @@ impl<'mmap> Cache<'mmap> {
         let debug_syms = debug_info_parse_symbols(self.parser)?;
         self.debug_syms = Some(DebugSyms::new(debug_syms));
         Ok(())
+    }
+
+    /// Extract the symbol information from DWARF if having not done it before.
+    fn ensure_addr_src_info(&mut self) -> Result<&[AddrSrcInfo<'mmap>], Error> {
+        // Can't use `if let` here because of borrow checker woes.
+        if self.addr_info.is_some() {
+            let addr_info = self.addr_info.as_ref().unwrap();
+            return Ok(addr_info)
+        }
+
+        let mut addr_info = parse_debug_line_elf_parser(self.parser)?;
+        let () = addr_info.sort_by(|info1, info2| {
+            info1
+                .addr
+                .cmp(&info2.addr)
+                .then_with(|| info1.dir.cmp(&info2.dir))
+                .then_with(|| info1.file.cmp(&info2.file))
+        });
+        self.addr_info = Some(addr_info);
+        Ok(self.addr_info.as_ref().unwrap())
     }
 }
 
@@ -195,8 +219,7 @@ pub(crate) struct DwarfResolver {
     ///         to make sure we never end up with a dangling reference.
     cache: RefCell<Cache<'static>>,
     parser: Rc<ElfParser>,
-    debug_line_cus: Vec<DebugLineCU>,
-    addr_to_dlcu: Vec<(Addr, u32)>,
+    line_number_info: bool,
     enable_debug_info_syms: bool,
 }
 
@@ -205,27 +228,12 @@ impl DwarfResolver {
         &self.parser
     }
 
+    // TODO: Remove `Result` return type.
     pub fn from_parser(
         parser: Rc<ElfParser>,
         line_number_info: bool,
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
-        let debug_line_cus: Vec<DebugLineCU> = if line_number_info {
-            parse_debug_line_elf_parser(&parser).unwrap_or_default()
-        } else {
-            vec![]
-        };
-
-        let mut addr_to_dlcu = Vec::with_capacity(debug_line_cus.len());
-        for (idx, dlcu) in debug_line_cus.iter().enumerate() {
-            if dlcu.matrix.is_empty() {
-                continue
-            }
-            let first_addr = dlcu.matrix[0].addr;
-            addr_to_dlcu.push((first_addr, idx as u32));
-        }
-        addr_to_dlcu.sort_by_key(|v| v.0);
-
         Ok(DwarfResolver {
             cache: RefCell::new(Cache::new(unsafe {
                 // SAFETY: We own the parser and never hand out any 'static
@@ -233,8 +241,7 @@ impl DwarfResolver {
                 mem::transmute::<_, &'static ElfParser>(parser.as_ref())
             })),
             parser,
-            debug_line_cus,
-            addr_to_dlcu,
+            line_number_info,
             enable_debug_info_syms: debug_info_symbols,
         })
     }
@@ -252,29 +259,30 @@ impl DwarfResolver {
         Self::from_parser(Rc::new(parser), debug_line_info, debug_info_symbols)
     }
 
-    fn find_dlcu_index(&self, addr: Addr) -> Option<usize> {
-        let a2a = &self.addr_to_dlcu;
-        let a2a_idx = find_match_or_lower_bound_by_key(a2a, addr, |a2dlcu| a2dlcu.0)?;
-        let dlcu_idx = a2a[a2a_idx].1 as usize;
-
-        Some(dlcu_idx)
-    }
-
     /// Find line information of an address.
     ///
     /// `addr` is an offset from the head of the loaded binary/or shared
     /// object. This function returns a tuple of `(dir_name, file_name,
     /// line_no)`.
+    // TODO: We likely want to return a more structured type.
     pub fn find_line(&self, addr: Addr) -> Result<Option<(&Path, &OsStr, usize)>, Error> {
-        let idx = if let Some(idx) = self.find_dlcu_index(addr) {
-            idx
-        } else {
-            return Ok(None)
-        };
+        if self.line_number_info {
+            let mut cache = self.cache.borrow_mut();
+            let addr_info = cache.ensure_addr_src_info()?;
 
-        let dlcu = &self.debug_line_cus[idx];
-        let src_info = dlcu.find_line(addr);
-        Ok(src_info)
+            let idx = find_lowest_match_by_key(addr_info, &addr, |info| info.addr);
+            if let Some(idx) = idx {
+                let info = &addr_info[idx];
+                // TODO: Should not unwrap.
+                let dir = info.dir.as_ref().unwrap();
+                let file = info.file.as_ref().unwrap();
+                Ok(Some((dir, file, info.line as usize)))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
     }
 
     /// Extract the symbol information from DWARf if having not done it before.
@@ -325,14 +333,6 @@ impl DwarfResolver {
 
         Ok(syms)
     }
-
-    #[cfg(test)]
-    fn pick_address_for_test(&self) -> (Addr, &Path, &OsStr, usize) {
-        let (addr, idx) = self.addr_to_dlcu[self.addr_to_dlcu.len() / 3];
-        let dlcu = &self.debug_line_cus[idx as usize];
-        let (dir, file, line) = dlcu.stringify_row(0).unwrap();
-        (addr, dir, file, line)
-    }
 }
 
 
@@ -340,7 +340,10 @@ impl DwarfResolver {
 mod tests {
     use super::*;
 
+    use std::path::PathBuf;
+
     use test_log::test;
+
 
     fn mksym(name: &'static str, addr: Addr) -> DWSymInfo<'static> {
         DWSymInfo {
@@ -410,18 +413,18 @@ mod tests {
         assert_eq!(found[0].addr, 0x127);
     }
 
+    /// Check that we can find the source code location of an address.
     #[test]
-    fn test_dwarf_resolver() {
+    fn source_location_finding() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-dwarf-v4.bin");
+            .join("test-stable-addresses.bin");
         let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
-        let (addr, dir, file, line) = resolver.pick_address_for_test();
 
-        let (dir_ret, file_ret, line_ret) = resolver.find_line(addr).unwrap().unwrap();
-        assert_eq!(dir, dir_ret);
-        assert_eq!(file, file_ret);
-        assert_eq!(line, line_ret);
+        let (dir, file, line) = resolver.find_line(0x2000100).unwrap().unwrap();
+        assert_ne!(dir, PathBuf::new());
+        assert_eq!(file, "test-stable-addresses.c");
+        assert_eq!(line, 8);
     }
 
     /// Check that we can look up a symbol in DWARF debug information.
