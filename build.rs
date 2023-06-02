@@ -339,8 +339,8 @@ fn prepare_test_files(crate_root: &Path) {
 
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test-stable-addresses.gsym");
-    dwarf_mostly(&src, "test-dwarf.bin");
-    dwarf_only(&src, "test-dwarf-only.bin");
+    dwarf_mostly(&src, "test-stable-addresses-dwarf.bin");
+    dwarf_only(&src, "test-stable-addresses-dwarf-only.bin");
 
     let src = crate_root.join("data").join("kallsyms.xz");
     let mut dst = src.clone();
@@ -365,7 +365,9 @@ fn prepare_test_files(crate_root: &Path) {
     .unwrap();
 
     let files = [
-        crate_root.join("data").join("test-dwarf.bin"),
+        crate_root
+            .join("data")
+            .join("test-stable-addresses-dwarf.bin"),
         crate_root
             .join("data")
             .join("zip-dir")

@@ -573,7 +573,7 @@ mod tests {
     fn lookup_symbol() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-dwarf.bin");
+            .join("test-stable-addresses-no-dwarf.bin");
 
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let opts = FindAddrOpts::default();
