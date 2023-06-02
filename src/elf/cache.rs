@@ -63,12 +63,9 @@ impl ElfCacheEntry {
         let parser = Rc::new(ElfParser::open_file(file)?);
 
         #[cfg(feature = "dwarf")]
-        let backend = if let Ok(dwarf) = DwarfResolver::from_parser_for_addresses(
-            Rc::clone(&parser),
-            &[],
-            line_number_info,
-            debug_info_symbols,
-        ) {
+        let backend = if let Ok(dwarf) =
+            DwarfResolver::from_parser(Rc::clone(&parser), line_number_info, debug_info_symbols)
+        {
             ElfBackend::Dwarf(Rc::new(dwarf))
         } else {
             ElfBackend::Elf(parser)

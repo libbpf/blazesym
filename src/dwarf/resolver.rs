@@ -205,14 +205,13 @@ impl DwarfResolver {
         &self.parser
     }
 
-    pub fn from_parser_for_addresses(
+    pub fn from_parser(
         parser: Rc<ElfParser>,
-        addresses: &[Addr],
         line_number_info: bool,
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
         let debug_line_cus: Vec<DebugLineCU> = if line_number_info {
-            parse_debug_line_elf_parser(&parser, addresses).unwrap_or_default()
+            parse_debug_line_elf_parser(&parser).unwrap_or_default()
         } else {
             vec![]
         };
@@ -240,32 +239,6 @@ impl DwarfResolver {
         })
     }
 
-    /// Open a binary to load .debug_line only enough for a given list of addresses.
-    ///
-    /// When `addresses` is not empty, the returned instance only has
-    /// data that related to these addresses.  For this case, the
-    /// instance have the ability that can serve only these addresses.
-    /// This would be much faster.
-    ///
-    /// If `addresses` is empty, the returned instance has all data
-    /// from the given file.  If the instance will be used for long
-    /// running, you would want to load all data into memory to have
-    /// the ability of handling all possible addresses.
-    fn open_for_addresses(
-        filename: &Path,
-        addresses: &[Addr],
-        line_number_info: bool,
-        debug_info_symbols: bool,
-    ) -> Result<DwarfResolver, Error> {
-        let parser = ElfParser::open(filename)?;
-        Self::from_parser_for_addresses(
-            Rc::new(parser),
-            addresses,
-            line_number_info,
-            debug_info_symbols,
-        )
-    }
-
     /// Open a binary to load and parse .debug_line for later uses.
     ///
     /// `filename` is the name of an ELF binary/or shared object that
@@ -275,7 +248,8 @@ impl DwarfResolver {
         debug_line_info: bool,
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
-        Self::open_for_addresses(filename, &[], debug_line_info, debug_info_symbols)
+        let parser = ElfParser::open(filename)?;
+        Self::from_parser(Rc::new(parser), debug_line_info, debug_info_symbols)
     }
 
     fn find_dlcu_index(&self, addr: Addr) -> Option<usize> {
