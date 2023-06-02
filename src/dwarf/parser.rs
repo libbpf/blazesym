@@ -388,8 +388,9 @@ mod tests {
     use test::Bencher;
 
 
+    /// Check that we can parse debug line information.
     #[test]
-    fn test_parse_debug_line_elf() {
+    fn debug_line_parsing() {
         let binaries = [
             "test-dwarf-v2.bin",
             "test-dwarf-v3.bin",
@@ -407,8 +408,19 @@ mod tests {
         }
     }
 
+    /// Benchmark the [`parse_debug_line_elf_parser`] function.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_debug_line_parsing(b: &mut Bencher) {
+        let bin_name = env::args().next().unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+
+        let () = b.iter(|| parse_debug_line_elf_parser(black_box(&parser)).unwrap());
+    }
+
+    /// Check that we can parse debug information and extract relevant symbols.
     #[test]
-    fn test_debug_info_parse_symbols() {
+    fn debug_info_parseing() {
         let binaries = [
             "test-dwarf-v2.bin",
             "test-dwarf-v3.bin",
@@ -430,7 +442,7 @@ mod tests {
     /// Benchmark the [`debug_info_parse_symbols`] function.
     #[cfg(feature = "nightly")]
     #[bench]
-    fn debug_info_parse_single_threaded(b: &mut Bencher) {
+    fn bench_debug_info_parsing(b: &mut Bencher) {
         let bin_name = env::args().next().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
 
