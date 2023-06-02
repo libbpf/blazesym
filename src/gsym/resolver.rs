@@ -177,7 +177,7 @@ mod tests {
     fn test_find_line_info() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.gsym");
+            .join("test-stable-addresses.gsym");
         let resolver = GsymResolver::new(test_gsym).unwrap();
 
         // `main` resides at address 0x2000000, and it's located at the given

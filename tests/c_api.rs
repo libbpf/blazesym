@@ -94,7 +94,7 @@ fn symbolize_from_elf() {
 fn symbolize_from_gsym() {
     let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test.gsym");
+        .join("test-stable-addresses.gsym");
     let test_gsym_c = CString::new(test_gsym.to_str().unwrap()).unwrap();
     let gsym_src = blaze_symbolize_src_gsym {
         path: test_gsym_c.as_ptr(),
