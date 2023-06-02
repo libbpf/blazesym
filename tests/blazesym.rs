@@ -97,7 +97,7 @@ fn symbolize_gsym() {
 fn symbolize_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-dwarf.bin");
+        .join("test-stable-addresses-dwarf-only.bin");
     let src = symbolize::Source::Elf(symbolize::Elf::new(&test_dwarf));
     let symbolizer = Symbolizer::new();
     let results = symbolizer
@@ -221,12 +221,6 @@ fn inspect() {
             src.path().unwrap()
         );
     }
-
-    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses-dwarf.bin");
-    let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
-    let () = test(src);
 
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")

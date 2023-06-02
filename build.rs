@@ -185,15 +185,9 @@ fn strip(src: &Path, dst: &str, options: &[&str]) {
     let () = adjust_mtime(&dst).unwrap();
 }
 
-/// Strip most non-debug information from an ELF binary, in an attempt to
-/// leave only DWARF remains and necessary ELF bits.
-fn dwarf_mostly(src: &Path, dst: &str) {
-    strip(src, dst, &["--only-keep-debug"])
-}
-
 /// Strip all non-debug information from an ELF binary, in an attempt to
 /// leave only DWARF remains.
-fn dwarf_only(src: &Path, dst: &str) {
+fn dwarf(src: &Path, dst: &str) {
     strip(src, dst, &["--keep-section=.debug_*"])
 }
 
@@ -339,8 +333,7 @@ fn prepare_test_files(crate_root: &Path) {
 
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test-stable-addresses.gsym");
-    dwarf_mostly(&src, "test-stable-addresses-dwarf.bin");
-    dwarf_only(&src, "test-stable-addresses-dwarf-only.bin");
+    dwarf(&src, "test-stable-addresses-dwarf-only.bin");
 
     let src = crate_root.join("data").join("kallsyms.xz");
     let mut dst = src.clone();
@@ -367,7 +360,7 @@ fn prepare_test_files(crate_root: &Path) {
     let files = [
         crate_root
             .join("data")
-            .join("test-stable-addresses-dwarf.bin"),
+            .join("test-stable-addresses-dwarf-only.bin"),
         crate_root
             .join("data")
             .join("zip-dir")

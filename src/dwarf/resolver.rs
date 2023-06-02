@@ -450,7 +450,7 @@ mod tests {
     fn lookup_symbol() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-dwarf.bin");
+            .join("test-stable-addresses-dwarf-only.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
@@ -471,7 +471,7 @@ mod tests {
     fn lookup_symbol_wrong_type() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-dwarf.bin");
+            .join("test-stable-addresses-dwarf-only.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
             obj_file_name: false,
