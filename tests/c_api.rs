@@ -58,7 +58,7 @@ fn symbolizer_creation_with_opts() {
 fn symbolize_from_elf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-dwarf.bin");
+        .join("test-stable-addresses-no-dwarf.bin");
     let test_dwarf_c = CString::new(test_dwarf.to_str().unwrap()).unwrap();
 
     let elf_src = blaze_symbolize_src_elf {
@@ -233,7 +233,7 @@ fn inspector_creation() {
 fn lookup_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-dwarf.bin");
+        .join("test-stable-addresses-dwarf.bin");
 
     let src = blaze_inspect_elf_src::from(inspect::Elf::new(test_dwarf));
     let factorial = CString::new("factorial").unwrap();

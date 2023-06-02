@@ -144,7 +144,7 @@ mod tests {
     fn addr_without_offset() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-dwarf.bin");
+            .join("test-stable-addresses-no-dwarf.bin");
         let elf = ElfParser::open(&path).unwrap();
         let backend = ElfBackend::Elf(Rc::new(elf));
         let resolver = ElfResolver::with_backend(&path, backend).unwrap();
