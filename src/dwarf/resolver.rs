@@ -299,12 +299,6 @@ impl DwarfResolver {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
-        let elf_r = self.parser.find_addr(name, opts)?;
-        if !elf_r.is_empty() {
-            // Since it is found from symtab, symtab should be
-            // complete and DWARF shouldn't provide more information.
-            return Ok(elf_r)
-        }
 
         let mut cache = self.cache.borrow_mut();
         let () = self.ensure_debug_syms(&mut cache)?;
