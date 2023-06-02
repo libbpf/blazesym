@@ -222,7 +222,7 @@ fn parse_debug_line_files(data: &mut &[u8]) -> Result<Vec<DebugLineFileInfo>> {
     }
 }
 
-fn parse_debug_line_cu(data: &mut &[u8], addresses: &[Addr]) -> Result<DebugLineCU> {
+fn parse_debug_line_cu(data: &mut &[u8]) -> Result<DebugLineCU> {
     let prologue_v2_size: usize = mem::size_of::<DebugLinePrologueV2>();
     let prologue_v4_size: usize = mem::size_of::<DebugLinePrologue>();
 
@@ -280,7 +280,7 @@ fn parse_debug_line_cu(data: &mut &[u8], addresses: &[Addr]) -> Result<DebugLine
         .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read std op lengths"))?;
     let inc_dirs = parse_debug_line_dirs(data)?;
     let files = parse_debug_line_files(data)?;
-    let matrix = run_debug_line_stmts(data, &prologue, addresses)?;
+    let matrix = run_debug_line_stmts(data, &prologue)?;
 
     #[cfg(debug_assertions)]
     for i in 1..matrix.len() {
@@ -551,14 +551,12 @@ fn run_debug_line_stmt(
 fn run_debug_line_stmts(
     stmts: &[u8],
     prologue: &DebugLinePrologue,
-    addresses: &[Addr],
 ) -> Result<Vec<DebugLineStates>> {
     let mut ip = 0;
     let mut matrix = Vec::<DebugLineStates>::new();
     let mut should_sort = false;
     let mut states_cur = DebugLineStates::new(prologue);
-    let mut states_last = states_cur.clone();
-    let mut last_ip_pushed = false;
+    let states_last = states_cur.clone();
     let mut force_no_emit = false;
 
     while ip < stmts.len() {
@@ -574,29 +572,8 @@ fn run_debug_line_stmts(
                         force_no_emit = true;
                     }
                     if !force_no_emit {
-                        if !addresses.is_empty() {
-                            let mut pushed = false;
-                            for addr in addresses {
-                                if *addr == states_cur.addr
-                                    || (states_last.addr != 0
-                                        && !states_last.end_sequence
-                                        && *addr < states_cur.addr
-                                        && *addr > states_last.addr)
-                                {
-                                    if !last_ip_pushed && *addr != states_cur.addr {
-                                        // The address falls between current and last emitted row.
-                                        matrix.push(states_last.clone());
-                                    }
-                                    matrix.push(states_cur.clone());
-                                    pushed = true;
-                                    break
-                                }
-                            }
-                            last_ip_pushed = pushed;
-                            states_last = states_cur.clone();
-                        } else {
-                            matrix.push(states_cur.clone());
-                        }
+                        matrix.push(states_cur.clone());
+
                         if states_last.addr > states_cur.addr {
                             should_sort = true;
                         }
@@ -618,12 +595,8 @@ fn run_debug_line_stmts(
     Ok(matrix)
 }
 
-/// If addresses is empty, it returns a full version of debug_line matrix.
-/// If addresses is not empty, return only data needed to resolve given addresses.
-pub(crate) fn parse_debug_line_elf_parser(
-    parser: &ElfParser,
-    addresses: &[Addr],
-) -> Result<Vec<DebugLineCU>> {
+/// Parse DWARF line information and return a full version of debug_line matrix.
+pub(crate) fn parse_debug_line_elf_parser(parser: &ElfParser) -> Result<Vec<DebugLineCU>> {
     let debug_line_idx = parser.find_section(".debug_line")?.ok_or_else(|| {
         Error::new(
             ErrorKind::NotFound,
@@ -633,13 +606,12 @@ pub(crate) fn parse_debug_line_elf_parser(
     let debug_line_sz = parser.get_section_size(debug_line_idx)?;
     let mut remain_sz = debug_line_sz;
     let prologue_size: usize = mem::size_of::<DebugLinePrologueV2>();
-    let mut not_found = Vec::from(addresses);
 
     let data = &mut parser.section_data(debug_line_idx)?;
 
     let mut all_cus = Vec::<DebugLineCU>::new();
     while remain_sz > prologue_size {
-        let debug_line_cu = parse_debug_line_cu(data, &not_found)?;
+        let debug_line_cu = parse_debug_line_cu(data)?;
         let prologue = &debug_line_cu.prologue;
         remain_sz -= prologue.total_length as usize + 4;
 
@@ -647,30 +619,7 @@ pub(crate) fn parse_debug_line_elf_parser(
             continue
         }
 
-        if !addresses.is_empty() {
-            let mut last_row = &debug_line_cu.matrix[0];
-            for row in debug_line_cu.matrix.as_slice() {
-                let mut i = 0;
-                // Remove addresses found in this CU from not_found.
-                while i < not_found.len() {
-                    let addr = addresses[i];
-                    if addr == row.addr || (addr < row.addr && addr > last_row.addr) {
-                        not_found.remove(i);
-                    } else {
-                        i += 1;
-                    }
-                }
-                last_row = row;
-            }
-
-            all_cus.push(debug_line_cu);
-
-            if not_found.is_empty() {
-                return Ok(all_cus)
-            }
-        } else {
-            all_cus.push(debug_line_cu);
-        }
+        all_cus.push(debug_line_cu);
     }
 
     if remain_sz != 0 {
@@ -911,7 +860,7 @@ mod tests {
             .join("test-dwarf-v4.bin");
 
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let _line = parse_debug_line_elf_parser(&parser, &[]).unwrap();
+        let _line = parse_debug_line_elf_parser(&parser).unwrap();
     }
 
     #[test]
@@ -932,7 +881,7 @@ mod tests {
             opcode_base: 13,
         };
 
-        let result = run_debug_line_stmts(&stmts, &prologue, &[]);
+        let result = run_debug_line_stmts(&stmts, &prologue);
         if result.is_err() {
             let e = result.as_ref().err().unwrap();
             println!("result {e:?}");
@@ -992,7 +941,7 @@ mod tests {
             opcode_base: 13,
         };
 
-        let result = run_debug_line_stmts(&stmts, &prologue, &[]);
+        let result = run_debug_line_stmts(&stmts, &prologue);
         if result.is_err() {
             let e = result.as_ref().err().unwrap();
             println!("result {e:?}");
