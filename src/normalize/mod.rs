@@ -22,8 +22,8 @@
 //! assert_eq!(norm_addrs.addrs.len(), 1);
 //!
 //! let (addr, meta_idx) = norm_addrs.addrs[0];
-//! // fopen (0x7f5f8e23a790) is at address 0x77790 in Binary(Binary { path: "/usr/lib64/libc.so.6", build_id: Some([...]), ... })
-//! println!("fopen (0x{fopen_addr:x}) is at address 0x{addr:x} in {:?}", norm_addrs.meta[meta_idx]);
+//! // fopen (0x7f5f8e23a790) corresponds to address 0x77790 within Binary(Binary { path: "/usr/lib64/libc.so.6", build_id: Some([...]), ... })
+//! println!("fopen (0x{fopen_addr:x}) corresponds to address 0x{addr:x} within {:?}", norm_addrs.meta[meta_idx]);
 //! ```
 
 mod meta;
