@@ -142,6 +142,19 @@ fn normalize_elf_offset_with_parser(offset: u64, parser: &ElfParser) -> Result<O
     Ok(addr)
 }
 
+
+/// Make a [`UserAddrMeta::Elf`] variant.
+fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<UserAddrMeta> {
+    let elf = Elf {
+        path: entry.path.symbolic_path.to_path_buf(),
+        build_id: get_build_id(&entry.path.maps_file)?,
+        _non_exhaustive: (),
+    };
+    let meta = UserAddrMeta::Elf(elf);
+    Ok(meta)
+}
+
+
 /// Normalize a virtual address belonging to an ELF file represented by the
 /// provided [`PathMapsEntry`].
 pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
@@ -239,14 +252,9 @@ where
         let meta_idx = if let Some(meta_idx) = self.meta_lookup.get(&entry.path.symbolic_path) {
             *meta_idx
         } else {
-            let elf = Elf {
-                path: entry.path.symbolic_path.to_path_buf(),
-                build_id: R::read_build_id_from_elf(&entry.path.maps_file)?,
-                _non_exhaustive: (),
-            };
-
+            let meta = make_elf_meta(entry, &R::read_build_id_from_elf)?;
             let meta_idx = self.normalized.meta.len();
-            let () = self.normalized.meta.push(UserAddrMeta::Elf(elf));
+            let () = self.normalized.meta.push(meta);
             let _ref = self
                 .meta_lookup
                 .insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
