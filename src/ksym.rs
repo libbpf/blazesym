@@ -211,10 +211,8 @@ mod tests {
     use test_log::test;
 
 
-    // This test case is skipped by default for /proc/kallsyms may
-    // not available in some environment.
+    /// Check that we can use a `KSymResolver` to find symbols.
     #[test]
-    #[ignore = "system-dependent; may fail"]
     fn ksym_resolver_load_find() {
         let resolver = KSymResolver::load_file_name(PathBuf::from(KALLSYMS)).unwrap();
 
