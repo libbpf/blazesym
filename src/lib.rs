@@ -91,21 +91,38 @@ impl From<u32> for Pid {
 }
 
 
-#[cfg(feature = "log")]
+#[cfg(feature = "tracing")]
 #[macro_use]
-mod log {
+mod tracing {
     #[allow(unused)]
-    pub(crate) use log::debug;
-    pub(crate) use log::error;
+    pub(crate) use tracing::debug;
+    pub(crate) use tracing::error;
     #[allow(unused)]
-    pub(crate) use log::info;
+    pub(crate) use tracing::info;
     #[allow(unused)]
-    pub(crate) use log::trace;
-    pub(crate) use log::warn;
+    pub(crate) use tracing::trace;
+    pub(crate) use tracing::warn;
+
+    #[allow(unused)]
+    pub(crate) use tracing::debug_span;
+
+    #[allow(unused)]
+    pub(crate) use tracing::error_span;
+
+    #[allow(unused)]
+    pub(crate) use tracing::info_span;
+
+    #[allow(unused)]
+    pub(crate) use tracing::trace_span;
+
+    #[allow(unused)]
+    pub(crate) use tracing::warn_span;
 }
-#[cfg(not(feature = "log"))]
+
+
+#[cfg(not(feature = "tracing"))]
 #[macro_use]
-mod log {
+mod tracing {
     macro_rules! debug {
         ($($args:tt)*) => {{
           if false {
