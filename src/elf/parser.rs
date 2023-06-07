@@ -422,7 +422,7 @@ impl ElfParser {
             Some(idx) => symtab[idx..]
                 .iter()
                 .find_map(|sym| {
-                    if sym.st_shndx == SHN_UNDEF || sym.st_info & 0xf != st_type {
+                    if sym.st_shndx == SHN_UNDEF || sym.type_() != st_type {
                         return None
                     }
 
@@ -516,7 +516,7 @@ impl ElfParser {
         let symtab = cache.symtab.as_ref().unwrap();
 
         let mut idx = symtab.len() / 2;
-        while symtab[idx].st_info & 0xf != STT_FUNC || symtab[idx].st_shndx == SHN_UNDEF {
+        while symtab[idx].type_() != STT_FUNC || symtab[idx].st_shndx == SHN_UNDEF {
             idx += 1;
         }
         let sym = &symtab[idx];

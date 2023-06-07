@@ -84,6 +84,11 @@ pub(crate) struct Elf64_Sym {
 }
 
 impl Elf64_Sym {
+    /// Extract the symbols type, typically represented by a STT_* constant.
+    pub fn type_(&self) -> u8 {
+        self.st_info & 0xf
+    }
+
     /// Check whether this symbols contains the provided address.
     pub fn contains(&self, addr: Elf64_Addr) -> bool {
         (self.st_size == 0 && self.st_value == addr)
