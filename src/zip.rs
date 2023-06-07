@@ -8,6 +8,9 @@
 /// operate on pointers to such structures and their members, we
 /// declare the types as packed.
 use std::ffi::OsStr;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -115,7 +118,6 @@ unsafe impl Pod for LocalFileHeader {}
 
 /// Carries information on path, compression method, and data corresponding to a
 /// file in a zip archive.
-#[derive(Debug)]
 pub struct Entry<'archive> {
     /// Compression method as defined in pkzip spec. 0 means data is uncompressed.
     pub compression: u16,
@@ -125,6 +127,24 @@ pub struct Entry<'archive> {
     pub data_offset: usize,
     /// Pointer to the file data.
     pub data: &'archive [u8],
+}
+
+impl Debug for Entry<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Entry {
+            compression,
+            path,
+            data_offset,
+            data,
+        } = self;
+
+        f.debug_struct(stringify!(Entry))
+            .field("compression", compression)
+            .field("path", path)
+            .field("data_offset", data_offset)
+            .field("data", &data.get(0..32))
+            .finish()
+    }
 }
 
 
