@@ -86,65 +86,70 @@ impl SymResolver for GsymResolver {
     /// # Returns
     ///
     /// The `AddrLineInfo` corresponding to the address or `None`.
-    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
-        let idx = self.ctx.find_addr(addr)?;
-        let symaddr = self.ctx.addr_at(idx)?;
-        if addr < symaddr {
-            return None
-        }
-        let addrinfo = self.ctx.addr_info(idx)?;
-        if addr >= (symaddr + addrinfo.size as Addr) {
-            return None
-        }
-
-        let addrdatas = parse_address_data(addrinfo.data)?;
-        for adr_ent in addrdatas {
-            if adr_ent.typ != InfoTypeLineTableInfo {
-                continue
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>, Error> {
+        fn find_line_info_impl(ctx: &GsymContext<'_>, addr: Addr) -> Option<AddrLineInfo> {
+            let idx = ctx.find_addr(addr)?;
+            let symaddr = ctx.addr_at(idx)?;
+            if addr < symaddr {
+                return None
             }
-            // Continue to execute all GSYM line table operations
-            // until the end of the buffer is reached or a row
-            // containing addr is located.
-            let mut data = adr_ent.data;
-            let lntab_hdr = parse_line_table_header(&mut data)?;
-            let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
-            let mut last_lntab_row = lntab_row.clone();
-            let mut row_cnt = 0;
-            while !data.is_empty() {
-                match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
-                    Some(RunResult::Ok) => {}
-                    Some(RunResult::NewRow) => {
-                        row_cnt += 1;
-                        if addr < lntab_row.address {
-                            if row_cnt == 1 {
-                                // The address is lower than the first row.
-                                return None
-                            }
-                            // Rollback to the last row.
-                            lntab_row = last_lntab_row;
-                            break
-                        }
-                        last_lntab_row = lntab_row.clone();
-                    }
-                    Some(RunResult::End) | None => break,
+            let addrinfo = ctx.addr_info(idx)?;
+            if addr >= (symaddr + addrinfo.size as Addr) {
+                return None
+            }
+
+            let addrdatas = parse_address_data(addrinfo.data)?;
+            for adr_ent in addrdatas {
+                if adr_ent.typ != InfoTypeLineTableInfo {
+                    continue
                 }
-            }
+                // Continue to execute all GSYM line table operations
+                // until the end of the buffer is reached or a row
+                // containing addr is located.
+                let mut data = adr_ent.data;
+                let lntab_hdr = parse_line_table_header(&mut data)?;
+                let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
+                let mut last_lntab_row = lntab_row.clone();
+                let mut row_cnt = 0;
+                while !data.is_empty() {
+                    match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
+                        Some(RunResult::Ok) => {}
+                        Some(RunResult::NewRow) => {
+                            row_cnt += 1;
+                            if addr < lntab_row.address {
+                                if row_cnt == 1 {
+                                    // The address is lower than the first row.
+                                    return None
+                                }
+                                // Rollback to the last row.
+                                lntab_row = last_lntab_row;
+                                break
+                            }
+                            last_lntab_row = lntab_row.clone();
+                        }
+                        Some(RunResult::End) | None => break,
+                    }
+                }
 
-            if row_cnt == 0 {
-                continue
-            }
+                if row_cnt == 0 {
+                    continue
+                }
 
-            let finfo = self.ctx.file_info(lntab_row.file_idx as usize)?;
-            let dirname = self.ctx.get_str(finfo.directory as usize)?;
-            let filename = self.ctx.get_str(finfo.filename as usize)?;
-            let path = Path::new(dirname).join(filename);
-            return Some(AddrLineInfo {
-                path,
-                line: lntab_row.file_line as usize,
-                column: 0,
-            })
+                let finfo = ctx.file_info(lntab_row.file_idx as usize)?;
+                let dirname = ctx.get_str(finfo.directory as usize)?;
+                let filename = ctx.get_str(finfo.filename as usize)?;
+                let path = Path::new(dirname).join(filename);
+                return Some(AddrLineInfo {
+                    path,
+                    line: lntab_row.file_line as usize,
+                    column: 0,
+                })
+            }
+            None
         }
-        None
+
+        let addr_info = find_line_info_impl(&self.ctx, addr);
+        Ok(addr_info)
     }
 
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
@@ -182,13 +187,13 @@ mod tests {
 
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
-        let info = resolver.find_line_info(0x2000000).unwrap();
+        let info = resolver.find_line_info(0x2000000).unwrap().unwrap();
         assert_eq!(info.line, 34);
         assert!(info.path.ends_with("test-stable-addresses.c"));
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
-        let info = resolver.find_line_info(0x2000100).unwrap();
+        let info = resolver.find_line_info(0x2000100).unwrap().unwrap();
         assert_eq!(info.line, 8);
         assert!(info.path.ends_with("test-stable-addresses.c"));
     }

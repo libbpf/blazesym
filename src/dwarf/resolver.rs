@@ -265,11 +265,16 @@ impl DwarfResolver {
     /// `addr` is an offset from the head of the loaded binary/or shared
     /// object. This function returns a tuple of `(dir_name, file_name,
     /// line_no)`.
-    pub fn find_line(&self, addr: Addr) -> Option<(&Path, &OsStr, usize)> {
-        let idx = self.find_dlcu_index(addr)?;
-        let dlcu = &self.debug_line_cus[idx];
+    pub fn find_line(&self, addr: Addr) -> Result<Option<(&Path, &OsStr, usize)>, Error> {
+        let idx = if let Some(idx) = self.find_dlcu_index(addr) {
+            idx
+        } else {
+            return Ok(None)
+        };
 
-        dlcu.find_line(addr)
+        let dlcu = &self.debug_line_cus[idx];
+        let src_info = dlcu.find_line(addr);
+        Ok(src_info)
     }
 
     /// Extract the symbol information from DWARf if having not done it before.
@@ -413,7 +418,7 @@ mod tests {
         let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
         let (addr, dir, file, line) = resolver.pick_address_for_test();
 
-        let (dir_ret, file_ret, line_ret) = resolver.find_line(addr).unwrap();
+        let (dir_ret, file_ret, line_ret) = resolver.find_line(addr).unwrap().unwrap();
         assert_eq!(dir, dir_ret);
         assert_eq!(file, file_ret);
         assert_eq!(line, line_ret);
