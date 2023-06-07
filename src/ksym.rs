@@ -150,8 +150,8 @@ impl SymResolver for KSymResolver {
         })
     }
 
-    fn find_line_info(&self, _addr: Addr) -> Option<AddrLineInfo> {
-        None
+    fn find_line_info(&self, _addr: Addr) -> Result<Option<AddrLineInfo>> {
+        Ok(None)
     }
 
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {

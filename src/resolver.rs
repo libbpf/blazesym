@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::io::Error;
 use std::path::Path;
 
 use crate::inspect::FindAddrOpts;
@@ -21,7 +22,7 @@ where
     /// Find the address and size of a symbol name.
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>>;
     /// Find the file name and the line number of an address.
-    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo>;
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>, Error>;
     /// Translate an address (virtual) in a process to the file offset
     /// in the object file.
     fn addr_file_off(&self, addr: Addr) -> Option<u64>;

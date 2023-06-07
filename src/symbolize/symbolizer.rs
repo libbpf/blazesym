@@ -141,7 +141,8 @@ impl Symbolizer {
     ) -> Vec<SymbolizedResult> {
         let res_syms = resolver.find_syms(addr);
         let linfo = if self.src_location {
-            resolver.find_line_info(addr)
+            // TODO: Should not swallow errors.
+            resolver.find_line_info(addr).unwrap_or_default()
         } else {
             None
         };

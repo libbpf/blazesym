@@ -54,10 +54,12 @@ impl SymResolver for KernelResolver {
         None
     }
 
-    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
-        self.elf_resolver
-            .as_ref()
-            .and_then(|resolver| resolver.find_line_info(addr))
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {
+        if let Some(resolver) = self.elf_resolver.as_ref() {
+            resolver.find_line_info(addr)
+        } else {
+            Ok(None)
+        }
     }
 
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {

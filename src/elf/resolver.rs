@@ -86,22 +86,24 @@ impl SymResolver for ElfResolver {
     }
 
     #[cfg(feature = "dwarf")]
-    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
-            let (directory, file, line) = dwarf.find_line(addr)?;
-            Some(AddrLineInfo {
-                path: directory.join(file),
-                line,
-                column: 0,
-            })
+            let addr_line_info = dwarf
+                .find_line(addr)?
+                .map(|(dir, file, line)| AddrLineInfo {
+                    path: dir.join(file),
+                    line,
+                    column: 0,
+                });
+            Ok(addr_line_info)
         } else {
-            None
+            Ok(None)
         }
     }
 
     #[cfg(not(feature = "dwarf"))]
-    fn find_line_info(&self, addr: Addr) -> Option<AddrLineInfo> {
-        None
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {
+        Ok(None)
     }
 
     /// Find the file offset of the symbol at address `addr`.
