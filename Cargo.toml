@@ -68,16 +68,17 @@ codegen-units = 1
 [dependencies]
 libc = "0.2.137"
 gimli = {version = "0.27.2", optional = true}
-log = {version = "0.4.17", optional = true}
 lru = {version = "0.10", optional = true}
+tracing = {version = "0.1", default-features = false, optional = true}
 
 [dev-dependencies]
 anyhow = "1.0.71"
-blazesym = {path = ".", features = ["generate-test-files", "log"]}
+blazesym = {path = ".", features = ["generate-test-files", "tracing"]}
 criterion = "0.4"
 env_logger = "0.10"
 tempfile = "3.4"
-test-log = "0.2"
+test-log = {version = "0.2", default-features = false, features = ["trace"]}
+tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
 
 [build-dependencies]
 cbindgen = {version = "0.24", optional = true}
