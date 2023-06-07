@@ -391,15 +391,6 @@ impl ElfParser {
         cache.section_data(idx)
     }
 
-    pub fn get_section_size(&self, sect_idx: usize) -> Result<usize, Error> {
-        let mut cache = self.cache.borrow_mut();
-        let shdrs = cache.ensure_shdrs()?;
-        let sect = shdrs.get(sect_idx).ok_or_else(|| {
-            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
-        })?;
-        Ok(sect.sh_size as usize)
-    }
-
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
