@@ -11,6 +11,7 @@ use std::ptr;
 use std::slice;
 
 use crate::log::error;
+use crate::normalize::ApkElf;
 use crate::normalize::Elf;
 use crate::normalize::NormalizedUserAddrs;
 use crate::normalize::Normalizer;
@@ -75,8 +76,86 @@ impl From<(Addr, usize)> for blaze_normalized_addr {
 pub enum blaze_user_addr_meta_kind {
     /// [`blaze_user_addr_meta_variant::unknown`] is valid.
     BLAZE_USER_ADDR_UNKNOWN,
+    /// [`blaze_user_addr_meta_variant::apk_elf`] is valid.
+    BLAZE_USER_ADDR_APK_ELF,
     /// [`blaze_user_addr_meta_variant::elf`] is valid.
     BLAZE_USER_ADDR_ELF,
+}
+
+
+/// C compatible version of [`ApkElf`].
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_user_addr_meta_apk_elf {
+    /// The canonical absolute path to the APK, including its name.
+    /// This member is always present.
+    apk_path: *mut c_char,
+    /// The relative path to the ELF file inside the APK.
+    elf_path: *mut c_char,
+    /// The length of the build ID, in bytes.
+    elf_build_id_len: usize,
+    /// The optional build ID of the ELF file, if found.
+    elf_build_id: *mut u8,
+}
+
+impl From<ApkElf> for blaze_user_addr_meta_apk_elf {
+    fn from(other: ApkElf) -> Self {
+        let ApkElf {
+            apk_path,
+            elf_path,
+            elf_build_id,
+            _non_exhaustive: (),
+        } = other;
+        Self {
+            apk_path: CString::new(apk_path.into_os_string().into_vec())
+                .expect("encountered path with NUL bytes")
+                .into_raw(),
+            elf_path: CString::new(elf_path.into_os_string().into_vec())
+                .expect("encountered path with NUL bytes")
+                .into_raw(),
+            elf_build_id_len: elf_build_id
+                .as_ref()
+                .map(|build_id| build_id.len())
+                .unwrap_or(0),
+            elf_build_id: elf_build_id
+                .map(|build_id| {
+                    // SAFETY: We know the pointer is valid because it
+                    //         came from a `Box`.
+                    unsafe {
+                        Box::into_raw(build_id.into_boxed_slice())
+                            .as_mut()
+                            .unwrap()
+                            .as_mut_ptr()
+                    }
+                })
+                .unwrap_or_else(ptr::null_mut),
+        }
+    }
+}
+
+impl From<blaze_user_addr_meta_apk_elf> for ApkElf {
+    fn from(other: blaze_user_addr_meta_apk_elf) -> Self {
+        let blaze_user_addr_meta_apk_elf {
+            apk_path,
+            elf_path,
+            elf_build_id_len,
+            elf_build_id,
+        } = other;
+
+        ApkElf {
+            apk_path: PathBuf::from(OsString::from_vec(
+                unsafe { CString::from_raw(apk_path) }.into_bytes(),
+            )),
+            elf_path: PathBuf::from(OsString::from_vec(
+                unsafe { CString::from_raw(elf_path) }.into_bytes(),
+            )),
+            elf_build_id: (!elf_build_id.is_null()).then(|| unsafe {
+                Box::<[u8]>::from_raw(slice::from_raw_parts_mut(elf_build_id, elf_build_id_len))
+                    .into_vec()
+            }),
+            _non_exhaustive: (),
+        }
+    }
 }
 
 
@@ -173,6 +252,8 @@ impl From<blaze_user_addr_meta_unknown> for Unknown {
 /// The actual variant data in [`blaze_user_addr_meta`].
 #[repr(C)]
 pub union blaze_user_addr_meta_variant {
+    /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF`].
+    pub apk_elf: ManuallyDrop<blaze_user_addr_meta_apk_elf>,
     /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF`].
     pub elf: ManuallyDrop<blaze_user_addr_meta_elf>,
     /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
@@ -200,6 +281,7 @@ pub struct blaze_user_addr_meta {
 impl From<UserAddrMeta> for blaze_user_addr_meta {
     fn from(other: UserAddrMeta) -> Self {
         match other {
+            UserAddrMeta::ApkElf(_apk) => todo!(),
             UserAddrMeta::Elf(elf) => Self {
                 kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF,
                 variant: blaze_user_addr_meta_variant {
@@ -374,6 +456,11 @@ pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user
 
     for addr_meta in addr_metas {
         match addr_meta.kind {
+            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF => {
+                let _apk_elf = ApkElf::from(ManuallyDrop::into_inner(unsafe {
+                    addr_meta.variant.apk_elf
+                }));
+            }
             blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF => {
                 let _elf = Elf::from(ManuallyDrop::into_inner(unsafe { addr_meta.variant.elf }));
             }
@@ -395,13 +482,52 @@ mod tests {
     /// Check that we can convert an [`Unknown`] into a
     /// [`blaze_user_addr_meta_unknown`] and back.
     #[test]
-    fn unknown_convesion() {
+    fn unknown_conversion() {
         let unknown = Unknown {
             _non_exhaustive: (),
         };
 
         let unknown_new = Unknown::from(blaze_user_addr_meta_unknown::from(unknown.clone()));
         assert_eq!(unknown_new, unknown);
+    }
+
+    /// Check that we can convert an [`ApkElf`] into a
+    /// [`blaze_user_addr_meta_apk_elf`] and back.
+    #[test]
+    fn apk_elf_conversion() {
+        let apk = ApkElf {
+            apk_path: PathBuf::from("/tmp/archive.apk"),
+            elf_path: PathBuf::from("file.so"),
+            elf_build_id: Some(vec![0x01, 0x02, 0x03, 0x04]),
+            _non_exhaustive: (),
+        };
+
+        let apk_new = ApkElf::from(blaze_user_addr_meta_apk_elf::from(apk.clone()));
+        assert_eq!(apk_new, apk);
+
+        let apk = ApkElf {
+            apk_path: PathBuf::new(),
+            elf_path: PathBuf::new(),
+            elf_build_id: None,
+            _non_exhaustive: (),
+        };
+
+        let apk_new = ApkElf::from(blaze_user_addr_meta_apk_elf::from(apk.clone()));
+        assert_eq!(apk_new, apk);
+    }
+
+    /// Check that we can convert an [`Elf`] into a [`blaze_user_addr_meta_elf`]
+    /// and back.
+    #[test]
+    fn elf_conversion() {
+        let elf = Elf {
+            path: PathBuf::from("/tmp/file.so"),
+            build_id: Some(vec![0x01, 0x02, 0x03, 0x04]),
+            _non_exhaustive: (),
+        };
+
+        let elf_new = Elf::from(blaze_user_addr_meta_elf::from(elf.clone()));
+        assert_eq!(elf_new, elf);
     }
 
     /// Check that we correctly format the debug representation of a

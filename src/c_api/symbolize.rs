@@ -486,8 +486,8 @@ mod tests {
     use super::*;
 
 
-    /// Check that we can convert an [`Unknown`] into a
-    /// [`blaze_user_addr_meta_unknown`] and back.
+    /// Check that we can convert a [`blaze_symbolize_src_kernel`]
+    /// reference into a [`Kernel`].
     #[test]
     fn kernel_conversion() {
         let kernel = blaze_symbolize_src_kernel {
