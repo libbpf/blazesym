@@ -173,34 +173,6 @@ where
 }
 
 
-#[inline]
-pub fn decode_leb128(mut data: &[u8]) -> Option<(u64, u8)> {
-    data.read_u128_leb128().map(|(v, s)| (v as u64, s))
-}
-
-#[inline]
-pub fn decode_leb128_s(mut data: &[u8]) -> Option<(i64, u8)> {
-    data.read_i128_leb128().map(|(v, s)| (v as i64, s))
-}
-
-#[inline]
-pub fn decode_uhalf(mut data: &[u8]) -> u16 {
-    // TODO: Need to handle errors more gracefully.
-    data.read_u16().unwrap()
-}
-
-#[inline]
-pub fn decode_uword(mut data: &[u8]) -> u32 {
-    // TODO: Need to handle errors more gracefully.
-    data.read_u32().unwrap()
-}
-
-#[inline]
-pub fn decode_udword(mut data: &[u8]) -> u64 {
-    // TODO: Need to handle errors more gracefully.
-    data.read_u64().unwrap()
-}
-
 /// A marker trait for "plain old data" data types.
 ///
 /// # Safety
