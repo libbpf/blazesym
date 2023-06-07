@@ -35,6 +35,10 @@ typedef enum blaze_user_addr_meta_kind {
    */
   BLAZE_USER_ADDR_UNKNOWN,
   /**
+   * [`blaze_user_addr_meta_variant::apk_elf`] is valid.
+   */
+  BLAZE_USER_ADDR_APK_ELF,
+  /**
    * [`blaze_user_addr_meta_variant::elf`] is valid.
    */
   BLAZE_USER_ADDR_ELF,
@@ -96,6 +100,29 @@ typedef struct blaze_inspect_elf_src {
 } blaze_inspect_elf_src;
 
 /**
+ * C compatible version of [`ApkElf`].
+ */
+typedef struct blaze_user_addr_meta_apk_elf {
+  /**
+   * The canonical absolute path to the APK, including its name.
+   * This member is always present.
+   */
+  char *apk_path;
+  /**
+   * The relative path to the ELF file inside the APK.
+   */
+  char *elf_path;
+  /**
+   * The length of the build ID, in bytes.
+   */
+  size_t elf_build_id_len;
+  /**
+   * The optional build ID of the ELF file, if found.
+   */
+  uint8_t *elf_build_id;
+} blaze_user_addr_meta_apk_elf;
+
+/**
  * C compatible version of [`Elf`].
  */
 typedef struct blaze_user_addr_meta_elf {
@@ -124,6 +151,10 @@ typedef struct blaze_user_addr_meta_unknown {
  * The actual variant data in [`blaze_user_addr_meta`].
  */
 typedef union blaze_user_addr_meta_variant {
+  /**
+   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF`].
+   */
+  struct blaze_user_addr_meta_apk_elf apk_elf;
   /**
    * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF`].
    */

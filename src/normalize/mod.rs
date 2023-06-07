@@ -29,6 +29,7 @@
 mod meta;
 mod normalizer;
 
+pub use meta::ApkElf;
 pub use meta::Elf;
 pub use meta::Unknown;
 pub use meta::UserAddrMeta;
