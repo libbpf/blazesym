@@ -50,8 +50,8 @@ impl SymResolver for KernelResolver {
         }
     }
 
-    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
-        None
+    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
+        Ok(Vec::new())
     }
 
     fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {

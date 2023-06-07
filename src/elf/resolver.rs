@@ -66,22 +66,19 @@ impl SymResolver for ElfResolver {
         }
     }
 
-    // TODO: Need to better handle errors.
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
         let parser = self.get_parser();
-        let result = parser.find_addr(name, opts);
-        if let Ok(syms) = result {
-            if !syms.is_empty() {
-                // We found symbols in ELF and DWARF wouldn't add information on
-                // top. So just roll with that.
-                return Some(syms)
-            }
+        let syms = parser.find_addr(name, opts)?;
+        if !syms.is_empty() {
+            // We found symbols in ELF and DWARF wouldn't add information on
+            // top. So just roll with that.
+            return Ok(syms)
         }
 
         match &self.backend {
             #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts).ok(),
-            ElfBackend::Elf(_) => Some(Vec::new()),
+            ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
+            ElfBackend::Elf(_) => Ok(Vec::new()),
         }
     }
 

@@ -66,10 +66,10 @@ impl SymResolver for GsymResolver {
         find_addr_impl(self, addr).unwrap_or_default()
     }
 
-    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
+    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
         // It is inefficient to find the address of a symbol with
         // GSYM.  We may support it in the future if needed.
-        None
+        Ok(Vec::new())
     }
 
     /// Finds the source code location for a given address.
