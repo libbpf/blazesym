@@ -132,22 +132,25 @@ impl SymResolver for KSymResolver {
             .collect()
     }
 
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>> {
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
         if let SymType::Variable = opts.sym_type {
-            return None
+            return Ok(Vec::new())
         }
-        self.ensure_sym_to_addr();
+        let () = self.ensure_sym_to_addr();
 
-        self.sym_to_addr.borrow().get(name).map(|addr| {
-            vec![SymInfo {
+        let sym_to_addr = self.sym_to_addr.borrow();
+        if let Some(addr) = sym_to_addr.get(name) {
+            Ok(vec![SymInfo {
                 name: name.to_string(),
                 addr: *addr,
                 size: 0,
                 sym_type: SymType::Function,
                 file_offset: 0,
                 obj_file_name: None,
-            }]
-        })
+            }])
+        } else {
+            Ok(Vec::new())
+        }
     }
 
     fn find_line_info(&self, _addr: Addr) -> Result<Option<AddrLineInfo>> {
@@ -257,9 +260,8 @@ mod tests {
             obj_file_name: false,
             sym_type: SymType::Function,
         };
-        let found = resolver.find_addr(&name, &opts);
-        assert!(found.is_some());
-        assert!(found.unwrap().iter().any(|x| x.addr == addr));
+        let found = resolver.find_addr(&name, &opts).unwrap();
+        assert!(found.iter().any(|x| x.addr == addr));
     }
 
     #[test]

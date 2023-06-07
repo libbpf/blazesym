@@ -20,7 +20,7 @@ where
     /// the given address.
     fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)>;
     /// Find the address and size of a symbol name.
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Option<Vec<SymInfo>>;
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error>;
     /// Find the file name and the line number of an address.
     fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>, Error>;
     /// Translate an address (virtual) in a process to the file offset
