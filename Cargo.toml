@@ -66,6 +66,7 @@ debug = true
 libc = "0.2.137"
 gimli = {version = "0.27.2", optional = true}
 log = {version = "0.4.17", optional = true}
+tracing = {version = "0.1", default-features = false,optional = true}
 lru = {version = "0.10", optional = true}
 
 [dev-dependencies]
@@ -73,8 +74,9 @@ anyhow = "1.0.71"
 blazesym = {path = ".", features = ["generate-test-files", "log"]}
 criterion = "0.4"
 env_logger = "0.10"
+tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
+test-log = {version = "0.2", features = ["tracing"]}
 tempfile = "3.4"
-test-log = "0.2"
 
 [build-dependencies]
 cbindgen = {version = "0.24", optional = true}
