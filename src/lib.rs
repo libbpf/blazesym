@@ -91,19 +91,21 @@ impl From<u32> for Pid {
 }
 
 
-#[cfg(feature = "log")]
+#[cfg(feature = "tracing")]
 #[macro_use]
 mod log {
     #[allow(unused)]
-    pub(crate) use log::debug;
-    pub(crate) use log::error;
+    pub(crate) use tracing::debug;
+    pub(crate) use tracing::error;
+
     #[allow(unused)]
-    pub(crate) use log::info;
+    pub(crate) use tracing::info;
     #[allow(unused)]
-    pub(crate) use log::trace;
-    pub(crate) use log::warn;
+    pub(crate) use tracing::trace;
+    pub(crate) use tracing::warn;
 }
-#[cfg(not(feature = "log"))]
+
+#[cfg(not(feature = "tracing"))]
 #[macro_use]
 mod log {
     macro_rules! debug {

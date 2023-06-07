@@ -4,6 +4,8 @@ Unreleased
   - Added support for DWARF versions v2, v3, and v5 for symbol lookup and source
     code information retrieval
   - Introduced `dwarf` feature to make dependency optional
+- Switched from `log` to using `tracing` as the logging backend
+  - Added spans to a couple of relevant call sites
 - Added support for using DWARF information for symbol lookup (instead of just
   ELF symbols; so far DWARF was only used for mapping names to symbol
   information)
