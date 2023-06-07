@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use crate::elf;
 use crate::elf::types::Elf64_Nhdr;
 use crate::elf::ElfParser;
-use crate::log::warn;
+use crate::tracing::warn;
 use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::util;

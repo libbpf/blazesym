@@ -26,7 +26,7 @@ use gimli::UnitSectionOffset;
 
 use crate::elf::ElfParser;
 use crate::inspect::SymType;
-use crate::log::warn;
+use crate::tracing::warn;
 use crate::util::decode_leb128;
 use crate::util::decode_leb128_s;
 use crate::util::decode_udword;

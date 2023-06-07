@@ -11,8 +11,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 
-use crate::log::error;
-use crate::log::warn;
+use crate::tracing::error;
+use crate::tracing::warn;
 use crate::symbolize::Elf;
 use crate::symbolize::Gsym;
 use crate::symbolize::Kernel;
