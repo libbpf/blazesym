@@ -228,13 +228,12 @@ impl DwarfResolver {
         &self.parser
     }
 
-    // TODO: Remove `Result` return type.
     pub fn from_parser(
         parser: Rc<ElfParser>,
         line_number_info: bool,
         debug_info_symbols: bool,
-    ) -> Result<DwarfResolver, Error> {
-        Ok(DwarfResolver {
+    ) -> Self {
+        Self {
             cache: RefCell::new(Cache::new(unsafe {
                 // SAFETY: We own the parser and never hand out any 'static
                 //         references to cache data.
@@ -243,7 +242,7 @@ impl DwarfResolver {
             parser,
             line_number_info,
             enable_debug_info_syms: debug_info_symbols,
-        })
+        }
     }
 
     /// Open a binary to load and parse .debug_line for later uses.
@@ -256,7 +255,11 @@ impl DwarfResolver {
         debug_info_symbols: bool,
     ) -> Result<DwarfResolver, Error> {
         let parser = ElfParser::open(filename)?;
-        Self::from_parser(Rc::new(parser), debug_line_info, debug_info_symbols)
+        Ok(Self::from_parser(
+            Rc::new(parser),
+            debug_line_info,
+            debug_info_symbols,
+        ))
     }
 
     /// Find line information of an address.
