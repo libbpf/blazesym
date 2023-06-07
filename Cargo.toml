@@ -66,7 +66,7 @@ debug = true
 libc = "0.2.137"
 gimli = {version = "0.27.2", optional = true}
 # log = {version = "0.4.17", optional = true}
-tracing = {version = "0.1", default-features = false,optional = true}
+tracing = {version = "0.1", default-features = false,features = ["attributes"],optional = true}
 lru = {version = "0.10", optional = true}
 
 [dev-dependencies]
