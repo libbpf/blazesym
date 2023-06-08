@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
@@ -199,6 +200,31 @@ impl NormalizedUserAddrs {
         let () = self.addrs.push((addr, unknown_idx));
         Some(unknown_idx)
     }
+
+    /// Add a normalized address to this object.
+    fn add_normalized_addr<F>(
+        &mut self,
+        norm_addr: Addr,
+        key: &Path,
+        meta_lookup: &mut HashMap<PathBuf, usize>,
+        create_meta: F,
+    ) -> Result<()>
+    where
+        F: FnOnce() -> Result<UserAddrMeta>,
+    {
+        let meta_idx = if let Some(meta_idx) = meta_lookup.get(key) {
+            *meta_idx
+        } else {
+            let meta = create_meta()?;
+            let meta_idx = self.meta.len();
+            let () = self.meta.push(meta);
+            let _ref = meta_lookup.insert(key.to_path_buf(), meta_idx);
+            meta_idx
+        };
+
+        let () = self.addrs.push((norm_addr, meta_idx));
+        Ok(())
+    }
 }
 
 
@@ -239,6 +265,25 @@ impl<R> NormalizationHandler<R> {
     }
 }
 
+impl<R> NormalizationHandler<R>
+where
+    R: BuildIdReader,
+{
+    /// Normalize a virtual address belonging to an ELF file and create and add
+    /// the correct [`UserAddrMeta`] meta information.
+    fn normalize_and_add_elf_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+        let norm_addr = normalize_elf_addr(virt_addr, entry)?;
+        let () = self.normalized.add_normalized_addr(
+            norm_addr,
+            &entry.path.symbolic_path,
+            &mut self.meta_lookup,
+            || make_elf_meta(entry, &R::read_build_id_from_elf),
+        )?;
+
+        Ok(())
+    }
+}
+
 impl<R> Handler for NormalizationHandler<R>
 where
     R: BuildIdReader,
@@ -249,21 +294,15 @@ where
     }
 
     fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-        let meta_idx = if let Some(meta_idx) = self.meta_lookup.get(&entry.path.symbolic_path) {
-            *meta_idx
-        } else {
-            let meta = make_elf_meta(entry, &R::read_build_id_from_elf)?;
-            let meta_idx = self.normalized.meta.len();
-            let () = self.normalized.meta.push(meta);
-            let _ref = self
-                .meta_lookup
-                .insert(entry.path.symbolic_path.to_path_buf(), meta_idx);
-            meta_idx
-        };
-
-        let normalized_addr = normalize_elf_addr(addr, entry)?;
-        let () = self.normalized.addrs.push((normalized_addr, meta_idx));
-        Ok(())
+        let ext = entry
+            .path
+            .symbolic_path
+            .extension()
+            .unwrap_or_else(|| OsStr::new(""));
+        match ext.to_str() {
+            Some("apk") | Some("zip") => todo!(),
+            _ => self.normalize_and_add_elf_addr(addr, entry),
+        }
     }
 }
 
