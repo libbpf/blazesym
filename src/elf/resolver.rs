@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::tracing::warn;
+use crate::log::warn;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::SymResolver;

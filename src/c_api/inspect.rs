@@ -21,7 +21,7 @@ use crate::inspect::Inspector;
 use crate::inspect::Source;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
-use crate::tracing::error;
+use crate::log::error;
 use crate::util::slice_from_user_array;
 use crate::Addr;
 

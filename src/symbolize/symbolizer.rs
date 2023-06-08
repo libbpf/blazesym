@@ -9,7 +9,7 @@ use crate::gsym::GsymResolver;
 use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
 use crate::ksym::KALLSYMS;
-use crate::tracing;
+use crate::log;
 use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::normalize;
@@ -262,7 +262,7 @@ impl Symbolizer {
             match result {
                 Ok(resolver) => Some(resolver),
                 Err(err) => {
-                    tracing::warn!(
+                    log::warn!(
                         "failed to load kallsyms from {}: {err}; ignoring...",
                         kallsyms.display()
                     );
@@ -292,13 +292,13 @@ impl Symbolizer {
                         match result {
                             Ok(resolver) => Some(resolver),
                             Err(err) => {
-                                tracing::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
+                                log::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
                                 None
                             }
                         }
                     }
                     Err(err) => {
-                        tracing::warn!(
+                        log::warn!(
                             "failed to load kernel image {}: {err}; ignoring...",
                             image.display()
                         );

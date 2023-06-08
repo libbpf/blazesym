@@ -10,7 +10,7 @@ use std::path::PathBuf;
 use std::ptr;
 use std::slice;
 
-use crate::tracing::error;
+use crate::log::error;
 use crate::normalize::Binary;
 use crate::normalize::NormalizedUserAddrs;
 use crate::normalize::Normalizer;

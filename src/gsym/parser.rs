@@ -39,7 +39,7 @@ use std::io::Error;
 use std::io::ErrorKind;
 use std::mem::align_of;
 
-use crate::tracing::warn;
+use crate::log::warn;
 use crate::util::find_match_or_lower_bound;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
