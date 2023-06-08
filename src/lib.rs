@@ -44,8 +44,6 @@ pub mod normalize;
 mod resolver;
 pub mod symbolize;
 mod util;
-// TODO: Remove `allow`.
-#[allow(unused)]
 mod zip;
 
 use std::fmt::Display;

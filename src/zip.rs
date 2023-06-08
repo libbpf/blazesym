@@ -12,14 +12,12 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
 use std::mem::size_of;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
-use std::rc::Rc;
 
 use crate::mmap::Mmap;
 use crate::util::Pod;
@@ -220,11 +218,9 @@ impl<'archive> EntryIter<'archive> {
                 )))
             }
 
-            let name = iter
+            let _name = iter
                 .cd_record_data
                 .read_slice(cdfh.file_name_length.into())?;
-            let name = OsStr::from_bytes(name);
-
             let _extra = iter
                 .cd_record_data
                 .read_slice(cdfh.extra_field_length.into())?;
@@ -498,7 +494,7 @@ mod tests {
                     - 1,
             )
             .unwrap();
-        copy(&mut partial_data, &mut corrupted_zip);
+        let _cnt = copy(&mut partial_data, &mut corrupted_zip).unwrap();
 
         // The archive only contains a corrupted central directory and no end of
         // central directory marker at all.
