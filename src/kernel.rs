@@ -42,6 +42,7 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
+    #[cfg_attr(feature = "tracing", crate::log::instrument)]
     fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
             ksym_resolver.find_syms(addr)

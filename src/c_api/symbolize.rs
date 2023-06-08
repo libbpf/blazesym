@@ -340,6 +340,7 @@ unsafe fn convert_symbolizedresults_to_c(
     result_ptr
 }
 
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 unsafe fn blaze_symbolize_impl(
     symbolizer: *mut blaze_symbolizer,
     src: Source,
@@ -380,6 +381,7 @@ unsafe fn blaze_symbolize_impl(
 /// [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 pub unsafe extern "C" fn blaze_symbolize_process(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_process,
@@ -404,6 +406,7 @@ pub unsafe extern "C" fn blaze_symbolize_process(
 /// [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 pub unsafe extern "C" fn blaze_symbolize_kernel(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_kernel,
@@ -428,6 +431,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel(
 /// [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 pub unsafe extern "C" fn blaze_symbolize_elf(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_elf,
@@ -452,6 +456,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 /// [`blaze_symbolize_src_gsym`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 pub unsafe extern "C" fn blaze_symbolize_gsym(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_gsym,

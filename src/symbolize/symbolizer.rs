@@ -242,6 +242,7 @@ impl Symbolizer {
         Ok(handler.all_symbols)
     }
 
+    #[cfg_attr(feature = "tracing", crate::log::instrument)]
     fn symbolize_kernel_addrs(
         &self,
         addrs: &[Addr],
@@ -319,6 +320,7 @@ impl Symbolizer {
     ///
     /// Symbolize a list of addresses according to the configuration
     /// provided via `src`.
+    #[cfg_attr(feature = "tracing", crate::log::instrument)]
     pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<SymbolizedResult>>> {
         match src {
             Source::Elf(Elf {

@@ -225,6 +225,7 @@ impl GsymContext<'_> {
 /// # Arguments
 ///
 /// * `data` - is the slice from AddrInfo::data.
+#[cfg_attr(feature = "tracing", crate::log::instrument)] 
 pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddrData>> {
     let mut data_objs = vec![];
 

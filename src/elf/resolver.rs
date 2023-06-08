@@ -49,6 +49,7 @@ impl ElfResolver {
 }
 
 impl SymResolver for ElfResolver {
+    #[cfg_attr(feature = "tracing", crate::log::instrument)]
     fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
         let parser = self.get_parser();
 
@@ -106,7 +107,7 @@ impl SymResolver for ElfResolver {
         let offset = phdrs.iter().find_map(|phdr| {
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
-                    return Some(addr - phdr.p_vaddr + phdr.p_offset)
+                    return Some(addr - phdr.p_vaddr + phdr.p_offset);
                 }
             }
             None
@@ -129,14 +130,12 @@ impl Debug for ElfResolver {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use std::path::Path;
     use std::rc::Rc;
-
 
     /// Check that we fail finding an offset for an address not
     /// representing a symbol in an ELF file.

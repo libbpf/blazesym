@@ -283,6 +283,7 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
 /// `addr_count` addresses.
 #[no_mangle]
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 pub unsafe extern "C" fn blaze_normalize_user_addrs(
     normalizer: *const Normalizer,
     addrs: *const Addr,
@@ -319,6 +320,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
 /// `addr_count` addresses.
 #[no_mangle]
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     normalizer: *const Normalizer,
     addrs: *const Addr,

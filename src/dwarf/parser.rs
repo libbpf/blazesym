@@ -710,6 +710,7 @@ pub(crate) struct DWSymInfo<'a> {
 //       https://stackoverflow.com/a/59674438
 // TODO: We likely need to handle DW_AT_ranges; see
 //       https://reviews.llvm.org/D78489
+#[cfg_attr(feature = "tracing", crate::log::instrument)] 
 fn parse_die_subprogram<'dat>(
     entry: &DebuggingInformationEntry<R<'dat>>,
     debug_str: &DebugStr<R<'dat>>,
@@ -822,6 +823,8 @@ fn parse_die_subprogram<'dat>(
 }
 
 /// Walk through all DIEs of a compile unit to extract symbols.
+///
+#[cfg_attr(feature = "tracing", crate::log::instrument)] 
 fn debug_info_parse_symbols_cu<'dat>(
     unit: UnitHeader<R<'dat>>,
     abbrevs: &Abbreviations,
