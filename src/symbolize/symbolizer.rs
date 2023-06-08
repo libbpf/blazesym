@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::io::Result;
 use std::path::Path;
@@ -215,6 +216,21 @@ impl Symbolizer {
             all_symbols: Vec<Vec<SymbolizedResult>>,
         }
 
+        impl SymbolizeHandler<'_> {
+            // TODO: Implement this functionality.
+            fn handle_apk_addr(&mut self, _addr: Addr, _entry: &PathMapsEntry) -> Result<()> {
+                todo!()
+            }
+
+            fn handle_elf_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+                let path = &entry.path.maps_file;
+                let norm_addr = normalize_elf_addr(addr, entry)?;
+                let symbols = self.symbolizer.resolve_addr_in_elf(norm_addr, path)?;
+                let () = self.all_symbols.push(symbols);
+                Ok(())
+            }
+        }
+
         impl normalize::Handler for SymbolizeHandler<'_> {
             fn handle_unknown_addr(&mut self, _addr: Addr) -> Result<()> {
                 let () = self.all_symbols.push(Vec::new());
@@ -222,11 +238,15 @@ impl Symbolizer {
             }
 
             fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-                let path = &entry.path.maps_file;
-                let norm_addr = normalize_elf_addr(addr, entry)?;
-                let symbols = self.symbolizer.resolve_addr_in_elf(norm_addr, path)?;
-                let () = self.all_symbols.push(symbols);
-                Ok(())
+                let ext = entry
+                    .path
+                    .symbolic_path
+                    .extension()
+                    .unwrap_or_else(|| OsStr::new(""));
+                match ext.to_str() {
+                    Some("apk") | Some("zip") => self.handle_apk_addr(addr, entry),
+                    _ => self.handle_elf_addr(addr, entry),
+                }
             }
         }
 
