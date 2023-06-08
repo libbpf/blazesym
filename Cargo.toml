@@ -69,7 +69,7 @@ codegen-units = 1
 libc = "0.2.137"
 gimli = {version = "0.27.2", optional = true}
 lru = {version = "0.10", optional = true}
-tracing = {version = "0.1", default-features = false, optional = true}
+tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
 
 [dev-dependencies]
 anyhow = "1.0.71"

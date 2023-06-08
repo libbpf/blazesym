@@ -86,6 +86,7 @@ impl SymResolver for GsymResolver {
     /// # Returns
     ///
     /// The `AddrLineInfo` corresponding to the address or `None`.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
     fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>, Error> {
         fn find_line_info_impl(ctx: &GsymContext<'_>, addr: Addr) -> Option<AddrLineInfo> {
             let idx = ctx.find_addr(addr)?;

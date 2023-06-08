@@ -67,6 +67,7 @@ unsafe impl crate::util::Pod for BuildIdNote {}
 // TODO: Currently look up is always performed based on section name, but there
 //       is also the possibility of iterating notes and checking checking
 //       Elf64_Nhdr.n_type for NT_GNU_BUILD_ID, specifically.
+#[cfg_attr(feature = "tracing", crate::log::instrument)]
 fn read_build_id(path: &Path) -> Result<Option<Vec<u8>>> {
     let build_id_section = ".note.gnu.build-id";
     let file = File::open(path)?;

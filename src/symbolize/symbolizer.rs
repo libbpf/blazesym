@@ -134,6 +134,7 @@ impl Symbolizer {
     }
 
     /// Symbolize an address using the provided [`SymResolver`].
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     fn symbolize_with_resolver(
         &self,
         addr: Addr,
@@ -320,6 +321,7 @@ impl Symbolizer {
     ///
     /// Symbolize a list of addresses according to the configuration
     /// provided via `src`.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<SymbolizedResult>>> {
         match src {
             Source::Elf(Elf {

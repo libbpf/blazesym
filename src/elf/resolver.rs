@@ -49,6 +49,7 @@ impl ElfResolver {
 
 impl SymResolver for ElfResolver {
     // TODO: Need to better handle errors.
+    #[cfg_attr(feature = "tracing", crate::log::instrument)]
     fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
         let parser = self.get_parser();
         if let Ok(Some((name, start_addr))) = parser.find_sym(addr, STT_FUNC) {

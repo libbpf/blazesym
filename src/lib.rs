@@ -98,6 +98,8 @@ mod log {
     pub(crate) use tracing::debug;
     pub(crate) use tracing::error;
 
+    pub(crate) use tracing::instrument;
+
     #[allow(unused)]
     pub(crate) use tracing::info;
     #[allow(unused)]
