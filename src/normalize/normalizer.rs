@@ -582,6 +582,7 @@ impl Normalizer {
     ///
     /// Normalized addresses are reported in the exact same order in which the
     /// non-normalized ones were provided.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     pub fn normalize_user_addrs_sorted(
         &self,
         addrs: &[Addr],
@@ -597,6 +598,7 @@ impl Normalizer {
     /// [`Normalizer::normalize_user_addrs_sorted`], the provided
     /// `addrs` array does not have to be sorted, but otherwise the
     /// functions behave identically.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     pub fn normalize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<NormalizedUserAddrs> {
         util::with_ordered_elems(
             addrs,
@@ -616,6 +618,8 @@ mod tests {
     use crate::inspect::FindAddrOpts;
     use crate::inspect::SymType;
     use crate::mmap::Mmap;
+
+    use test_log::test;
 
 
     /// Check that we can read a binary's build ID.
@@ -774,6 +778,79 @@ mod tests {
             _non_exhaustive: (),
         };
         assert_eq!(meta, &UserAddrMeta::Elf(expected_elf));
+    }
+
+    /// Check that we can normalize addresses in our own shared object inside a
+    /// zip archive.
+    #[test]
+    fn address_normalization_custom_so_in_zip() {
+        fn test(so_name: &str) {
+            let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("test.zip");
+
+            let mmap = Mmap::builder().exec().open(&test_zip).unwrap();
+            let archive = zip::Archive::with_mmap(mmap.clone()).unwrap();
+            let so = archive
+                .entries()
+                .find_map(|entry| {
+                    let entry = entry.unwrap();
+                    (entry.path == Path::new(so_name)).then_some(entry)
+                })
+                .unwrap();
+
+            let elf_mmap = mmap
+                .constrain(so.data_offset..so.data_offset + so.data.len())
+                .unwrap();
+
+            // Look up the address of the `the_answer` function inside of the shared
+            // object.
+            let elf_parser = ElfParser::from_mmap(elf_mmap.clone());
+            let opts = FindAddrOpts {
+                sym_type: SymType::Function,
+                ..Default::default()
+            };
+            let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
+            // There is only one symbol with this address in there.
+            assert_eq!(syms.len(), 1);
+            let sym = syms.first().unwrap();
+
+            let the_answer_addr = unsafe { elf_mmap.as_ptr().add(sym.addr) };
+            // Now just double check that everything worked out and the function
+            // is actually where it was meant to be.
+            let the_answer_fn =
+                unsafe { transmute::<_, extern "C" fn() -> libc::c_int>(the_answer_addr) };
+            let answer = the_answer_fn();
+            assert_eq!(answer, 42);
+
+            let normalizer = Normalizer::new();
+            let norm_addrs = normalizer
+                .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
+                .unwrap();
+            assert_eq!(norm_addrs.addrs.len(), 1);
+            assert_eq!(norm_addrs.meta.len(), 1);
+
+            let norm_addr = norm_addrs.addrs[0];
+            assert_eq!(norm_addr.0, sym.addr + so.data_offset);
+            let meta = &norm_addrs.meta[norm_addr.1];
+            let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(so_name);
+            let expected = ApkElf {
+                apk_path: test_zip,
+                elf_path: PathBuf::from(so_name),
+                elf_build_id: Some(
+                    DefaultBuildIdReader::read_build_id_from_elf(&so_path)
+                        .unwrap()
+                        .unwrap(),
+                ),
+                _non_exhaustive: (),
+            };
+            assert_eq!(meta, &UserAddrMeta::ApkElf(expected));
+        }
+
+        test("libtest-so.so");
+        test("libtest-so-no-separate-code.so");
     }
 
     /// Check that we correctly handle normalization of an address not
