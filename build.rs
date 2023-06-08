@@ -366,6 +366,9 @@ fn prepare_test_files(crate_root: &Path) {
             .join("zip-dir")
             .join("test-no-debug.bin"),
         crate_root.join("data").join("libtest-so.so"),
+        crate_root
+            .join("data")
+            .join("libtest-so-no-separate-code.so"),
     ];
     let dst = crate_root.join("data").join("test.zip");
     zip(files.as_slice(), &dst);
