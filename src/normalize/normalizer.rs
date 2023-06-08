@@ -16,16 +16,41 @@ use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::util;
 use crate::util::ReadRaw as _;
+use crate::zip;
 use crate::Addr;
 use crate::Pid;
 
+use super::meta::ApkElf;
 use super::meta::Elf;
 use super::meta::Unknown;
 use super::meta::UserAddrMeta;
 
 
-/// A typedef for functions reading build IDs.
-type BuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
+/// Typedefs for functions reading build IDs.
+type ElfBuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
+type ApkElfBuildIdFn = dyn Fn(&Path, &Path) -> Result<Option<Vec<u8>>>;
+
+
+fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
+    let mut extension = apk
+        .extension()
+        .unwrap_or_else(|| OsStr::new("apk"))
+        .to_os_string();
+    // Append '!' to indicate separation from archive internal contents
+    // that follow. This is an Android convention.
+    let () = extension.push("!");
+
+    let mut apk = apk.to_path_buf();
+    if !apk.set_extension(extension) {
+        return Err(Error::new(
+            ErrorKind::InvalidInput,
+            format!("path {} is not valid", apk.display()),
+        ))
+    }
+
+    let path = apk.join(elf);
+    Ok(path)
+}
 
 
 /// A type capturing normalized addresses along with captured meta data.
@@ -67,6 +92,7 @@ unsafe impl crate::util::Pod for BuildIdNote {}
 
 trait BuildIdReader: 'static {
     fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>>;
+    fn read_build_id_from_apk_elf(apk_path: &Path, elf_path: &Path) -> Result<Option<Vec<u8>>>;
     fn read_build_id(parser: &ElfParser) -> Result<Option<Vec<u8>>>;
 }
 
@@ -80,6 +106,41 @@ impl BuildIdReader for DefaultBuildIdReader {
         let file = File::open(path)?;
         let parser = ElfParser::open_file(file)?;
         Self::read_build_id(&parser)
+    }
+
+    #[cfg_attr(feature = "tracing", crate::log::instrument)]
+    fn read_build_id_from_apk_elf(apk_path: &Path, elf_path: &Path) -> Result<Option<Vec<u8>>> {
+        let apk = zip::Archive::open(apk_path)?;
+        if let Some(elf_entry) = apk
+            .entries()
+            .find_map(|entry| match entry {
+                Ok(entry) => (entry.path == elf_path).then(|| Ok(entry)),
+                Err(err) => Some(Err(err)),
+            })
+            .transpose()?
+        {
+            let elf_bounds = elf_entry.data_offset..elf_entry.data_offset + elf_entry.data.len();
+            let elf_mmap = apk.mmap().constrain(elf_bounds.clone()).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "invalid APK entry data bounds ({elf_bounds:?}) in {}",
+                        apk_path.display()
+                    ),
+                )
+            })?;
+            let elf_parser = ElfParser::from_mmap(elf_mmap);
+            Self::read_build_id(&elf_parser)
+        } else {
+            Err(Error::new(
+                ErrorKind::NotFound,
+                format!(
+                    "ELF file {} not found in APK {}",
+                    elf_path.display(),
+                    apk_path.display()
+                ),
+            ))
+        }
     }
 
     /// Attempt to read an ELF binary's build ID.
@@ -145,13 +206,31 @@ fn normalize_elf_offset_with_parser(offset: u64, parser: &ElfParser) -> Result<O
 
 
 /// Make a [`UserAddrMeta::Elf`] variant.
-fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<UserAddrMeta> {
+fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &ElfBuildIdFn) -> Result<UserAddrMeta> {
     let elf = Elf {
         path: entry.path.symbolic_path.to_path_buf(),
         build_id: get_build_id(&entry.path.maps_file)?,
         _non_exhaustive: (),
     };
     let meta = UserAddrMeta::Elf(elf);
+    Ok(meta)
+}
+
+
+/// Make a [`UserAddrMeta::ApkElf`] variant.
+fn make_apk_elf_meta(
+    entry: &PathMapsEntry,
+    elf_path: PathBuf,
+    get_build_id: &ApkElfBuildIdFn,
+) -> Result<UserAddrMeta> {
+    let apk_path = entry.path.symbolic_path.to_path_buf();
+    let apk = ApkElf {
+        elf_build_id: get_build_id(&apk_path, &elf_path)?,
+        apk_path,
+        elf_path,
+        _non_exhaustive: (),
+    };
+    let meta = UserAddrMeta::ApkElf(apk);
     Ok(meta)
 }
 
@@ -173,6 +252,51 @@ pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Resu
     })?;
 
     Ok(addr)
+}
+
+
+/// Normalize a virtual address belonging to an APK represented by the provided
+/// [`PathMapsEntry`].
+pub(crate) fn normalize_apk_addr(
+    virt_addr: Addr,
+    entry: &PathMapsEntry,
+) -> Result<(Addr, PathBuf)> {
+    let file_off = virt_addr - entry.range.start + entry.offset as usize;
+    // An APK is nothing but a fancy zip archive.
+    let apk = zip::Archive::open(&entry.path.maps_file)?;
+
+    // Find the APK entry covering the calculated file offset.
+    for apk_entry in apk.entries() {
+        let apk_entry = apk_entry?;
+        let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len();
+
+        if bounds.contains(&file_off) {
+            let mmap = apk.mmap().constrain(bounds.clone()).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    format!(
+                        "invalid APK entry data bounds ({bounds:?}) in {}",
+                        entry.path.symbolic_path.display()
+                    ),
+                )
+            })?;
+            let parser = ElfParser::from_mmap(mmap);
+            let elf_off = file_off - apk_entry.data_offset;
+            if let Some(addr) = normalize_elf_offset_with_parser(elf_off as u64, &parser)? {
+                return Ok((apk_entry.data_offset + addr, apk_entry.path.to_path_buf()))
+            }
+            break
+        }
+    }
+
+    Err(Error::new(
+        ErrorKind::InvalidInput,
+        format!(
+            "failed to find ELF entry in {} that contains file offset 0x{:x}",
+            entry.path.symbolic_path.display(),
+            file_off,
+        ),
+    ))
 }
 
 
@@ -269,6 +393,25 @@ impl<R> NormalizationHandler<R>
 where
     R: BuildIdReader,
 {
+    /// Normalize a virtual address belonging to an APK and create and add the
+    /// correct [`UserAddrMeta`] meta information.
+    fn normalize_and_add_apk_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+        let (norm_addr, elf_path) = normalize_apk_addr(virt_addr, entry)?;
+        let key = create_apk_elf_path(&entry.path.symbolic_path, &elf_path)?;
+        let () =
+            self.normalized
+                .add_normalized_addr(norm_addr, &key, &mut self.meta_lookup, || {
+                    // TODO: `read_build_id_from_apk_elf` will memory map the
+                    //       APK again and seek to the corresponding ELF entry.
+                    //       That is work that we already did earlier and we
+                    //       should just reuse the result, but that requires a
+                    //       bit of a rework of our internals to make feasible.
+                    make_apk_elf_meta(entry, elf_path, &R::read_build_id_from_apk_elf)
+                })?;
+
+        Ok(())
+    }
+
     /// Normalize a virtual address belonging to an ELF file and create and add
     /// the correct [`UserAddrMeta`] meta information.
     fn normalize_and_add_elf_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
@@ -300,7 +443,7 @@ where
             .extension()
             .unwrap_or_else(|| OsStr::new(""));
         match ext.to_str() {
-            Some("apk") | Some("zip") => todo!(),
+            Some("apk") | Some("zip") => self.normalize_and_add_apk_addr(addr, entry),
             _ => self.normalize_and_add_elf_addr(addr, entry),
         }
     }
@@ -496,6 +639,15 @@ mod tests {
         assert_eq!(build_id, None);
     }
 
+    /// Check that we can create a path to an ELF inside an APK as expected.
+    #[test]
+    fn elf_apk_path_creation() {
+        let apk = Path::new("/root/test.apk");
+        let elf = Path::new("subdir/libc.so");
+        let path = create_apk_elf_path(apk, elf).unwrap();
+        assert_eq!(path, Path::new("/root/test.apk!/subdir/libc.so"));
+    }
+
     /// Check that we detect unsorted input addresses.
     #[test]
     fn user_address_normalization_unsorted() {
@@ -632,6 +784,12 @@ mod tests {
 
         impl BuildIdReader for NoBuildIdReader {
             fn read_build_id_from_elf(_path: &Path) -> Result<Option<Vec<u8>>> {
+                Ok(None)
+            }
+            fn read_build_id_from_apk_elf(
+                _apk_path: &Path,
+                _elf_path: &Path,
+            ) -> Result<Option<Vec<u8>>> {
                 Ok(None)
             }
             fn read_build_id(_parser: &ElfParser) -> Result<Option<Vec<u8>>> {

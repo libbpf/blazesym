@@ -9,6 +9,7 @@ Unreleased
 - Added support for using DWARF information for symbol lookup (instead of just
   ELF symbols; so far DWARF was only used for mapping names to symbol
   information)
+- Added support for normalizing addresses in an ELF file contained in an APK
 - Renamed `normalize::UserAddrMeta::Binary` variant to `Elf`
 
 
