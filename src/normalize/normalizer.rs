@@ -520,12 +520,12 @@ mod tests {
             sym_type: SymType::Function,
             ..Default::default()
         };
-        let symbols = elf_parser.find_addr("the_answer", &opts).unwrap();
+        let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
         // There is only one symbol with this address in there.
-        assert_eq!(symbols.len(), 1);
-        let symbol = symbols.first().unwrap();
+        assert_eq!(syms.len(), 1);
+        let sym = syms.first().unwrap();
 
-        let the_answer_addr = unsafe { mmap.as_ptr().add(symbol.addr) };
+        let the_answer_addr = unsafe { mmap.as_ptr().add(sym.addr) };
         // Now just double check that everything worked out and the function
         // is actually where it was meant to be.
         let the_answer_fn =
@@ -541,7 +541,7 @@ mod tests {
         assert_eq!(norm_addrs.meta.len(), 1);
 
         let norm_addr = norm_addrs.addrs[0];
-        assert_eq!(norm_addr.0, symbol.addr);
+        assert_eq!(norm_addr.0, sym.addr);
         let meta = &norm_addrs.meta[norm_addr.1];
         let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
