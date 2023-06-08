@@ -7,6 +7,7 @@
 /// padding and they might be misaligned. To allow us to safely
 /// operate on pointers to such structures and their members, we
 /// declare the types as packed.
+use std::cmp::min;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -142,7 +143,7 @@ impl Debug for Entry<'_> {
             .field("compression", compression)
             .field("path", path)
             .field("data_offset", data_offset)
-            .field("data", &data.get(0..32))
+            .field("data", &data.get(0..(min(data.len(), 32))))
             .finish()
     }
 }
@@ -398,6 +399,23 @@ mod tests {
 
     use crate::elf::ElfParser;
 
+
+    /// Check that the `Debug` representation of [`Entry`] is as expected.
+    #[test]
+    fn zip_entry_debug() {
+        let entry = Entry {
+            compression: 42,
+            path: Path::new("some-entry-path.so"),
+            data_offset: 56,
+            data: &[1, 2, 3, 4],
+        };
+
+        let dbg = format!("{entry:?}");
+        assert_eq!(
+            dbg,
+            r#"Entry { compression: 42, path: "some-entry-path.so", data_offset: 56, data: Some([1, 2, 3, 4]) }"#
+        );
+    }
 
     /// Check that we can properly open a zip archive.
     #[test]
