@@ -119,7 +119,6 @@ impl Mmap {
     /// Create a new `Mmap` object (sharing the same underlying memory mapping
     /// as the current one) that restricts its view to the provided `range`.
     /// Adjustment happens relative to the current view.
-    #[cfg(test)]
     pub fn constrain(&self, range: Range<usize>) -> Option<Self> {
         if self.view.start + range.end > self.view.end {
             return None
