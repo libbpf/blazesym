@@ -27,8 +27,8 @@ use super::meta::UserAddrMeta;
 
 
 /// Typedefs for functions reading build IDs.
-type ElfBuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
-type ApkElfBuildIdFn = dyn Fn(&Path, &Path) -> Result<Option<Vec<u8>>>;
+type BuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
+type ElfBuildIdFn = dyn Fn(&ElfParser) -> Result<Option<Vec<u8>>>;
 
 
 fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
@@ -206,7 +206,7 @@ fn normalize_elf_offset_with_parser(offset: u64, parser: &ElfParser) -> Result<O
 
 
 /// Make a [`UserAddrMeta::Elf`] variant.
-fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &ElfBuildIdFn) -> Result<UserAddrMeta> {
+fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<UserAddrMeta> {
     let elf = Elf {
         path: entry.path.symbolic_path.to_path_buf(),
         build_id: get_build_id(&entry.path.maps_file)?,
@@ -221,12 +221,12 @@ fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &ElfBuildIdFn) -> Result<U
 fn make_apk_elf_meta(
     entry: &PathMapsEntry,
     elf_path: PathBuf,
-    get_build_id: &ApkElfBuildIdFn,
+    elf_parser: &ElfParser,
+    get_build_id: &ElfBuildIdFn,
 ) -> Result<UserAddrMeta> {
-    let apk_path = entry.path.symbolic_path.to_path_buf();
     let apk = ApkElf {
-        elf_build_id: get_build_id(&apk_path, &elf_path)?,
-        apk_path,
+        elf_build_id: get_build_id(elf_parser)?,
+        apk_path: entry.path.symbolic_path.to_path_buf(),
         elf_path,
         _non_exhaustive: (),
     };
@@ -260,7 +260,7 @@ pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Resu
 pub(crate) fn normalize_apk_addr(
     virt_addr: Addr,
     entry: &PathMapsEntry,
-) -> Result<(Addr, PathBuf)> {
+) -> Result<(Addr, PathBuf, ElfParser)> {
     let file_off = virt_addr - entry.range.start + entry.offset as usize;
     // An APK is nothing but a fancy zip archive.
     let apk = zip::Archive::open(&entry.path.maps_file)?;
@@ -283,7 +283,11 @@ pub(crate) fn normalize_apk_addr(
             let parser = ElfParser::from_mmap(mmap);
             let elf_off = file_off - apk_entry.data_offset;
             if let Some(addr) = normalize_elf_offset_with_parser(elf_off as u64, &parser)? {
-                return Ok((apk_entry.data_offset + addr, apk_entry.path.to_path_buf()))
+                return Ok((
+                    apk_entry.data_offset + addr,
+                    apk_entry.path.to_path_buf(),
+                    parser,
+                ))
             }
             break
         }
@@ -396,17 +400,12 @@ where
     /// Normalize a virtual address belonging to an APK and create and add the
     /// correct [`UserAddrMeta`] meta information.
     fn normalize_and_add_apk_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-        let (norm_addr, elf_path) = normalize_apk_addr(virt_addr, entry)?;
+        let (norm_addr, elf_path, elf_parser) = normalize_apk_addr(virt_addr, entry)?;
         let key = create_apk_elf_path(&entry.path.symbolic_path, &elf_path)?;
         let () =
             self.normalized
                 .add_normalized_addr(norm_addr, &key, &mut self.meta_lookup, || {
-                    // TODO: `read_build_id_from_apk_elf` will memory map the
-                    //       APK again and seek to the corresponding ELF entry.
-                    //       That is work that we already did earlier and we
-                    //       should just reuse the result, but that requires a
-                    //       bit of a rework of our internals to make feasible.
-                    make_apk_elf_meta(entry, elf_path, &R::read_build_id_from_apk_elf)
+                    make_apk_elf_meta(entry, elf_path, &elf_parser, &R::read_build_id)
                 })?;
 
         Ok(())
