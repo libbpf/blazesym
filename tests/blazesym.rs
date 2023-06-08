@@ -26,7 +26,7 @@ fn error_on_non_existent_source() {
         symbolize::Source::Gsym(symbolize::Gsym::new(non_existent)),
         symbolize::Source::Elf(symbolize::Elf::new(non_existent)),
     ];
-    let symbolizer = Symbolizer::new();
+    let symbolizer = Symbolizer::default();
 
     for src in srcs {
         let err = symbolizer.symbolize(&src, &[0x2000100]).unwrap_err();
