@@ -92,7 +92,6 @@ unsafe impl crate::util::Pod for BuildIdNote {}
 
 trait BuildIdReader: 'static {
     fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>>;
-    fn read_build_id_from_apk_elf(apk_path: &Path, elf_path: &Path) -> Result<Option<Vec<u8>>>;
     fn read_build_id(parser: &ElfParser) -> Result<Option<Vec<u8>>>;
 }
 
@@ -106,41 +105,6 @@ impl BuildIdReader for DefaultBuildIdReader {
         let file = File::open(path)?;
         let parser = ElfParser::open_file(file)?;
         Self::read_build_id(&parser)
-    }
-
-    #[cfg_attr(feature = "tracing", crate::log::instrument)]
-    fn read_build_id_from_apk_elf(apk_path: &Path, elf_path: &Path) -> Result<Option<Vec<u8>>> {
-        let apk = zip::Archive::open(apk_path)?;
-        if let Some(elf_entry) = apk
-            .entries()
-            .find_map(|entry| match entry {
-                Ok(entry) => (entry.path == elf_path).then(|| Ok(entry)),
-                Err(err) => Some(Err(err)),
-            })
-            .transpose()?
-        {
-            let elf_bounds = elf_entry.data_offset..elf_entry.data_offset + elf_entry.data.len();
-            let elf_mmap = apk.mmap().constrain(elf_bounds.clone()).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    format!(
-                        "invalid APK entry data bounds ({elf_bounds:?}) in {}",
-                        apk_path.display()
-                    ),
-                )
-            })?;
-            let elf_parser = ElfParser::from_mmap(elf_mmap);
-            Self::read_build_id(&elf_parser)
-        } else {
-            Err(Error::new(
-                ErrorKind::NotFound,
-                format!(
-                    "ELF file {} not found in APK {}",
-                    elf_path.display(),
-                    apk_path.display()
-                ),
-            ))
-        }
     }
 
     /// Attempt to read an ELF binary's build ID.
@@ -860,12 +824,6 @@ mod tests {
 
         impl BuildIdReader for NoBuildIdReader {
             fn read_build_id_from_elf(_path: &Path) -> Result<Option<Vec<u8>>> {
-                Ok(None)
-            }
-            fn read_build_id_from_apk_elf(
-                _apk_path: &Path,
-                _elf_path: &Path,
-            ) -> Result<Option<Vec<u8>>> {
                 Ok(None)
             }
             fn read_build_id(_parser: &ElfParser) -> Result<Option<Vec<u8>>> {
