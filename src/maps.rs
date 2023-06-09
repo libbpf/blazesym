@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -67,13 +70,30 @@ pub(crate) struct MapsEntry {
 
 
 /// An already filtered `MapsEntry` that is guaranteed to contain a path.
-#[derive(Debug)]
 pub(crate) struct PathMapsEntry {
     /// The virtual address range covered by this entry.
     pub range: Range<Addr>,
-    pub _mode: u8,
+    pub mode: u8,
     pub offset: u64,
     pub path: EntryPath,
+}
+
+impl Debug for PathMapsEntry {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let PathMapsEntry {
+            range,
+            mode,
+            offset,
+            path,
+        } = self;
+
+        f.debug_struct(stringify!(PathMapsEntry))
+            .field(stringify!(range), &format_args!("0x{range:x?}"))
+            .field(stringify!(mode), &format_args!("b{mode:04b}"))
+            .field(stringify!(offset), &format_args!("0x{offset:x}"))
+            .field(stringify!(path), &path)
+            .finish()
+    }
 }
 
 
@@ -243,7 +263,7 @@ pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<PathMapsEntry> {
     match path_name {
         Some(PathName::Path(path)) => Some(PathMapsEntry {
             range,
-            _mode: mode,
+            mode,
             offset,
             path,
         }),
@@ -260,6 +280,28 @@ mod tests {
 
     use test_log::test;
 
+
+    /// Check that the `Debug` representation of [`Entry`] is as expected.
+    #[test]
+    fn path_maps_entry_debug() {
+        let entry = PathMapsEntry {
+            range: 0x1000..0x1337,
+            mode: 0b10,
+            offset: 0x5000,
+            path: EntryPath {
+                maps_file: PathBuf::from("/proc/1234/maps_files/559cf1bdf000-559cf1be0000"),
+                symbolic_path: PathBuf::from("/lib64/libc.so.6"),
+            },
+        };
+
+        let dbg = format!("{entry:?}");
+        assert!(
+            dbg.starts_with(
+                r#"PathMapsEntry { range: 0x1000..1337, mode: b0010, offset: 0x5000, "#
+            ),
+            "{dbg}"
+        );
+    }
 
     /// Check that we can parse `/proc/self/maps`.
     #[allow(clippy::suspicious_map)]
