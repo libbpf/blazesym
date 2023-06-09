@@ -42,7 +42,7 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
+    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
             ksym_resolver.find_syms(addr)
         } else {
