@@ -3,7 +3,9 @@ use std::fmt::Debug;
 use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 
+use crate::elf::ElfBackend;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
 use crate::gsym::GsymResolver;
@@ -14,6 +16,8 @@ use crate::log;
 use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::normalize;
+use crate::normalize::create_apk_elf_path;
+use crate::normalize::normalize_apk_addr;
 use crate::normalize::normalize_elf_addr;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::util;
@@ -135,7 +139,7 @@ impl Symbolizer {
     }
 
     /// Symbolize an address using the provided [`SymResolver`].
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{addr:x}"), resolver = ?resolver)))]
     fn symbolize_with_resolver(
         &self,
         addr: Addr,
@@ -216,9 +220,20 @@ impl Symbolizer {
         }
 
         impl SymbolizeHandler<'_> {
-            // TODO: Implement this functionality.
-            fn handle_apk_addr(&mut self, _addr: Addr, _entry: &PathMapsEntry) -> Result<()> {
-                todo!()
+            fn handle_apk_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+                let (norm_addr, elf_path, elf_parser) = normalize_apk_addr(addr, entry)?;
+                let apk_path = &entry.path.symbolic_path;
+                // Create an Android-style binary-in-APK path for
+                // reporting purposes.
+                let apk_elf_path = create_apk_elf_path(apk_path, &elf_path)?;
+                let backend = ElfBackend::Elf(Rc::new(elf_parser));
+
+                let resolver = ElfResolver::with_backend(&apk_elf_path, backend)?;
+                let symbols = self
+                    .symbolizer
+                    .symbolize_with_resolver(norm_addr, &resolver)?;
+                let () = self.all_symbols.push(symbols);
+                Ok(())
             }
 
             fn handle_elf_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
@@ -231,6 +246,7 @@ impl Symbolizer {
         }
 
         impl normalize::Handler for SymbolizeHandler<'_> {
+            #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{_addr:x}"))))]
             fn handle_unknown_addr(&mut self, _addr: Addr) -> Result<()> {
                 let () = self.all_symbols.push(Vec::new());
                 Ok(())
@@ -343,7 +359,7 @@ impl Symbolizer {
     ///
     /// Symbolize a list of addresses according to the configuration
     /// provided via `src`.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{addrs:x?}"))))]
     pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<SymbolizedResult>>> {
         match src {
             Source::Elf(Elf {
@@ -375,5 +391,83 @@ impl Symbolizer {
 impl Default for Symbolizer {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::mem::transmute;
+
+    use crate::elf::ElfParser;
+    use crate::inspect::FindAddrOpts;
+    use crate::inspect::SymType;
+    use crate::mmap::Mmap;
+    use crate::symbolize;
+    use crate::symbolize::Symbolizer;
+    use crate::zip;
+
+    use test_log::test;
+
+
+    /// Check that we can symbolize an address residing in a zip archive.
+    #[test]
+    fn symbolize_zip() {
+        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+
+        let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+        let archive = zip::Archive::with_mmap(mmap.clone()).unwrap();
+        let so = archive
+            .entries()
+            .find_map(|entry| {
+                let entry = entry.unwrap();
+                (entry.path == Path::new("libtest-so.so")).then_some(entry)
+            })
+            .unwrap();
+
+        let elf_mmap = mmap
+            .constrain(so.data_offset..so.data_offset + so.data.len())
+            .unwrap();
+
+        // Look up the address of the `the_answer` function inside of the shared
+        // object.
+        let elf_parser = ElfParser::from_mmap(elf_mmap.clone());
+        let opts = FindAddrOpts {
+            sym_type: SymType::Function,
+            ..Default::default()
+        };
+        let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
+        // There is only one symbol with this address in there.
+        assert_eq!(syms.len(), 1);
+        let sym = syms.first().unwrap();
+
+        let the_answer_addr = unsafe { elf_mmap.as_ptr().add(sym.addr) };
+        // Now just double check that everything worked out and the function
+        // is actually where it was meant to be.
+        let the_answer_fn =
+            unsafe { transmute::<_, extern "C" fn() -> libc::c_int>(the_answer_addr) };
+        let answer = the_answer_fn();
+        assert_eq!(answer, 42);
+
+        // Now symbolize the address we just looked up. It should be
+        // correctly mapped to the `the_answer` function within our
+        // process.
+        let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+        let symbolizer = Symbolizer::new();
+        let results = symbolizer
+            .symbolize(&src, &[the_answer_addr as Addr])
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
+
+        let result = results.first().unwrap();
+        assert_eq!(result.symbol, "the_answer");
+        assert_eq!(result.addr, sym.addr);
     }
 }
