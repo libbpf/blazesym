@@ -247,11 +247,7 @@ pub(crate) fn normalize_apk_addr(
             let parser = ElfParser::from_mmap(mmap);
             let elf_off = file_off - apk_entry.data_offset;
             if let Some(addr) = normalize_elf_offset_with_parser(elf_off as u64, &parser)? {
-                return Ok((
-                    apk_entry.data_offset + addr,
-                    apk_entry.path.to_path_buf(),
-                    parser,
-                ))
+                return Ok((addr, apk_entry.path.to_path_buf(), parser))
             }
             break
         }
@@ -794,7 +790,7 @@ mod tests {
             assert_eq!(norm_addrs.meta.len(), 1);
 
             let norm_addr = norm_addrs.addrs[0];
-            assert_eq!(norm_addr.0, sym.addr + so.data_offset);
+            assert_eq!(norm_addr.0, sym.addr);
             let meta = &norm_addrs.meta[norm_addr.1];
             let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
