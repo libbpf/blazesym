@@ -126,10 +126,12 @@ impl KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
-        self.find_addresses_ksym(addr)
+    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
+        let syms = self
+            .find_addresses_ksym(addr)
             .map(|sym| (sym.name.as_str(), sym.addr))
-            .collect()
+            .collect();
+        Ok(syms)
     }
 
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
@@ -225,27 +227,27 @@ mod tests {
         let sym = &resolver.syms[resolver.syms.len() / 2];
         let addr = sym.addr;
         let name = sym.name.clone();
-        let found = resolver.find_syms(addr);
+        let found = resolver.find_syms(addr).unwrap();
         assert!(!found.is_empty());
         assert!(found.iter().any(|x| x.0 == name));
         let addr = addr + 1;
-        let found = resolver.find_syms(addr);
+        let found = resolver.find_syms(addr).unwrap();
         assert!(!found.is_empty());
         assert!(found.iter().any(|x| x.0 == name));
 
         // 0 is an invalid address.  We remove all symbols with 0 as
         // thier address from the list.
-        let found = resolver.find_syms(0);
+        let found = resolver.find_syms(0).unwrap();
         assert!(found.is_empty());
 
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
         let addr = sym.addr;
         let name = sym.name.clone();
-        let found = resolver.find_syms(addr);
+        let found = resolver.find_syms(addr).unwrap();
         assert!(!found.is_empty());
         assert!(found.iter().any(|x| x.0 == name));
-        let found = resolver.find_syms(addr + 1);
+        let found = resolver.find_syms(addr + 1).unwrap();
         assert!(!found.is_empty());
         assert!(found.iter().any(|x| x.0 == name));
 

@@ -48,22 +48,21 @@ impl ElfResolver {
 }
 
 impl SymResolver for ElfResolver {
-    // TODO: Need to better handle errors.
     #[cfg_attr(feature = "tracing", crate::log::instrument)]
-    fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
+    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
         let parser = self.get_parser();
-        if let Ok(Some((name, start_addr))) = parser.find_sym(addr, STT_FUNC) {
+        if let Some((name, start_addr)) = parser.find_sym(addr, STT_FUNC)? {
             // We found the address in ELF.
             // TODO: Long term we probably want a different heuristic here, as
             //       there can be valid differences between the two formats
             //       (e.g., DWARF could contain more symbols).
-            return vec![(name, start_addr)]
+            return Ok(vec![(name, start_addr)])
         }
 
         match &self.backend {
             #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(dwarf) => dwarf.find_syms(addr).unwrap_or_default(),
-            ElfBackend::Elf(_) => Vec::new(),
+            ElfBackend::Dwarf(dwarf) => dwarf.find_syms(addr),
+            ElfBackend::Elf(_) => Ok(Vec::new()),
         }
     }
 

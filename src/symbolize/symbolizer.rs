@@ -141,13 +141,13 @@ impl Symbolizer {
         addr: Addr,
         resolver: &dyn SymResolver,
     ) -> Result<Vec<SymbolizedResult>> {
-        let res_syms = resolver.find_syms(addr);
+        let syms = resolver.find_syms(addr)?;
         let linfo = if self.src_location {
             resolver.find_line_info(addr)?
         } else {
             None
         };
-        if res_syms.is_empty() {
+        if syms.is_empty() {
             if let Some(linfo) = linfo {
                 Ok(vec![SymbolizedResult {
                     symbol: "".to_string(),
@@ -161,7 +161,7 @@ impl Symbolizer {
             }
         } else {
             let mut results = vec![];
-            for sym in res_syms {
+            for sym in syms {
                 if let Some(ref linfo) = linfo {
                     let (sym, start) = sym;
                     results.push(SymbolizedResult {

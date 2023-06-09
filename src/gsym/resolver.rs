@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::Error;
+use std::io::ErrorKind;
 use std::io::Read as _;
 use std::mem;
 use std::path::Path;
@@ -48,22 +49,35 @@ impl GsymResolver {
 }
 
 impl SymResolver for GsymResolver {
-    fn find_syms(&self, addr: Addr) -> Vec<(&str, Addr)> {
-        fn find_addr_impl(gsym: &GsymResolver, addr: Addr) -> Option<Vec<(&str, Addr)>> {
-            let idx = gsym.ctx.find_addr(addr)?;
-
-            let found = gsym.ctx.addr_at(idx)?;
+    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>, Error> {
+        if let Some(idx) = self.ctx.find_addr(addr) {
+            let found = self.ctx.addr_at(idx).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    format!("failed to read address table entry {idx}"),
+                )
+            })?;
             if addr < found {
-                return None
+                return Ok(Vec::new())
             }
 
-            let info = gsym.ctx.addr_info(idx)?;
-            let name = gsym.ctx.get_str(info.name as usize)?;
+            let info = self.ctx.addr_info(idx).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    format!("failed to read address information entry {idx}"),
+                )
+            })?;
+            let name = self.ctx.get_str(info.name as usize).ok_or_else(|| {
+                Error::new(
+                    ErrorKind::InvalidData,
+                    format!("failed to read string table entry at offset {}", info.name),
+                )
+            })?;
 
-            Some(vec![(name, found)])
+            Ok(vec![(name, found)])
+        } else {
+            Ok(Vec::new())
         }
-
-        find_addr_impl(self, addr).unwrap_or_default()
     }
 
     fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
