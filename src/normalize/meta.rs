@@ -6,6 +6,33 @@ type BuildId = Vec<u8>;
 
 
 /// Meta information about an ELF file inside an APK.
+///
+/// The corresponding normalized address is normalized to the ELF file,
+/// not the APK container. I.e., it is suitable for usage with ELF
+/// symbolization:
+/// ```no_run
+/// # use std::path::Path;
+/// # use blazesym::Pid;
+/// # use blazesym::normalize;
+/// # use blazesym::symbolize;
+/// # let capture_addr_in_elf_in_apk = || 0xdeadbeef;
+/// let addr_in_elf_in_apk = capture_addr_in_elf_in_apk();
+/// let normalizer = normalize::Normalizer::new();
+/// let norm_addrs = normalizer
+///     .normalize_user_addrs_sorted([addr_in_elf_in_apk].as_slice(), Pid::Slf)
+///     .unwrap();
+/// let (norm_addr, meta_idx) = norm_addrs.addrs[0];
+/// let meta = &norm_addrs.meta[meta_idx];
+/// let apk_elf = meta.apk_elf().unwrap();
+///
+/// // Let's assume we have the ELF file lying around in a hypothetical
+/// // data/ directory.
+/// let elf_path = Path::new("data/").join(&apk_elf.elf_path);
+///
+/// let src = symbolize::Source::from(symbolize::Elf::new(elf_path));
+/// let symbolizer = symbolize::Symbolizer::new();
+/// let syms = symbolizer.symbolize(&src, &[norm_addr]).unwrap();
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct ApkElf {
     /// The canonical absolute path to the APK, including its name.
