@@ -140,25 +140,24 @@ impl Symbolizer {
         &self,
         addr: Addr,
         resolver: &dyn SymResolver,
-    ) -> Vec<SymbolizedResult> {
+    ) -> Result<Vec<SymbolizedResult>> {
         let res_syms = resolver.find_syms(addr);
         let linfo = if self.src_location {
-            // TODO: Should not swallow errors.
-            resolver.find_line_info(addr).unwrap_or_default()
+            resolver.find_line_info(addr)?
         } else {
             None
         };
         if res_syms.is_empty() {
             if let Some(linfo) = linfo {
-                vec![SymbolizedResult {
+                Ok(vec![SymbolizedResult {
                     symbol: "".to_string(),
                     addr: 0,
                     path: linfo.path,
                     line: linfo.line,
                     column: linfo.column,
-                }]
+                }])
             } else {
-                vec![]
+                Ok(Vec::new())
             }
         } else {
             let mut results = vec![];
@@ -183,7 +182,7 @@ impl Symbolizer {
                     });
                 }
             }
-            results
+            Ok(results)
         }
     }
 
@@ -192,7 +191,7 @@ impl Symbolizer {
         &self,
         addrs: &[Addr],
         resolver: &dyn SymResolver,
-    ) -> Vec<Vec<SymbolizedResult>> {
+    ) -> Result<Vec<Vec<SymbolizedResult>>> {
         addrs
             .iter()
             .map(|addr| self.symbolize_with_resolver(*addr, resolver))
@@ -202,7 +201,7 @@ impl Symbolizer {
     fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
         let backend = self.elf_cache.find(path)?;
         let resolver = ElfResolver::with_backend(path, backend)?;
-        let symbols = self.symbolize_with_resolver(addr, &resolver);
+        let symbols = self.symbolize_with_resolver(addr, &resolver)?;
         Ok(symbols)
     }
 
@@ -314,7 +313,10 @@ impl Symbolizer {
                         match result {
                             Ok(resolver) => Some(resolver),
                             Err(err) => {
-                                log::warn!("failed to create ELF resolver for kernel image {}: {err}; ignoring...", image.display());
+                                log::warn!(
+                                    "failed to create ELF resolver for kernel image {}: {err}; ignoring...",
+                                    image.display()
+                                );
                                 None
                             }
                         }
@@ -333,7 +335,7 @@ impl Symbolizer {
         };
 
         let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
-        let symbols = self.symbolize_addrs(addrs, &resolver);
+        let symbols = self.symbolize_addrs(addrs, &resolver)?;
         Ok(symbols)
     }
 
@@ -350,7 +352,7 @@ impl Symbolizer {
             }) => {
                 let backend = self.elf_cache.find(path)?;
                 let resolver = ElfResolver::with_backend(path, backend)?;
-                let symbols = self.symbolize_addrs(addrs, &resolver);
+                let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)
             }
             Source::Kernel(kernel) => self.symbolize_kernel_addrs(addrs, kernel),
@@ -363,7 +365,7 @@ impl Symbolizer {
                 _non_exhaustive: (),
             }) => {
                 let resolver = GsymResolver::new(path.clone())?;
-                let symbols = self.symbolize_addrs(addrs, &resolver);
+                let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)
             }
         }
