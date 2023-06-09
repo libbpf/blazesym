@@ -31,7 +31,7 @@ type BuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
 type ElfBuildIdFn = dyn Fn(&ElfParser) -> Result<Option<Vec<u8>>>;
 
 
-fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
+pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
     let mut extension = apk
         .extension()
         .unwrap_or_else(|| OsStr::new("apk"))
@@ -390,6 +390,7 @@ impl<R> Handler for NormalizationHandler<R>
 where
     R: BuildIdReader,
 {
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{addr:x}"))))]
     fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()> {
         self.unknown_idx = self.normalized.add_unknown_addr(addr, self.unknown_idx);
         Ok(())
