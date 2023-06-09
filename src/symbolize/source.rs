@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::path::PathBuf;
 
 use crate::Pid;
@@ -72,7 +75,7 @@ impl From<Kernel> for Source {
 /// The corresponding addresses supplied to [`Symbolizer::symbolize`] are
 /// expected to be absolute addresses as valid within the process identified
 /// by the [`pid`][Process::pid] member.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Process {
     /// The referenced process' ID.
     pub pid: Pid,
@@ -88,6 +91,20 @@ impl Process {
             pid,
             _non_exhaustive: (),
         }
+    }
+}
+
+impl Debug for Process {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Process {
+            pid,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(Process))
+            // We use the `Display` representation here.
+            .field(&format_args!("{pid}"))
+            .finish()
     }
 }
 
@@ -140,4 +157,21 @@ pub enum Source {
     Process(Process),
     /// A gsym file.
     Gsym(Gsym),
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Check that the `Debug` representation of [`Entry`] is as expected.
+    #[test]
+    fn process_debug() {
+        let process = Process::new(Pid::Slf);
+        assert_eq!(format!("{process:?}"), "Process(self)");
+
+        let process = Process::new(Pid::from(1234));
+        assert_eq!(format!("{process:?}"), "Process(1234)");
+    }
 }
