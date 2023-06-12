@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Added additional end-to-end benchmarks
+  - Added benchmark result summary to CI runs
+
+
 0.2.0-alpha.3
 -------------
 - Introduced custom `Error` type instead of relying solely on

@@ -32,12 +32,58 @@ fn symbolize_process() {
     assert_eq!(results.len(), addrs.len());
 }
 
+/// Symbolize an address in an ELF file, end-to-end, i.e., including all
+/// necessary setup.
+fn symbolize_elf() {
+    let elf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("vmlinux-5.17.12-100.fc34.x86_64.elf");
+    let src = Source::Elf(Elf::new(elf_vmlinux));
+    let symbolizer = Symbolizer::builder()
+        .enable_debug_syms(false)
+        .enable_src_location(false)
+        .build();
+
+    let results = symbolizer
+        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = results.first().unwrap();
+    assert_eq!(result.symbol, "abort_creds");
+}
+
+/// Symbolize an address in a DWARF file, excluding line information,
+/// end-to-end, i.e., including all necessary setup.
+fn symbolize_dwarf_no_lines() {
+    let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
+    let src = Source::Elf(Elf::new(dwarf_vmlinux));
+    let symbolizer = Symbolizer::builder().enable_src_location(false).build();
+
+    let results = symbolizer
+        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = results.first().unwrap();
+    assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.line, 0);
+}
+
 /// Symbolize an address in a DWARF file, end-to-end, i.e., including all
 /// necessary setup.
 fn symbolize_dwarf() {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("vmlinux-5.17.12-100.fc34.x86_64");
+        .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
     let symbolizer = Symbolizer::new();
 
@@ -51,6 +97,7 @@ fn symbolize_dwarf() {
 
     let result = results.first().unwrap();
     assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.line, 534);
 }
 
 /// Symbolize an address in a GSYM file, end-to-end, i.e., including all
@@ -80,6 +127,8 @@ where
 {
     bench_fn!(group, symbolize_process);
     if cfg!(feature = "generate-large-test-files") {
+        bench_fn!(group, symbolize_elf);
+        bench_fn!(group, symbolize_dwarf_no_lines);
         bench_fn!(group, symbolize_dwarf);
         bench_fn!(group, symbolize_gsym);
     }
