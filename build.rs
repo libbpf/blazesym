@@ -170,7 +170,7 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
 }
 
 /// Invoke `strip` on a copy of `src` placed at `dst`.
-fn strip(src: &Path, dst: &str, options: &[&str]) {
+fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
@@ -185,9 +185,15 @@ fn strip(src: &Path, dst: &str, options: &[&str]) {
     let () = adjust_mtime(&dst).unwrap();
 }
 
+/// Strip all DWARF information from an ELF binary, in an attempt to
+/// leave only ELF symbols in place.
+fn elf(src: &Path, dst: impl AsRef<OsStr>) {
+    strip(src, dst, &["--strip-debug"])
+}
+
 /// Strip all non-debug information from an ELF binary, in an attempt to
 /// leave only DWARF remains.
-fn dwarf(src: &Path, dst: &str) {
+fn dwarf(src: &Path, dst: impl AsRef<OsStr>) {
     strip(src, dst, &["--keep-section=.debug_*"])
 }
 
@@ -408,19 +414,28 @@ fn download_bench_files(_crate_root: &Path) {
 
 /// Prepare benchmark files.
 fn prepare_bench_files(crate_root: &Path) {
-    let vmlinux = Path::new(crate_root)
+    let vmlinux_xz = Path::new(crate_root)
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.xz");
 
-    let mut dst = vmlinux.clone();
-    assert!(dst.set_extension(""));
-    unpack_xz(&vmlinux, &dst);
+    let mut vmlinux = vmlinux_xz.clone();
+    assert!(vmlinux.set_extension(""));
+    unpack_xz(&vmlinux_xz, &vmlinux);
 
-    let src = dst.clone();
-    let mut dst = vmlinux;
+    let mut dst = vmlinux_xz.clone();
+    assert!(dst.set_extension("elf"));
+    let dst = dst.file_name().unwrap();
+    elf(&vmlinux, dst);
+
+    let mut dst = vmlinux_xz.clone();
     assert!(dst.set_extension("gsym"));
     let dst = dst.file_name().unwrap();
-    gsym(&src, dst);
+    gsym(&vmlinux, dst);
+
+    let mut dst = vmlinux_xz;
+    assert!(dst.set_extension("dwarf"));
+    let dst = dst.file_name().unwrap();
+    dwarf(&vmlinux, dst);
 }
 
 fn main() {
