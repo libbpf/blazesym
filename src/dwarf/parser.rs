@@ -10,17 +10,11 @@ use std::path::Path;
 
 use gimli::constants;
 use gimli::read::AttributeValue;
-use gimli::read::DebugAbbrev;
-use gimli::read::DebugInfo;
-use gimli::read::DebugStr;
 use gimli::read::EndianSlice;
-use gimli::read::UnitHeader;
-use gimli::Abbreviations;
 use gimli::DebuggingInformationEntry;
 use gimli::Dwarf;
 use gimli::IncompleteLineProgram;
 use gimli::LittleEndian;
-use gimli::Section as _;
 use gimli::SectionId;
 use gimli::Unit;
 use gimli::UnitSectionOffset;
@@ -188,15 +182,8 @@ impl DWSymInfo<'_> {
 /// Parse a DIE that declares a subprogram. (a function)
 ///
 /// We already know the given DIE is a declaration of a subprogram.
-/// This function trys to extract the address of the subprogram and
+/// This function tries to extract the address of the subprogram and
 /// other information from the DIE.
-///
-/// # Arguments
-///
-/// * `die` - is a DIE.
-/// * `str_data` - is the content of the `.debug_str` section.
-///
-/// Return a [`DWSymInfo`] if it finds the address of the subprogram.
 // TODO: Having a single function for a single subprogram may not be
 //       sufficient to get all relevant symbol information. See
 //       https://stackoverflow.com/a/59674438
@@ -204,8 +191,9 @@ impl DWSymInfo<'_> {
 //       https://reviews.llvm.org/D78489
 #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all))]
 fn parse_die_subprogram<'dat>(
+    dwarf: &Dwarf<R<'dat>>,
+    unit: &Unit<R<'dat>>,
     entry: &DebuggingInformationEntry<R<'dat>>,
-    debug_str: &DebugStr<R<'dat>>,
 ) -> Result<Option<DWSymInfo<'dat>>> {
     let mut addr = None;
     let mut name = None;
@@ -228,16 +216,15 @@ fn parse_die_subprogram<'dat>(
                         .unwrap_or("DW_AT_name/DW_AT_linkage_name")
                 };
 
-                let string = if let Some(string) = attr.string_value(debug_str) {
-                    string
-                } else {
-                    warn!(
-                        "encountered unexpected attribute for {}",
-                        attr.name().static_string().unwrap_or_else(attr_name)
-                    );
-                    continue
-                };
-
+                let string = dwarf.attr_string(unit, attr.value()).map_err(|err| {
+                    Error::new(
+                        ErrorKind::InvalidData,
+                        format!(
+                            "failed to retrieve DWARF {} attribute value string: {err}",
+                            attr_name()
+                        ),
+                    )
+                })?;
                 let name_ = string.to_string().map_err(|err| {
                     Error::new(
                         ErrorKind::InvalidData,
@@ -306,12 +293,11 @@ fn parse_die_subprogram<'dat>(
 /// Walk through all DIEs of a compile unit to extract symbols.
 #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all))]
 fn debug_info_parse_symbols_cu<'dat>(
-    unit: UnitHeader<R<'dat>>,
-    abbrevs: &Abbreviations,
-    debug_str: &DebugStr<R<'dat>>,
+    dwarf: &Dwarf<R<'dat>>,
+    unit: Unit<R<'dat>>,
     found_syms: &mut Vec<DWSymInfo<'dat>>,
 ) -> Result<()> {
-    let mut entries = unit.entries(abbrevs);
+    let mut entries = unit.header.entries(&unit.abbreviations);
     while let Some((_, entry)) = entries.next_dfs().map_err(|err| {
         Error::new(
             ErrorKind::InvalidData,
@@ -319,7 +305,7 @@ fn debug_info_parse_symbols_cu<'dat>(
         )
     })? {
         if entry.tag() == constants::DW_TAG_subprogram {
-            if let Some(sym) = parse_die_subprogram(entry, debug_str)? {
+            if let Some(sym) = parse_die_subprogram(dwarf, &unit, entry)? {
                 let () = found_syms.push(sym);
             }
         }
@@ -347,32 +333,29 @@ fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
 ///
 /// * `parser` - is an ELF parser.
 pub(crate) fn debug_info_parse_symbols(parser: &ElfParser) -> Result<Vec<DWSymInfo<'_>>> {
-    let debug_abbrev_data = load_section(parser, DebugAbbrev::<R>::id())?;
-    let debug_info_data = load_section(parser, DebugInfo::<R>::id())?;
-    let debug_str_data = load_section(parser, DebugStr::<R>::id())?;
-    let debug_abbrev = DebugAbbrev::from(debug_abbrev_data);
-    let debug_info = DebugInfo::from(debug_info_data);
-    let debug_str = DebugStr::from(debug_str_data);
-    let mut units = debug_info.units();
+    let mut load_section = |section| self::load_section(parser, section);
+    let dwarf = Dwarf::<R>::load(&mut load_section)?;
+
+    let mut units = dwarf.units();
     let mut syms = Vec::new();
 
-    while let Some(unit) = units.next().map_err(|err| {
+    while let Some(header) = units.next().map_err(|err| {
         Error::new(
             ErrorKind::InvalidData,
             format!("failed to iterate DWARF unit headers: {err}"),
         )
     })? {
-        let abbrevs = unit.abbreviations(&debug_abbrev).map_err(|err| {
+        let unit = dwarf.unit(header).map_err(|err| {
             Error::new(
                 ErrorKind::InvalidData,
                 format!(
-                    "failed to retrieve abbreviations for unit header @ {}: {err}",
-                    format_offset(unit.offset())
+                    "failed to retrieve DWARF unit for unit header @ {}: {err}",
+                    format_offset(header.offset())
                 ),
             )
         })?;
 
-        let () = debug_info_parse_symbols_cu(unit, &abbrevs, &debug_str, &mut syms)?;
+        let () = debug_info_parse_symbols_cu(&dwarf, unit, &mut syms)?;
     }
     Ok(syms)
 }
