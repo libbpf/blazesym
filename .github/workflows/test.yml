@@ -145,7 +145,9 @@ jobs:
              (echo "!!!! CHECKED IN C HEADER IS OUTDATED !!!!" && false)
   bench:
     name: Benchmark
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+    env:
+       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - uses: actions/checkout@v3
     - uses: actions-rs/toolchain@v1
@@ -153,7 +155,10 @@ jobs:
         toolchain: nightly
         profile: minimal
         override: true
-    - run: cargo bench --features=nightly,dont-generate-unit-test-files
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14
+    - uses: Swatinem/rust-cache@v2.5.1
+    - run: cargo bench --features=nightly,generate-large-test-files,dont-generate-unit-test-files
   clippy:
     name: Lint with clippy
     runs-on: ubuntu-latest
