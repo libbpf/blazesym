@@ -1,16 +1,15 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Read as _;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
+use crate::mmap::Mmap;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::SymResolver;
@@ -23,32 +22,55 @@ use super::parser::parse_line_table_header;
 use super::parser::GsymContext;
 use super::types::InfoTypeLineTableInfo;
 
-/// The symbol resolver for the GSYM format.
-pub struct GsymResolver {
-    file_name: PathBuf,
-    ctx: GsymContext<'static>,
-    _data: Vec<u8>,
+
+enum Data<'dat> {
+    Mmap(Mmap),
+    Slice(&'dat [u8]),
 }
 
-impl GsymResolver {
-    pub fn new(file_name: PathBuf) -> Result<GsymResolver, Error> {
-        let mut fo = File::open(&file_name)?;
-        let mut data = vec![];
-        fo.read_to_end(&mut data)?;
-        let ctx = GsymContext::parse_header(&data)?;
+/// The symbol resolver for the GSYM format.
+pub struct GsymResolver<'dat> {
+    file_name: Option<PathBuf>,
+    // SAFETY: This member should be listed before `ctx` to make sure we never
+    //         end up with dangling references.
+    _data: Data<'dat>,
+    ctx: GsymContext<'dat>,
+}
 
-        Ok(GsymResolver {
-            file_name,
-            // SAFETY: the lifetime of ctx depends on data, which is
-            // owned by the object.  So, it is safe to strip the
-            // lifetime of ctx.
+impl GsymResolver<'static> {
+    /// Create a `GsymResolver` that load data from the provided file.
+    pub fn new(file_name: PathBuf) -> Result<Self, Error> {
+        let mmap = Mmap::builder().open(&file_name)?;
+        let ctx = GsymContext::parse_header(&mmap)?;
+        let slf = Self {
+            file_name: Some(file_name),
+            // SAFETY: We own the underlying `Mmap` object and never hand out
+            //         any 'static references to its data. So it is safe for us
+            //         to transmute the lifetime.
             ctx: unsafe { mem::transmute(ctx) },
-            _data: data,
-        })
+            _data: Data::Mmap(mmap),
+        };
+
+        Ok(slf)
     }
 }
 
-impl SymResolver for GsymResolver {
+impl<'dat> GsymResolver<'dat> {
+    /// Create a `GsymResolver` that works on the provided "raw" Gsym data.
+    #[cfg(test)]
+    pub(crate) fn with_data(data: &'dat [u8]) -> Result<Self, Error> {
+        let ctx = GsymContext::parse_header(data)?;
+        let slf = Self {
+            file_name: None,
+            ctx,
+            _data: Data::Slice(data),
+        };
+
+        Ok(slf)
+    }
+}
+
+impl SymResolver for GsymResolver<'_> {
     fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>, Error> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let found = self.ctx.addr_at(idx).ok_or_else(|| {
@@ -173,9 +195,13 @@ impl SymResolver for GsymResolver {
     }
 }
 
-impl Debug for GsymResolver {
+impl Debug for GsymResolver<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "GSYM {}", self.file_name.display())
+        let path = self
+            .file_name
+            .as_deref()
+            .unwrap_or_else(|| Path::new("<unknown-file>"));
+        write!(f, "GSYM {}", path.display())
     }
 }
 
@@ -185,12 +211,26 @@ mod tests {
     use super::*;
 
     use std::env;
+    use std::fs::read as read_file;
 
     use test_log::test;
 
+
+    /// Check that we can create a `GsymResolver` using a "raw" slice of data.
+    #[test]
+    fn creation_from_raw_data() {
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.gsym");
+        let data = read_file(test_gsym).unwrap();
+
+        let resolver = GsymResolver::with_data(&data).unwrap();
+        assert_eq!(resolver.file_name, None);
+    }
+
     /// Make sure that we can find file line information for a function, if available.
     #[test]
-    fn test_find_line_info() {
+    fn find_line_info() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.gsym");
