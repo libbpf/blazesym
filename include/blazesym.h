@@ -376,12 +376,12 @@ typedef struct blaze_symbolize_src_elf {
 /**
  * The parameters to load symbols and debug information from a gsym file.
  */
-typedef struct blaze_symbolize_src_gsym {
+typedef struct blaze_symbolize_src_gsym_file {
   /**
    * The path to a gsym file.
    */
   const char *path;
-} blaze_symbolize_src_gsym;
+} blaze_symbolize_src_gsym_file;
 
 #ifdef __cplusplus
 extern "C" {
@@ -596,13 +596,13 @@ const struct blaze_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
  * # Safety
  * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
  * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blaze_symbolize_src_gsym`] object. `addrs` must represent an array of
+ * [`blaze_symbolize_src_gsym_file`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blaze_result *blaze_symbolize_gsym(blaze_symbolizer *symbolizer,
-                                                const struct blaze_symbolize_src_gsym *src,
-                                                const uintptr_t *addrs,
-                                                size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_gsym_file(blaze_symbolizer *symbolizer,
+                                                     const struct blaze_symbolize_src_gsym_file *src,
+                                                     const uintptr_t *addrs,
+                                                     size_t addr_cnt);
 
 /**
  * Free an array returned by any of the `blaze_symbolize_*` variants.

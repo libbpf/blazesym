@@ -117,14 +117,14 @@ impl From<&blaze_symbolize_src_process> for Process {
 /// The parameters to load symbols and debug information from a gsym file.
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_symbolize_src_gsym {
+pub struct blaze_symbolize_src_gsym_file {
     /// The path to a gsym file.
     pub path: *const c_char,
 }
 
-impl From<&blaze_symbolize_src_gsym> for GsymFile {
-    fn from(gsym: &blaze_symbolize_src_gsym) -> Self {
-        let blaze_symbolize_src_gsym { path } = gsym;
+impl From<&blaze_symbolize_src_gsym_file> for GsymFile {
+    fn from(gsym: &blaze_symbolize_src_gsym_file) -> Self {
+        let blaze_symbolize_src_gsym_file { path } = gsym;
         Self {
             path: unsafe { from_cstr(*path) },
             _non_exhaustive: (),
@@ -449,12 +449,12 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 /// # Safety
 /// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
 /// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blaze_symbolize_src_gsym`] object. `addrs` must represent an array of
+/// [`blaze_symbolize_src_gsym_file`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_gsym(
+pub unsafe extern "C" fn blaze_symbolize_gsym_file(
     symbolizer: *mut blaze_symbolizer,
-    src: *const blaze_symbolize_src_gsym,
+    src: *const blaze_symbolize_src_gsym_file,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blaze_result {
