@@ -19,10 +19,10 @@ use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
 use blazesym::c_api::blaze_result_free;
 use blazesym::c_api::blaze_symbolize_elf;
-use blazesym::c_api::blaze_symbolize_gsym;
+use blazesym::c_api::blaze_symbolize_gsym_file;
 use blazesym::c_api::blaze_symbolize_process;
 use blazesym::c_api::blaze_symbolize_src_elf;
-use blazesym::c_api::blaze_symbolize_src_gsym;
+use blazesym::c_api::blaze_symbolize_src_gsym_file;
 use blazesym::c_api::blaze_symbolize_src_process;
 use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
@@ -91,19 +91,19 @@ fn symbolize_from_elf() {
 
 /// Make sure that we can symbolize an address in a Gsym file.
 #[test]
-fn symbolize_from_gsym() {
+fn symbolize_from_gsym_file() {
     let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses.gsym");
     let test_gsym_c = CString::new(test_gsym.to_str().unwrap()).unwrap();
-    let gsym_src = blaze_symbolize_src_gsym {
+    let gsym_src = blaze_symbolize_src_gsym_file {
         path: test_gsym_c.as_ptr(),
     };
 
     let symbolizer = blaze_symbolizer_new();
     let addrs = [0x2000100];
     let result =
-        unsafe { blaze_symbolize_gsym(symbolizer, &gsym_src, addrs.as_ptr(), addrs.len()) };
+        unsafe { blaze_symbolize_gsym_file(symbolizer, &gsym_src, addrs.as_ptr(), addrs.len()) };
 
     assert!(!result.is_null());
 
