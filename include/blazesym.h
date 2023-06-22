@@ -374,7 +374,21 @@ typedef struct blaze_symbolize_src_elf {
 } blaze_symbolize_src_elf;
 
 /**
- * The parameters to load symbols and debug information from a gsym file.
+ * The parameters to load symbols and debug information from "raw" Gsym data.
+ */
+typedef struct blaze_symbolize_src_gsym_data {
+  /**
+   * The Gsym data.
+   */
+  const uint8_t *data;
+  /**
+   * The size of the Gsym data.
+   */
+  size_t data_len;
+} blaze_symbolize_src_gsym_data;
+
+/**
+ * The parameters to load symbols and debug information from a Gsym file.
  */
 typedef struct blaze_symbolize_src_gsym_file {
   /**
@@ -585,6 +599,24 @@ const struct blaze_result *blaze_symbolize_elf(blaze_symbolizer *symbolizer,
                                                const struct blaze_symbolize_src_elf *src,
                                                const uintptr_t *addrs,
                                                size_t addr_cnt);
+
+/**
+ * Symbolize addresses using "raw" Gsym data.
+ *
+ * Return an array of [`blaze_result`] with the same size as the
+ * number of input addresses. The caller should free the returned array by
+ * calling [`blaze_result_free`].
+ *
+ * # Safety
+ * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+ * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+ * [`blaze_symbolize_src_gsym_data`] object. `addrs` must represent an array of
+ * `addr_cnt` objects.
+ */
+const struct blaze_result *blaze_symbolize_gsym_data(blaze_symbolizer *symbolizer,
+                                                     const struct blaze_symbolize_src_gsym_data *src,
+                                                     const uintptr_t *addrs,
+                                                     size_t addr_cnt);
 
 /**
  * Symbolize addresses in a Gsym file.

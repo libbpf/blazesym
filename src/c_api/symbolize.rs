@@ -14,6 +14,7 @@ use std::ptr;
 use crate::log::error;
 use crate::log::warn;
 use crate::symbolize::Elf;
+use crate::symbolize::GsymData;
 use crate::symbolize::GsymFile;
 use crate::symbolize::Kernel;
 use crate::symbolize::Process;
@@ -114,7 +115,28 @@ impl From<&blaze_symbolize_src_process> for Process {
 }
 
 
-/// The parameters to load symbols and debug information from a gsym file.
+/// The parameters to load symbols and debug information from "raw" Gsym data.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_symbolize_src_gsym_data {
+    /// The Gsym data.
+    pub data: *const u8,
+    /// The size of the Gsym data.
+    pub data_len: usize,
+}
+
+impl From<&blaze_symbolize_src_gsym_data> for GsymData<'_> {
+    fn from(gsym: &blaze_symbolize_src_gsym_data) -> Self {
+        let blaze_symbolize_src_gsym_data { data, data_len } = gsym;
+        Self {
+            data: unsafe { slice_from_user_array(*data, *data_len) },
+            _non_exhaustive: (),
+        }
+    }
+}
+
+
+/// The parameters to load symbols and debug information from a Gsym file.
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_symbolize_src_gsym_file {
@@ -342,7 +364,7 @@ unsafe fn convert_symbolizedresults_to_c(
 
 unsafe fn blaze_symbolize_impl(
     symbolizer: *mut blaze_symbolizer,
-    src: Source,
+    src: Source<'_>,
     addrs: *const Addr,
     addr_cnt: usize,
 ) -> *const blaze_result {
@@ -436,6 +458,32 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Elf::from(unsafe { &*src }));
+    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+}
+
+
+/// Symbolize addresses using "raw" Gsym data.
+///
+/// Return an array of [`blaze_result`] with the same size as the
+/// number of input addresses. The caller should free the returned array by
+/// calling [`blaze_result_free`].
+///
+/// # Safety
+/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+/// [`blaze_symbolize_src_gsym_data`] object. `addrs` must represent an array of
+/// `addr_cnt` objects.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_gsym_data(
+    symbolizer: *mut blaze_symbolizer,
+    src: *const blaze_symbolize_src_gsym_data,
+    addrs: *const Addr,
+    addr_cnt: usize,
+) -> *const blaze_result {
+    // SAFETY: The caller ensures that the pointer is valid. The `GsymData`
+    //         lifetime is entirely conjured up, but the object only needs to be
+    //         valid for the call.
+    let src = Source::from(GsymData::from(unsafe { &*src }));
     unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
 }
 
