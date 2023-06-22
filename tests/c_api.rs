@@ -2,6 +2,7 @@
 
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::fs::read as read_file;
 use std::path::Path;
 use std::ptr;
 use std::slice;
@@ -19,9 +20,11 @@ use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
 use blazesym::c_api::blaze_result_free;
 use blazesym::c_api::blaze_symbolize_elf;
+use blazesym::c_api::blaze_symbolize_gsym_data;
 use blazesym::c_api::blaze_symbolize_gsym_file;
 use blazesym::c_api::blaze_symbolize_process;
 use blazesym::c_api::blaze_symbolize_src_elf;
+use blazesym::c_api::blaze_symbolize_src_gsym_data;
 use blazesym::c_api::blaze_symbolize_src_gsym_file;
 use blazesym::c_api::blaze_symbolize_src_process;
 use blazesym::c_api::blaze_symbolizer_free;
@@ -68,6 +71,44 @@ fn symbolize_from_elf() {
     let symbolizer = blaze_symbolizer_new();
     let addrs = [0x2000100];
     let result = unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+
+    assert!(!result.is_null());
+
+    let result = unsafe { &*result };
+    assert_eq!(result.size, 1);
+    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
+    let entry = &entries[0];
+    assert_eq!(entry.size, 1);
+
+    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
+    let sym = &syms[0];
+    assert_eq!(
+        unsafe { CStr::from_ptr(sym.symbol) },
+        CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+    );
+
+    let () = unsafe { blaze_result_free(result) };
+    let () = unsafe { blaze_symbolizer_free(symbolizer) };
+}
+
+
+/// Make sure that we can symbolize an address in "raw" Gsym data.
+#[test]
+fn symbolize_from_gsym_data() {
+    let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.gsym");
+
+    let data = read_file(test_gsym).unwrap();
+    let gsym_src = blaze_symbolize_src_gsym_data {
+        data: data.as_ptr(),
+        data_len: data.len(),
+    };
+
+    let symbolizer = blaze_symbolizer_new();
+    let addrs = [0x2000100];
+    let result =
+        unsafe { blaze_symbolize_gsym_data(symbolizer, &gsym_src, addrs.as_ptr(), addrs.len()) };
 
     assert!(!result.is_null());
 
