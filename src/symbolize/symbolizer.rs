@@ -28,6 +28,8 @@ use crate::SymResolver;
 
 use super::source::Elf;
 use super::source::Gsym;
+use super::source::GsymData;
+use super::source::GsymFile;
 use super::source::Kernel;
 use super::source::Process;
 use super::source::Source;
@@ -376,10 +378,18 @@ impl Symbolizer {
                 pid,
                 _non_exhaustive: (),
             }) => self.symbolize_user_addrs(addrs, *pid),
-            Source::Gsym(Gsym {
+            Source::Gsym(Gsym::Data(GsymData {
+                data,
+                _non_exhaustive: (),
+            })) => {
+                let resolver = GsymResolver::with_data(data)?;
+                let symbols = self.symbolize_addrs(addrs, &resolver)?;
+                Ok(symbols)
+            }
+            Source::Gsym(Gsym::File(GsymFile {
                 path,
                 _non_exhaustive: (),
-            }) => {
+            })) => {
                 let resolver = GsymResolver::new(path.clone())?;
                 let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)

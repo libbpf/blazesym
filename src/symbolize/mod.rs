@@ -59,6 +59,8 @@ use std::path::PathBuf;
 
 pub use source::Elf;
 pub use source::Gsym;
+pub use source::GsymData;
+pub use source::GsymFile;
 pub use source::Kernel;
 pub use source::Process;
 pub use source::Source;

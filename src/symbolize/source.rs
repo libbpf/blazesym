@@ -33,7 +33,7 @@ impl Elf {
     }
 }
 
-impl From<Elf> for Source {
+impl From<Elf> for Source<'static> {
     fn from(elf: Elf) -> Self {
         Source::Elf(elf)
     }
@@ -63,7 +63,7 @@ pub struct Kernel {
     pub(crate) _non_exhaustive: (),
 }
 
-impl From<Kernel> for Source {
+impl From<Kernel> for Source<'static> {
     fn from(kernel: Kernel) -> Self {
         Source::Kernel(kernel)
     }
@@ -108,25 +108,60 @@ impl Debug for Process {
     }
 }
 
-impl From<Process> for Source {
+impl From<Process> for Source<'static> {
     fn from(process: Process) -> Self {
         Source::Process(process)
     }
 }
 
 
-/// A gsym file.
 #[derive(Clone, Debug)]
-pub struct Gsym {
-    /// The path to the gsym file.
+pub enum Gsym<'dat> {
+    /// "Raw" Gsym data.
+    Data(GsymData<'dat>),
+    /// A Gsym file.
+    File(GsymFile),
+}
+
+/// Gsym data.
+#[derive(Clone, Debug)]
+pub struct GsymData<'dat> {
+    /// The "raw" Gsym data.
+    pub data: &'dat [u8],
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub(crate) _non_exhaustive: (),
+}
+
+impl<'dat> GsymData<'dat> {
+    /// Create a new [`GsymData`] object, referencing the provided path.
+    pub fn new(data: &'dat [u8]) -> Self {
+        Self {
+            data,
+            _non_exhaustive: (),
+        }
+    }
+}
+
+impl<'dat> From<GsymData<'dat>> for Source<'dat> {
+    fn from(gsym: GsymData<'dat>) -> Self {
+        Source::Gsym(Gsym::Data(gsym))
+    }
+}
+
+
+/// A Gsym file.
+#[derive(Clone, Debug)]
+pub struct GsymFile {
+    /// The path to the Gsym file.
     pub path: PathBuf,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub(crate) _non_exhaustive: (),
 }
 
-impl Gsym {
-    /// Create a new [`Gsym`] object, referencing the provided path.
+impl GsymFile {
+    /// Create a new [`GsymFile`] object, referencing the provided path.
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
@@ -135,9 +170,9 @@ impl Gsym {
     }
 }
 
-impl From<Gsym> for Source {
-    fn from(gsym: Gsym) -> Self {
-        Source::Gsym(gsym)
+impl From<GsymFile> for Source<'static> {
+    fn from(gsym: GsymFile) -> Self {
+        Source::Gsym(Gsym::File(gsym))
     }
 }
 
@@ -148,15 +183,15 @@ impl From<Gsym> for Source {
 /// image, or process.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub enum Source {
+pub enum Source<'dat> {
     /// A single ELF file
     Elf(Elf),
     /// Information about the Linux kernel.
     Kernel(Kernel),
     /// Information about a process.
     Process(Process),
-    /// A gsym file.
-    Gsym(Gsym),
+    /// A Gsym file.
+    Gsym(Gsym<'dat>),
 }
 
 
