@@ -45,6 +45,11 @@ impl ElfResolver {
             ElfBackend::Elf(parser) => parser,
         }
     }
+
+    /// Retrieve the path to the ELF file represented by this resolver.
+    pub(crate) fn file_name(&self) -> &Path {
+        &self.file_name
+    }
 }
 
 impl SymResolver for ElfResolver {
@@ -121,10 +126,6 @@ impl SymResolver for ElfResolver {
         })?;
         Some(offset)
     }
-
-    fn get_obj_file_name(&self) -> &Path {
-        &self.file_name
-    }
 }
 
 impl Debug for ElfResolver {
@@ -159,5 +160,6 @@ mod tests {
 
         assert_eq!(resolver.addr_file_off(0x0), None);
         assert_eq!(resolver.addr_file_off(0xffffffffffffffff), None);
+        assert_eq!(resolver.file_name(), path);
     }
 }

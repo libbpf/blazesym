@@ -78,8 +78,7 @@ impl Inspector {
                                 }
                             }
                             if opts.obj_file_name {
-                                sym.obj_file_name =
-                                    Some(resolver.get_obj_file_name().to_path_buf());
+                                sym.obj_file_name = Some(path.to_path_buf())
                             }
                         });
 

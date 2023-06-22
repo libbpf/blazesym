@@ -4,7 +4,6 @@ use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::ops::Deref as _;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -65,22 +64,6 @@ impl SymResolver for KernelResolver {
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
         None
     }
-
-    fn get_obj_file_name(&self) -> &Path {
-        let ksym_resolver = self
-            .ksym_resolver
-            .as_ref()
-            .map(|resolver| resolver.deref() as &dyn SymResolver);
-        let elf_resolver = self
-            .elf_resolver
-            .as_ref()
-            .map(|resolver| resolver as &dyn SymResolver);
-
-        ksym_resolver
-            .or(elf_resolver)
-            .map(|resolver| resolver.get_obj_file_name())
-            .unwrap_or_else(|| Path::new(""))
-    }
 }
 
 impl Debug for KernelResolver {
@@ -90,13 +73,13 @@ impl Debug for KernelResolver {
             "KernelResolver {} {}",
             self.ksym_resolver
                 .as_ref()
-                .map(|resolver| resolver.get_obj_file_name().to_path_buf())
-                .unwrap_or_default()
+                .map(|resolver| resolver.file_name())
+                .unwrap_or_else(|| Path::new(""))
                 .display(),
             self.elf_resolver
                 .as_ref()
-                .map(|resolver| resolver.get_obj_file_name().to_path_buf())
-                .unwrap_or_default()
+                .map(|resolver| resolver.file_name())
+                .unwrap_or_else(|| Path::new(""))
                 .display(),
         )
     }

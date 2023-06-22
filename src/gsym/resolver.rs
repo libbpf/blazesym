@@ -171,10 +171,6 @@ impl SymResolver for GsymResolver {
         // Unavailable
         None
     }
-
-    fn get_obj_file_name(&self) -> &Path {
-        &self.file_name
-    }
 }
 
 impl Debug for GsymResolver {

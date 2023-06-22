@@ -123,6 +123,11 @@ impl KSymResolver {
             .rev()
             .take_while(move |x| x.addr == self.syms[i - 1].addr)
     }
+
+    /// Retrieve the path to the kallsyms file used by this resolver.
+    pub(crate) fn file_name(&self) -> &Path {
+        &self.file_name
+    }
 }
 
 impl SymResolver for KSymResolver {
@@ -161,10 +166,6 @@ impl SymResolver for KSymResolver {
 
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
         None
-    }
-
-    fn get_obj_file_name(&self) -> &Path {
-        &self.file_name
     }
 }
 
