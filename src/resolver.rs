@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 use std::io::Error;
-use std::path::Path;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
@@ -26,6 +25,4 @@ where
     /// Translate an address (virtual) in a process to the file offset
     /// in the object file.
     fn addr_file_off(&self, addr: Addr) -> Option<u64>;
-    /// Get the file name of the shared object.
-    fn get_obj_file_name(&self) -> &Path;
 }
