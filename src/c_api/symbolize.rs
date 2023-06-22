@@ -14,7 +14,7 @@ use std::ptr;
 use crate::log::error;
 use crate::log::warn;
 use crate::symbolize::Elf;
-use crate::symbolize::Gsym;
+use crate::symbolize::GsymFile;
 use crate::symbolize::Kernel;
 use crate::symbolize::Process;
 use crate::symbolize::Source;
@@ -122,7 +122,7 @@ pub struct blaze_symbolize_src_gsym {
     pub path: *const c_char,
 }
 
-impl From<&blaze_symbolize_src_gsym> for Gsym {
+impl From<&blaze_symbolize_src_gsym> for GsymFile {
     fn from(gsym: &blaze_symbolize_src_gsym) -> Self {
         let blaze_symbolize_src_gsym { path } = gsym;
         Self {
@@ -459,7 +459,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym(
     addr_cnt: usize,
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
-    let src = Source::from(Gsym::from(unsafe { &*src }));
+    let src = Source::from(GsymFile::from(unsafe { &*src }));
     unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
 }
 

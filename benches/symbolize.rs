@@ -3,7 +3,7 @@ use std::path::Path;
 
 use blazesym::c_api;
 use blazesym::symbolize::Elf;
-use blazesym::symbolize::Gsym;
+use blazesym::symbolize::GsymFile;
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
@@ -59,7 +59,7 @@ fn symbolize_gsym() {
     let gsym_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.gsym");
-    let src = Source::Gsym(Gsym::new(gsym_vmlinux));
+    let src = Source::from(GsymFile::new(gsym_vmlinux));
     let symbolizer = Symbolizer::new();
 
     let results = symbolizer

@@ -57,7 +57,6 @@ impl GsymResolver<'static> {
 
 impl<'dat> GsymResolver<'dat> {
     /// Create a `GsymResolver` that works on the provided "raw" Gsym data.
-    #[cfg(test)]
     pub(crate) fn with_data(data: &'dat [u8]) -> Result<Self, Error> {
         let ctx = GsymContext::parse_header(data)?;
         let slf = Self {

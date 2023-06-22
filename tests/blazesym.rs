@@ -23,7 +23,7 @@ use test_log::test;
 fn error_on_non_existent_source() {
     let non_existent = Path::new("/does-not-exists");
     let srcs = vec![
-        symbolize::Source::Gsym(symbolize::Gsym::new(non_existent)),
+        symbolize::Source::from(symbolize::GsymFile::new(non_existent)),
         symbolize::Source::Elf(symbolize::Elf::new(non_existent)),
     ];
     let symbolizer = Symbolizer::default();
@@ -53,33 +53,11 @@ fn find_function_size(name: &str, elf: &Path) -> usize {
 /// Check that we can correctly symbolize an address using GSYM.
 #[test]
 fn symbolize_gsym() {
-    let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses.gsym");
+    fn test(src: symbolize::Source) {
+        let symbolizer = Symbolizer::new();
 
-    let src = symbolize::Source::Gsym(symbolize::Gsym::new(test_gsym));
-    let symbolizer = Symbolizer::new();
-
-    let results = symbolizer
-        .symbolize(&src, &[0x2000100])
-        .unwrap()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
-
-    let result = results.first().unwrap();
-    assert_eq!(result.symbol, "factorial");
-
-    let test_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses.bin");
-    let size = find_function_size("factorial", &test_bin);
-    assert_ne!(size, 0);
-
-    for offset in 1..size {
         let results = symbolizer
-            .symbolize(&src, &[0x2000100 + offset])
+            .symbolize(&src, &[0x2000100])
             .unwrap()
             .into_iter()
             .flatten()
@@ -88,8 +66,38 @@ fn symbolize_gsym() {
 
         let result = results.first().unwrap();
         assert_eq!(result.symbol, "factorial");
-        assert_eq!(result.addr, 0x2000100);
+
+        let test_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.bin");
+        let size = find_function_size("factorial", &test_bin);
+        assert_ne!(size, 0);
+
+        for offset in 1..size {
+            let results = symbolizer
+                .symbolize(&src, &[0x2000100 + offset])
+                .unwrap()
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            assert_eq!(results.len(), 1);
+
+            let result = results.first().unwrap();
+            assert_eq!(result.symbol, "factorial");
+            assert_eq!(result.addr, 0x2000100);
+        }
     }
+
+    let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.gsym");
+
+    let src = symbolize::Source::from(symbolize::GsymFile::new(&test_gsym));
+    test(src);
+
+    let data = read_file(&test_gsym).unwrap();
+    let src = symbolize::Source::from(symbolize::GsymData::new(&data));
+    test(src);
 }
 
 /// Check that we can symbolize an address using DWARF.

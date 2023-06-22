@@ -11,6 +11,8 @@ Unreleased
   information)
 - Added support for normalizing and symbolizing addresses in an ELF file
   contained in an APK
+- Adjusted `symbolize::Source::Gsym` variant to support symbolizing Gsym from
+  user provided "raw" data
 - Renamed `normalize::UserAddrMeta::Binary` variant to `Elf`
 
 
