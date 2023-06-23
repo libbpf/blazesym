@@ -93,6 +93,7 @@ impl<'dwarf> Units<'dwarf> {
                 )
             })?;
 
+            let mut lang = None;
             let mut have_unit_range = false;
             {
                 let mut entries = dw_unit.entries_raw(None)?;
@@ -124,6 +125,11 @@ impl<'dwarf> Units<'dwarf> {
                         gimli::DW_AT_ranges => {
                             ranges.ranges_offset =
                                 sections.attr_ranges_offset(&dw_unit, attr.value())?;
+                        }
+                        gimli::DW_AT_language => {
+                            if let gimli::AttributeValue::Language(val) = attr.value() {
+                                lang = Some(val);
+                            }
                         }
                         _ => {}
                     }
@@ -200,7 +206,7 @@ impl<'dwarf> Units<'dwarf> {
                 }
             }
 
-            res_units.push(Unit::new(dw_unit, lines))
+            res_units.push(Unit::new(dw_unit, lang, lines))
         }
 
         // Sort this for faster lookup in `find_unit_and_address` below.

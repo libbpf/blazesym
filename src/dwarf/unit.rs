@@ -43,6 +43,7 @@ pub(super) struct UnitRange {
 
 pub(super) struct Unit<'dwarf> {
     dw_unit: gimli::Unit<R<'dwarf>>,
+    lang: Option<gimli::DwLang>,
     lines: LazyCell<Result<Lines<'dwarf>, gimli::Error>>,
     funcs: LazyCell<Result<Functions<'dwarf>, gimli::Error>>,
 }
@@ -50,10 +51,12 @@ pub(super) struct Unit<'dwarf> {
 impl<'dwarf> Unit<'dwarf> {
     pub(super) fn new(
         unit: gimli::Unit<R<'dwarf>>,
+        lang: Option<gimli::DwLang>,
         lines: LazyCell<Result<Lines<'dwarf>, gimli::Error>>,
     ) -> Self {
         Self {
             dw_unit: unit,
+            lang,
             lines,
             funcs: LazyCell::new(),
         }
