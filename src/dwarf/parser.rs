@@ -275,7 +275,7 @@ fn debug_info_parse_symbols_cu<'dat>(
 }
 
 
-fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
+pub(super) fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
     let result = parser.find_section(id.name());
     let data = match result {
         Ok(Some(idx)) => parser.section_data(idx)?,
