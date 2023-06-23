@@ -67,7 +67,7 @@ impl ElfCacheEntry {
             Rc::clone(&parser),
             line_number_info,
             debug_info_symbols,
-        )));
+        )?));
 
         #[cfg(not(feature = "dwarf"))]
         let backend = ElfBackend::Elf(parser);
