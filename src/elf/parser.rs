@@ -85,7 +85,6 @@ impl<'mmap> Cache<'mmap> {
                 format!("ELF section index ({idx}) out of bounds"),
             )
         })?;
-
         let data = self
             .elf_data
             .get(section.sh_offset as usize..)

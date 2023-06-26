@@ -99,6 +99,8 @@ impl Elf64_Sym {
 // SAFETY: `Elf64_Sym` is valid for any bit pattern.
 unsafe impl crate::util::Pod for Elf64_Sym {}
 
+pub(crate) const NT_GNU_BUILD_ID: Elf64_Word = 3;
+
 #[repr(C)]
 pub(crate) struct Elf64_Nhdr {
     pub n_namesz: Elf64_Word,
