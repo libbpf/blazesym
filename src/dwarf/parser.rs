@@ -11,7 +11,6 @@ use gimli::read::EndianSlice;
 use gimli::DebuggingInformationEntry;
 use gimli::Dwarf;
 use gimli::IncompleteLineProgram;
-use gimli::LittleEndian;
 use gimli::SectionId;
 use gimli::Unit;
 use gimli::UnitSectionOffset;
@@ -24,9 +23,14 @@ use crate::ErrorExt as _;
 use crate::Result;
 
 
+#[cfg(target_endian = "little")]
+type Endianess = gimli::LittleEndian;
+#[cfg(target_endian = "big")]
+type Endianess = gimli::BigEndian;
+
 /// The gimli reader type we currently use. Could be made generic if
 /// need be, but we keep things simple while we can.
-type R<'dat> = EndianSlice<'dat, LittleEndian>;
+type R<'dat> = EndianSlice<'dat, Endianess>;
 
 
 fn format_offset(offset: UnitSectionOffset<usize>) -> String {
@@ -287,7 +291,11 @@ fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
         Ok(None) => &[],
         Err(err) => return Err(err),
     };
-    let reader = EndianSlice::new(data, LittleEndian);
+
+    #[cfg(target_endian = "little")]
+    let reader = EndianSlice::new(data, gimli::LittleEndian);
+    #[cfg(target_endian = "big")]
+    let reader = EndianSlice::new(data, gimli::BigEndian);
     Ok(reader)
 }
 
