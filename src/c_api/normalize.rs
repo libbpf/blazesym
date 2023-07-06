@@ -227,7 +227,7 @@ impl From<blaze_user_addr_meta_elf> for Elf {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_unknown {
-    __unused: u8,
+    _unused: u8,
 }
 
 impl From<Unknown> for blaze_user_addr_meta_unknown {
@@ -235,13 +235,13 @@ impl From<Unknown> for blaze_user_addr_meta_unknown {
         let Unknown {
             _non_exhaustive: (),
         } = other;
-        Self { __unused: 0 }
+        Self { _unused: 0 }
     }
 }
 
 impl From<blaze_user_addr_meta_unknown> for Unknown {
     fn from(other: blaze_user_addr_meta_unknown) -> Self {
-        let blaze_user_addr_meta_unknown { __unused } = other;
+        let blaze_user_addr_meta_unknown { _unused } = other;
         Unknown {
             _non_exhaustive: (),
         }
@@ -534,7 +534,7 @@ mod tests {
     /// [`blaze_user_addr_meta_variant`].
     #[test]
     fn debug_meta_variant() {
-        let unknown = blaze_user_addr_meta_unknown { __unused: 0 };
+        let unknown = blaze_user_addr_meta_unknown { _unused: 0 };
         let variant = blaze_user_addr_meta_variant {
             unknown: ManuallyDrop::new(unknown),
         };
