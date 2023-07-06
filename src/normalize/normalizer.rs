@@ -546,9 +546,11 @@ impl Normalizer {
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
+        let addrs_cnt = addrs.len();
         let entries = maps::parse(pid)?;
-        let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs.len());
+        let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
         let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
+        debug_assert_eq!(handler.normalized.addrs.len(), addrs_cnt);
         Ok(handler.normalized)
     }
 
