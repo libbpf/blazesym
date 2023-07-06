@@ -476,9 +476,8 @@ void blaze_normalizer_free(struct blaze_normalizer *normalizer);
 /**
  * Normalize a list of user space addresses.
  *
- * The `addrs` array has to be sorted in ascending order. `pid` should
- * describe the PID of the process to which the addresses belong. It
- * may be `0` if they belong to the calling process.
+ * Contrary to `blaze_normalize_user_addrs_sorted` the provided `addrs` array
+ * does not have to be sorted, but otherwise the functions behave identically.
  *
  * C ABI compatible version of [`Normalizer::normalize_user_addrs`].
  * Returns `NULL` on error. The resulting object should be freed using
@@ -495,6 +494,10 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const struct blaz
 
 /**
  * Normalize a list of user space addresses.
+ *
+ * The `addrs` array has to be sorted in ascending order. `pid` should describe
+ * the PID of the process to which the addresses belong. It may be `0` if they
+ * belong to the calling process.
  *
  * `pid` should describe the PID of the process to which the addresses belong.
  * It may be `0` if they belong to the calling process.
