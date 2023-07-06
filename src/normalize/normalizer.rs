@@ -538,9 +538,7 @@ impl Normalizer {
     /// - they belonged to an ELF object that has been unmapped since the
     ///   address was captured
     ///
-    /// The process' ID should be provided in `pid`. To normalize addresses of the
-    /// calling processes, `0` can be provided as a sentinel for the current
-    /// process' ID.
+    /// The process' ID should be provided in `pid`.
     ///
     /// Normalized addresses are reported in the exact same order in which the
     /// non-normalized ones were provided.
@@ -568,9 +566,7 @@ impl Normalizer {
     /// - they belonged to an ELF object that has been unmapped since the
     ///   address was captured
     ///
-    /// The process' ID should be provided in `pid`. To normalize addresses of the
-    /// calling processes, `0` can be provided as a sentinel for the current
-    /// process' ID.
+    /// The process' ID should be provided in `pid`.
     ///
     /// Normalized addresses are reported in the exact same order in which the
     /// non-normalized ones were provided.
