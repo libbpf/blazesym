@@ -210,6 +210,7 @@ mod tests {
     use super::*;
 
     use std::cmp::Ordering;
+    use std::io::ErrorKind;
 
     use test_log::test;
 
@@ -217,7 +218,12 @@ mod tests {
     /// Check that we can use a `KSymResolver` to find symbols.
     #[test]
     fn ksym_resolver_load_find() {
-        let resolver = KSymResolver::load_file_name(PathBuf::from(KALLSYMS)).unwrap();
+        let result = KSymResolver::load_file_name(PathBuf::from(KALLSYMS));
+        let resolver = match result {
+            Ok(resolver) => resolver,
+            Err(err) if err.kind() == ErrorKind::NotFound => return,
+            Err(err) => panic!("failed to instantiate KSymResolver: {err}"),
+        };
 
         assert!(
             resolver.syms.len() > 10000,
