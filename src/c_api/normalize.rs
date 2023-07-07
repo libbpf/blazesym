@@ -353,8 +353,11 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 
 /// Normalize a list of user space addresses.
 ///
-/// Contrary to `blaze_normalize_user_addrs_sorted` the provided `addrs` array
-/// does not have to be sorted, but otherwise the functions behave identically.
+/// Contrary to [`blaze_normalize_user_addrs_sorted`] the provided
+/// `addrs` array does not have to be sorted, but otherwise the
+/// functions behave identically. If you happen to know that `addrs` is
+/// sorted, using [`blaze_normalize_user_addrs_sorted`] instead will
+/// result in slightly faster normalization.
 ///
 /// C ABI compatible version of [`Normalizer::normalize_user_addrs`].
 /// Returns `NULL` on error. The resulting object should be freed using
@@ -389,12 +392,13 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 
 /// Normalize a list of user space addresses.
 ///
-/// The `addrs` array has to be sorted in ascending order. `pid` should describe
-/// the PID of the process to which the addresses belong. It may be `0` if they
-/// belong to the calling process.
+/// The `addrs` array has to be sorted in ascending order. By providing
+/// a pre-sorted array the library does not have to sort internally,
+/// which will result in quicker normalization. If you don't have sorted
+/// addresses, use [`blaze_normalize_user_addrs`] instead.
 ///
-/// `pid` should describe the PID of the process to which the addresses belong.
-/// It may be `0` if they belong to the calling process.
+/// `pid` should describe the PID of the process to which the addresses
+/// belongs. It may be `0` if they belong to the calling process.
 ///
 /// C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
 /// Returns `NULL` on error. The resulting object should be freed using

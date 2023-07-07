@@ -556,8 +556,12 @@ impl Normalizer {
 
     /// Normalize `addresses` belonging to a process.
     ///
-    /// Normalize all `addrs` in a given process. The `addrs` array has to
-    /// be sorted in ascending order or an error will be returned.
+    /// Normalize all `addrs` in a given process. The `addrs` array has
+    /// to be sorted in ascending order or an error will be returned. By
+    /// providing a pre-sorted array the library does not have to sort
+    /// internally, which will result in quicker normalization. If you
+    /// don't have sorted addresses, use
+    /// [`Normalizer::normalize_user_addrs`] instead.
     ///
     /// Unknown addresses are not normalized. They are reported as
     /// [`Unknown`] meta entries in the returned [`NormalizedUserAddrs`]
@@ -585,9 +589,11 @@ impl Normalizer {
     /// Normalize `addresses` belonging to a process.
     ///
     /// Normalize all `addrs` in a given process. Contrary to
-    /// [`Normalizer::normalize_user_addrs_sorted`], the provided
-    /// `addrs` array does not have to be sorted, but otherwise the
-    /// functions behave identically.
+    /// [`Normalizer::normalize_user_addrs_sorted`], the provided `addrs` array
+    /// does not have to be sorted, but otherwise the functions behave
+    /// identically. If you do happen to know that `addrs` is sorted, using
+    /// [`Normalizer::normalize_user_addrs_sorted`] instead will result in
+    /// slightly faster normalization.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     pub fn normalize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<NormalizedUserAddrs> {
         util::with_ordered_elems(
