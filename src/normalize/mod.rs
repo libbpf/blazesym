@@ -30,6 +30,7 @@
 //! );
 //! ```
 
+mod buildid;
 mod meta;
 mod normalizer;
 
