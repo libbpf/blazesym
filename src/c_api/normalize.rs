@@ -89,13 +89,13 @@ pub enum blaze_user_addr_meta_kind {
 pub struct blaze_user_addr_meta_apk_elf {
     /// The canonical absolute path to the APK, including its name.
     /// This member is always present.
-    apk_path: *mut c_char,
+    pub apk_path: *mut c_char,
     /// The relative path to the ELF file inside the APK.
-    elf_path: *mut c_char,
+    pub elf_path: *mut c_char,
     /// The length of the build ID, in bytes.
-    elf_build_id_len: usize,
+    pub elf_build_id_len: usize,
     /// The optional build ID of the ELF file, if found.
-    elf_build_id: *mut u8,
+    pub elf_build_id: *mut u8,
 }
 
 impl From<ApkElf> for blaze_user_addr_meta_apk_elf {
@@ -164,11 +164,11 @@ impl From<blaze_user_addr_meta_apk_elf> for ApkElf {
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_elf {
     /// The path to the ELF file. This member is always present.
-    path: *mut c_char,
+    pub path: *mut c_char,
     /// The length of the build ID, in bytes.
-    build_id_len: usize,
+    pub build_id_len: usize,
     /// The optional build ID of the ELF file, if found.
-    build_id: *mut u8,
+    pub build_id: *mut u8,
 }
 
 impl From<Elf> for blaze_user_addr_meta_elf {
@@ -227,7 +227,7 @@ impl From<blaze_user_addr_meta_elf> for Elf {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_unknown {
-    _unused: u8,
+    pub _unused: u8,
 }
 
 impl From<Unknown> for blaze_user_addr_meta_unknown {
@@ -273,9 +273,9 @@ impl Debug for blaze_user_addr_meta_variant {
 #[derive(Debug)]
 pub struct blaze_user_addr_meta {
     /// The variant kind that is present.
-    kind: blaze_user_addr_meta_kind,
+    pub kind: blaze_user_addr_meta_kind,
     /// The actual variant with its data.
-    variant: blaze_user_addr_meta_variant,
+    pub variant: blaze_user_addr_meta_variant,
 }
 
 impl From<UserAddrMeta> for blaze_user_addr_meta {

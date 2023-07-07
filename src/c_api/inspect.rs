@@ -33,10 +33,10 @@ use crate::Addr;
 #[derive(Debug)]
 pub struct blaze_inspect_elf_src {
     /// The path to the ELF file. This member is always present.
-    path: *const c_char,
+    pub path: *const c_char,
     /// Whether or not to consult debug information to satisfy the request (if
     /// present).
-    debug_info: bool,
+    pub debug_info: bool,
 }
 
 impl From<Elf> for blaze_inspect_elf_src {
