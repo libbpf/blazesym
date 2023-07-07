@@ -33,16 +33,17 @@
 mod buildid;
 mod meta;
 mod normalizer;
+mod user;
 
 pub use meta::ApkElf;
 pub use meta::Elf;
 pub use meta::Unknown;
 pub use meta::UserAddrMeta;
-pub use normalizer::NormalizedUserAddrs;
 pub use normalizer::Normalizer;
+pub use user::NormalizedUserAddrs;
 
-pub(crate) use normalizer::create_apk_elf_path;
-pub(crate) use normalizer::normalize_apk_addr;
-pub(crate) use normalizer::normalize_elf_addr;
-pub(crate) use normalizer::normalize_sorted_user_addrs_with_entries;
-pub(crate) use normalizer::Handler;
+pub(crate) use user::create_apk_elf_path;
+pub(crate) use user::normalize_apk_addr;
+pub(crate) use user::normalize_elf_addr;
+pub(crate) use user::normalize_sorted_user_addrs_with_entries;
+pub(crate) use user::Handler;
