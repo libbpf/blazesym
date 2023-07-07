@@ -14,6 +14,7 @@ Unreleased
 - Adjusted `symbolize::Source::Gsym` variant to support symbolizing Gsym from
   user provided "raw" data
 - Renamed `normalize::UserAddrMeta::Binary` variant to `Elf`
+- Renamed `blaze_user_addr_meta_unknown::__unused` member to `_unused`
 
 
 0.2.0-alpha.2
