@@ -318,6 +318,32 @@ mod tests {
     use test_log::test;
 
 
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let elf = blaze_inspect_elf_src {
+            path: ptr::null(),
+            debug_info: true,
+        };
+        assert_eq!(
+            format!("{elf:?}"),
+            "blaze_inspect_elf_src { path: 0x0, debug_info: true }"
+        );
+
+        let info = blaze_sym_info {
+            name: ptr::null(),
+            addr: 42,
+            size: 1337,
+            file_offset: 31,
+            obj_file_name: ptr::null(),
+            sym_type: blaze_sym_type::BLAZE_SYM_VAR,
+        };
+        assert_eq!(
+            format!("{info:?}"),
+            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, obj_file_name: 0x0, sym_type: BLAZE_SYM_VAR }"
+        );
+    }
+
     /// Check that we can properly convert a "syms list" into the corresponding
     /// C representation.
     #[test]
