@@ -486,6 +486,71 @@ mod tests {
     use super::*;
 
 
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let norm_addr = blaze_normalized_addr {
+            addr: 0x1337,
+            meta_idx: 1,
+        };
+        assert_eq!(
+            format!("{norm_addr:?}"),
+            "blaze_normalized_addr { addr: 4919, meta_idx: 1 }"
+        );
+
+        let meta_kind = blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF;
+        assert_eq!(format!("{meta_kind:?}"), "BLAZE_USER_ADDR_APK_ELF");
+
+        let apk_elf = blaze_user_addr_meta_apk_elf {
+            apk_path: ptr::null_mut(),
+            elf_path: ptr::null_mut(),
+            elf_build_id_len: 0,
+            elf_build_id: ptr::null_mut(),
+        };
+        assert_eq!(
+            format!("{apk_elf:?}"),
+            "blaze_user_addr_meta_apk_elf { apk_path: 0x0, elf_path: 0x0, elf_build_id_len: 0, elf_build_id: 0x0 }",
+        );
+
+        let elf = blaze_user_addr_meta_elf {
+            path: ptr::null_mut(),
+            build_id_len: 0,
+            build_id: ptr::null_mut(),
+        };
+        assert_eq!(
+            format!("{elf:?}"),
+            "blaze_user_addr_meta_elf { path: 0x0, build_id_len: 0, build_id: 0x0 }",
+        );
+
+        let unknown = blaze_user_addr_meta_unknown { _unused: 42 };
+        assert_eq!(
+            format!("{unknown:?}"),
+            "blaze_user_addr_meta_unknown { _unused: 42 }",
+        );
+
+        let meta = blaze_user_addr_meta {
+            kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN,
+            variant: blaze_user_addr_meta_variant {
+                unknown: ManuallyDrop::new(blaze_user_addr_meta_unknown { _unused: 42 }),
+            },
+        };
+        assert_eq!(
+            format!("{meta:?}"),
+            "blaze_user_addr_meta { kind: BLAZE_USER_ADDR_UNKNOWN, variant: blaze_user_addr_meta_variant }",
+        );
+
+        let user_addrs = blaze_normalized_user_addrs {
+            meta_count: 0,
+            metas: ptr::null_mut(),
+            addr_count: 0,
+            addrs: ptr::null_mut(),
+        };
+        assert_eq!(
+            format!("{user_addrs:?}"),
+            "blaze_normalized_user_addrs { meta_count: 0, metas: 0x0, addr_count: 0, addrs: 0x0 }",
+        );
+    }
+
     /// Check that we can convert an [`Unknown`] into a
     /// [`blaze_user_addr_meta_unknown`] and back.
     #[test]
@@ -535,16 +600,5 @@ mod tests {
 
         let elf_new = Elf::from(blaze_user_addr_meta_elf::from(elf.clone()));
         assert_eq!(elf_new, elf);
-    }
-
-    /// Check that we correctly format the debug representation of a
-    /// [`blaze_user_addr_meta_variant`].
-    #[test]
-    fn debug_meta_variant() {
-        let unknown = blaze_user_addr_meta_unknown { _unused: 0 };
-        let variant = blaze_user_addr_meta_variant {
-            unknown: ManuallyDrop::new(unknown),
-        };
-        assert_eq!(format!("{variant:?}"), "blaze_user_addr_meta_variant");
     }
 }
