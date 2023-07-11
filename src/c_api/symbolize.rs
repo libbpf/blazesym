@@ -534,6 +534,79 @@ mod tests {
     use super::*;
 
 
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let elf = blaze_symbolize_src_elf { path: ptr::null() };
+        assert_eq!(format!("{elf:?}"), "blaze_symbolize_src_elf { path: 0x0 }");
+
+        let kernel = blaze_symbolize_src_kernel {
+            kallsyms: ptr::null(),
+            kernel_image: ptr::null(),
+        };
+        assert_eq!(
+            format!("{kernel:?}"),
+            "blaze_symbolize_src_kernel { kallsyms: 0x0, kernel_image: 0x0 }"
+        );
+
+        let process = blaze_symbolize_src_process { pid: 1337 };
+        assert_eq!(
+            format!("{process:?}"),
+            "blaze_symbolize_src_process { pid: 1337 }"
+        );
+
+        let gsym_data = blaze_symbolize_src_gsym_data {
+            data: ptr::null(),
+            data_len: 0,
+        };
+        assert_eq!(
+            format!("{gsym_data:?}"),
+            "blaze_symbolize_src_gsym_data { data: 0x0, data_len: 0 }"
+        );
+
+        let gsym_file = blaze_symbolize_src_gsym_file { path: ptr::null() };
+        assert_eq!(
+            format!("{gsym_file:?}"),
+            "blaze_symbolize_src_gsym_file { path: 0x0 }"
+        );
+
+        let sym = blaze_sym {
+            symbol: ptr::null(),
+            addr: 0x1337,
+            path: ptr::null(),
+            line: 42,
+            column: 1,
+        };
+        assert_eq!(
+            format!("{sym:?}"),
+            "blaze_sym { symbol: 0x0, addr: 4919, path: 0x0, line: 42, column: 1 }"
+        );
+
+        let entry = blaze_entry {
+            size: 0,
+            syms: ptr::null(),
+        };
+        assert_eq!(format!("{entry:?}"), "blaze_entry { size: 0, syms: 0x0 }");
+
+        let result = blaze_result {
+            size: 0,
+            entries: [],
+        };
+        assert_eq!(
+            format!("{result:?}"),
+            "blaze_result { size: 0, entries: [] }"
+        );
+
+        let opts = blaze_symbolizer_opts {
+            debug_syms: true,
+            src_location: false,
+        };
+        assert_eq!(
+            format!("{opts:?}"),
+            "blaze_symbolizer_opts { debug_syms: true, src_location: false }"
+        );
+    }
+
     /// Check that we can convert a [`blaze_symbolize_src_kernel`]
     /// reference into a [`Kernel`].
     #[test]
