@@ -1,6 +1,4 @@
 use std::fs::File;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::path::Path;
 
 use crate::elf;
@@ -8,6 +6,7 @@ use crate::elf::types::Elf64_Nhdr;
 use crate::elf::ElfParser;
 use crate::log::warn;
 use crate::util::ReadRaw as _;
+use crate::IntoError as _;
 use crate::Result;
 
 
@@ -15,21 +14,6 @@ use crate::Result;
 pub(crate) type BuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
 pub(crate) type ElfBuildIdFn = dyn Fn(&ElfParser) -> Result<Option<Vec<u8>>>;
 
-
-/// A type representing a build ID note.
-///
-/// In the ELF file, this header is typically followed by the variable sized
-/// build ID.
-#[repr(C)]
-struct BuildIdNote {
-    /// ELF note header.
-    header: Elf64_Nhdr,
-    /// NUL terminated string representing the name.
-    name: [u8; 4],
-}
-
-// SAFETY: `BuildIdNote` is valid for any bit pattern.
-unsafe impl crate::util::Pod for BuildIdNote {}
 
 /// Iterate over all note sections to find one of type
 /// [`NT_GNU_BUILD_ID`][elf::types::NT_GNU_BUILD_ID].
@@ -40,14 +24,19 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
             // SANITY: We just found the index so the section data should always
             //         be found.
             let mut bytes = parser.section_data(idx).unwrap();
-            let header = bytes.read_pod_ref::<BuildIdNote>().ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    "failed to read build ID section header",
-                )
-            })?;
-            if header.header.n_type == elf::types::NT_GNU_BUILD_ID {
-                let build_id = bytes.to_vec();
+            let header = bytes
+                .read_pod_ref::<Elf64_Nhdr>()
+                .ok_or_invalid_data(|| "failed to read build ID section header")?;
+            if header.n_type == elf::types::NT_GNU_BUILD_ID {
+                // Type check is assumed to suffice, but we still need
+                // to skip the name bytes.
+                let _name = bytes
+                    .read_slice(header.n_namesz as _)
+                    .ok_or_invalid_data(|| "failed to read build ID section name")?;
+                let build_id = bytes
+                    .read_slice(header.n_descsz as _)
+                    .ok_or_invalid_data(|| "failed to read build ID section contents")?
+                    .to_vec();
                 return Ok(Some(build_id))
             }
         }
@@ -75,21 +64,21 @@ fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<Vec<u8>>
         // SANITY: We just found the index so the section should always be
         //         found.
         let mut bytes = parser.section_data(idx).unwrap();
-        let header = bytes.read_pod_ref::<BuildIdNote>().ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidData,
-                "failed to read build ID section header",
-            )
-        })?;
-        if &header.name != b"GNU\0" {
-            warn!(
-                "encountered unsupported build ID type {:?}; ignoring",
-                header.name
-            );
+        let header = bytes
+            .read_pod_ref::<Elf64_Nhdr>()
+            .ok_or_invalid_data(|| "failed to read build ID section header")?;
+        let name = bytes
+            .read_slice(header.n_namesz as _)
+            .and_then(|mut name| name.read_cstr())
+            .ok_or_invalid_data(|| "failed to read build ID section name")?;
+        if name.to_bytes() != b"GNU" {
+            warn!("encountered unsupported build ID type {:?}; ignoring", name);
             Ok(None)
         } else {
-            // Every byte following the header is part of the build ID.
-            let build_id = bytes.to_vec();
+            let build_id = bytes
+                .read_slice(header.n_descsz as _)
+                .ok_or_invalid_data(|| "failed to read build ID section contents")?
+                .to_vec();
             Ok(Some(build_id))
         }
     } else {
