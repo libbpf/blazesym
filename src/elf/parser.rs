@@ -3,11 +3,16 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
+use std::io::Read as _;
+use std::io::Seek as _;
+use std::io::SeekFrom;
 use std::mem;
+use std::mem::MaybeUninit;
 use std::ops::ControlFlow;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::path::PathBuf;
+use std::slice;
 use std::str;
 
 use crate::inspect::FindAddrOpts;
@@ -20,6 +25,7 @@ use crate::symbolize::Reason;
 use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
 use crate::util::find_match_or_lower_bound_by_key;
+use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Addr;
 use crate::Error;
@@ -776,6 +782,99 @@ impl Debug for Cache<'_> {
 }
 
 
+pub(crate) trait Backend {
+    type ObjTy;
+    type ImplTy<'bcknd>: BackendImpl<'bcknd>;
+}
+
+impl Backend for Mmap {
+    type ObjTy = Mmap;
+    type ImplTy<'bcknd> = &'bcknd [u8];
+}
+
+impl Backend for File {
+    type ObjTy = Box<File>;
+    type ImplTy<'bcknd> = &'bcknd File;
+}
+
+
+pub(crate) trait BackendImpl<'elf> {
+    fn read_pod_obj<T>(&self, offset: u64) -> Result<Cow<'elf, T>, Error>
+    where
+        T: Pod + 'elf;
+
+    fn read_pod_slice<T>(&self, offset: u64, count: usize) -> Result<Cow<'elf, [T]>, Error>
+    where
+        T: Pod + 'elf;
+}
+
+impl<'elf> BackendImpl<'elf> for &'elf [u8] {
+    fn read_pod_obj<T>(&self, offset: u64) -> Result<Cow<'elf, T>, Error>
+    where
+        T: Pod + 'elf,
+    {
+        let value = self
+            .get(offset as _..)
+            .ok_or_invalid_data(|| "failed to read data: invalid offset")?
+            .read_pod_ref::<T>()
+            .ok_or_invalid_data(|| "failed to read value")?;
+        Ok(Cow::Borrowed(value))
+    }
+
+    fn read_pod_slice<T>(&self, offset: u64, count: usize) -> Result<Cow<'elf, [T]>, Error>
+    where
+        T: Pod + 'elf,
+    {
+        let value = self
+            .get(offset as _..)
+            .unwrap()
+            .read_pod_slice_ref::<T>(count)
+            .ok_or_invalid_data(|| "failed to read slice from mmap")?;
+        Ok(Cow::Borrowed(value))
+    }
+}
+
+impl<'elf> BackendImpl<'elf> for &File {
+    fn read_pod_obj<T>(&self, offset: u64) -> Result<Cow<'elf, T>, Error>
+    where
+        T: Pod + 'elf,
+    {
+        let mut slf = *self;
+        let _pos = slf.seek(SeekFrom::Start(offset))?;
+
+        let mut value = MaybeUninit::<T>::zeroed();
+        // SAFETY: `value` is a buffer of `size_of::<T>` bytes.
+        // TODO: Are we UB here because we create a mut reference?
+        let slice = unsafe {
+            slice::from_raw_parts_mut(value.as_mut_ptr().cast::<u8>(), mem::size_of::<T>())
+        };
+        let () = slf.read_exact(slice)?;
+        // SAFETY: `T` is a `Pod` and hence valid for any bit pattern,
+        //         including all zeroes.
+        Ok(Cow::Owned(unsafe { value.assume_init() }))
+    }
+
+    fn read_pod_slice<T>(&self, offset: u64, count: usize) -> Result<Cow<'elf, [T]>, Error>
+    where
+        T: Pod + 'elf,
+    {
+        let mut slf = *self;
+        let _pos = slf.seek(SeekFrom::Start(offset))?;
+        let mut vec = Vec::<T>::new();
+        // SAFETY: `T` is a `Pod` and hence valid for any bit pattern,
+        //         including all zeroes.
+        let () = vec.resize(count, unsafe { mem::zeroed() });
+
+        // TODO: Are we UB here because we create a mut reference?
+        let slice = unsafe {
+            slice::from_raw_parts_mut(vec.as_mut_ptr().cast::<u8>(), count * mem::size_of::<T>())
+        };
+        let () = slf.read_exact(slice)?;
+        Ok(Cow::Owned(vec))
+    }
+}
+
+
 /// A parser for ELF64 files.
 #[derive(Debug)]
 pub(crate) struct ElfParser {
@@ -832,7 +931,7 @@ impl ElfParser {
 
     /// Find the section of a given name.
     ///
-    /// This function return the index of the section if found.
+    /// This function returns the index of the section if found.
     pub(crate) fn find_section(&self, name: &str) -> Result<Option<usize>> {
         let index = self.cache.find_section(name)?;
         Ok(index)
@@ -1129,7 +1228,6 @@ mod tests {
 
     use std::env;
     use std::env::current_exe;
-    use std::io::Seek as _;
     use std::io::Write as _;
     use std::mem::size_of;
     use std::slice;
