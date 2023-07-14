@@ -2,18 +2,19 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Result;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::elf;
 use crate::elf::ElfParser;
+use crate::error::IntoError as _;
 use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::zip;
 use crate::Addr;
 use crate::Pid;
+use crate::Result;
 
 use super::buildid::BuildIdFn;
 use super::buildid::BuildIdReader;
@@ -40,7 +41,8 @@ pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
         return Err(Error::new(
             ErrorKind::InvalidInput,
             format!("path {} is not valid", apk.display()),
-        ))
+        )
+        .into())
     }
 
     let path = apk.join(elf);
@@ -129,15 +131,15 @@ pub(crate) fn normalize_apk_addr(
         let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len();
 
         if bounds.contains(&file_off) {
-            let mmap = apk.mmap().constrain(bounds.clone()).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidInput,
+            let mmap = apk
+                .mmap()
+                .constrain(bounds.clone())
+                .ok_or_invalid_input(|| {
                     format!(
                         "invalid APK entry data bounds ({bounds:?}) in {}",
                         entry.path.symbolic_path.display()
-                    ),
-                )
-            })?;
+                    )
+                })?;
             let parser = ElfParser::from_mmap(mmap);
             let elf_off = file_off - apk_entry.data_offset;
             if let Some(addr) = normalize_elf_offset_with_parser(elf_off as u64, &parser)? {
@@ -154,7 +156,8 @@ pub(crate) fn normalize_apk_addr(
             entry.path.symbolic_path.display(),
             file_off,
         ),
-    ))
+    )
+    .into())
 }
 
 
@@ -338,7 +341,8 @@ where
             return Err(Error::new(
                 ErrorKind::InvalidInput,
                 "addresses to normalize are not sorted",
-            ))
+            )
+            .into())
         }
         prev_addr = addr;
 

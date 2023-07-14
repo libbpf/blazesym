@@ -1,7 +1,6 @@
 use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Result;
 use std::path::Path;
 
 use crate::elf;
@@ -9,6 +8,7 @@ use crate::elf::types::Elf64_Nhdr;
 use crate::elf::ElfParser;
 use crate::log::warn;
 use crate::util::ReadRaw as _;
+use crate::Result;
 
 
 /// Typedefs for functions reading build IDs.

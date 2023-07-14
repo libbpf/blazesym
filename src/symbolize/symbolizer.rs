@@ -1,6 +1,5 @@
 use std::ffi::OsStr;
 use std::fmt::Debug;
-use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -24,6 +23,7 @@ use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
 use crate::Pid;
+use crate::Result;
 use crate::SymResolver;
 
 use super::source::Elf;

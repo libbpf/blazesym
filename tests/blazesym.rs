@@ -3,7 +3,6 @@
 use std::ffi::CString;
 use std::fs::read as read_file;
 use std::io::Error;
-use std::io::ErrorKind;
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
@@ -13,6 +12,7 @@ use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
+use blazesym::ErrorKind;
 use blazesym::Pid;
 
 use test_log::test;

@@ -1,8 +1,7 @@
 use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::ffi::CString;
-use std::io::Error;
-use std::io::Result;
+use std::io;
 use std::iter;
 use std::mem::align_of;
 use std::mem::size_of;
@@ -33,11 +32,15 @@ fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
 /// invoke a function `handle` on the vector, take the result of this function
 /// and "extract" a mutable reference to a slice, reordered this slice in such a
 /// way that the original order of `slice` is preserved.
-pub(crate) fn with_ordered_elems<T, U, E, H, R>(slice: &[T], extract: E, handle: H) -> Result<R>
+pub(crate) fn with_ordered_elems<T, U, E, H, R, Err>(
+    slice: &[T],
+    extract: E,
+    handle: H,
+) -> Result<R, Err>
 where
     T: Copy + Ord,
     E: FnOnce(&mut R) -> &mut [U],
-    H: FnOnce(iter::Map<slice::Iter<'_, (T, usize)>, fn(&(T, usize)) -> T>) -> Result<R>,
+    H: FnOnce(iter::Map<slice::Iter<'_, (T, usize)>, fn(&(T, usize)) -> T>) -> Result<R, Err>,
 {
     let mut vec = slice
         .iter()
@@ -64,22 +67,22 @@ pub(crate) unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: us
     unsafe { slice::from_raw_parts(items, num_items) }
 }
 
-pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat> {
+pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat, io::Error> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
     if rc < 0 {
-        return Err(Error::last_os_error())
+        return Err(io::Error::last_os_error())
     }
 
     // SAFETY: The object is initialized on success of `fstat`.
     Ok(unsafe { dst.assume_init() })
 }
 
-pub(crate) fn uname_release() -> Result<CString> {
+pub(crate) fn uname_release() -> Result<CString, io::Error> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::uname(dst.as_mut_ptr()) };
     if rc < 0 {
-        return Err(Error::last_os_error())
+        return Err(io::Error::last_os_error())
     }
 
     // SAFETY: The object is initialized on success of `uname`.
@@ -446,7 +449,7 @@ mod tests {
             |iter| {
                 let vec = iter.collect::<Vec<_>>();
                 assert!(is_sorted(vec.iter()));
-                Ok(vec.into_iter().map(|x| x + 2).collect::<Vec<_>>())
+                Result::<_, ()>::Ok(vec.into_iter().map(|x| x + 2).collect::<Vec<_>>())
             },
         )
         .unwrap();
