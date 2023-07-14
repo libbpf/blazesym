@@ -12,9 +12,6 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::mem::size_of;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
@@ -22,6 +19,9 @@ use std::path::Path;
 use crate::mmap::Mmap;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
+use crate::Error;
+use crate::IntoError as _;
+use crate::Result;
 
 const CD_FILE_HEADER_MAGIC: u32 = 0x02014b50;
 const END_OF_CD_RECORD_MAGIC: u32 = 0x06054b50;
@@ -167,15 +167,13 @@ impl<'archive> EntryIter<'archive> {
 
             let lfh = data.read_pod::<LocalFileHeader>()?;
             if lfh.magic != LOCAL_FILE_HEADER_MAGIC {
-                return Some(Err(Error::new(
-                    ErrorKind::InvalidData,
+                return Some(Err(Error::with_invalid_data(
                     "local file header contains invalid magic number",
                 )))
             }
 
             if (lfh.flags & FLAG_ENCRYPTED) != 0 || (lfh.flags & FLAG_HAS_DATA_DESCRIPTOR) != 0 {
-                return Some(Err(Error::new(
-                    ErrorKind::InvalidData,
+                return Some(Err(Error::with_invalid_data(
                     "attempted lookup of unsupported entry",
                 )))
             }
@@ -199,12 +197,8 @@ impl<'archive> EntryIter<'archive> {
             Some(Ok(entry))
         }
 
-        entry_impl(data, offset).unwrap_or_else(|| {
-            Err(Error::new(
-                ErrorKind::InvalidData,
-                "failed to read archive entry",
-            ))
-        })
+        entry_impl(data, offset)
+            .unwrap_or_else(|| Err(Error::with_invalid_data("failed to read archive entry")))
     }
 
     fn parse_next_entry(&mut self) -> Result<Entry<'archive>> {
@@ -212,8 +206,7 @@ impl<'archive> EntryIter<'archive> {
             let cdfh = iter.cd_record_data.read_pod::<CdFileHeader>()?;
 
             if cdfh.magic != CD_FILE_HEADER_MAGIC {
-                return Some(Err(Error::new(
-                    ErrorKind::InvalidData,
+                return Some(Err(Error::with_invalid_data(
                     "central directory file header contains invalid magic number",
                 )))
             }
@@ -235,8 +228,7 @@ impl<'archive> EntryIter<'archive> {
         }
 
         entry_impl(self).unwrap_or_else(|| {
-            Err(Error::new(
-                ErrorKind::InvalidData,
+            Err(Error::with_invalid_data(
                 "failed to read central directory record data",
             ))
         })
@@ -303,8 +295,7 @@ impl Archive {
 
         if eocd.this_disk != 0 || eocd.cd_disk != 0 || eocd.cd_records_total != eocd.cd_records {
             // This is a valid eocd, but we only support single-file non-ZIP64 archives.
-            Some(Err(Error::new(
-                ErrorKind::InvalidData,
+            Some(Err(Error::with_invalid_data(
                 "archive is unsupported and cannot be opened",
             )))
         } else {
@@ -322,11 +313,8 @@ impl Archive {
         let end = data
             .len()
             .checked_sub(size_of::<EndOfCdRecord>())
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    "archive is too small to contain end of central directory object",
-                )
+            .ok_or_invalid_data(|| {
+                "archive is too small to contain end of central directory object"
             })?;
         let start = end.saturating_sub(1 << 16);
 
@@ -339,11 +327,8 @@ impl Archive {
                     // potential error cases later on.
                     let cd_range = cd_offset as usize
                         ..cd_offset as usize + usize::from(cd_records) * size_of::<CdFileHeader>();
-                    let _cd = data.get(cd_range).ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::UnexpectedEof,
-                            "failed to retrieve central directory entries; archive is corrupted",
-                        )
+                    let _cd = data.get(cd_range).ok_or_unexpected_eof(|| {
+                        "failed to retrieve central directory entries; archive is corrupted"
                     })?;
                     return Ok((cd_offset, cd_records))
                 }
@@ -351,8 +336,7 @@ impl Archive {
             }
         }
 
-        Err(Error::new(
-            ErrorKind::InvalidData,
+        Err(Error::with_invalid_data(
             "archive does not contain central directory",
         ))
     }
@@ -394,6 +378,7 @@ mod tests {
     use test_log::test;
 
     use crate::elf::ElfParser;
+    use crate::ErrorKind;
 
 
     /// Check that the `Debug` representation of [`Entry`] is as expected.
