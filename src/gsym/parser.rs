@@ -37,6 +37,7 @@
 
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::mem::align_of;
 
 use crate::log::warn;
@@ -82,8 +83,8 @@ impl GsymContext<'_> {
     /// * `data` - is the content of a standalone GSYM.
     ///
     /// Returns a GsymContext, which includes the Header and other important tables.
-    pub fn parse_header(data: &[u8]) -> Result<GsymContext, Error> {
-        fn parse_header_impl(mut data: &[u8]) -> Option<Result<GsymContext, Error>> {
+    pub fn parse_header(data: &[u8]) -> Result<GsymContext> {
+        fn parse_header_impl(mut data: &[u8]) -> Option<Result<GsymContext>> {
             let head = data;
             let magic = data.read_u32()?;
             if magic != GSYM_MAGIC {
