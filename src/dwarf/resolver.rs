@@ -5,9 +5,6 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::mem;
 use std::path::Path;
 use std::rc::Rc;
@@ -19,6 +16,8 @@ use crate::inspect::SymType;
 use crate::util::find_lowest_match_by_key;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
+use crate::Error;
+use crate::Result;
 
 use super::parser::debug_info_parse_symbols;
 use super::parser::parse_debug_line_elf_parser;
@@ -295,8 +294,7 @@ impl DwarfResolver {
             let () = cache.ensure_debug_syms()?;
             Ok(())
         } else {
-            Err(Error::new(
-                ErrorKind::Unsupported,
+            Err(Error::with_unsupported(
                 "debug info symbol information has been disabled",
             ))
         }
@@ -325,7 +323,7 @@ impl DwarfResolver {
     /// * `opts` - is the context giving additional parameters.
     pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
         if let SymType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
+            return Err(Error::with_unsupported("not implemented"))
         }
 
         let mut cache = self.cache.borrow_mut();
@@ -347,6 +345,8 @@ mod tests {
     use std::path::PathBuf;
 
     use test_log::test;
+
+    use crate::ErrorKind;
 
 
     fn mksym(name: &'static str, addr: Addr) -> DWSymInfo<'static> {

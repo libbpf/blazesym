@@ -1,9 +1,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -13,6 +10,8 @@ use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
+use crate::Error;
+use crate::Result;
 use crate::SymResolver;
 
 
@@ -27,8 +26,7 @@ impl KernelResolver {
         elf_resolver: Option<ElfResolver>,
     ) -> Result<KernelResolver> {
         if ksym_resolver.is_none() && elf_resolver.is_none() {
-            return Err(Error::new(
-                ErrorKind::NotFound,
+            return Err(Error::with_not_found(
                     "failed to create kernel resolver: neither ksym resolver nor kernel image ELF resolver are present",
             ))
         }
