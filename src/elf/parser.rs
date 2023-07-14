@@ -5,6 +5,7 @@ use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::mem;
 use std::ops::Deref as _;
 use std::path::Path;
@@ -26,7 +27,7 @@ use super::types::SHN_UNDEF;
 use super::types::STT_FUNC;
 
 
-fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str, Error> {
+fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str> {
     let name = strtab
         .get(sym.st_name as usize..)
         .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "string table index out of bounds"))?
@@ -77,7 +78,7 @@ impl<'mmap> Cache<'mmap> {
 
     /// Retrieve the raw section data for the ELF section at index
     /// `idx`.
-    fn section_data(&mut self, idx: usize) -> Result<&'mmap [u8], Error> {
+    fn section_data(&mut self, idx: usize) -> Result<&'mmap [u8]> {
         let shdrs = self.ensure_shdrs()?;
         let section = shdrs.get(idx).ok_or_else(|| {
             Error::new(
@@ -105,7 +106,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(data)
     }
 
-    fn ensure_ehdr(&mut self) -> Result<&'mmap Elf64_Ehdr, Error> {
+    fn ensure_ehdr(&mut self) -> Result<&'mmap Elf64_Ehdr> {
         if let Some(ehdr) = self.ehdr {
             return Ok(ehdr)
         }
@@ -128,7 +129,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(ehdr)
     }
 
-    fn ensure_shdrs(&mut self) -> Result<&'mmap [Elf64_Shdr], Error> {
+    fn ensure_shdrs(&mut self) -> Result<&'mmap [Elf64_Shdr]> {
         if let Some(shdrs) = self.shdrs {
             return Ok(shdrs)
         }
@@ -144,7 +145,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(shdrs)
     }
 
-    fn ensure_phdrs(&mut self) -> Result<&'mmap [Elf64_Phdr], Error> {
+    fn ensure_phdrs(&mut self) -> Result<&'mmap [Elf64_Phdr]> {
         if let Some(phdrs) = self.phdrs {
             return Ok(phdrs)
         }
@@ -160,7 +161,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(phdrs)
     }
 
-    fn ensure_shstrtab(&mut self) -> Result<&'mmap [u8], Error> {
+    fn ensure_shstrtab(&mut self) -> Result<&'mmap [u8]> {
         if let Some(shstrtab) = self.shstrtab {
             return Ok(shstrtab)
         }
@@ -173,7 +174,7 @@ impl<'mmap> Cache<'mmap> {
     }
 
     /// Get the name of the section at a given index.
-    fn section_name(&mut self, idx: usize) -> Result<&'mmap str, Error> {
+    fn section_name(&mut self, idx: usize) -> Result<&'mmap str> {
         let shdrs = self.ensure_shdrs()?;
         let shstrtab = self.ensure_shstrtab()?;
 
@@ -196,7 +197,7 @@ impl<'mmap> Cache<'mmap> {
     }
 
     #[cfg(test)]
-    fn symbol(&mut self, idx: usize) -> Result<&'mmap Elf64_Sym, Error> {
+    fn symbol(&mut self, idx: usize) -> Result<&'mmap Elf64_Sym> {
         let () = self.ensure_symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
         //         available.
@@ -214,7 +215,7 @@ impl<'mmap> Cache<'mmap> {
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
-    fn find_section(&mut self, name: &str) -> Result<Option<usize>, Error> {
+    fn find_section(&mut self, name: &str) -> Result<Option<usize>> {
         let ehdr = self.ensure_ehdr()?;
         for i in 1..ehdr.e_shnum.into() {
             if self.section_name(i)? == name {
@@ -227,7 +228,7 @@ impl<'mmap> Cache<'mmap> {
     // Note: This function should really return a reference to
     //       `self.symtab`, but current borrow checker limitations
     //       effectively prevent us from doing so.
-    fn ensure_symtab(&mut self) -> Result<(), Error> {
+    fn ensure_symtab(&mut self) -> Result<()> {
         if self.symtab.is_some() {
             return Ok(())
         }
@@ -273,7 +274,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(())
     }
 
-    fn ensure_strtab(&mut self) -> Result<&'mmap [u8], Error> {
+    fn ensure_strtab(&mut self) -> Result<&'mmap [u8]> {
         if let Some(strtab) = self.strtab {
             return Ok(strtab)
         }
@@ -293,7 +294,7 @@ impl<'mmap> Cache<'mmap> {
     // Note: This function should really return a reference to
     //       `self.str2symtab`, but current borrow checker limitations
     //       effectively prevent us from doing so.
-    fn ensure_str2symtab(&mut self) -> Result<(), Error> {
+    fn ensure_str2symtab(&mut self) -> Result<()> {
         if self.str2symtab.is_some() {
             return Ok(())
         }
@@ -324,7 +325,7 @@ impl<'mmap> Cache<'mmap> {
                     .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid symbol name"))?;
                 Ok((name, i))
             })
-            .collect::<Result<Vec<_>, Error>>()?;
+            .collect::<Result<Vec<_>>>()?;
 
         let () = str2symtab.sort_by_key(|&(name, _i)| name);
 
@@ -355,7 +356,7 @@ pub(crate) struct ElfParser {
 
 impl ElfParser {
     /// Create an `ElfParser` from an open file.
-    pub fn open_file(file: File) -> Result<ElfParser, Error> {
+    pub fn open_file(file: File) -> Result<ElfParser> {
         Mmap::map(&file).map(Self::from_mmap)
     }
 
@@ -375,7 +376,7 @@ impl ElfParser {
     }
 
     /// Create an `ElfParser` for a path.
-    pub fn open(filename: &Path) -> Result<ElfParser, Error> {
+    pub fn open(filename: &Path) -> Result<ElfParser> {
         let file = File::open(filename)?;
         let parser = Self::open_file(file);
         if let Ok(parser) = parser {
@@ -386,7 +387,7 @@ impl ElfParser {
     }
 
     /// Retrieve the data corresponding to the ELF section at index `idx`.
-    pub fn section_data(&self, idx: usize) -> Result<&[u8], Error> {
+    pub fn section_data(&self, idx: usize) -> Result<&[u8]> {
         let mut cache = self.cache.borrow_mut();
         cache.section_data(idx)
     }
@@ -394,13 +395,13 @@ impl ElfParser {
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
-    pub fn find_section(&self, name: &str) -> Result<Option<usize>, Error> {
+    pub fn find_section(&self, name: &str) -> Result<Option<usize>> {
         let mut cache = self.cache.borrow_mut();
         let index = cache.find_section(name)?;
         Ok(index)
     }
 
-    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr)>, Error> {
+    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr)>> {
         let mut cache = self.cache.borrow_mut();
         let strtab = cache.ensure_strtab()?;
         let () = cache.ensure_symtab()?;
@@ -433,7 +434,7 @@ impl ElfParser {
         }
     }
 
-    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
+    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
@@ -480,7 +481,7 @@ impl ElfParser {
     }
 
     #[cfg(test)]
-    fn get_symbol_name(&self, idx: usize) -> Result<&str, Error> {
+    fn get_symbol_name(&self, idx: usize) -> Result<&str> {
         let mut cache = self.cache.borrow_mut();
         let strtab = cache.ensure_strtab()?;
         let sym = cache.symbol(idx)?;
@@ -488,13 +489,13 @@ impl ElfParser {
         Ok(name)
     }
 
-    pub(crate) fn section_headers(&self) -> Result<&[Elf64_Shdr], Error> {
+    pub(crate) fn section_headers(&self) -> Result<&[Elf64_Shdr]> {
         let mut cache = self.cache.borrow_mut();
         let phdrs = cache.ensure_shdrs()?;
         Ok(phdrs)
     }
 
-    pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr], Error> {
+    pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr]> {
         let mut cache = self.cache.borrow_mut();
         let phdrs = cache.ensure_phdrs()?;
         Ok(phdrs)
