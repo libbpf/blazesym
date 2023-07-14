@@ -1,6 +1,5 @@
 use std::cell::RefCell;
 use std::fs::File;
-use std::io::Result;
 use std::num::NonZeroUsize;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -14,6 +13,7 @@ use lru::LruCache;
 #[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
 use crate::util::fstat;
+use crate::Result;
 
 use super::ElfParser;
 
