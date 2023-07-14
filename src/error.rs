@@ -245,6 +245,24 @@ pub struct Error {
 
 impl Error {
     #[inline]
+    fn with_io_error<E>(kind: io::ErrorKind, error: E) -> Self
+    where
+        E: ToString,
+    {
+        Self::from(io::Error::new(kind, error.to_string()))
+    }
+
+    #[inline]
+    pub(crate) fn with_invalid_data<E>(error: E) -> Self
+    where
+        E: ToString,
+    {
+        Self::with_io_error(io::ErrorKind::InvalidData, error)
+    }
+
+    /// Retrieve a rough error classification in the form of an
+    /// [`ErrorKind`].
+    #[inline]
     pub fn kind(&self) -> ErrorKind {
         self.error.kind()
     }
@@ -378,6 +396,15 @@ where
     {
         self.ok_or_error(io::ErrorKind::InvalidInput, f)
     }
+
+    #[inline]
+    fn ok_or_unexpected_eof<C, F>(self, f: F) -> Result<T, Error>
+    where
+        C: ToString,
+        F: FnOnce() -> C,
+    {
+        self.ok_or_error(io::ErrorKind::UnexpectedEof, f)
+    }
 }
 
 impl<T> IntoError<T> for Option<T> {
@@ -387,7 +414,7 @@ impl<T> IntoError<T> for Option<T> {
         C: ToString,
         F: FnOnce() -> C,
     {
-        self.ok_or_else(|| Error::from(io::Error::new(kind, f().to_string())))
+        self.ok_or_else(|| Error::with_io_error(kind, f().to_string()))
     }
 }
 
