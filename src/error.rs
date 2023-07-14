@@ -89,14 +89,8 @@ impl IntoCowStr for String {
 // TODO: We may want to support optionally storing a backtrace in
 //       terminal variants.
 enum ErrorImpl {
-    // We don't store `gimli::Error` objects here, because the type is
-    // rather useless on its own. To make sense of it you'd need the
-    // `gimli::Dwarf` instance in all but trivial cases and it's simply
-    // not feasible for us to format the error in a generic way. So we
-    // force proper stringification at the call site instead.
-    // TODO: Remove allowance once used.
-    #[allow(unused)]
-    Dwarf(Cow<'static, Str>),
+    #[cfg(feature = "dwarf")]
+    Dwarf(gimli::Error),
     Io(io::Error),
     // Unfortunately, if we just had a single `Context` variant that
     // contains a `Cow`, this inner `Cow` would cause an overall enum
@@ -117,6 +111,7 @@ enum ErrorImpl {
 impl ErrorImpl {
     fn kind(&self) -> ErrorKind {
         match self {
+            #[cfg(feature = "dwarf")]
             Self::Dwarf(..) => ErrorKind::InvalidDwarf,
             Self::Io(error) => match error.kind() {
                 io::ErrorKind::NotFound => ErrorKind::NotFound,
@@ -156,6 +151,7 @@ impl Debug for ErrorImpl {
             let mut dbg;
 
             match self {
+                #[cfg(feature = "dwarf")]
                 Self::Dwarf(dwarf) => {
                     dbg = f.debug_tuple(stringify!(Dwarf));
                     dbg.field(dwarf)
@@ -176,6 +172,7 @@ impl Debug for ErrorImpl {
             .finish()
         } else {
             let () = match self {
+                #[cfg(feature = "dwarf")]
                 Self::Dwarf(error) => write!(f, "Error: {error}")?,
                 Self::Io(error) => write!(f, "Error: {error}")?,
                 Self::ContextOwned { context, .. } => write!(f, "Error: {context}")?,
@@ -199,6 +196,7 @@ impl Debug for ErrorImpl {
 impl Display for ErrorImpl {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let () = match self {
+            #[cfg(feature = "dwarf")]
             Self::Dwarf(error) => Display::fmt(error, f)?,
             Self::Io(error) => Display::fmt(error, f)?,
             Self::ContextOwned { context, .. } => Display::fmt(context, f)?,
@@ -219,7 +217,8 @@ impl Display for ErrorImpl {
 impl error::Error for ErrorImpl {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
-            Self::Dwarf(..) => None,
+            #[cfg(feature = "dwarf")]
+            Self::Dwarf(error) => error.source(),
             Self::Io(error) => error.source(),
             Self::ContextOwned { source, .. } | Self::ContextStatic { source, .. } => Some(source),
         }
@@ -355,6 +354,15 @@ impl error::Error for Error {
     #[inline]
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         self.error.source()
+    }
+}
+
+#[cfg(feature = "dwarf")]
+impl From<gimli::Error> for Error {
+    fn from(other: gimli::Error) -> Self {
+        Self {
+            error: Box::new(ErrorImpl::Dwarf(other)),
+        }
     }
 }
 
