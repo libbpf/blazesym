@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
@@ -39,7 +40,7 @@ pub struct GsymResolver<'dat> {
 
 impl GsymResolver<'static> {
     /// Create a `GsymResolver` that load data from the provided file.
-    pub fn new(file_name: PathBuf) -> Result<Self, Error> {
+    pub fn new(file_name: PathBuf) -> Result<Self> {
         let mmap = Mmap::builder().open(&file_name)?;
         let ctx = GsymContext::parse_header(&mmap)?;
         let slf = Self {
@@ -57,7 +58,7 @@ impl GsymResolver<'static> {
 
 impl<'dat> GsymResolver<'dat> {
     /// Create a `GsymResolver` that works on the provided "raw" Gsym data.
-    pub(crate) fn with_data(data: &'dat [u8]) -> Result<Self, Error> {
+    pub(crate) fn with_data(data: &'dat [u8]) -> Result<Self> {
         let ctx = GsymContext::parse_header(data)?;
         let slf = Self {
             file_name: None,
@@ -70,7 +71,7 @@ impl<'dat> GsymResolver<'dat> {
 }
 
 impl SymResolver for GsymResolver<'_> {
-    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>, Error> {
+    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let found = self.ctx.addr_at(idx).ok_or_else(|| {
                 Error::new(
@@ -101,7 +102,7 @@ impl SymResolver for GsymResolver<'_> {
         }
     }
 
-    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
+    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
         // It is inefficient to find the address of a symbol with
         // GSYM.  We may support it in the future if needed.
         Ok(Vec::new())
@@ -122,7 +123,7 @@ impl SymResolver for GsymResolver<'_> {
     ///
     /// The `AddrLineInfo` corresponding to the address or `None`.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>, Error> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {
         fn find_line_info_impl(ctx: &GsymContext<'_>, addr: Addr) -> Option<AddrLineInfo> {
             let idx = ctx.find_addr(addr)?;
             let symaddr = ctx.addr_at(idx)?;
