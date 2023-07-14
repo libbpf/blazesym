@@ -7,6 +7,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
+use std::io::Result;
 use std::mem;
 use std::path::Path;
 use std::rc::Rc;
@@ -172,7 +173,7 @@ impl<'mmap> Cache<'mmap> {
     // Note: This function should really return a reference to
     //       `self.debug_syms`, but current borrow checker limitations
     //       effectively prevent us from doing so.
-    fn ensure_debug_syms(&mut self) -> Result<(), Error> {
+    fn ensure_debug_syms(&mut self) -> Result<()> {
         if self.debug_syms.is_some() {
             return Ok(())
         }
@@ -183,7 +184,7 @@ impl<'mmap> Cache<'mmap> {
     }
 
     /// Extract the symbol information from DWARF if having not done it before.
-    fn ensure_addr_src_info(&mut self) -> Result<&[AddrSrcInfo<'mmap>], Error> {
+    fn ensure_addr_src_info(&mut self) -> Result<&[AddrSrcInfo<'mmap>]> {
         // Can't use `if let` here because of borrow checker woes.
         if self.addr_info.is_some() {
             let addr_info = self.addr_info.as_ref().unwrap();
@@ -253,7 +254,7 @@ impl DwarfResolver {
         filename: &Path,
         debug_line_info: bool,
         debug_info_symbols: bool,
-    ) -> Result<DwarfResolver, Error> {
+    ) -> Result<DwarfResolver> {
         let parser = ElfParser::open(filename)?;
         Ok(Self::from_parser(
             Rc::new(parser),
@@ -268,7 +269,7 @@ impl DwarfResolver {
     /// object. This function returns a tuple of `(dir_name, file_name,
     /// line_no)`.
     // TODO: We likely want to return a more structured type.
-    pub fn find_line(&self, addr: Addr) -> Result<Option<(&Path, &OsStr, usize)>, Error> {
+    pub fn find_line(&self, addr: Addr) -> Result<Option<(&Path, &OsStr, usize)>> {
         if self.line_number_info {
             let mut cache = self.cache.borrow_mut();
             let addr_info = cache.ensure_addr_src_info()?;
@@ -289,7 +290,7 @@ impl DwarfResolver {
     }
 
     /// Extract the symbol information from DWARf if having not done it before.
-    fn ensure_debug_syms(&self, cache: &mut Cache) -> Result<(), Error> {
+    fn ensure_debug_syms(&self, cache: &mut Cache) -> Result<()> {
         if self.enable_debug_info_syms {
             let () = cache.ensure_debug_syms()?;
             Ok(())
@@ -302,7 +303,7 @@ impl DwarfResolver {
     }
 
     /// Lookup the symbol(s) at an address.
-    pub(crate) fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>, Error> {
+    pub(crate) fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
         let mut cache = self.cache.borrow_mut();
         let () = self.ensure_debug_syms(&mut cache)?;
         // SANITY: The above `ensure_debug_syms` ensures we have `debug_syms`
@@ -322,7 +323,7 @@ impl DwarfResolver {
     ///
     /// * `name` - is the symbol name to find.
     /// * `opts` - is the context giving additional parameters.
-    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>, Error> {
+    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
         }
