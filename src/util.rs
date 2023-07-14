@@ -67,7 +67,7 @@ pub(crate) unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: us
     unsafe { slice::from_raw_parts(items, num_items) }
 }
 
-pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat, io::Error> {
+pub(crate) fn fstat(fd: RawFd) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
     if rc < 0 {
@@ -78,7 +78,7 @@ pub(crate) fn fstat(fd: RawFd) -> Result<libc::stat, io::Error> {
     Ok(unsafe { dst.assume_init() })
 }
 
-pub(crate) fn uname_release() -> Result<CString, io::Error> {
+pub(crate) fn uname_release() -> io::Result<CString> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::uname(dst.as_mut_ptr()) };
     if rc < 0 {

@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::fs::File;
-use std::io::Error;
+use std::io::Result;
 use std::num::NonZeroUsize;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -58,7 +58,7 @@ impl ElfCacheEntry {
         file: File,
         line_number_info: bool,
         debug_info_symbols: bool,
-    ) -> Result<ElfCacheEntry, Error> {
+    ) -> Result<ElfCacheEntry> {
         let stat = fstat(file.as_raw_fd())?;
         let parser = Rc::new(ElfParser::open_file(file)?);
 
@@ -115,11 +115,7 @@ impl _ElfCache {
     }
 
     #[cfg(feature = "lru")]
-    fn find_or_create_backend(
-        &mut self,
-        file_name: &Path,
-        file: File,
-    ) -> Result<ElfBackend, Error> {
+    fn find_or_create_backend(&mut self, file_name: &Path, file: File) -> Result<ElfBackend> {
         if let Some(entry) = self.cache.get(file_name) {
             let stat = fstat(file.as_raw_fd())?;
 
@@ -135,17 +131,13 @@ impl _ElfCache {
     }
 
     #[cfg(not(feature = "lru"))]
-    fn find_or_create_backend(
-        &mut self,
-        _file_name: &Path,
-        file: File,
-    ) -> Result<ElfBackend, Error> {
+    fn find_or_create_backend(&mut self, _file_name: &Path, file: File) -> Result<ElfBackend> {
         let entry = ElfCacheEntry::new(file, self.line_number_info, self.debug_info_symbols)?;
         let backend = entry.get_backend();
         Ok(backend)
     }
 
-    pub fn find(&mut self, path: &Path) -> Result<ElfBackend, Error> {
+    pub fn find(&mut self, path: &Path) -> Result<ElfBackend> {
         let file = File::open(path)?;
         self.find_or_create_backend(path, file)
     }
@@ -163,7 +155,7 @@ impl ElfCache {
         }
     }
 
-    pub fn find(&self, path: &Path) -> Result<ElfBackend, Error> {
+    pub fn find(&self, path: &Path) -> Result<ElfBackend> {
         let mut cache = self.cache.borrow_mut();
         cache.find(path)
     }
