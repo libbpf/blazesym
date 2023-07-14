@@ -6,7 +6,6 @@ use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
-use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -16,6 +15,7 @@ use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
+use crate::Result;
 use crate::SymResolver;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
@@ -210,9 +210,10 @@ mod tests {
     use super::*;
 
     use std::cmp::Ordering;
-    use std::io::ErrorKind;
 
     use test_log::test;
+
+    use crate::ErrorKind;
 
 
     /// Check that we can use a `KSymResolver` to find symbols.

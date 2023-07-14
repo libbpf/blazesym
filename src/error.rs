@@ -253,11 +253,27 @@ impl Error {
     }
 
     #[inline]
+    pub(crate) fn with_not_found<E>(error: E) -> Self
+    where
+        E: ToString,
+    {
+        Self::with_io_error(io::ErrorKind::NotFound, error)
+    }
+
+    #[inline]
     pub(crate) fn with_invalid_data<E>(error: E) -> Self
     where
         E: ToString,
     {
         Self::with_io_error(io::ErrorKind::InvalidData, error)
+    }
+
+    #[inline]
+    pub(crate) fn with_unsupported<E>(error: E) -> Self
+    where
+        E: ToString,
+    {
+        Self::with_io_error(io::ErrorKind::Unsupported, error)
     }
 
     /// Retrieve a rough error classification in the form of an

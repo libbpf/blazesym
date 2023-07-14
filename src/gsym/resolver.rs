@@ -3,7 +3,6 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::io::Result;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
@@ -13,6 +12,7 @@ use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
+use crate::Result;
 use crate::SymResolver;
 
 use super::linetab::run_op;

@@ -1,10 +1,10 @@
 use std::fmt::Debug;
-use std::io::Result;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
+use crate::Result;
 
 
 /// The trait of symbol resolvers.

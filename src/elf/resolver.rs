@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::io::Result;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -9,6 +8,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
+use crate::Result;
 use crate::SymResolver;
 
 use super::cache::ElfBackend;
