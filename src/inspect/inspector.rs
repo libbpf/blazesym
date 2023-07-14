@@ -1,4 +1,3 @@
-use std::io::Result;
 use std::rc::Rc;
 
 #[cfg(feature = "dwarf")]
@@ -6,6 +5,7 @@ use crate::dwarf::DwarfResolver;
 use crate::elf::ElfBackend;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
+use crate::Result;
 use crate::SymResolver;
 
 use super::source::Elf;
@@ -97,8 +97,9 @@ impl Inspector {
 mod tests {
     use super::*;
 
-    use std::io::ErrorKind;
     use std::path::Path;
+
+    use crate::ErrorKind;
 
 
     /// Check that we error our as expected when encountering a source

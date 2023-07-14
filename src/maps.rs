@@ -7,12 +7,13 @@ use std::io::BufReader;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read;
-use std::io::Result;
 use std::ops::Range;
 use std::path::PathBuf;
 
 use crate::Addr;
+use crate::IntoError as _;
 use crate::Pid;
+use crate::Result;
 
 
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -103,11 +104,8 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
 
     let split_once = |line: &'line str, component| -> Result<(&'line str, &'line str)> {
         line.split_once(|c: char| c.is_ascii_whitespace())
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    format!("failed to find {component} in proc maps line: {line}\n{full_line}"),
-                )
+            .ok_or_invalid_data(|| {
+                format!("failed to find {component} in proc maps line: {line}\n{full_line}")
             })
     };
 
@@ -204,7 +202,7 @@ where
         loop {
             let () = self.line.clear();
             match self.reader.read_line(&mut self.line) {
-                Err(err) => return Some(Err(err)),
+                Err(err) => return Some(Err(err.into())),
                 Ok(0) => break None,
                 Ok(_) => {
                     let line_str = self.line.trim();

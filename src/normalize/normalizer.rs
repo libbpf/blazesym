@@ -1,8 +1,7 @@
-use std::io::Result;
-
 use crate::util;
 use crate::Addr;
 use crate::Pid;
+use crate::Result;
 
 use super::user::normalize_user_addrs_sorted_impl;
 use super::user::NormalizedUserAddrs;
