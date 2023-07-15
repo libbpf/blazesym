@@ -16,7 +16,8 @@ mod private {
 
     impl<T> Sealed for Option<T> {}
     impl<T, E> Sealed for Result<T, E> {}
-
+    impl Sealed for &'static str {}
+    impl Sealed for String {}
     impl Sealed for super::Error {}
 }
 
@@ -24,7 +25,8 @@ mod private {
 /// not a `String`.
 #[derive(Debug)]
 #[repr(transparent)]
-struct Str(str);
+#[doc(hidden)]
+pub struct Str(str);
 
 impl ToOwned for Str {
     type Owned = Box<str>;
@@ -57,6 +59,29 @@ impl Display for Str {
     #[inline]
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         Display::fmt(&self.0, f)
+    }
+}
+
+
+/// A helper trait to abstracting over various string types, allowing
+/// for conversion into a `Cow<'static, Str>`. This is the `Cow` enabled
+/// equivalent of `ToString`.
+pub trait IntoCowStr: private::Sealed {
+    fn into_cow_str(self) -> Cow<'static, Str>;
+}
+
+impl IntoCowStr for &'static str {
+    fn into_cow_str(self) -> Cow<'static, Str> {
+        // SAFETY: `Str` is `repr(transparent)` and so `&str` and `&Str`
+        //         can trivially be converted into each other.
+        let other = unsafe { transmute::<&str, &Str>(self) };
+        Cow::Borrowed(other)
+    }
+}
+
+impl IntoCowStr for String {
+    fn into_cow_str(self) -> Cow<'static, Str> {
+        Cow::Owned(self.into_boxed_str())
     }
 }
 
@@ -110,6 +135,15 @@ impl ErrorImpl {
             Self::ContextOwned { source, .. } | Self::ContextStatic { source, .. } => {
                 source.deref().kind()
             }
+        }
+    }
+
+    #[cfg(test)]
+    fn is_owned(&self) -> Option<bool> {
+        match self {
+            Self::ContextOwned { .. } => Some(true),
+            Self::ContextStatic { .. } => Some(false),
+            _ => None,
         }
     }
 }
@@ -337,34 +371,38 @@ pub trait ErrorExt<T>: private::Sealed {
     // If we had specialization of sorts we could be more lenient as to
     // what we can accept, but for now this method always works with
     // static strings and nothing else.
-    fn context(self, context: &'static str) -> T;
+    fn context<C>(self, context: C) -> T
+    where
+        C: IntoCowStr;
 
     fn with_context<C, F>(self, f: F) -> T
     where
-        C: ToString,
+        C: IntoCowStr,
         F: FnOnce() -> C;
 }
 
 impl ErrorExt<Error> for Error {
-    fn context(self, context: &'static str) -> Error {
-        // SAFETY: `Str` is `repr(transparent)` and so `&str` and `&Str`
-        //         can trivially be converted into each other.
-        let context = unsafe { transmute::<&str, &Str>(context) };
-        self.layer_context(Cow::Borrowed(context))
+    fn context<C>(self, context: C) -> Error
+    where
+        C: IntoCowStr,
+    {
+        self.layer_context(context.into_cow_str())
     }
 
     fn with_context<C, F>(self, f: F) -> Error
     where
-        C: ToString,
+        C: IntoCowStr,
         F: FnOnce() -> C,
     {
-        let context = f().to_string().into_boxed_str();
-        self.layer_context(Cow::Owned(context))
+        self.layer_context(f().into_cow_str())
     }
 }
 
 impl<T> ErrorExt<Result<T, Error>> for Result<T, Error> {
-    fn context(self, context: &'static str) -> Result<T, Error> {
+    fn context<C>(self, context: C) -> Result<T, Error>
+    where
+        C: IntoCowStr,
+    {
         match self {
             ok @ Ok(..) => ok,
             Err(err) => Err(err.context(context)),
@@ -373,7 +411,7 @@ impl<T> ErrorExt<Result<T, Error>> for Result<T, Error> {
 
     fn with_context<C, F>(self, f: F) -> Result<T, Error>
     where
-        C: ToString,
+        C: IntoCowStr,
         F: FnOnce() -> C,
     {
         match self {
@@ -470,6 +508,7 @@ mod tests {
 
         let src = err.source();
         assert!(src.is_none(), "{src:?}");
+        assert!(err.error.is_owned().is_none());
         assert_eq!(err.kind(), ErrorKind::InvalidData);
         assert_eq!(format!("{err}"), "some invalid data");
         assert_eq!(format!("{err:#}"), "some invalid data");
@@ -486,6 +525,7 @@ mod tests {
         let err = err.context("inner context");
         let src = err.source();
         assert!(src.is_some(), "{src:?}");
+        assert!(!err.error.is_owned().unwrap());
         assert_eq!(err.kind(), ErrorKind::InvalidData);
         assert_eq!(format!("{err}"), "inner context");
         assert_eq!(format!("{err:#}"), "inner context: some invalid data");
@@ -498,9 +538,10 @@ Caused by:
         // Nope, not going to bother.
         assert_ne!(format!("{err:#?}"), "");
 
-        let err = err.with_context(|| "outer context".to_string());
+        let err = err.context("outer context".to_string());
         let src = err.source();
         assert!(src.is_some(), "{src:?}");
+        assert!(err.error.is_owned().unwrap());
         assert_eq!(err.kind(), ErrorKind::InvalidData);
         assert_eq!(format!("{err}"), "outer context");
         assert_eq!(
