@@ -19,6 +19,9 @@ mod private {
     impl Sealed for &'static str {}
     impl Sealed for String {}
     impl Sealed for super::Error {}
+
+    #[cfg(feature = "dwarf")]
+    impl Sealed for gimli::Error {}
 }
 
 /// A `str` replacement whose owned representation is a `Box<str>` and
@@ -435,6 +438,26 @@ where
             Ok(val) => Ok(val),
             Err(err) => Err(err.with_context(f)),
         }
+    }
+}
+
+#[cfg(feature = "dwarf")]
+impl ErrorExt for gimli::Error {
+    type Output = Error;
+
+    fn context<C>(self, context: C) -> Error
+    where
+        C: IntoCowStr,
+    {
+        Error::from(self).context(context)
+    }
+
+    fn with_context<C, F>(self, f: F) -> Error
+    where
+        C: IntoCowStr,
+        F: FnOnce() -> C,
+    {
+        Error::from(self).with_context(f)
     }
 }
 

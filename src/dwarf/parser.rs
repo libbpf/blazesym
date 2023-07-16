@@ -2,10 +2,7 @@
 use std::env;
 use std::ffi::OsStr;
 use std::fmt::Debug;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
-use std::os::unix::ffi::OsStrExt;
+use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
 
 use gimli::constants;
@@ -23,6 +20,8 @@ use crate::elf::ElfParser;
 use crate::inspect::SymType;
 use crate::log::warn;
 use crate::Addr;
+use crate::ErrorExt as _;
+use crate::Result;
 
 
 /// The gimli reader type we currently use. Could be made generic if
@@ -61,12 +60,10 @@ fn parse_debug_line_program<'dwarf>(
     let mut last_file = None;
     let mut last_dir = None;
 
-    while let Some((header, row)) = rows.next_row().map_err(|err| {
-        Error::new(
-            ErrorKind::InvalidData,
-            format!("failed to retrieve DWARF source location row: {err}"),
-        )
-    })? {
+    while let Some((header, row)) = rows
+        .next_row()
+        .context("failed to retrieve DWARF source location row")?
+    {
         // End of sequence indicates a possible gap in addresses.
         if row.end_sequence() {
             continue
@@ -86,26 +83,18 @@ fn parse_debug_line_program<'dwarf>(
 
             if let Some(file) = row.file(header) {
                 let dir = if let Some(dir) = file.directory(header) {
-                    let dir = dwarf.attr_string(unit, dir).map_err(|err| {
-                        Error::new(
-                            ErrorKind::InvalidData,
-                            format!(
-                                "failed to retrieve DWARF directory attribute value string: {err}"
-                            ),
-                        )
-                    })?;
+                    let dir = dwarf
+                        .attr_string(unit, dir)
+                        .context("failed to retrieve DWARF directory attribute value string")?;
                     let dir = Path::new(OsStr::from_bytes(dir.slice()));
                     Some(dir)
                 } else {
                     None
                 };
 
-                let file_name = dwarf.attr_string(unit, file.path_name()).map_err(|err| {
-                    Error::new(
-                        ErrorKind::InvalidData,
-                        format!("failed to retrieve DWARF path name attribute value string: {err}"),
-                    )
-                })?;
+                let file_name = dwarf
+                    .attr_string(unit, file.path_name())
+                    .context("failed to retrieve DWARF path name attribute value string")?;
                 let file_name = OsStr::from_bytes(file_name.slice());
 
                 (dir, Some(file_name))
@@ -138,19 +127,14 @@ pub(crate) fn parse_debug_line_elf_parser(parser: &ElfParser) -> Result<Vec<Addr
     let dwarf = Dwarf::<R>::load(&mut load_section)?;
 
     let mut iter = dwarf.units();
-    while let Some(header) = iter.next().map_err(|err| {
-        Error::new(
-            ErrorKind::InvalidData,
-            format!("failed to iterate DWARF unit headers: {err}"),
-        )
-    })? {
-        let unit = dwarf.unit(header).map_err(|err| {
-            Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "failed to retrieve DWARF unit for unit header @ {}: {err}",
-                    format_offset(header.offset())
-                ),
+    while let Some(header) = iter
+        .next()
+        .context("failed to iterate DWARF unit headers")?
+    {
+        let unit = dwarf.unit(header).with_context(|| {
+            format!(
+                "failed to retrieve DWARF unit for unit header @ {}",
+                format_offset(header.offset())
             )
         })?;
 
@@ -202,12 +186,7 @@ fn parse_die_subprogram<'dat>(
     let mut linkage_name = None;
 
     let mut attrs = entry.attrs();
-    while let Some(attr) = attrs.next().map_err(|err| {
-        Error::new(
-            ErrorKind::InvalidData,
-            format!("failed to read next DIE attribute: {err}"),
-        )
-    })? {
+    while let Some(attr) = attrs.next().context("failed to read next DIE attribute")? {
         match attr.name() {
             constants::DW_AT_linkage_name | constants::DW_AT_name => {
                 let attr_name = || {
@@ -216,23 +195,14 @@ fn parse_die_subprogram<'dat>(
                         .unwrap_or("DW_AT_name/DW_AT_linkage_name")
                 };
 
-                let string = dwarf.attr_string(unit, attr.value()).map_err(|err| {
-                    Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "failed to retrieve DWARF {} attribute value string: {err}",
-                            attr_name()
-                        ),
+                let string = dwarf.attr_string(unit, attr.value()).with_context(|| {
+                    format!(
+                        "failed to retrieve DWARF {} attribute value string",
+                        attr_name()
                     )
                 })?;
-                let name_ = string.to_string().map_err(|err| {
-                    Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "{} attribute does not contain valid string: {err}",
-                            attr_name()
-                        ),
-                    )
+                let name_ = string.to_string().with_context(|| {
+                    format!("{} attribute does not contain valid string", attr_name())
                 })?;
                 if attr.name() == constants::DW_AT_name {
                     name = Some(name_);
@@ -298,12 +268,7 @@ fn debug_info_parse_symbols_cu<'dat>(
     found_syms: &mut Vec<DWSymInfo<'dat>>,
 ) -> Result<()> {
     let mut entries = unit.header.entries(&unit.abbreviations);
-    while let Some((_, entry)) = entries.next_dfs().map_err(|err| {
-        Error::new(
-            ErrorKind::InvalidData,
-            format!("failed to find next DIE: {err}"),
-        )
-    })? {
+    while let Some((_, entry)) = entries.next_dfs().context("failed to find next DIE")? {
         if entry.tag() == constants::DW_TAG_subprogram {
             if let Some(sym) = parse_die_subprogram(dwarf, &unit, entry)? {
                 let () = found_syms.push(sym);
@@ -320,7 +285,7 @@ fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
         Ok(Some(idx)) => parser.section_data(idx)?,
         // Make sure to return empty data if a section does not exist.
         Ok(None) => &[],
-        Err(err) => return Err(err),
+        Err(err) => return Err(err.into()),
     };
     let reader = EndianSlice::new(data, LittleEndian);
     Ok(reader)
@@ -339,19 +304,14 @@ pub(crate) fn debug_info_parse_symbols(parser: &ElfParser) -> Result<Vec<DWSymIn
     let mut units = dwarf.units();
     let mut syms = Vec::new();
 
-    while let Some(header) = units.next().map_err(|err| {
-        Error::new(
-            ErrorKind::InvalidData,
-            format!("failed to iterate DWARF unit headers: {err}"),
-        )
-    })? {
-        let unit = dwarf.unit(header).map_err(|err| {
-            Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "failed to retrieve DWARF unit for unit header @ {}: {err}",
-                    format_offset(header.offset())
-                ),
+    while let Some(header) = units
+        .next()
+        .context("failed to iterate DWARF unit headers")?
+    {
+        let unit = dwarf.unit(header).with_context(|| {
+            format!(
+                "failed to retrieve DWARF unit for unit header @ {}",
+                format_offset(header.offset())
             )
         })?;
 
