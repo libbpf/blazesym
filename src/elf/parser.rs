@@ -3,9 +3,6 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::mem;
 use std::ops::Deref as _;
 use std::path::Path;
@@ -17,6 +14,10 @@ use crate::mmap::Mmap;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
+use crate::Error;
+use crate::ErrorExt as _;
+use crate::IntoError as _;
+use crate::Result;
 
 use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
@@ -30,16 +31,12 @@ use super::types::STT_FUNC;
 fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str> {
     let name = strtab
         .get(sym.st_name as usize..)
-        .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "string table index out of bounds"))?
+        .ok_or_invalid_input(|| "string table index out of bounds")?
         .read_cstr()
-        .ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                "no valid string found in string table",
-            )
-        })?
+        .ok_or_invalid_input(|| "no valid string found in string table")?
         .to_str()
-        .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid symbol name"))?;
+        .map_err(Error::with_invalid_data)
+        .context("invalid symbol name")?;
 
     Ok(name)
 }
@@ -80,29 +77,16 @@ impl<'mmap> Cache<'mmap> {
     /// `idx`.
     fn section_data(&mut self, idx: usize) -> Result<&'mmap [u8]> {
         let shdrs = self.ensure_shdrs()?;
-        let section = shdrs.get(idx).ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                format!("ELF section index ({idx}) out of bounds"),
-            )
-        })?;
+        let section = shdrs
+            .get(idx)
+            .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?;
 
         let data = self
             .elf_data
             .get(section.sh_offset as usize..)
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    "failed to read section data: invalid offset",
-                )
-            })?
+            .ok_or_invalid_data(|| "failed to read section data: invalid offset")?
             .read_slice(section.sh_size as usize)
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    "failed to read section data: invalid size",
-                )
-            })?;
+            .ok_or_invalid_data(|| "failed to read section data: invalid size")?;
         Ok(data)
     }
 
@@ -114,16 +98,16 @@ impl<'mmap> Cache<'mmap> {
         let mut elf_data = self.elf_data;
         let ehdr = elf_data
             .read_pod_ref::<Elf64_Ehdr>()
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read Elf64_Ehdr"))?;
+            .ok_or_invalid_data(|| "failed to read Elf64_Ehdr")?;
         if !(ehdr.e_ident[0] == 0x7f
             && ehdr.e_ident[1] == b'E'
             && ehdr.e_ident[2] == b'L'
             && ehdr.e_ident[3] == b'F')
         {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
-                format!("encountered unexpected e_ident: {:x?}", &ehdr.e_ident[0..4]),
-            ))
+            return Err(Error::with_invalid_data(format!(
+                "encountered unexpected e_ident: {:x?}",
+                &ehdr.e_ident[0..4]
+            )))
         }
         self.ehdr = Some(ehdr);
         Ok(ehdr)
@@ -138,9 +122,9 @@ impl<'mmap> Cache<'mmap> {
         let shdrs = self
             .elf_data
             .get(ehdr.e_shoff as usize..)
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Elf64_Ehdr::e_shoff is invalid"))?
+            .ok_or_invalid_data(|| "Elf64_Ehdr::e_shoff is invalid")?
             .read_pod_slice_ref::<Elf64_Shdr>(ehdr.e_shnum.into())
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read Elf64_Shdr"))?;
+            .ok_or_invalid_data(|| "failed to read Elf64_Shdr")?;
         self.shdrs = Some(shdrs);
         Ok(shdrs)
     }
@@ -154,9 +138,9 @@ impl<'mmap> Cache<'mmap> {
         let phdrs = self
             .elf_data
             .get(ehdr.e_phoff as usize..)
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "Elf64_Ehdr::e_phoff is invalid"))?
+            .ok_or_invalid_data(|| "Elf64_Ehdr::e_phoff is invalid")?
             .read_pod_slice_ref::<Elf64_Phdr>(ehdr.e_phnum.into())
-            .ok_or_else(|| Error::new(ErrorKind::InvalidData, "failed to read Elf64_Phdr"))?;
+            .ok_or_invalid_data(|| "failed to read Elf64_Phdr")?;
         self.phdrs = Some(phdrs);
         Ok(phdrs)
     }
@@ -178,21 +162,17 @@ impl<'mmap> Cache<'mmap> {
         let shdrs = self.ensure_shdrs()?;
         let shstrtab = self.ensure_shstrtab()?;
 
-        let sect = shdrs.get(idx).ok_or_else(|| {
-            Error::new(ErrorKind::InvalidInput, "ELF section index out of bounds")
-        })?;
+        let sect = shdrs
+            .get(idx)
+            .ok_or_invalid_input(|| "ELF section index out of bounds")?;
         let name = shstrtab
             .get(sect.sh_name as usize..)
-            .ok_or_else(|| Error::new(ErrorKind::InvalidInput, "string table index out of bounds"))?
+            .ok_or_invalid_input(|| "string table index out of bounds")?
             .read_cstr()
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    "no valid string found in string table",
-                )
-            })?
+            .ok_or_invalid_input(|| "no valid string found in string table")?
             .to_str()
-            .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid section name"))?;
+            .map_err(Error::with_invalid_data)
+            .context("invalid section name")?;
         Ok(name)
     }
 
@@ -202,12 +182,9 @@ impl<'mmap> Cache<'mmap> {
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
         //         available.
         let symtab = self.symtab.as_ref().unwrap();
-        let symbol = symtab.get(idx).ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidInput,
-                format!("ELF symbol index ({idx}) out of bounds"),
-            )
-        })?;
+        let symbol = symtab
+            .get(idx)
+            .ok_or_invalid_input(|| format!("ELF symbol index ({idx}) out of bounds"))?;
 
         Ok(symbol)
     }
@@ -245,8 +222,7 @@ impl<'mmap> Cache<'mmap> {
         let mut symtab = self.section_data(idx)?;
 
         if symtab.len() % mem::size_of::<Elf64_Sym>() != 0 {
-            return Err(Error::new(
-                ErrorKind::InvalidData,
+            return Err(Error::with_invalid_data(
                 "size of symbol table section is invalid",
             ))
         }
@@ -254,12 +230,7 @@ impl<'mmap> Cache<'mmap> {
         let count = symtab.len() / mem::size_of::<Elf64_Sym>();
         let mut symtab = symtab
             .read_pod_slice_ref::<Elf64_Sym>(count)
-            .ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    "failed to read symbol table contents",
-                )
-            })?
+            .ok_or_invalid_data(|| "failed to read symbol table contents")?
             .iter()
             .collect::<Vec<&Elf64_Sym>>();
         // Order symbols by address and those with equal address descending by
@@ -311,18 +282,12 @@ impl<'mmap> Cache<'mmap> {
             .map(|(i, sym)| {
                 let name = strtab
                     .get(sym.st_name as usize..)
-                    .ok_or_else(|| {
-                        Error::new(ErrorKind::InvalidInput, "string table index out of bounds")
-                    })?
+                    .ok_or_invalid_input(|| "string table index out of bounds")?
                     .read_cstr()
-                    .ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::InvalidInput,
-                            "no valid string found in string table",
-                        )
-                    })?
+                    .ok_or_invalid_input(|| "no valid string found in string table")?
                     .to_str()
-                    .map_err(|_| Error::new(ErrorKind::InvalidInput, "invalid symbol name"))?;
+                    .map_err(Error::with_invalid_data)
+                    .context("invalid symbol name")?;
                 Ok((name, i))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -436,7 +401,7 @@ impl ElfParser {
 
     pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
         if let SymType::Variable = opts.sym_type {
-            return Err(Error::new(ErrorKind::Unsupported, "Not implemented"))
+            return Err(Error::with_unsupported("Not implemented"))
         }
 
         let mut cache = self.cache.borrow_mut();
@@ -457,11 +422,8 @@ impl ElfParser {
                     if *name_visit != name {
                         break
                     }
-                    let sym_ref = &symtab.get(*sym_i).ok_or_else(|| {
-                        Error::new(
-                            ErrorKind::InvalidInput,
-                            format!("symbol table index ({sym_i}) out of bounds"),
-                        )
+                    let sym_ref = &symtab.get(*sym_i).ok_or_invalid_input(|| {
+                        format!("symbol table index ({sym_i}) out of bounds")
                     })?;
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymInfo {

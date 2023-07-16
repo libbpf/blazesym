@@ -285,7 +285,7 @@ fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
         Ok(Some(idx)) => parser.section_data(idx)?,
         // Make sure to return empty data if a section does not exist.
         Ok(None) => &[],
-        Err(err) => return Err(err.into()),
+        Err(err) => return Err(err),
     };
     let reader = EndianSlice::new(data, LittleEndian);
     Ok(reader)

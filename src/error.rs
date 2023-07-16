@@ -164,11 +164,11 @@ impl Debug for ErrorImpl {
                     dbg.field(io)
                 }
                 Self::ContextOwned { context, .. } => {
-                    dbg = f.debug_tuple(stringify!(Context));
+                    dbg = f.debug_tuple(stringify!(ContextOwned));
                     dbg.field(context)
                 }
                 Self::ContextStatic { context, .. } => {
-                    dbg = f.debug_tuple(stringify!(Context));
+                    dbg = f.debug_tuple(stringify!(ContextStatic));
                     dbg.field(context)
                 }
             }
@@ -230,7 +230,7 @@ impl error::Error for ErrorImpl {
 
 
 /// An enum providing a rough classification of errors.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ErrorKind {
     /// An entity was not found, often a file.
