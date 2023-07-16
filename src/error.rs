@@ -375,21 +375,25 @@ impl From<io::Error> for Error {
 }
 
 
-pub trait ErrorExt<T>: private::Sealed {
+pub trait ErrorExt: private::Sealed {
+    type Output;
+
     // If we had specialization of sorts we could be more lenient as to
     // what we can accept, but for now this method always works with
     // static strings and nothing else.
-    fn context<C>(self, context: C) -> T
+    fn context<C>(self, context: C) -> Self::Output
     where
         C: IntoCowStr;
 
-    fn with_context<C, F>(self, f: F) -> T
+    fn with_context<C, F>(self, f: F) -> Self::Output
     where
         C: IntoCowStr,
         F: FnOnce() -> C;
 }
 
-impl ErrorExt<Error> for Error {
+impl ErrorExt for Error {
+    type Output = Error;
+
     fn context<C>(self, context: C) -> Error
     where
         C: IntoCowStr,
@@ -406,24 +410,29 @@ impl ErrorExt<Error> for Error {
     }
 }
 
-impl<T> ErrorExt<Result<T, Error>> for Result<T, Error> {
-    fn context<C>(self, context: C) -> Result<T, Error>
+impl<T, E> ErrorExt for Result<T, E>
+where
+    E: ErrorExt,
+{
+    type Output = Result<T, E::Output>;
+
+    fn context<C>(self, context: C) -> Self::Output
     where
         C: IntoCowStr,
     {
         match self {
-            ok @ Ok(..) => ok,
+            Ok(val) => Ok(val),
             Err(err) => Err(err.context(context)),
         }
     }
 
-    fn with_context<C, F>(self, f: F) -> Result<T, Error>
+    fn with_context<C, F>(self, f: F) -> Self::Output
     where
         C: IntoCowStr,
         F: FnOnce() -> C,
     {
         match self {
-            ok @ Ok(..) => ok,
+            Ok(val) => Ok(val),
             Err(err) => Err(err.with_context(f)),
         }
     }
