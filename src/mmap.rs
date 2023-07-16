@@ -1,7 +1,5 @@
 use std::fs::File;
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
+use std::io;
 use std::ops::Deref;
 use std::ops::Range;
 use std::os::unix::io::AsRawFd;
@@ -9,6 +7,10 @@ use std::path::Path;
 use std::ptr::null_mut;
 use std::rc::Rc;
 use std::slice;
+
+use crate::Error;
+use crate::ErrorExt as _;
+use crate::Result;
 
 
 #[derive(Debug)]
@@ -43,7 +45,8 @@ impl Builder {
     /// Map the provided file into memory, in its entirety.
     pub fn map(self, file: &File) -> Result<Mmap> {
         let len = libc::size_t::try_from(file.metadata()?.len())
-            .map_err(|_err| Error::new(ErrorKind::InvalidData, "file is too large to mmap"))?;
+            .map_err(Error::with_invalid_data)
+            .context("file is too large to mmap")?;
         let offset = 0;
 
         // SAFETY: `mmap` with the provided arguments is always safe to call.
@@ -59,7 +62,7 @@ impl Builder {
         };
 
         if ptr == libc::MAP_FAILED {
-            return Err(Error::last_os_error())
+            return Err(Error::from(io::Error::last_os_error()))
         }
 
         let mapping = Mapping { ptr, len };
@@ -92,7 +95,8 @@ impl Drop for Mapping {
     fn drop(&mut self) {
         // SAFETY: The `ptr` is valid.
         let rc = unsafe { libc::munmap(self.ptr, self.len) };
-        assert!(rc == 0, "unable to unmap mmap: {}", Error::last_os_error());
+        #[rustfmt::skip]
+        assert!(rc == 0, "unable to unmap mmap: {}", io::Error::last_os_error());
     }
 }
 
@@ -152,6 +156,13 @@ mod tests {
 
     use crate::util::ReadRaw;
 
+
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let builder = Builder::new();
+        assert_ne!(format!("{builder:?}"), "");
+    }
 
     /// Check that we can `mmap` a file.
     #[test]
