@@ -35,9 +35,6 @@
 //!
 //! See <https://reviews.llvm.org/D53379>
 
-use std::io::Error;
-use std::io::ErrorKind;
-use std::io::Result;
 use std::mem::align_of;
 
 use crate::log::warn;
@@ -45,6 +42,9 @@ use crate::util::find_match_or_lower_bound;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Addr;
+use crate::Error;
+use crate::IntoError as _;
+use crate::Result;
 
 use super::linetab::LineTableHeader;
 use super::types::AddrData;
@@ -88,17 +88,11 @@ impl GsymContext<'_> {
             let head = data;
             let magic = data.read_u32()?;
             if magic != GSYM_MAGIC {
-                return Some(Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "invalid magic number",
-                )))
+                return Some(Err(Error::with_invalid_data("invalid magic number")))
             }
             let version = data.read_u16()?;
             if version != GSYM_VERSION {
-                return Some(Err(Error::new(
-                    ErrorKind::InvalidData,
-                    "unknown version number",
-                )))
+                return Some(Err(Error::with_invalid_data("unknown version number")))
             }
 
             let addr_off_size = data.read_u8()?;
@@ -143,12 +137,8 @@ impl GsymContext<'_> {
             Some(Ok(slf))
         }
 
-        parse_header_impl(data).ok_or_else(|| {
-            Error::new(
-                ErrorKind::InvalidData,
-                "GSYM data does not contain sufficient bytes",
-            )
-        })?
+        parse_header_impl(data)
+            .ok_or_invalid_data(|| "GSYM data does not contain sufficient bytes")?
     }
 
     /// Find the index of an entry in the address table potentially containing the
