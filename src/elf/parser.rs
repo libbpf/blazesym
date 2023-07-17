@@ -52,10 +52,10 @@ struct Cache<'mmap> {
     shstrtab: Option<&'mmap [u8]>,
     /// The cached ELF program headers.
     phdrs: Option<&'mmap [Elf64_Phdr]>,
-    symtab: Option<Vec<&'mmap Elf64_Sym>>, // in address order
+    symtab: Option<Box<[&'mmap Elf64_Sym]>>, // in address order
     /// The cached ELF string table.
     strtab: Option<&'mmap [u8]>,
-    str2symtab: Option<Vec<(&'mmap str, usize)>>, // strtab offset to symtab in the dictionary order
+    str2symtab: Option<Box<[(&'mmap str, usize)]>>, // strtab offset to symtab in the dictionary order
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -216,7 +216,7 @@ impl<'mmap> Cache<'mmap> {
             idx
         } else {
             // Neither symbol table exists. Fake an empty one.
-            self.symtab = Some(Vec::new());
+            self.symtab = Some(Box::default());
             return Ok(())
         };
         let mut symtab = self.section_data(idx)?;
@@ -232,7 +232,8 @@ impl<'mmap> Cache<'mmap> {
             .read_pod_slice_ref::<Elf64_Sym>(count)
             .ok_or_invalid_data(|| "failed to read symbol table contents")?
             .iter()
-            .collect::<Vec<&Elf64_Sym>>();
+            .collect::<Vec<&Elf64_Sym>>()
+            .into_boxed_slice();
         // Order symbols by address and those with equal address descending by
         // size.
         let () = symtab.sort_by(|sym1, sym2| {
@@ -290,7 +291,8 @@ impl<'mmap> Cache<'mmap> {
                     .context("invalid symbol name")?;
                 Ok((name, i))
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Vec<_>>>()?
+            .into_boxed_slice();
 
         let () = str2symtab.sort_by_key(|&(name, _i)| name);
 
