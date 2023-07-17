@@ -318,7 +318,9 @@ impl<'mmap> SymbolTableCache<'mmap> {
 }
 
 
-struct Cache<'mmap> {
+struct Cache<'mmap, B> {
+    /// The backend being used for reading ELF data.
+    backend: B,
     /// A slice of the raw ELF data that we are about to parse.
     elf_data: &'mmap [u8],
     /// The cached ELF header.
@@ -336,10 +338,11 @@ struct Cache<'mmap> {
     section_data: OnceCell<Box<[OnceCell<Cow<'mmap, [u8]>>]>>,
 }
 
-impl<'mmap> Cache<'mmap> {
+impl<'mmap, B> Cache<'mmap, B> {
     /// Create a new `Cache` using the provided raw ELF object data.
-    fn new(elf_data: &'mmap [u8]) -> Self {
+    fn new(backend: B, elf_data: &'mmap [u8]) -> Self {
         Self {
+            backend,
             elf_data,
             ehdr: OnceCell::new(),
             shdrs: OnceCell::new(),
@@ -781,7 +784,7 @@ impl<'mmap> Cache<'mmap> {
     }
 }
 
-impl Debug for Cache<'_> {
+impl<B> Debug for Cache<'_, B> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "Cache")
     }
@@ -883,20 +886,20 @@ impl<'elf> BackendImpl<'elf> for &File {
 
 /// A parser for ELF64 files.
 #[derive(Debug)]
-pub(crate) struct ElfParser {
+pub(crate) struct ElfParser<B = Mmap> {
     /// A cache for relevant parts of the ELF file.
     // SAFETY: We must not hand out references with a 'static lifetime to
     //         this member. Rather, they should never outlive `self`.
     //         Furthermore, this member has to be listed before `_mmap`
     //         to make sure we never end up with a dangling reference.
-    cache: Cache<'static>,
-    /// The memory mapped file.
-    _mmap: Mmap,
+    cache: Cache<'static, B>,
     /// The path to the ELF file being worked on, if available.
     path: Option<PathBuf>,
+    /// The backend used.
+    _backend: B,
 }
 
-impl ElfParser {
+impl ElfParser<Mmap> {
     /// Create an `ElfParser` from an open file.
     pub(crate) fn open_file<P>(file: &File, path: P) -> Result<Self>
     where
@@ -915,9 +918,9 @@ impl ElfParser {
         let elf_data = unsafe { mem::transmute::<&[u8], &'static [u8]>(mmap.deref()) };
 
         let parser = ElfParser {
-            _mmap: mmap,
-            cache: Cache::new(elf_data),
+            cache: Cache::new(mmap.clone(), elf_data),
             path,
+            _backend: mmap,
         };
         parser
     }
@@ -928,7 +931,9 @@ impl ElfParser {
             File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
         Self::open_file(&file, path)
     }
+}
 
+impl<B> ElfParser<B> {
     /// Retrieve the data corresponding to the ELF section at index
     /// `idx`, optionally decompressing it if it is compressed.
     pub(crate) fn section_data(&self, idx: usize) -> Result<&[u8]> {
@@ -1757,6 +1762,7 @@ mod tests {
         let () = aligned_data.align(8).unwrap();
 
         let cache = Cache {
+            backend: aligned_data,
             elf_data: aligned_data,
             ehdr: OnceCell::from(ehdr),
             shdrs: OnceCell::from(ElfN_Shdrs::B64(shdrs.as_slice())),
