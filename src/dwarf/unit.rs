@@ -59,6 +59,17 @@ impl<'dwarf> Unit<'dwarf> {
         }
     }
 
+    #[cfg(test)]
+    #[cfg(feature = "nightly")]
+    pub(super) fn parse_functions<'unit>(
+        &'unit self,
+        sections: &gimli::Dwarf<R<'dwarf>>,
+    ) -> Result<&'unit Functions<'dwarf>, gimli::Error> {
+        let unit = &self.dw_unit;
+        let functions = self.parse_functions_dwarf_and_unit(unit, sections)?;
+        Ok(functions)
+    }
+
     pub(super) fn parse_lines<'unit>(
         &'unit self,
         sections: &gimli::Dwarf<R<'dwarf>>,

@@ -72,6 +72,9 @@ lru = {version = "0.10", optional = true}
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
 
 [dev-dependencies]
+# For performance comparison; pinned, because we use #[doc(hidden)]
+# APIs.
+addr2line = "=0.20.0"
 anyhow = "1.0.71"
 blazesym = {path = ".", features = ["generate-test-files", "tracing"]}
 criterion = "0.4"
