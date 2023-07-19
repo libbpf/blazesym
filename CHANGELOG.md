@@ -7,7 +7,7 @@ Unreleased
   - Added `size` member and `to_path` helper method
   - Factored out `CodeInfo` type capturing all source code location information
   - Included optional inlined function information via `inlined` attribute
-- Added support for reporting inlined functions for Gsym format
+- Added support for reporting inlined functions for DWARF and Gsym formats
 - Introduced `symbolize::Symbolizer::symbolize_single` for more convenient
   symbolization of a single address
 - Introduced `normalize::Builder` type for customization of a
