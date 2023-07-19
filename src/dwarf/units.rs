@@ -326,4 +326,157 @@ impl<'dwarf> Units<'dwarf> {
             .iter()
             .filter_map(move |unit| unit.find_name(name, &self.dwarf).transpose())
     }
+
+    /// Initialize all function data structures. This is used for benchmarks.
+    #[cfg(test)]
+    #[cfg(feature = "nightly")]
+    fn parse_functions(&self) -> Result<(), gimli::Error> {
+        for unit in self.units.iter() {
+            let _functions = unit.parse_functions(&self.dwarf)?;
+        }
+        Ok(())
+    }
+
+    /// Initialize all line data structures. This is used for benchmarks.
+    #[cfg(test)]
+    #[cfg(feature = "nightly")]
+    fn parse_lines(&self) -> Result<(), gimli::Error> {
+        for unit in self.units.iter() {
+            let _lines = unit.parse_lines(&self.dwarf)?;
+        }
+        Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::env;
+    use std::ffi::OsStr;
+    #[cfg(feature = "nightly")]
+    use std::hint::black_box;
+    use std::path::Path;
+
+    use gimli::Dwarf;
+
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
+
+    use test_log::test;
+
+    use crate::dwarf::reader;
+    use crate::elf::ElfParser;
+
+
+    /// Check that we can format a section offset as expected.
+    #[test]
+    fn offset_formatting() {
+        let offset = gimli::UnitSectionOffset::DebugInfoOffset(gimli::DebugInfoOffset(42usize));
+        assert_eq!(format_offset(offset), format!(".debug_info+0x0000002a"));
+
+        let offset = gimli::UnitSectionOffset::DebugTypesOffset(gimli::DebugTypesOffset(1337usize));
+        assert_eq!(format_offset(offset), format!(".debug_types+0x00000539"));
+    }
+
+    /// Check that we can parse function and line information in various
+    /// DWARF versions.
+    #[test]
+    fn function_and_line_parsing() {
+        let binaries = [
+            "test-dwarf-v2.bin",
+            "test-dwarf-v3.bin",
+            "test-dwarf-v4.bin",
+            "test-dwarf-v5.bin",
+        ];
+
+        for binary in binaries {
+            let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(binary);
+
+            let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+            let mut load_section = |section| reader::load_section(&parser, section);
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let units = Units::parse(dwarf).unwrap();
+
+            // Double check that we actually did what we set out to do
+            // by checking that we can find a function that we know
+            // should exist.
+            let mut funcs = units.find_name("fibonacci");
+            let func = funcs.next().unwrap().unwrap();
+            assert_eq!(func.name.unwrap().to_string().unwrap(), "fibonacci");
+
+            let addr = func.range.as_ref().unwrap().begin;
+            let loc = units.find_location(addr).unwrap().unwrap();
+            assert_ne!(loc.dir, Path::new(""));
+            assert_eq!(loc.file, OsStr::new("test-exe.c"));
+            assert_eq!(loc.line.unwrap(), 8);
+
+            assert!(funcs.next().is_none());
+        }
+    }
+
+    /// Benchmark the parsing of all functions, end-to-end.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_function_parsing(b: &mut Bencher) {
+        let bin_name = env::args().next().unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section);
+
+        let () = b.iter(|| {
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let units = Units::parse(black_box(dwarf)).unwrap();
+            let _funcs = black_box(units.parse_functions().unwrap());
+        });
+    }
+
+    /// Benchmark the parsing of all functions, end-to-end, using
+    /// addr2line.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_function_parsing_addr2line(b: &mut Bencher) {
+        let bin_name = env::args().next().unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section);
+
+        let () = b.iter(|| {
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let ctx = addr2line::Context::from_dwarf(dwarf).unwrap();
+            let _funcs = black_box(ctx.parse_functions().unwrap());
+        });
+    }
+
+    /// Benchmark the parsing of source location information, end-to-end.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_line_parsing(b: &mut Bencher) {
+        let bin_name = env::args().next().unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section);
+
+        let () = b.iter(|| {
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let units = Units::parse(black_box(dwarf)).unwrap();
+            let _lines = black_box(units.parse_lines().unwrap());
+        });
+    }
+
+    /// Benchmark the parsing of source location information,
+    /// end-to-end, using addr2line.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_line_parsing_addr2line(b: &mut Bencher) {
+        let bin_name = env::args().next().unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section);
+
+        let () = b.iter(|| {
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let ctx = addr2line::Context::from_dwarf(dwarf).unwrap();
+            let _lines = black_box(ctx.parse_lines().unwrap());
+        });
+    }
 }
