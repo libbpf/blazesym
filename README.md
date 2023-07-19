@@ -47,7 +47,7 @@ format supports and whether **blazesym** can currently use this feature:
 |               | inlined function information     | :heavy_multiplication_x: | :heavy_multiplication_x: |
 | DWARF         | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
 |               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | inlined function information     | :heavy_check_mark:       | :heavy_multiplication_x: |
+|               | inlined function information     | :heavy_check_mark:       | :heavy_check_mark:       |
 | Gsym          | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
 |               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
 |               | inlined function information     | :heavy_check_mark:       | :heavy_check_mark:       |
@@ -65,7 +65,7 @@ Here is rough roadmap of currently planned features (in no particular order):
   - doing so will allow us to:
     - [x] Support more versions of the DWARF standard (https://github.com/libbpf/blazesym/issues/42 & https://github.com/libbpf/blazesym/issues/57)
     - [ ] Support split debug information (https://github.com/libbpf/blazesym/issues/60)
-    - [ ] Support inlined function lookup for DWARF (https://github.com/libbpf/blazesym/issues/192)
+    - [x] Support inlined function lookup for DWARF (https://github.com/libbpf/blazesym/issues/192)
 - [x] Support symbolization of addresses in APKs (relevant for Android) (https://github.com/libbpf/blazesym/pull/222 & https://github.com/libbpf/blazesym/pull/227)
 - [ ] Support ELF32 binaries (https://github.com/libbpf/blazesym/issues/53)
 - [x] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)

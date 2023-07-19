@@ -438,7 +438,7 @@ impl Symbolizer {
     /// |               | inlined function information     | no                       | N/A                      |
     /// | DWARF         | symbol size                      | yes                      | yes                      |
     /// |               | source code location information | yes                      | yes                      |
-    /// |               | inlined function information     | yes                      | no                       |
+    /// |               | inlined function information     | yes                      | yes                      |
     /// | Gsym          | symbol size                      | yes                      | yes                      |
     /// |               | source code location information | yes                      | yes                      |
     /// |               | inlined function information     | yes                      | yes                      |

@@ -119,9 +119,9 @@ fn symbolize_elf_dwarf_gsym() {
 }
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined
-/// functions with a Gsym source.
+/// functions with DWARF and Gsym sources.
 #[test]
-fn symbolize_gsym_inlined() {
+fn symbolize_dwarf_gsym_inlined() {
     fn test(src: symbolize::Source, inlined_fns: bool) {
         let symbolizer = Symbolizer::builder()
             .enable_inlined_fns(inlined_fns)
@@ -165,6 +165,13 @@ fn symbolize_gsym_inlined() {
         .join("data")
         .join("test-stable-addresses.gsym");
     let src = symbolize::Source::from(symbolize::GsymFile::new(path));
+    test(src.clone(), true);
+    test(src, false);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-dwarf-only.bin");
+    let src = symbolize::Source::from(symbolize::Elf::new(path));
     test(src.clone(), true);
     test(src, false);
 }

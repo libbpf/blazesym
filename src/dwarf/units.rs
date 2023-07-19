@@ -25,6 +25,7 @@
 // > IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // > DEALINGS IN THE SOFTWARE.
 
+use crate::log::warn;
 use crate::ErrorExt as _;
 use crate::Result;
 
@@ -299,10 +300,61 @@ impl<'dwarf> Units<'dwarf> {
         &self,
         probe: u64,
     ) -> Result<Option<(&Function<'dwarf>, Option<gimli::DwLang>)>, gimli::Error> {
-        let units_iter = self.find_units(probe);
-        for unit in units_iter {
+        for unit in self.find_units(probe) {
             if let Some(function) = unit.find_function(probe, &self.dwarf)? {
                 return Ok(Some((function, unit.language())))
+            }
+        }
+        Ok(None)
+    }
+
+    /// Find the list of inlined functions that contain `probe`.
+    pub fn find_inlined_functions<'slf>(
+        &'slf self,
+        probe: u64,
+    ) -> Result<
+        Option<
+            impl ExactSizeIterator<
+                    Item = Result<(&'dwarf str, Option<Location<'slf>>), gimli::Error>,
+                > + 'slf,
+        >,
+        gimli::Error,
+    > {
+        for unit in self.find_units(probe) {
+            if let Some(function) = unit.find_function(probe, &self.dwarf)? {
+                let inlined_fns = function.parse_inlined_functions(unit.dw_unit(), &self.dwarf)?;
+                let iter = inlined_fns.find_inlined_functions(probe).map(|inlined_fn| {
+                    let name = inlined_fn
+                        .name
+                        .map(|name| name.to_string())
+                        .transpose()?
+                        .unwrap_or("");
+
+                    let code_info = if let Some(call_file) = inlined_fn.call_file {
+                        if let Some(lines) = unit.parse_lines(&self.dwarf)? {
+                            if let Some((dir, file)) = lines.files.get(call_file as usize) {
+                                let code_info = Location {
+                                    dir,
+                                    file,
+                                    line: Some(inlined_fn.call_line),
+                                    column: Some(inlined_fn.call_column),
+                                };
+                                Some(code_info)
+                            } else {
+                                warn!(
+                                    "encountered invalid inlined function `call_file` index ({call_file}); ignoring..."
+                                );
+                                None
+                            }
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    Ok((name, code_info))
+                });
+                return Ok(Some(iter))
             }
         }
         Ok(None)

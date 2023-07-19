@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::mem;
+use std::mem::swap;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::rc::Rc;
@@ -98,33 +99,71 @@ impl DwarfResolver {
     pub fn find_code_info(
         &self,
         addr: Addr,
-        _inlined_fns: bool,
+        inlined_fns: bool,
     ) -> Result<Option<AddrCodeInfo<'_>>> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
         let code_info = if self.line_number_info {
-            if let Some(location) = self.units.find_location(addr as u64)? {
+            if let Some(direct_location) = self.units.find_location(addr as u64)? {
                 let Location {
                     dir,
                     file,
                     line,
                     column,
-                } = location;
+                } = direct_location;
+
+                let mut direct_code_info = FrameCodeInfo {
+                    dir,
+                    file,
+                    line,
+                    column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                };
+
+                let inlined = if inlined_fns {
+                    if let Some(inline_stack) = self.units.find_inlined_functions(addr as u64)? {
+                        let mut inlined = Vec::with_capacity(inline_stack.len());
+                        for result in inline_stack {
+                            let (name, location) = result?;
+                            let mut code_info = location.map(|location| {
+                                let Location {
+                                    dir,
+                                    file,
+                                    line,
+                                    column,
+                                } = location;
+
+                                FrameCodeInfo {
+                                    dir,
+                                    file,
+                                    line,
+                                    column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                                }
+                            });
+
+                            // For each frame we need to move the code information
+                            // up by one layer.
+                            if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                                let () = swap(&mut code_info, last_code_info);
+                            } else if let Some(code_info) = &mut code_info {
+                                let () = swap(code_info, &mut direct_code_info);
+                            }
+
+                            let () = inlined.push((name, code_info));
+                        }
+                        inlined
+                    } else {
+                        Vec::new()
+                    }
+                } else {
+                    Vec::new()
+                };
 
                 let code_info = AddrCodeInfo {
-                    direct: (
-                        None,
-                        FrameCodeInfo {
-                            dir,
-                            file,
-                            line,
-                            column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                        },
-                    ),
-                    // TODO: Gather and furnish inlined function information.
-                    inlined: Vec::new(),
+                    direct: (None, direct_code_info),
+                    inlined,
                 };
+
                 Some(code_info)
             } else {
                 None

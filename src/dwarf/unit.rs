@@ -127,8 +127,6 @@ impl<'dwarf> Unit<'dwarf> {
             Some(address) => {
                 let function_index = functions.addresses[address].function;
                 let function = &functions.functions[function_index];
-                // TODO: The original code parsed inline functions here. But
-                //       it's not exactly clear why that is necessary?
                 Some(function)
             }
             None => None,
@@ -150,6 +148,12 @@ impl<'dwarf> Unit<'dwarf> {
             }
         }
         Ok(None)
+    }
+
+    /// Attempt to retrieve the compilation unit's source code language.
+    #[inline]
+    pub(super) fn dw_unit(&self) -> &gimli::Unit<R<'dwarf>> {
+        &self.dw_unit
     }
 
     /// Attempt to retrieve the compilation unit's source code language.
