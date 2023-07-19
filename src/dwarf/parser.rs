@@ -15,22 +15,14 @@ use gimli::SectionId;
 use gimli::Unit;
 use gimli::UnitSectionOffset;
 
+use super::reader::R;
+
 use crate::elf::ElfParser;
 use crate::inspect::SymType;
 use crate::log::warn;
 use crate::Addr;
 use crate::ErrorExt as _;
 use crate::Result;
-
-
-#[cfg(target_endian = "little")]
-type Endianess = gimli::LittleEndian;
-#[cfg(target_endian = "big")]
-type Endianess = gimli::BigEndian;
-
-/// The gimli reader type we currently use. Could be made generic if
-/// need be, but we keep things simple while we can.
-type R<'dat> = EndianSlice<'dat, Endianess>;
 
 
 fn format_offset(offset: UnitSectionOffset<usize>) -> String {
