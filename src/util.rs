@@ -106,6 +106,7 @@ where
     None
 }
 
+#[allow(dead_code)]
 pub(crate) fn find_lowest_match_by_key<T, B, F>(slice: &[T], b: &B, mut f: F) -> Option<usize>
 where
     F: FnMut(&T) -> B,

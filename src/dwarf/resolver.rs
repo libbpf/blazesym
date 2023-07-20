@@ -15,202 +15,13 @@ use crate::elf::ElfParser;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
-use crate::util::find_lowest_match_by_key;
-use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 use crate::Error;
 use crate::Result;
 
-use super::parser::debug_info_parse_symbols;
-use super::parser::parse_debug_line_elf_parser;
-use super::parser::AddrSrcInfo;
-use super::parser::DWSymInfo;
+use super::reader;
 use super::units::Units;
 
-
-impl From<&DWSymInfo<'_>> for SymInfo {
-    fn from(other: &DWSymInfo) -> Self {
-        let DWSymInfo {
-            name,
-            addr,
-            size,
-            sym_type,
-            ..
-        } = other;
-
-        SymInfo {
-            name: name.to_string(),
-            addr: *addr as Addr,
-            size: *size,
-            sym_type: *sym_type,
-            file_offset: 0,
-            obj_file_name: None,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-enum Either<A, B> {
-    A(A),
-    B(B),
-}
-
-impl<A, B, T> Iterator for Either<A, B>
-where
-    A: Iterator<Item = T>,
-    B: Iterator<Item = T>,
-{
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::A(a) => a.next(),
-            Self::B(b) => b.next(),
-        }
-    }
-}
-
-
-/// A type managing lookup of symbols.
-struct DebugSyms<'mmap> {
-    /// Debug symbols, ordered by address.
-    syms: Box<[DWSymInfo<'mmap>]>,
-    /// An index on top of `syms` sorted by name.
-    // TODO: The index could be optimized to use smaller-than-word-size integers
-    //       if we work with only a few symbols.
-    by_name_idx: Box<[usize]>,
-}
-
-impl<'mmap> DebugSyms<'mmap> {
-    /// Create a new `DebugSyms` object from the given set of symbols.
-    fn new(syms: Vec<DWSymInfo<'mmap>>) -> Self {
-        let mut syms = syms;
-        let () = syms.sort_by(|sym1, sym2| {
-            sym1.addr
-                .cmp(&sym2.addr)
-                .then_with(|| sym1.size.cmp(&sym2.size).reverse())
-        });
-
-        let mut by_name_idx = (0..syms.len()).collect::<Vec<_>>();
-        let () = by_name_idx.sort_by(|idx1, idx2| {
-            let sym1 = &syms[*idx1];
-            let sym2 = &syms[*idx2];
-            sym1.name
-                .cmp(sym2.name)
-                .then_with(|| sym1.addr.cmp(&sym2.addr))
-        });
-
-        Self {
-            syms: syms.into_boxed_slice(),
-            by_name_idx: by_name_idx.into_boxed_slice(),
-        }
-    }
-
-    /// Find a symbol by address.
-    fn find_by_addr<'slf>(
-        &'slf self,
-        addr: Addr,
-    ) -> impl Iterator<Item = &'slf DWSymInfo<'mmap>> + Clone + 'slf {
-        let idx =
-            if let Some(idx) = find_match_or_lower_bound_by_key(&self.syms, addr, |sym| sym.addr) {
-                idx
-            } else {
-                return Either::A([].into_iter())
-            };
-
-        let syms = self.syms[idx..]
-            .iter()
-            .take_while(move |sym| sym.contains(addr));
-        Either::B(syms)
-    }
-
-    /// Find a symbol by name.
-    fn find_by_name<'slf>(
-        &'slf self,
-        name: &'slf str,
-    ) -> impl Iterator<Item = &'slf DWSymInfo<'mmap>> + Clone + 'slf {
-        let idx = if let Some(idx) =
-            find_lowest_match_by_key(&self.by_name_idx, &name, |idx| self.syms[*idx].name)
-        {
-            idx
-        } else {
-            return Either::A([].into_iter())
-        };
-
-        let syms = self.by_name_idx[idx..].iter().map_while(move |idx| {
-            let sym = &self.syms[*idx];
-            if sym.name == name {
-                Some(sym)
-            } else {
-                None
-            }
-        });
-
-        Either::B(syms)
-    }
-}
-
-
-struct Cache<'mmap> {
-    /// The ELF parser object used for reading data.
-    parser: &'mmap ElfParser,
-    /// Cached debug symbols.
-    debug_syms: Option<DebugSyms<'mmap>>,
-    /// Source location information for individual addresses; ordered by
-    /// [`AddrSrcInfo::addr`].
-    addr_info: Option<Vec<AddrSrcInfo<'mmap>>>,
-}
-
-impl<'mmap> Cache<'mmap> {
-    /// Create a new `Cache` using the provided ELF parser.
-    fn new(parser: &'mmap ElfParser) -> Self {
-        Self {
-            parser,
-            debug_syms: None,
-            addr_info: None,
-        }
-    }
-
-    /// Extract the symbol information from DWARF if having not done it before.
-    // Note: This function should really return a reference to
-    //       `self.debug_syms`, but current borrow checker limitations
-    //       effectively prevent us from doing so.
-    fn ensure_debug_syms(&mut self) -> Result<()> {
-        if self.debug_syms.is_some() {
-            return Ok(())
-        }
-
-        let debug_syms = debug_info_parse_symbols(self.parser)?;
-        self.debug_syms = Some(DebugSyms::new(debug_syms));
-        Ok(())
-    }
-
-    /// Extract the symbol information from DWARF if having not done it before.
-    fn ensure_addr_src_info(&mut self) -> Result<&[AddrSrcInfo<'mmap>]> {
-        // Can't use `if let` here because of borrow checker woes.
-        if self.addr_info.is_some() {
-            let addr_info = self.addr_info.as_ref().unwrap();
-            return Ok(addr_info)
-        }
-
-        let mut addr_info = parse_debug_line_elf_parser(self.parser)?;
-        let () = addr_info.sort_by(|info1, info2| {
-            info1
-                .addr
-                .cmp(&info2.addr)
-                .then_with(|| info1.dir.cmp(&info2.dir))
-                .then_with(|| info1.file.cmp(&info2.file))
-        });
-        self.addr_info = Some(addr_info);
-        Ok(self.addr_info.as_ref().unwrap())
-    }
-}
-
-impl Debug for Cache<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "Cache")
-    }
-}
 
 /// DwarfResolver provides abilities to query DWARF information of binaries.
 pub(crate) struct DwarfResolver {
@@ -240,7 +51,7 @@ impl DwarfResolver {
         //         is fine to conjure a 'static lifetime here.
         let static_parser =
             unsafe { mem::transmute::<&ElfParser, &'static ElfParser>(parser.deref()) };
-        let mut load_section = |section| super::parser::load_section(static_parser, section);
+        let mut load_section = |section| reader::load_section(static_parser, section);
         let dwarf = Dwarf::load(&mut load_section)?;
         let units = Units::parse(dwarf)?;
         let slf = Self {
@@ -281,18 +92,6 @@ impl DwarfResolver {
             Ok(location)
         } else {
             Ok(None)
-        }
-    }
-
-    /// Extract the symbol information from DWARf if having not done it before.
-    fn ensure_debug_syms(&self, cache: &mut Cache) -> Result<()> {
-        if self.enable_debug_info_syms {
-            let () = cache.ensure_debug_syms()?;
-            Ok(())
-        } else {
-            Err(Error::with_unsupported(
-                "debug info symbol information has been disabled",
-            ))
         }
     }
 
@@ -407,74 +206,6 @@ mod tests {
         let bin_name = PathBuf::from(env::args().next().unwrap());
         let resolver = DwarfResolver::open(&bin_name, true, true).unwrap();
         assert_ne!(format!("{resolver:?}"), "");
-    }
-
-    fn mksym(name: &'static str, addr: Addr) -> DWSymInfo<'static> {
-        DWSymInfo {
-            name,
-            addr,
-            size: 0,
-            sym_type: SymType::Function,
-        }
-    }
-
-    fn mksyms(syms: &[(&'static str, Addr)]) -> DebugSyms<'static> {
-        let syms = syms.iter().map(|(name, addr)| mksym(name, *addr)).collect();
-        DebugSyms::new(syms)
-    }
-
-    /// Check that our `DebugSyms` type allows for proper lookup by address.
-    #[test]
-    fn debug_symbol_by_addr_lookup() {
-        let syms = [];
-        let syms = mksyms(&syms);
-        assert_eq!(syms.find_by_addr(0).count(), 0);
-        assert_eq!(syms.find_by_addr(42).count(), 0);
-        assert_eq!(syms.find_by_addr(0xfffffffff).count(), 0);
-
-        let syms = [
-            ("dead", 0xdeadbeef),
-            ("foo", 0x42),
-            ("bar", 0xffff),
-            ("inlined-foo", 0x42),
-        ];
-        let syms = mksyms(&syms);
-        assert_eq!(syms.find_by_addr(0).count(), 0);
-
-        let found = syms.find_by_addr(0xdeadbeef).collect::<Vec<_>>();
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].name, "dead");
-        assert_eq!(found[0].addr, 0xdeadbeef);
-
-        let mut found = syms.find_by_addr(0x42).collect::<Vec<_>>();
-        let () = found.sort_by_key(|sym| sym.name);
-        assert_eq!(found.len(), 2);
-        assert_eq!(found[0].name, "foo");
-        assert_eq!(found[1].name, "inlined-foo");
-    }
-
-    /// Check that our `DebugSyms` type allows for proper lookup by name.
-    #[test]
-    fn debug_symbol_by_name_lookup() {
-        let syms = [];
-        let syms = mksyms(&syms);
-        assert_eq!(syms.find_by_name("").count(), 0);
-        assert_eq!(syms.find_by_name("foobar").count(), 0);
-
-        let syms = [("foobar", 0x123), ("foobar", 0x126), ("bar", 0x127)];
-        let syms = mksyms(&syms);
-        assert_eq!(syms.find_by_name("").count(), 0);
-
-        let found = syms.find_by_name("foobar").collect::<Vec<_>>();
-        // Reported symbols are guaranteed to be ordered in increasing order of
-        // address.
-        assert_eq!(found.len(), 2);
-        assert_eq!(found[0].addr, 0x123);
-        assert_eq!(found[1].addr, 0x126);
-
-        let found = syms.find_by_name("bar").collect::<Vec<_>>();
-        assert_eq!(found.len(), 1);
-        assert_eq!(found[0].addr, 0x127);
     }
 
     /// Check that we can find the source code location of an address.
