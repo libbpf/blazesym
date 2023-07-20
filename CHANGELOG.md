@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.3
+-------------
 - Introduced custom `Error` type instead of relying solely on
   `std::io::Error`
 - Switched to using `gimli` for DWARF support
