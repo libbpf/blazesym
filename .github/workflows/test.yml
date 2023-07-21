@@ -158,7 +158,19 @@ jobs:
     - name: Install required tools
       run: sudo apt-get install -y llvm-14
     - uses: Swatinem/rust-cache@v2.5.1
-    - run: cargo bench --features=nightly,generate-large-test-files,dont-generate-unit-test-files
+    - name: Run benchmarks
+      run: |
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cargo bench --features=nightly -- bench_ | tee --append $GITHUB_STEP_SUMMARY
+        # We use bencher format here for better relation to the above
+        # but also because it emits less other crap into our summary.
+        # Note that because libtest does not understand the
+        # `--output-format` option, we need to specify the benchmark
+        # binary (`main`) here and have a different invocation for
+        # libtest style benchmarks above. Sigh.
+        cargo bench --bench=main --features=generate-large-test-files,dont-generate-unit-test-files -- --output-format=bencher | tee --append $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+
   clippy:
     name: Lint with clippy
     runs-on: ubuntu-latest
