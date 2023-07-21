@@ -34,6 +34,6 @@ where
     M: Measurement,
 {
     if cfg!(feature = "generate-large-test-files") {
-        group.bench_function(stringify!(inspect::lookup_dwarf), |b| b.iter(lookup_dwarf));
+        bench_fn!(group, lookup_dwarf);
     }
 }

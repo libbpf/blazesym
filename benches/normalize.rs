@@ -30,7 +30,5 @@ pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
 where
     M: Measurement,
 {
-    group.bench_function(stringify!(normalize::normalize_process), |b| {
-        b.iter(normalize_process)
-    });
+    bench_fn!(group, normalize_process);
 }
