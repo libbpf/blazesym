@@ -81,7 +81,7 @@ where
     group.bench_function(stringify!(symbolize::symbolize_process), |b| {
         b.iter(symbolize_process)
     });
-    if cfg!(feature = "generate-bench-files") {
+    if cfg!(feature = "generate-large-test-files") {
         group.bench_function(stringify!(symbolize::symbolize_dwarf), |b| {
             b.iter(symbolize_dwarf)
         });

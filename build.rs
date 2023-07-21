@@ -433,7 +433,7 @@ fn main() {
         prepare_test_files(crate_dir.as_ref());
     }
 
-    if cfg!(feature = "generate-bench-files") {
+    if cfg!(feature = "generate-large-test-files") {
         download_bench_files(crate_dir.as_ref());
         prepare_bench_files(crate_dir.as_ref());
     }

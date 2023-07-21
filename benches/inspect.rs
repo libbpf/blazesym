@@ -33,7 +33,7 @@ pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
 where
     M: Measurement,
 {
-    if cfg!(feature = "generate-bench-files") {
+    if cfg!(feature = "generate-large-test-files") {
         group.bench_function(stringify!(inspect::lookup_dwarf), |b| b.iter(lookup_dwarf));
     }
 }
