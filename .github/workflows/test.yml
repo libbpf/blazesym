@@ -52,12 +52,12 @@ jobs:
       run: sudo apt-get install -y llvm-14
     - name: Check incremental rebuilds
       run: |
-        cargo check --features=generate-test-files --quiet --tests
+        cargo check --features=generate-unit-test-files --quiet --tests
         # We need another build here to have the reference `output` file
         # present. As long as we converge eventually it's probably good
         # enough...
-        cargo check --features=generate-test-files --quiet --tests
-        output=$(CARGO_LOG=cargo::core::compiler::fingerprint=info cargo check --features=generate-test-files --quiet --tests 2>&1)
+        cargo check --features=generate-unit-test-files --quiet --tests
+        output=$(CARGO_LOG=cargo::core::compiler::fingerprint=info cargo check --features=generate-unit-test-files --quiet --tests 2>&1)
         [ -z "${output}" ] || (echo "!!!! cargo check --tests rebuild was not a no-op: ${output} !!!!" && false)
   test-coverage:
     name: Test and coverage
@@ -153,7 +153,7 @@ jobs:
         toolchain: nightly
         profile: minimal
         override: true
-    - run: cargo bench --features=nightly,dont-generate-test-files
+    - run: cargo bench --features=nightly,dont-generate-unit-test-files
   clippy:
     name: Lint with clippy
     runs-on: ubuntu-latest
@@ -165,7 +165,7 @@ jobs:
           profile: minimal
           components: clippy
           override: true
-      - run: cargo clippy --no-deps --bins --lib --examples --tests --features=dont-generate-test-files -- -A unknown_lints
+      - run: cargo clippy --no-deps --bins --lib --examples --tests --features=dont-generate-unit-test-files -- -A unknown_lints
   rustfmt:
     name: Check code formatting
     runs-on: ubuntu-latest

@@ -40,15 +40,15 @@ dwarf = ["gimli"]
 # include/ directory, so this feature is only necessary when APIs are
 # changed.
 generate-c-header = ["cbindgen", "which"]
-# Enable this feature to opt in to the generation of test files. Having test
-# files created is necessary for running tests.
-generate-test-files = ["xz2", "zip"]
+# Enable this feature to opt in to the generation of unit test files.
+# Having these test files created is necessary for running tests.
+generate-unit-test-files = ["xz2", "zip"]
 # Enable this feature to opt in to the generation of large benchmark
 # files (also used for regression testing).
 generate-large-test-files = ["reqwest", "xz2"]
 # Disable generation of test files. This feature takes preference over
-# `generate-test-files`.
-dont-generate-test-files = []
+# `generate-unit-test-files`.
+dont-generate-unit-test-files = []
 # Enable code paths requiring a nightly toolchain. This feature is only meant to
 # be used for testing and benchmarking purposes, not for the core library, which
 # is expected to work on stable.
@@ -75,7 +75,7 @@ tracing = {version = "0.1", default-features = false, features = ["attributes"],
 # APIs.
 addr2line = "=0.20.0"
 anyhow = "1.0.71"
-blazesym = {path = ".", features = ["generate-test-files", "tracing"]}
+blazesym = {path = ".", features = ["generate-unit-test-files", "tracing"]}
 criterion = "0.4"
 env_logger = "0.10"
 tempfile = "3.4"
