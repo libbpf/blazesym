@@ -43,10 +43,9 @@ generate-c-header = ["cbindgen", "which"]
 # Enable this feature to opt in to the generation of test files. Having test
 # files created is necessary for running tests.
 generate-test-files = ["xz2", "zip"]
-# Enable this feature to opt in to the generation of benchmark files.
-# This feature is required for some of the benchmarks. Note that git-lfs
-# needs to be installed in this case.
-generate-bench-files = ["reqwest", "xz2"]
+# Enable this feature to opt in to the generation of large benchmark
+# files (also used for regression testing).
+generate-large-test-files = ["reqwest", "xz2"]
 # Disable generation of test files. This feature takes preference over
 # `generate-test-files`.
 dont-generate-test-files = []
