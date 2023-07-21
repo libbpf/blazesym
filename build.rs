@@ -396,12 +396,9 @@ fn download_bench_files(crate_root: &Path) {
     let large_file_url =
         Url::parse("https://github.com/danielocfb/blazesym-data/raw/main/").unwrap();
     let file = "vmlinux-5.17.12-100.fc34.x86_64.xz";
-
-    download_multi_part(
-        &large_file_url.join(file).unwrap(),
-        2,
-        &crate_root.join("data").join(file),
-    );
+    let dst = crate_root.join("data").join(file);
+    let () = download_multi_part(&large_file_url.join(file).unwrap(), 2, &dst);
+    let () = adjust_mtime(&dst).unwrap();
 }
 
 #[cfg(not(feature = "reqwest"))]
