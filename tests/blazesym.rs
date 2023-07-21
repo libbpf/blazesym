@@ -142,6 +142,52 @@ fn symbolize_dwarf() {
     }
 }
 
+/// Check that we can symbolize the `abort_creds` function inside a
+/// kernel image properly. Inside of
+/// vmlinux-5.17.12-100.fc34.x86_64.dwarf, this function's address range
+/// and name are in separate attributes:
+/// ```text
+/// 0x01273e11: DW_TAG_subprogram
+///               DW_AT_abstract_origin     (0x0126ff5d "abort_creds")
+///               DW_AT_low_pc      (0xffffffff8110ecb0)
+///               DW_AT_high_pc     (0xffffffff8110ecce)
+///               DW_AT_frame_base  (DW_OP_call_frame_cfa)
+///               DW_AT_call_all_calls      (true)
+///               DW_AT_sibling     (0x01273f66)
+///
+/// 0x0110932c: DW_TAG_subprogram
+///               DW_AT_external    (true)
+///               DW_AT_name        ("abort_creds")
+///               DW_AT_decl_file   ("<...>/include/linux/cred.h")
+///               DW_AT_decl_line   (163)
+///               DW_AT_decl_column (0x0d)
+///               DW_AT_prototyped  (true)
+///               DW_AT_declaration (true)
+///               DW_AT_sibling     (0x0110933e)
+/// ```
+/// In the past we were unable to handle this case properly.
+#[test]
+#[cfg_attr(not(feature = "generate-large-test-files"), ignore)]
+fn symbolize_dwarf_complex() {
+    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
+    let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
+    let symbolizer = Symbolizer::new();
+    let results = symbolizer
+        .symbolize(&src, &[0xffffffff8110ecb0])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = results.first().unwrap();
+    assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.addr, 0xffffffff8110ecb0);
+    assert_eq!(result.line, 534);
+}
+
 /// Check that we can symbolize addresses inside our own process.
 #[test]
 fn symbolize_process() {
