@@ -429,7 +429,9 @@ fn prepare_bench_files(crate_root: &Path) {
 fn main() {
     let crate_dir = env!("CARGO_MANIFEST_DIR");
 
-    if cfg!(feature = "generate-test-files") && !cfg!(feature = "dont-generate-test-files") {
+    if cfg!(feature = "generate-unit-test-files")
+        && !cfg!(feature = "dont-generate-unit-test-files")
+    {
         prepare_test_files(crate_dir.as_ref());
     }
 
