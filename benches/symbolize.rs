@@ -78,15 +78,9 @@ pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
 where
     M: Measurement,
 {
-    group.bench_function(stringify!(symbolize::symbolize_process), |b| {
-        b.iter(symbolize_process)
-    });
+    bench_fn!(group, symbolize_process);
     if cfg!(feature = "generate-large-test-files") {
-        group.bench_function(stringify!(symbolize::symbolize_dwarf), |b| {
-            b.iter(symbolize_dwarf)
-        });
-        group.bench_function(stringify!(symbolize::symbolize_gsym), |b| {
-            b.iter(symbolize_gsym)
-        });
+        bench_fn!(group, symbolize_dwarf);
+        bench_fn!(group, symbolize_gsym);
     }
 }
