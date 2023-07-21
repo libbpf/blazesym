@@ -13,8 +13,7 @@ use criterion::Criterion;
 
 fn benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("main");
-    group.sample_size(500);
-    group.warm_up_time(Duration::from_secs(5));
+    group.warm_up_time(Duration::from_secs(1));
     group.confidence_level(0.98);
     group.significance_level(0.02);
     inspect::benchmark(&mut group);
