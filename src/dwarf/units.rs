@@ -295,12 +295,15 @@ impl<'dwarf> Units<'dwarf> {
             })
     }
 
-    pub fn find_function(&self, probe: u64) -> Result<Option<&Function<'dwarf>>, gimli::Error> {
+    pub fn find_function(
+        &self,
+        probe: u64,
+    ) -> Result<Option<(&Function<'dwarf>, Option<gimli::DwLang>)>, gimli::Error> {
         let units_iter = self.find_units(probe);
         for unit in units_iter {
             let result = unit.find_function_or_location(probe, &self.dwarf)?;
             match result {
-                (Some(function), _) => return Ok(Some(function)),
+                (Some(function), _) => return Ok(Some((function, unit.language()))),
                 (None, Some(_location)) => {
                     // We found the address in the unit, we just couldn't get
                     // any symbol information.

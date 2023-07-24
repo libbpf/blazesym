@@ -166,7 +166,11 @@ impl Symbolizer {
             let mut results = vec![];
             for sym in syms {
                 if let Some(ref linfo) = linfo {
-                    let IntSym { name, addr } = sym;
+                    let IntSym {
+                        name,
+                        addr,
+                        lang: _lang,
+                    } = sym;
                     results.push(Sym {
                         name: String::from(name),
                         addr,
@@ -176,7 +180,11 @@ impl Symbolizer {
                         _non_exhaustive: (),
                     });
                 } else {
-                    let IntSym { name, addr } = sym;
+                    let IntSym {
+                        name,
+                        addr,
+                        lang: _lang,
+                    } = sym;
                     results.push(Sym {
                         name: String::from(name),
                         addr,

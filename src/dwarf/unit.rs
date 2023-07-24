@@ -152,4 +152,10 @@ impl<'dwarf> Unit<'dwarf> {
         }
         Ok(None)
     }
+
+    /// Attempt to retrieve the compilation unit's source code language.
+    #[inline]
+    pub(super) fn language(&self) -> Option<gimli::DwLang> {
+        self.lang
+    }
 }

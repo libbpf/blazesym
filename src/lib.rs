@@ -54,6 +54,7 @@ use std::num::NonZeroU32;
 use std::result;
 
 use resolver::IntSym;
+use resolver::SrcLang;
 use resolver::SymResolver;
 
 

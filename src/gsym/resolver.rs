@@ -14,6 +14,7 @@ use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::IntSym;
 use crate::Result;
+use crate::SrcLang;
 use crate::SymResolver;
 
 use super::linetab::run_op;
@@ -96,7 +97,13 @@ impl SymResolver for GsymResolver<'_> {
                     format!("failed to read string table entry at offset {}", info.name),
                 )
             })?;
-            let sym = IntSym { name, addr: found };
+            // Gsym does not carry any source code language information.
+            let lang = SrcLang::Unknown;
+            let sym = IntSym {
+                name,
+                addr: found,
+                lang,
+            };
 
             Ok(vec![sym])
         } else {
