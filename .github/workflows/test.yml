@@ -35,7 +35,7 @@ jobs:
         override: true
     - name: Build ${{ matrix.profile }}
       run: |
-        cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
+        cargo build --workspace --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
   nop-rebuilds:
     name: No-op rebuilds
     runs-on: ubuntu-22.04
@@ -128,7 +128,7 @@ jobs:
         toolchain: stable
         profile: minimal
         override: true
-    - run: cargo test --release
+    - run: cargo test --workspace --release
   c-header:
     name: Check generated C header
     runs-on: ubuntu-latest
@@ -139,7 +139,7 @@ jobs:
         toolchain: stable
         profile: minimal
         override: true
-    - run: cargo check --features=generate-c-header
+    - run: cargo check --workspace --features=generate-c-header
     - name: Check that C header is up-to-date
       run: git diff --exit-code ||
              (echo "!!!! CHECKED IN C HEADER IS OUTDATED !!!!" && false)
@@ -182,7 +182,7 @@ jobs:
           profile: minimal
           components: clippy
           override: true
-      - run: cargo clippy --no-deps --all-targets --features=dont-generate-unit-test-files -- -A unknown_lints
+      - run: cargo clippy --workspace --no-deps --all-targets --features=dont-generate-unit-test-files -- -A unknown_lints
   rustfmt:
     name: Check code formatting
     runs-on: ubuntu-latest
@@ -194,7 +194,7 @@ jobs:
           profile: minimal
           components: rustfmt
           override: true
-      - run: cargo +nightly fmt -- --check
+      - run: cargo +nightly fmt --all -- --check
   cargo-doc:
     name: Generate documentation
     runs-on: ubuntu-latest
