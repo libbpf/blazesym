@@ -19,9 +19,26 @@ use crate::Addr;
 use crate::Error;
 use crate::IntSym;
 use crate::Result;
+use crate::SrcLang;
 
 use super::reader;
 use super::units::Units;
+
+
+impl From<Option<gimli::DwLang>> for SrcLang {
+    fn from(other: Option<gimli::DwLang>) -> Self {
+        match other {
+            Some(gimli::DW_LANG_Rust) => SrcLang::Rust,
+            Some(
+                gimli::DW_LANG_C_plus_plus
+                | gimli::DW_LANG_C_plus_plus_03
+                | gimli::DW_LANG_C_plus_plus_11
+                | gimli::DW_LANG_C_plus_plus_14,
+            ) => SrcLang::Cpp,
+            _ => SrcLang::Unknown,
+        }
+    }
+}
 
 
 /// DwarfResolver provides abilities to query DWARF information of binaries.
@@ -107,8 +124,8 @@ impl DwarfResolver {
             ))
         }
 
-        let function = self.units.find_function(addr as u64)?;
-        if let Some(function) = function {
+        let result = self.units.find_function(addr as u64)?;
+        if let Some((function, language)) = result {
             let name = function
                 .name
                 .map(|name| name.to_string())
@@ -118,7 +135,11 @@ impl DwarfResolver {
                 .range
                 .map(|range| range.begin as usize)
                 .unwrap_or(0);
-            let sym = IntSym { name, addr };
+            let sym = IntSym {
+                name,
+                addr,
+                lang: language.into(),
+            };
             Ok(vec![sym])
         } else {
             Ok(Vec::new())

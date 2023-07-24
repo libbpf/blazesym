@@ -7,12 +7,27 @@ use crate::Addr;
 use crate::Result;
 
 
+/// The source code language from which a symbol originates.
+#[derive(Clone, Copy, Default, Debug)]
+pub(crate) enum SrcLang {
+    /// The language is unknown.
+    #[default]
+    Unknown,
+    /// The language is C++.
+    Cpp,
+    /// The language is Rust.
+    Rust,
+}
+
+
 /// Our internal representation of a symbol.
 pub(crate) struct IntSym<'src> {
     /// The name of the symbol.
     pub(crate) name: &'src str,
     /// The symbol's normalized address.
     pub(crate) addr: Addr,
+    /// The source code language from which the symbol originates.
+    pub(crate) lang: SrcLang,
 }
 
 

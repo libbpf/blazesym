@@ -17,6 +17,7 @@ use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::IntSym;
 use crate::Result;
+use crate::SrcLang;
 use crate::SymResolver;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
@@ -31,7 +32,13 @@ pub struct Ksym {
 impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
     fn from(other: &'ksym Ksym) -> Self {
         let Ksym { name, addr } = other;
-        IntSym { name, addr: *addr }
+        IntSym {
+            name,
+            addr: *addr,
+            // Kernel symbols don't carry any source code language
+            // information.
+            lang: SrcLang::Unknown,
+        }
     }
 }
 

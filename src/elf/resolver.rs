@@ -10,6 +10,7 @@ use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::IntSym;
 use crate::Result;
+use crate::SrcLang;
 use crate::SymResolver;
 
 use super::cache::ElfBackend;
@@ -58,11 +59,13 @@ impl SymResolver for ElfResolver {
     fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
         let parser = self.get_parser();
         if let Some((name, addr)) = parser.find_sym(addr, STT_FUNC)? {
+            // ELF does not carry any source code language information.
+            let lang = SrcLang::Unknown;
             // We found the address in ELF.
             // TODO: Long term we probably want a different heuristic here, as
             //       there can be valid differences between the two formats
             //       (e.g., DWARF could contain more symbols).
-            return Ok(vec![IntSym { name, addr }])
+            return Ok(vec![IntSym { name, addr, lang }])
         }
 
         match &self.backend {
