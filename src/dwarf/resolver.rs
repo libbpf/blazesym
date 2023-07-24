@@ -17,6 +17,7 @@ use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::Addr;
 use crate::Error;
+use crate::IntSym;
 use crate::Result;
 
 use super::reader;
@@ -96,7 +97,7 @@ impl DwarfResolver {
     }
 
     /// Lookup the symbol(s) at an address.
-    pub(crate) fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>, Error> {
+    pub(crate) fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>, Error> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
@@ -117,7 +118,8 @@ impl DwarfResolver {
                 .range
                 .map(|range| range.begin as usize)
                 .unwrap_or(0);
-            Ok(vec![(name, addr)])
+            let sym = IntSym { name, addr };
+            Ok(vec![sym])
         } else {
             Ok(Vec::new())
         }

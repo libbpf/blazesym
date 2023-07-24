@@ -12,6 +12,7 @@ use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
+use crate::IntSym;
 use crate::Result;
 use crate::SymResolver;
 
@@ -71,7 +72,7 @@ impl<'dat> GsymResolver<'dat> {
 }
 
 impl SymResolver for GsymResolver<'_> {
-    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
+    fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let found = self.ctx.addr_at(idx).ok_or_else(|| {
                 Error::new(
@@ -95,8 +96,9 @@ impl SymResolver for GsymResolver<'_> {
                     format!("failed to read string table entry at offset {}", info.name),
                 )
             })?;
+            let sym = IntSym { name, addr: found };
 
-            Ok(vec![(name, found)])
+            Ok(vec![sym])
         } else {
             Ok(Vec::new())
         }

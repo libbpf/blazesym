@@ -11,6 +11,7 @@ use crate::ksym::KSymResolver;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::Error;
+use crate::IntSym;
 use crate::Result;
 use crate::SymResolver;
 
@@ -39,7 +40,7 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
+    fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
             ksym_resolver.find_syms(addr)
         } else {

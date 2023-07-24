@@ -7,6 +7,15 @@ use crate::Addr;
 use crate::Result;
 
 
+/// Our internal representation of a symbol.
+pub(crate) struct IntSym<'src> {
+    /// The name of the symbol.
+    pub(crate) name: &'src str,
+    /// The symbol's normalized address.
+    pub(crate) addr: Addr,
+}
+
+
 /// The trait of symbol resolvers.
 ///
 /// An symbol resolver usually provides information from one symbol
@@ -17,7 +26,7 @@ where
 {
     /// Find the names and the start addresses of a symbol found for
     /// the given address.
-    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>>;
+    fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>>;
     /// Find the address and size of a symbol name.
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>>;
     /// Find the file name and the line number of an address.

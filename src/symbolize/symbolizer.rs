@@ -23,6 +23,7 @@ use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
 use crate::ErrorExt as _;
+use crate::IntSym;
 use crate::Pid;
 use crate::Result;
 use crate::SymResolver;
@@ -165,20 +166,20 @@ impl Symbolizer {
             let mut results = vec![];
             for sym in syms {
                 if let Some(ref linfo) = linfo {
-                    let (sym, start) = sym;
+                    let IntSym { name, addr } = sym;
                     results.push(Sym {
-                        name: String::from(sym),
-                        addr: start,
+                        name: String::from(name),
+                        addr,
                         path: linfo.path.clone(),
                         line: linfo.line,
                         column: linfo.column,
                         _non_exhaustive: (),
                     });
                 } else {
-                    let (sym, start) = sym;
+                    let IntSym { name, addr } = sym;
                     results.push(Sym {
-                        name: String::from(sym),
-                        addr: start,
+                        name: String::from(name),
+                        addr,
                         path: PathBuf::new(),
                         line: 0,
                         column: 0,
