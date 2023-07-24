@@ -1,3 +1,9 @@
+[workspace]
+members = [
+  ".",
+  "bin/blazecli",
+]
+
 [package]
 name = "blazesym"
 description = "blazesym is a library for address symbolization and related tasks."
