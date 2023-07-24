@@ -50,6 +50,7 @@ fn symbolizer_creation_with_opts() {
     let opts = blaze_symbolizer_opts {
         debug_syms: true,
         src_location: false,
+        demangle: true,
     };
     let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
     let () = unsafe { blaze_symbolizer_free(symbolizer) };

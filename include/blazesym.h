@@ -241,6 +241,14 @@ typedef struct blaze_symbolizer_opts {
    * This setting implies `debug_syms` (and forces it to `true`).
    */
   bool src_location;
+  /**
+   * Whether or not to transparently demangle symbols.
+   *
+   * Demangling happens on a best-effort basis. Currently supported
+   * languages are Rust and C++ and the flag will have no effect if
+   * the underlying language does not mangle symbols (such as C).
+   */
+  bool demangle;
 } blaze_symbolizer_opts;
 
 /**
