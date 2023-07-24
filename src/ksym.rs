@@ -15,6 +15,7 @@ use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
+use crate::IntSym;
 use crate::Result;
 use crate::SymResolver;
 
@@ -25,6 +26,13 @@ const DFL_KSYM_CAP: usize = 200000;
 pub struct Ksym {
     pub addr: Addr,
     pub name: String,
+}
+
+impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
+    fn from(other: &'ksym Ksym) -> Self {
+        let Ksym { name, addr } = other;
+        IntSym { name, addr: *addr }
+    }
 }
 
 /// The symbol resolver for /proc/kallsyms.
@@ -131,11 +139,8 @@ impl KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn find_syms(&self, addr: Addr) -> Result<Vec<(&str, Addr)>> {
-        let syms = self
-            .find_addresses_ksym(addr)
-            .map(|sym| (sym.name.as_str(), sym.addr))
-            .collect();
+    fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
+        let syms = self.find_addresses_ksym(addr).map(IntSym::from).collect();
         Ok(syms)
     }
 
@@ -237,11 +242,11 @@ mod tests {
         let name = sym.name.clone();
         let found = resolver.find_syms(addr).unwrap();
         assert!(!found.is_empty());
-        assert!(found.iter().any(|x| x.0 == name));
+        assert!(found.iter().any(|x| x.name == name));
         let addr = addr + 1;
         let found = resolver.find_syms(addr).unwrap();
         assert!(!found.is_empty());
-        assert!(found.iter().any(|x| x.0 == name));
+        assert!(found.iter().any(|x| x.name == name));
 
         // 0 is an invalid address.  We remove all symbols with 0 as
         // thier address from the list.
@@ -254,10 +259,10 @@ mod tests {
         let name = sym.name.clone();
         let found = resolver.find_syms(addr).unwrap();
         assert!(!found.is_empty());
-        assert!(found.iter().any(|x| x.0 == name));
+        assert!(found.iter().any(|x| x.name == name));
         let found = resolver.find_syms(addr + 1).unwrap();
         assert!(!found.is_empty());
-        assert!(found.iter().any(|x| x.0 == name));
+        assert!(found.iter().any(|x| x.name == name));
 
         // Find the symbol placed at the one third
         let sym = &resolver.syms[resolver.syms.len() / 3];
