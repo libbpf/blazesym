@@ -1,6 +1,7 @@
 Unreleased
 ----------
-- Renamed `symbolize::SymbolizedResult` to `Sym`
+- Renamed `symbolize::SymbolizedResult` to `Sym` and made it
+  non-exhaustive
 - Added additional end-to-end benchmarks
   - Added benchmark result summary to CI runs
 - Fixed spurious maps file path creation for low addresses as part of
