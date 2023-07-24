@@ -178,9 +178,10 @@ pub struct blaze_sym {
     pub addr: Addr,
     /// The path of the source file defining the symbol.
     pub path: *const c_char,
-    /// The line number on which the symbol was to be found in the source code.
-    pub line: usize,
-    pub column: usize,
+    /// The line number on which the symbol is located in the source
+    /// code.
+    pub line: u32,
+    pub column: u16,
 }
 
 /// `blaze_entry` is the output of symbolization for an address for C API.

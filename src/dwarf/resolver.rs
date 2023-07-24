@@ -78,7 +78,7 @@ impl DwarfResolver {
     /// object. This function returns a tuple of `(dir_name, file_name,
     /// line_no)`.
     // TODO: We likely want to return a more structured type.
-    pub fn find_line(&self, addr: Addr) -> Result<Option<(&Path, &OsStr, usize)>> {
+    pub fn find_line(&self, addr: Addr) -> Result<Option<(&Path, &OsStr, u32)>> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
@@ -86,7 +86,7 @@ impl DwarfResolver {
             let location = self.units.find_location(addr as u64)?.map(|location| {
                 let dir = location.dir;
                 let file = location.file;
-                let line = location.line.map(|line| line as usize).unwrap_or(0);
+                let line = location.line.unwrap_or(0);
                 (dir, file, line)
             });
             Ok(location)

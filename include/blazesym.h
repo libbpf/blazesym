@@ -266,10 +266,11 @@ typedef struct blaze_sym {
    */
   const char *path;
   /**
-   * The line number on which the symbol was to be found in the source code.
+   * The line number on which the symbol is located in the source
+   * code.
    */
-  size_t line;
-  size_t column;
+  uint32_t line;
+  uint16_t column;
 } blaze_sym;
 
 /**
