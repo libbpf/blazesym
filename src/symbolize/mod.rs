@@ -12,8 +12,8 @@
 //! # use std::ptr;
 //! use blazesym::symbolize::Source;
 //! use blazesym::symbolize::Process;
+//! use blazesym::symbolize::Sym;
 //! use blazesym::symbolize::Symbolizer;
-//! use blazesym::symbolize::SymbolizedResult;
 //! use blazesym::Addr;
 //! use blazesym::Pid;
 //!
@@ -36,7 +36,7 @@
 //!   match &syms[..] {
 //!     [] => println!("0x{addr:016x}: <no-symbols>"),
 //!     [sym] => {
-//!       let SymbolizedResult {symbol, addr, path, line, ..} = sym;
+//!       let Sym {symbol, addr, path, line, ..} = sym;
 //!       println!("0x{addr:016x} {symbol} @ 0x{addr:x} {}:{line}", path.display());
 //!     },
 //!     syms => {
@@ -44,7 +44,7 @@
 //!       println!("0x{addr:016x} ({} entries)", syms.len());
 //!
 //!       for sym in syms {
-//!         let SymbolizedResult {symbol, addr, path, line, ..} = sym;
+//!         let Sym {symbol, addr, path, line, ..} = sym;
 //!         println!("    {symbol} @ 0x{addr:016x} {}:{line}", path.display());
 //!       }
 //!     },
@@ -65,7 +65,7 @@ pub use source::Kernel;
 pub use source::Process;
 pub use source::Source;
 pub use symbolizer::Builder;
-pub use symbolizer::SymbolizedResult;
+pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
 
 

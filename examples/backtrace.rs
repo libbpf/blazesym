@@ -1,6 +1,6 @@
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
-use blazesym::symbolize::SymbolizedResult;
+use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::Pid;
@@ -30,7 +30,7 @@ fn symbolize_current_bt() {
         match &syms[..] {
             [] => println!("0x{addr:016x}: <no-symbols>"),
             [sym] => {
-                let SymbolizedResult {
+                let Sym {
                     symbol,
                     addr,
                     path,
@@ -47,7 +47,7 @@ fn symbolize_current_bt() {
                 println!("0x{addr:016x} ({} entries)", syms.len());
 
                 for sym in syms {
-                    let SymbolizedResult {
+                    let Sym {
                         symbol,
                         addr,
                         path,
