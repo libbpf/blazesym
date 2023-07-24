@@ -1,5 +1,8 @@
 Unreleased
 ----------
+- Added support for automatic demangling of symbols, controlled by
+  `demangle` feature (at compile time) and corresponding flag in
+  `symbolize::Builder` (at runtime)
 - Renamed `symbolize::SymbolizedResult` to `Sym` and made it
   non-exhaustive
   - Renamed `Sym::symbol` to `name`

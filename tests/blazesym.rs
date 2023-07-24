@@ -1,5 +1,6 @@
 #![allow(clippy::let_and_return, clippy::let_unit_value)]
 
+use std::env::current_exe;
 use std::ffi::CString;
 use std::fs::read as read_file;
 use std::io::Error;
@@ -188,6 +189,50 @@ fn symbolize_dwarf_complex() {
     assert_eq!(result.line, 534);
 }
 
+/// Symbolize a normalized address inside an ELF file, with and without
+/// auto-demangling enabled.
+#[test]
+fn symbolize_elf_demangle() {
+    let test_elf = current_exe().unwrap();
+    let addr = Normalizer::new as Addr;
+    let normalizer = Normalizer::new();
+    let norm_addrs = normalizer
+        .normalize_user_addrs_sorted(&[addr], Pid::Slf)
+        .unwrap();
+    let (addr, _meta_idx) = norm_addrs.addrs[0];
+
+    let src = symbolize::Source::Elf(symbolize::Elf::new(test_elf));
+    let symbolizer = Symbolizer::builder().enable_demangling(false).build();
+    let results = symbolizer
+        .symbolize(&src, &[addr])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = &results[0];
+    assert!(result.name.contains("Normalizer3new"), "{result:x?}");
+
+    // Do it again, this time with demangling enabled.
+    let symbolizer = Symbolizer::new();
+    let results = symbolizer
+        .symbolize(&src, &[addr])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let result = &results[0];
+    assert!(
+        result.name == "blazesym::normalize::normalizer::Normalizer::new"
+            || result.name == "<blazesym::normalize::normalizer::Normalizer>::new",
+        "{}",
+        result.name
+    );
+}
+
 /// Check that we can symbolize addresses inside our own process.
 #[test]
 fn symbolize_process() {
@@ -206,7 +251,14 @@ fn symbolize_process() {
     assert!(result.name.contains("symbolize_process"), "{result:x?}");
 
     let result = &results[1];
-    assert!(result.name.contains("Symbolizer3new"), "{result:x?}");
+    // It's not entirely clear why we have seen two different demangled
+    // symbols, but they both seem legit.
+    assert!(
+        result.name == "blazesym::symbolize::symbolizer::Symbolizer::new"
+            || result.name == "<blazesym::symbolize::symbolizer::Symbolizer>::new",
+        "{}",
+        result.name
+    );
 }
 
 /// Check that we can normalize addresses in an ELF shared object.
