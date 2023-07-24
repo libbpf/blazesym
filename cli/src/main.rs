@@ -44,7 +44,7 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
                     addr: sym_addr,
                     path,
                     line,
-                    column: _,
+                    ..
                 } = sym;
                 println!(
                     "0x{addr:x}: {symbol}@0x{addr:x}+{} {}:{line}",
@@ -60,7 +60,7 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
                         addr: sym_addr,
                         path,
                         line,
-                        column: _,
+                        ..
                     } = sym;
                     println!(
                         "\t0x{addr:x} {symbol}@0x{addr:x}+{} {}:{line}",

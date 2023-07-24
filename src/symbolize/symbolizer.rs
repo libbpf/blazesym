@@ -55,6 +55,8 @@ pub struct Sym {
     /// (function).
     pub line: usize,
     pub column: usize,
+    /// The struct is non-exhaustive and open to extension.
+    pub(crate) _non_exhaustive: (),
 }
 
 
@@ -151,6 +153,7 @@ impl Symbolizer {
                     path: linfo.path,
                     line: linfo.line,
                     column: linfo.column,
+                    _non_exhaustive: (),
                 }])
             } else {
                 Ok(Vec::new())
@@ -166,6 +169,7 @@ impl Symbolizer {
                         path: linfo.path.clone(),
                         line: linfo.line,
                         column: linfo.column,
+                        _non_exhaustive: (),
                     });
                 } else {
                     let (sym, start) = sym;
@@ -175,6 +179,7 @@ impl Symbolizer {
                         path: PathBuf::new(),
                         line: 0,
                         column: 0,
+                        _non_exhaustive: (),
                     });
                 }
             }

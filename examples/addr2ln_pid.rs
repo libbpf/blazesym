@@ -40,7 +40,7 @@ print its symbol, the file name of the source, and the line number.",
             addr: sym_addr,
             path,
             line,
-            column: _,
+            ..
         } = &symlist[0][0];
         println!(
             "0x{addr:x} {symbol}@0x{addr:x}+{} {}:{line}",
