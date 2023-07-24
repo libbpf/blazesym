@@ -26,6 +26,7 @@ use crate::ErrorExt as _;
 use crate::IntSym;
 use crate::Pid;
 use crate::Result;
+use crate::SrcLang;
 use crate::SymResolver;
 
 use super::source::Elf;
@@ -35,6 +36,36 @@ use super::source::GsymFile;
 use super::source::Kernel;
 use super::source::Process;
 use super::source::Source;
+
+
+/// Demangle a symbol name using the demangling scheme for the given language.
+#[cfg(feature = "demangle")]
+fn maybe_demangle(name: &str, language: SrcLang) -> String {
+    match language {
+        SrcLang::Rust => rustc_demangle::try_demangle(name)
+            .ok()
+            .as_ref()
+            .map(|x| format!("{x:#}")),
+        SrcLang::Cpp => cpp_demangle::Symbol::new(name)
+            .ok()
+            .and_then(|x| x.demangle(&Default::default()).ok()),
+        SrcLang::Unknown => rustc_demangle::try_demangle(name)
+            .map(|x| format!("{x:#}"))
+            .ok()
+            .or_else(|| {
+                cpp_demangle::Symbol::new(name)
+                    .ok()
+                    .and_then(|sym| sym.demangle(&Default::default()).ok())
+            }),
+    }
+    .unwrap_or_else(|| name.to_string())
+}
+
+#[cfg(not(feature = "demangle"))]
+fn maybe_demangle(name: &str, _language: SrcLang) -> String {
+    // Demangling is disabled.
+    name.to_string()
+}
 
 
 /// The result of symbolization by [`Symbolizer`].
@@ -121,6 +152,7 @@ impl Builder {
             ksym_cache,
             elf_cache,
             src_location,
+            demangle,
         }
     }
 }
@@ -142,6 +174,7 @@ pub struct Symbolizer {
     ksym_cache: KSymCache,
     elf_cache: ElfCache,
     src_location: bool,
+    demangle: bool,
 }
 
 impl Symbolizer {
@@ -154,6 +187,15 @@ impl Symbolizer {
     /// [`Symbolizer`].
     pub fn builder() -> Builder {
         Builder::default()
+    }
+
+    /// Demangle the provided symbol if asked for and possible.
+    fn maybe_demangle(&self, symbol: &str, language: SrcLang) -> String {
+        if self.demangle {
+            maybe_demangle(symbol, language)
+        } else {
+            symbol.to_string()
+        }
     }
 
     /// Symbolize an address using the provided [`SymResolver`].
@@ -182,13 +224,9 @@ impl Symbolizer {
             let mut results = vec![];
             for sym in syms {
                 if let Some(ref linfo) = linfo {
-                    let IntSym {
-                        name,
-                        addr,
-                        lang: _lang,
-                    } = sym;
+                    let IntSym { name, addr, lang } = sym;
                     results.push(Sym {
-                        name: String::from(name),
+                        name: self.maybe_demangle(name, lang),
                         addr,
                         path: linfo.path.clone(),
                         line: linfo.line,
@@ -196,13 +234,9 @@ impl Symbolizer {
                         _non_exhaustive: (),
                     });
                 } else {
-                    let IntSym {
-                        name,
-                        addr,
-                        lang: _lang,
-                    } = sym;
+                    let IntSym { name, addr, lang } = sym;
                     results.push(Sym {
-                        name: String::from(name),
+                        name: self.maybe_demangle(name, lang),
                         addr,
                         path: PathBuf::new(),
                         line: 0,

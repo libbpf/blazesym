@@ -38,9 +38,11 @@ name = "blazesym"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [features]
-default = ["dwarf", "lru"]
+default = ["demangle", "dwarf", "lru"]
 # Enable this feature to enable DWARF support.
 dwarf = ["gimli"]
+# Enable this feature to get transparent symbol demangling.
+demangle = ["cpp_demangle", "rustc-demangle"]
 # Enable this feature to re-generate the library's C header file. An
 # up-to-date version of this header should already be available in the
 # include/ directory, so this feature is only necessary when APIs are
@@ -71,9 +73,11 @@ lto = true
 codegen-units = 1
 
 [dependencies]
-libc = "0.2.137"
+cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.27.2", optional = true}
+libc = "0.2.137"
 lru = {version = "0.10", optional = true}
+rustc-demangle = {version = "0.1", optional = true}
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
 
 [dev-dependencies]
