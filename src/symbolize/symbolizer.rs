@@ -36,16 +36,9 @@ use super::source::Process;
 use super::source::Source;
 
 
-/// The result of symbolization by Symbolizer.
-///
-/// [`Symbolizer::symbolize()`] returns a list of lists of
-/// `SymbolizedResult`.  It appears as `[[SymbolizedResult {...},
-/// SymbolizedResult {...}, ...], [SymbolizedResult {...}, ...],
-/// ...]`.  At the first level, each entry is a list of
-/// `SymbolizedResult`.  [`Symbolizer::symbolize()`] can return
-/// multiple results of an address due to compiler optimizations.
+/// The result of symbolization by [`Symbolizer`].
 #[derive(Clone, Debug)]
-pub struct SymbolizedResult {
+pub struct Sym {
     /// The symbol name that an address may belong to.
     pub symbol: String,
     /// The address where the symbol is located within the process.
@@ -143,11 +136,7 @@ impl Symbolizer {
 
     /// Symbolize an address using the provided [`SymResolver`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{addr:x}"), resolver = ?resolver)))]
-    fn symbolize_with_resolver(
-        &self,
-        addr: Addr,
-        resolver: &dyn SymResolver,
-    ) -> Result<Vec<SymbolizedResult>> {
+    fn symbolize_with_resolver(&self, addr: Addr, resolver: &dyn SymResolver) -> Result<Vec<Sym>> {
         let syms = resolver.find_syms(addr)?;
         let linfo = if self.src_location {
             resolver.find_line_info(addr)?
@@ -156,7 +145,7 @@ impl Symbolizer {
         };
         if syms.is_empty() {
             if let Some(linfo) = linfo {
-                Ok(vec![SymbolizedResult {
+                Ok(vec![Sym {
                     symbol: "".to_string(),
                     addr: 0,
                     path: linfo.path,
@@ -171,7 +160,7 @@ impl Symbolizer {
             for sym in syms {
                 if let Some(ref linfo) = linfo {
                     let (sym, start) = sym;
-                    results.push(SymbolizedResult {
+                    results.push(Sym {
                         symbol: String::from(sym),
                         addr: start,
                         path: linfo.path.clone(),
@@ -180,7 +169,7 @@ impl Symbolizer {
                     });
                 } else {
                     let (sym, start) = sym;
-                    results.push(SymbolizedResult {
+                    results.push(Sym {
                         symbol: String::from(sym),
                         addr: start,
                         path: PathBuf::new(),
@@ -194,18 +183,14 @@ impl Symbolizer {
     }
 
     /// Symbolize a list of addresses using the provided [`SymResolver`].
-    fn symbolize_addrs(
-        &self,
-        addrs: &[Addr],
-        resolver: &dyn SymResolver,
-    ) -> Result<Vec<Vec<SymbolizedResult>>> {
+    fn symbolize_addrs(&self, addrs: &[Addr], resolver: &dyn SymResolver) -> Result<Vec<Vec<Sym>>> {
         addrs
             .iter()
             .map(|addr| self.symbolize_with_resolver(*addr, resolver))
             .collect()
     }
 
-    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Vec<SymbolizedResult>> {
+    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Vec<Sym>> {
         let backend = self.elf_cache.find(path)?;
         let resolver = ElfResolver::with_backend(path, backend)?;
         let symbols = self.symbolize_with_resolver(addr, &resolver)?;
@@ -214,12 +199,12 @@ impl Symbolizer {
 
     /// Symbolize the given list of user space addresses in the provided
     /// process.
-    fn symbolize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<Vec<Vec<SymbolizedResult>>> {
+    fn symbolize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<Vec<Vec<Sym>>> {
         struct SymbolizeHandler<'sym> {
             /// The "outer" `Symbolizer` instance.
             symbolizer: &'sym Symbolizer,
             /// Symbols representing the symbolized addresses.
-            all_symbols: Vec<Vec<SymbolizedResult>>,
+            all_symbols: Vec<Vec<Sym>>,
         }
 
         impl SymbolizeHandler<'_> {
@@ -290,11 +275,7 @@ impl Symbolizer {
         Ok(handler.all_symbols)
     }
 
-    fn symbolize_kernel_addrs(
-        &self,
-        addrs: &[Addr],
-        src: &Kernel,
-    ) -> Result<Vec<Vec<SymbolizedResult>>> {
+    fn symbolize_kernel_addrs(&self, addrs: &[Addr], src: &Kernel) -> Result<Vec<Vec<Sym>>> {
         let Kernel {
             kallsyms,
             kernel_image,
@@ -371,7 +352,7 @@ impl Symbolizer {
     /// Symbolize a list of addresses according to the configuration
     /// provided via `src`.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{addrs:x?}"))))]
-    pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<SymbolizedResult>>> {
+    pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<Sym>>> {
         match src {
             Source::Elf(Elf {
                 path,

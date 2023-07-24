@@ -19,7 +19,7 @@ use crate::symbolize::GsymFile;
 use crate::symbolize::Kernel;
 use crate::symbolize::Process;
 use crate::symbolize::Source;
-use crate::symbolize::SymbolizedResult;
+use crate::symbolize::Sym;
 use crate::symbolize::Symbolizer;
 use crate::util::slice_from_user_array;
 use crate::Addr;
@@ -284,14 +284,12 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
     }
 }
 
-/// Convert [`SymbolizedResult`] objects to [`blaze_result`] ones.
+/// Convert [`Sym`] objects to [`blaze_result`] ones.
 ///
 /// # Safety
 ///
 /// The returned pointer should be freed by [`blaze_result_free`].
-unsafe fn convert_symbolizedresults_to_c(
-    results: Vec<Vec<SymbolizedResult>>,
-) -> *const blaze_result {
+unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze_result {
     // Allocate a buffer to contain a blaze_result, all
     // blaze_sym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
@@ -337,7 +335,7 @@ unsafe fn convert_symbolizedresults_to_c(
 
     unsafe { (*result_ptr).size = results.len() };
 
-    // Convert all `SymbolizedResult`s to `blaze_entry`s and `blazesym_sym`s.
+    // Convert all `Sym`s to `blaze_entry`s and `blazesym_sym`s.
     for entry in results {
         unsafe { (*entry_last).size = entry.len() };
         unsafe { (*entry_last).syms = csym_last };

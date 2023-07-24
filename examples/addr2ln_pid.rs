@@ -6,7 +6,7 @@ use anyhow::Result;
 
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
-use blazesym::symbolize::SymbolizedResult;
+use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 
@@ -35,7 +35,7 @@ print its symbol, the file name of the source, and the line number.",
         .symbolize(&src, &[addr])
         .with_context(|| format!("failed to symbolize address 0x{addr:x}"))?;
     if !symlist[0].is_empty() {
-        let SymbolizedResult {
+        let Sym {
             symbol,
             addr: sym_addr,
             path,

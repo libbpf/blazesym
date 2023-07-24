@@ -7,7 +7,7 @@ use anyhow::Result;
 
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
-use blazesym::symbolize::SymbolizedResult;
+use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolizer;
 
 use clap::Parser as _;
@@ -39,7 +39,7 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
                 println!("0x{addr:x}: not found")
             }
             [sym] => {
-                let SymbolizedResult {
+                let Sym {
                     symbol,
                     addr: sym_addr,
                     path,
@@ -55,7 +55,7 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
             syms => {
                 println!("0x{addr:x}:");
                 for sym in syms {
-                    let SymbolizedResult {
+                    let Sym {
                         symbol,
                         addr: sym_addr,
                         path,
