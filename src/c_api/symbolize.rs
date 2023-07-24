@@ -238,6 +238,12 @@ pub struct blaze_symbolizer_opts {
     ///
     /// This setting implies `debug_syms` (and forces it to `true`).
     pub src_location: bool,
+    /// Whether or not to transparently demangle symbols.
+    ///
+    /// Demangling happens on a best-effort basis. Currently supported
+    /// languages are Rust and C++ and the flag will have no effect if
+    /// the underlying language does not mangle symbols (such as C).
+    pub demangle: bool,
 }
 
 
@@ -262,11 +268,13 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     let blaze_symbolizer_opts {
         debug_syms,
         src_location,
+        demangle,
     } = opts;
 
     let symbolizer = Symbolizer::builder()
         .enable_debug_syms(*debug_syms)
         .enable_src_location(*src_location)
+        .enable_demangling(*demangle)
         .build();
     let symbolizer_box = Box::new(symbolizer);
     Box::into_raw(symbolizer_box)
@@ -599,10 +607,11 @@ mod tests {
         let opts = blaze_symbolizer_opts {
             debug_syms: true,
             src_location: false,
+            demangle: true,
         };
         assert_eq!(
             format!("{opts:?}"),
-            "blaze_symbolizer_opts { debug_syms: true, src_location: false }"
+            "blaze_symbolizer_opts { debug_syms: true, src_location: false, demangle: true }"
         );
     }
 

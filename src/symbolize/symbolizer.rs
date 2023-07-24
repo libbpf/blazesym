@@ -76,6 +76,12 @@ pub struct Builder {
     /// This setting implies usage of debug symbols and forces the corresponding
     /// flag to `true`.
     src_location: bool,
+    /// Whether or not to transparently demangle symbols.
+    ///
+    /// Demangling happens on a best-effort basis. Currently supported
+    /// languages are Rust and C++ and the flag will have no effect if
+    /// the underlying language does not mangle symbols (such as C).
+    demangle: bool,
 }
 
 impl Builder {
@@ -93,11 +99,20 @@ impl Builder {
         self
     }
 
+    /// Enable/disable usage of debug symbols.
+    ///
+    /// That can be useful in cases where ELF symbol information is stripped.
+    pub fn enable_demangling(mut self, enable: bool) -> Builder {
+        self.demangle = enable;
+        self
+    }
+
     /// Create the [`Symbolizer`] object.
     pub fn build(self) -> Symbolizer {
         let Builder {
             debug_syms,
             src_location,
+            demangle,
         } = self;
         let ksym_cache = KSymCache::new();
         let elf_cache = ElfCache::new(src_location, debug_syms);
@@ -115,6 +130,7 @@ impl Default for Builder {
         Self {
             src_location: true,
             debug_syms: true,
+            demangle: true,
         }
     }
 }
