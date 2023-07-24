@@ -178,7 +178,7 @@ impl SymResolver for GsymResolver<'_> {
                 let path = Path::new(dirname).join(filename);
                 return Some(AddrLineInfo {
                     path,
-                    line: lntab_row.file_line as usize,
+                    line: lntab_row.file_line,
                     column: 0,
                 })
             }

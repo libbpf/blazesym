@@ -48,13 +48,16 @@ pub struct Sym {
     pub addr: Addr,
     /// The source path that defines the symbol.
     pub path: PathBuf,
-    /// The line number of the symbolized instruction in the source code.
+    /// The line number of the symbolized instruction in the source
+    /// code.
     ///
     /// This is the line number of the instruction of the address being
     /// symbolized, not the line number that defines the symbol
     /// (function).
-    pub line: usize,
-    pub column: usize,
+    pub line: u32,
+    /// The column number of the symbolized instruction in the source
+    /// code.
+    pub column: u16,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
 }
