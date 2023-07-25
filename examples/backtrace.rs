@@ -31,14 +31,14 @@ fn symbolize_current_bt() {
             [] => println!("0x{addr:016x}: <no-symbols>"),
             [sym] => {
                 let Sym {
-                    symbol,
+                    name,
                     addr,
                     path,
                     line,
                     ..
                 } = sym;
                 println!(
-                    "0x{addr:016x} {symbol} @ 0x{addr:x} {}:{line}",
+                    "0x{addr:016x} {name} @ 0x{addr:x} {}:{line}",
                     path.display()
                 );
             }
@@ -48,13 +48,13 @@ fn symbolize_current_bt() {
 
                 for sym in syms {
                     let Sym {
-                        symbol,
+                        name,
                         addr,
                         path,
                         line,
                         ..
                     } = sym;
-                    println!("    {symbol} @ 0x{addr:016x} {}:{line}", path.display());
+                    println!("    {name} @ 0x{addr:016x} {}:{line}", path.display());
                 }
             }
         }

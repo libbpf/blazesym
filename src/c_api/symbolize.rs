@@ -170,7 +170,7 @@ pub type blaze_symbolizer = Symbolizer;
 #[derive(Debug)]
 pub struct blaze_sym {
     /// The symbol name is where the given address should belong to.
-    pub symbol: *const c_char,
+    pub name: *const c_char,
     /// The address (i.e.,the first byte) is where the symbol is located.
     ///
     /// The address is already relocated to the address space of
@@ -294,7 +294,7 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze
     // Allocate a buffer to contain a blaze_result, all
     // blaze_sym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
-        acc + result.symbol.len() + result.path.as_os_str().len() + 2
+        acc + result.name.len() + result.path.as_os_str().len() + 2
     });
     let all_csym_size = results.iter().flatten().count();
     let buf_size = strtab_size
@@ -343,12 +343,12 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze
         entry_last = unsafe { entry_last.add(1) };
 
         for r in entry {
-            let symbol_ptr = make_cstr(OsStr::new(&r.symbol));
+            let symbol_ptr = make_cstr(OsStr::new(&r.name));
 
             let path_ptr = make_cstr(r.path.as_os_str());
 
             let csym_ref = unsafe { &mut *csym_last };
-            csym_ref.symbol = symbol_ptr;
+            csym_ref.name = symbol_ptr;
             csym_ref.addr = r.addr;
             csym_ref.path = path_ptr;
             csym_ref.line = r.line;
@@ -570,7 +570,7 @@ mod tests {
         );
 
         let sym = blaze_sym {
-            symbol: ptr::null(),
+            name: ptr::null(),
             addr: 0x1337,
             path: ptr::null(),
             line: 42,
@@ -578,7 +578,7 @@ mod tests {
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { symbol: 0x0, addr: 4919, path: 0x0, line: 42, column: 1 }"
+            "blaze_sym { name: 0x0, addr: 4919, path: 0x0, line: 42, column: 1 }"
         );
 
         let entry = blaze_entry {

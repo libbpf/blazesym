@@ -36,14 +36,14 @@ print its symbol, the file name of the source, and the line number.",
         .with_context(|| format!("failed to symbolize address 0x{addr:x}"))?;
     if !symlist[0].is_empty() {
         let Sym {
-            symbol,
+            name,
             addr: sym_addr,
             path,
             line,
             ..
         } = &symlist[0][0];
         println!(
-            "0x{addr:x} {symbol}@0x{addr:x}+{} {}:{line}",
+            "0x{addr:x} {name}@0x{addr:x}+{} {}:{line}",
             addr - sym_addr,
             path.display(),
         );

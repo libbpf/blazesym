@@ -40,7 +40,7 @@ use super::source::Source;
 #[derive(Clone, Debug)]
 pub struct Sym {
     /// The symbol name that an address may belong to.
-    pub symbol: String,
+    pub name: String,
     /// The address where the symbol is located within the process.
     ///
     /// The address is in the target process, not the offset from the
@@ -151,7 +151,7 @@ impl Symbolizer {
         if syms.is_empty() {
             if let Some(linfo) = linfo {
                 Ok(vec![Sym {
-                    symbol: "".to_string(),
+                    name: "".to_string(),
                     addr: 0,
                     path: linfo.path,
                     line: linfo.line,
@@ -167,7 +167,7 @@ impl Symbolizer {
                 if let Some(ref linfo) = linfo {
                     let (sym, start) = sym;
                     results.push(Sym {
-                        symbol: String::from(sym),
+                        name: String::from(sym),
                         addr: start,
                         path: linfo.path.clone(),
                         line: linfo.line,
@@ -177,7 +177,7 @@ impl Symbolizer {
                 } else {
                     let (sym, start) = sym;
                     results.push(Sym {
-                        symbol: String::from(sym),
+                        name: String::from(sym),
                         addr: start,
                         path: PathBuf::new(),
                         line: 0,
@@ -475,7 +475,7 @@ mod tests {
         assert_eq!(results.len(), 1);
 
         let result = results.first().unwrap();
-        assert_eq!(result.symbol, "the_answer");
+        assert_eq!(result.name, "the_answer");
         assert_eq!(result.addr, sym.addr);
     }
 }

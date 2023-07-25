@@ -36,16 +36,16 @@
 //!   match &syms[..] {
 //!     [] => println!("0x{addr:016x}: <no-symbols>"),
 //!     [sym] => {
-//!       let Sym {symbol, addr, path, line, ..} = sym;
-//!       println!("0x{addr:016x} {symbol} @ 0x{addr:x} {}:{line}", path.display());
+//!       let Sym {name, addr, path, line, ..} = sym;
+//!       println!("0x{addr:016x} {name} @ 0x{addr:x} {}:{line}", path.display());
 //!     },
 //!     syms => {
 //!       // One address may get several results.
 //!       println!("0x{addr:016x} ({} entries)", syms.len());
 //!
 //!       for sym in syms {
-//!         let Sym {symbol, addr, path, line, ..} = sym;
-//!         println!("    {symbol} @ 0x{addr:016x} {}:{line}", path.display());
+//!         let Sym {name, addr, path, line, ..} = sym;
+//!         println!("    {name} @ 0x{addr:016x} {}:{line}", path.display());
 //!       }
 //!     },
 //!   }
