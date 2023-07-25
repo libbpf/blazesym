@@ -292,7 +292,7 @@ fn prepare_test_files(crate_root: &Path) {
     cc(
         &src,
         "libtest-so-no-separate-code.so",
-        &["-shared", "-fPIC", "-Wl,--build-id=sha1,-z,noseparate-code"],
+        &["-shared", "-fPIC", "-Wl,--build-id=md5,-z,noseparate-code"],
     );
 
     let src = crate_root.join("data").join("test-exe.c");

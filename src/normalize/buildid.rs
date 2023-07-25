@@ -116,6 +116,50 @@ impl BuildIdReader for DefaultBuildIdReader {
     }
 }
 
+/// Read the build ID of an ELF file located at the given path.
+///
+/// Build IDs can have variable length, depending on which flavor is used (e.g.,
+/// 20 bytes for `sha1` flavor). They are reported as "raw" bytes. If you need a
+/// hexadecimal representation as reported by tools such as `readelf(1)`, a post
+/// processing step is necessary.
+///
+/// Returns [`None`] if the file does not contain a build ID.
+///
+/// ```
+/// # use std::path::Path;
+/// # let retrieve_path_to_elf_file = || {
+/// #   Path::new(&env!("CARGO_MANIFEST_DIR"))
+/// #       .join("data")
+/// #       .join("libtest-so.so")
+/// #       // Convert to string here for more convenient formatting in example
+/// #       // code.
+/// #       .to_str()
+/// #       .unwrap()
+/// #       .to_string()
+/// # };
+/// let path = retrieve_path_to_elf_file();
+/// let build_id = blazesym::helper::read_elf_build_id(&path).unwrap();
+/// match build_id {
+///     Some(bytes) => {
+///        let build_id = bytes
+///            .iter()
+///            .fold(String::with_capacity(bytes.len() * 2), |mut s, b| {
+///                let () = s.push_str(&format!("{b:02x}"));
+///                s
+///            });
+///        println!("{path} has build ID {build_id}");
+///     },
+///     None => println!("{path} has no build ID"),
+/// }
+/// ```
+#[inline]
+pub fn read_elf_build_id<P>(path: &P) -> Result<Option<Vec<u8>>>
+where
+    P: AsRef<Path>,
+{
+    DefaultBuildIdReader::read_build_id_from_elf(path.as_ref())
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -149,18 +193,22 @@ mod tests {
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("libtest-so.so");
-
-        let build_id = DefaultBuildIdReader::read_build_id_from_elf(&elf)
-            .unwrap()
-            .unwrap();
-        // The file contains a sha1 build ID, which is always 40 hex digits.
+        let build_id = read_elf_build_id(&elf).unwrap().unwrap();
+        // The file contains a sha1 build ID, which is always 20 bytes in length.
         assert_eq!(build_id.len(), 20, "'{build_id:?}'");
+
+        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("libtest-so-no-separate-code.so");
+        let build_id = read_elf_build_id(&elf).unwrap().unwrap();
+        // The file contains an md5 build ID, which is always 16 bytes long.
+        assert_eq!(build_id.len(), 16, "'{build_id:?}'");
 
         // The shared object is explicitly built without build ID.
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-no-debug.bin");
-        let build_id = DefaultBuildIdReader::read_build_id_from_elf(&elf).unwrap();
+        let build_id = read_elf_build_id(&elf).unwrap();
         assert_eq!(build_id, None);
     }
 }

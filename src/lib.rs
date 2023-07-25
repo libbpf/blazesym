@@ -75,6 +75,12 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 pub type Addr = usize;
 
 
+/// Utility functionality not specific to any overarching theme.
+pub mod helper {
+    pub use crate::normalize::buildid::read_elf_build_id;
+}
+
+
 /// An enumeration identifying a process.
 #[derive(Clone, Copy, Debug)]
 pub enum Pid {
