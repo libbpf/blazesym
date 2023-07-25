@@ -122,13 +122,13 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
             format!("encountered malformed address range in proc maps line: {full_line}"),
         )
     })?;
-    let loaded_address = Addr::from_str_radix(loaded_str, 16).map_err(|err| {
+    let loaded_addr = Addr::from_str_radix(loaded_str, 16).map_err(|err| {
         Error::new(
             ErrorKind::InvalidData,
             format!("encountered malformed start address in proc maps line: {full_line}: {err}"),
         )
     })?;
-    let end_address = Addr::from_str_radix(end_str, 16).map_err(|err| {
+    let end_addr = Addr::from_str_radix(end_str, 16).map_err(|err| {
         Error::new(
             ErrorKind::InvalidData,
             format!("encountered malformed end address in proc maps line: {full_line}: {err}"),
@@ -162,7 +162,9 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
                 PathBuf::from(path_str.strip_suffix(" (deleted)").unwrap_or(path_str));
             // TODO: May have to resolve the symbolic link in case of
             //       `Pid::Slf` here for remote symbolization use cases.
-            let maps_file = PathBuf::from(format!("/proc/{pid}/map_files/{address_str}"));
+            let maps_file = PathBuf::from(format!(
+                "/proc/{pid}/map_files/{loaded_addr:x}-{end_addr:x}"
+            ));
             Some(PathName::Path(EntryPath {
                 maps_file,
                 symbolic_path,
@@ -176,7 +178,7 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     };
 
     let entry = MapsEntry {
-        range: (loaded_address..end_address),
+        range: (loaded_addr..end_addr),
         mode,
         offset,
         path_name,
@@ -313,6 +315,11 @@ mod tests {
     #[test]
     fn map_line_parsing() {
         let lines = r#"
+00400000-00401000 r--p 00000000 00:29 47459                              /tmp/test/test
+00401000-00402000 r-xp 00001000 00:29 47459                              /tmp/test/test
+00402000-00403000 r--p 00002000 00:29 47459                              /tmp/test/test
+00403000-00404000 r--p 00002000 00:29 47459                              /tmp/test/test
+00404000-00405000 rw-p 00003000 00:29 47459                              /tmp/test/test
 55f4a95c9000-55f4a95cb000 r--p 00000000 00:20 41445                      /usr/bin/cat
 55f4a95cb000-55f4a95cf000 r-xp 00002000 00:20 41445                      /usr/bin/cat
 55f4a95cf000-55f4a95d1000 r--p 00006000 00:20 41445                      /usr/bin/cat
@@ -355,7 +362,21 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         });
 
         // Parse the first (actual) line.
-        let entry = parse_maps_line(lines.lines().nth(2).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(1).unwrap(), Pid::Slf).unwrap();
+        assert_eq!(entry.range.start, 0x400000);
+        assert_eq!(entry.range.end, 0x401000);
+        assert_eq!(
+            entry
+                .path_name
+                .as_ref()
+                .unwrap()
+                .as_path()
+                .unwrap()
+                .maps_file,
+            Path::new("/proc/self/map_files/400000-401000")
+        );
+
+        let entry = parse_maps_line(lines.lines().nth(7).unwrap(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4a95cb000);
         assert_eq!(entry.range.end, 0x55f4a95cf000);
         assert_eq!(entry.mode, 0b1011);
@@ -371,7 +392,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         );
         assert_eq!(entry.path_name.as_ref().unwrap().as_component(), None);
 
-        let entry = parse_maps_line(lines.lines().nth(6).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(11).unwrap(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4aa379000);
         assert_eq!(entry.range.end, 0x55f4aa39a000);
         assert_eq!(entry.mode, 0b1101);
@@ -381,7 +402,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         );
         assert_eq!(entry.path_name.as_ref().unwrap().as_path(), None);
 
-        let entry = parse_maps_line(lines.lines().nth(8).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(13).unwrap(), Pid::Slf).unwrap();
         assert_eq!(entry.mode, 0b1001);
         assert_eq!(
             entry
