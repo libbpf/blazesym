@@ -171,11 +171,22 @@ pub type blaze_symbolizer = Symbolizer;
 pub struct blaze_sym {
     /// The symbol name is where the given address should belong to.
     pub name: *const c_char,
-    /// The address (i.e.,the first byte) is where the symbol is located.
+    /// The address at which the symbol is located (i.e., its "start").
     ///
-    /// The address is already relocated to the address space of
-    /// the process.
+    /// This is the "normalized" address of the symbol, as present in
+    /// the file (and reported by tools such as `readelf(1)`,
+    /// `llvm-gsymutil`, or similar).
     pub addr: Addr,
+    /// The byte offset of the address that got symbolized from the
+    /// start of the symbol (i.e., from `addr`).
+    ///
+    /// E.g., when normalizing address 0x1337 of a function that starts at
+    /// 0x1330, the offset will be set to 0x07 (and `addr` will be 0x1330). This
+    /// member is especially useful in contexts when input addresses are not
+    /// already normalized, such as when normalizing an address in a process
+    /// context (which may have been relocated and/or have layout randomizations
+    /// applied).
+    pub offset: usize,
     /// The path of the source file defining the symbol.
     pub path: *const c_char,
     /// The line number on which the symbol is located in the source
@@ -580,13 +591,14 @@ mod tests {
         let sym = blaze_sym {
             name: ptr::null(),
             addr: 0x1337,
+            offset: 24,
             path: ptr::null(),
             line: 42,
             column: 1,
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, path: 0x0, line: 42, column: 1 }"
+            "blaze_sym { name: 0x0, addr: 4919, offset: 24, path: 0x0, line: 42, column: 1 }"
         );
 
         let entry = blaze_entry {

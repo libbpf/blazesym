@@ -6,6 +6,7 @@ Unreleased
 - Renamed `symbolize::SymbolizedResult` to `Sym` and made it
   non-exhaustive
   - Renamed `Sym::symbol` to `name`
+  - Added `Sym::offset` member
   - Changed `Sym::line` to be of type `u32` and `Sym::column` to `u16`
 - Added additional end-to-end benchmarks
   - Added benchmark result summary to CI runs
