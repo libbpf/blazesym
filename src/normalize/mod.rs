@@ -30,7 +30,7 @@
 //! );
 //! ```
 
-mod buildid;
+pub(crate) mod buildid;
 mod meta;
 mod normalizer;
 mod user;
