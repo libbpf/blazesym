@@ -422,7 +422,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_function_parsing(b: &mut Bencher) {
-        let bin_name = env::args().next().unwrap();
+        let bin_name = current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
@@ -438,7 +438,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_function_parsing_addr2line(b: &mut Bencher) {
-        let bin_name = env::args().next().unwrap();
+        let bin_name = current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
@@ -453,7 +453,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_line_parsing(b: &mut Bencher) {
-        let bin_name = env::args().next().unwrap();
+        let bin_name = current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
@@ -469,7 +469,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_line_parsing_addr2line(b: &mut Bencher) {
-        let bin_name = env::args().next().unwrap();
+        let bin_name = current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
