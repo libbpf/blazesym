@@ -11,6 +11,7 @@ use std::ops::Range;
 use std::path::PathBuf;
 
 use crate::Addr;
+use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Pid;
 use crate::Result;
@@ -240,7 +241,8 @@ where
 /// Parse the maps file for the process with the given PID.
 pub(crate) fn parse(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>> {
     let path = format!("/proc/{pid}/maps");
-    let file = File::open(path)?;
+    let file =
+        File::open(&path).with_context(|| format!("failed to open proc maps file {path}"))?;
     let iter = parse_file(file, pid);
     Ok(iter)
 }

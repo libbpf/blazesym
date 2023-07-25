@@ -13,6 +13,7 @@ use lru::LruCache;
 #[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
 use crate::util::fstat;
+use crate::ErrorExt as _;
 use crate::Result;
 
 use super::ElfParser;
@@ -138,7 +139,8 @@ impl _ElfCache {
     }
 
     pub fn find(&mut self, path: &Path) -> Result<ElfBackend> {
-        let file = File::open(path)?;
+        let file = File::open(path)
+            .with_context(|| format!("failed to open ELF file {}", path.display()))?;
         self.find_or_create_backend(path, file)
     }
 }

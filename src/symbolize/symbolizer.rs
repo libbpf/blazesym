@@ -22,6 +22,7 @@ use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
+use crate::ErrorExt as _;
 use crate::Pid;
 use crate::Result;
 use crate::SymResolver;
@@ -241,7 +242,15 @@ impl Symbolizer {
             fn handle_elf_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let path = &entry.path.maps_file;
                 let norm_addr = normalize_elf_addr(addr, entry)?;
-                let symbols = self.symbolizer.resolve_addr_in_elf(norm_addr, path)?;
+                let symbols = self
+                    .symbolizer
+                    .resolve_addr_in_elf(norm_addr, path)
+                    .with_context(|| {
+                        format!(
+                            "failed to symbolize normalized address 0x{norm_addr:x} in ELF file {}",
+                            path.display()
+                        )
+                    })?;
                 let () = self.all_symbols.push(symbols);
                 Ok(())
             }
