@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Added additional end-to-end benchmarks
   - Added benchmark result summary to CI runs
+- Introduced `helper` module exposing `read_elf_build_id` function
 
 
 0.2.0-alpha.3
