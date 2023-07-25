@@ -24,7 +24,7 @@ const BENCH_NAME_WIDTH: usize = 42;
 
 
 fn bench_fn_name(name: &str) -> String {
-    format!("{name:<width$}", width = BENCH_NAME_WIDTH)
+    format!("{name:<BENCH_NAME_WIDTH$}")
 }
 
 
