@@ -65,7 +65,7 @@ fn symbolize_gsym() {
         assert_eq!(results.len(), 1);
 
         let result = results.first().unwrap();
-        assert_eq!(result.symbol, "factorial");
+        assert_eq!(result.name, "factorial");
 
         let test_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -83,7 +83,7 @@ fn symbolize_gsym() {
             assert_eq!(results.len(), 1);
 
             let result = results.first().unwrap();
-            assert_eq!(result.symbol, "factorial");
+            assert_eq!(result.name, "factorial");
             assert_eq!(result.addr, 0x2000100);
         }
     }
@@ -117,7 +117,7 @@ fn symbolize_dwarf() {
     assert_eq!(results.len(), 1);
 
     let result = results.first().unwrap();
-    assert_eq!(result.symbol, "factorial");
+    assert_eq!(result.name, "factorial");
     assert_eq!(result.addr, 0x2000100);
     assert_eq!(result.line, 8);
 
@@ -137,7 +137,7 @@ fn symbolize_dwarf() {
         assert_eq!(results.len(), 1);
 
         let result = results.first().unwrap();
-        assert_eq!(result.symbol, "factorial");
+        assert_eq!(result.name, "factorial");
         assert_eq!(result.addr, 0x2000100);
     }
 }
@@ -183,7 +183,7 @@ fn symbolize_dwarf_complex() {
     assert_eq!(results.len(), 1);
 
     let result = results.first().unwrap();
-    assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.name, "abort_creds");
     assert_eq!(result.addr, 0xffffffff8110ecb0);
     assert_eq!(result.line, 534);
 }
@@ -203,10 +203,10 @@ fn symbolize_process() {
     assert_eq!(results.len(), 2);
 
     let result = &results[0];
-    assert!(result.symbol.contains("symbolize_process"), "{result:x?}");
+    assert!(result.name.contains("symbolize_process"), "{result:x?}");
 
     let result = &results[1];
-    assert!(result.symbol.contains("Symbolizer3new"), "{result:x?}");
+    assert!(result.name.contains("Symbolizer3new"), "{result:x?}");
 }
 
 /// Check that we can normalize addresses in an ELF shared object.
@@ -247,7 +247,7 @@ fn normalize_elf_addr() {
         assert_eq!(results.len(), 1);
 
         let result = results.first().unwrap();
-        assert_eq!(result.symbol, "the_answer");
+        assert_eq!(result.name, "the_answer");
     }
 
     test("libtest-so.so");

@@ -253,7 +253,7 @@ typedef struct blaze_sym {
   /**
    * The symbol name is where the given address should belong to.
    */
-  const char *symbol;
+  const char *name;
   /**
    * The address (i.e.,the first byte) is where the symbol is located.
    *

@@ -53,7 +53,7 @@ fn symbolize_elf() {
     assert_eq!(results.len(), 1);
 
     let result = results.first().unwrap();
-    assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.name, "abort_creds");
 }
 
 /// Symbolize an address in a DWARF file, excluding line information,
@@ -74,7 +74,7 @@ fn symbolize_dwarf_no_lines() {
     assert_eq!(results.len(), 1);
 
     let result = results.first().unwrap();
-    assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.name, "abort_creds");
     assert_eq!(result.line, 0);
 }
 
@@ -96,7 +96,7 @@ fn symbolize_dwarf() {
     assert_eq!(results.len(), 1);
 
     let result = results.first().unwrap();
-    assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.name, "abort_creds");
     assert_eq!(result.line, 534);
 }
 
@@ -118,7 +118,7 @@ fn symbolize_gsym() {
     assert_eq!(results.len(), 1);
 
     let result = results.first().unwrap();
-    assert_eq!(result.symbol, "abort_creds");
+    assert_eq!(result.name, "abort_creds");
 }
 
 pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)

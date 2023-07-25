@@ -40,14 +40,14 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
             }
             [sym] => {
                 let Sym {
-                    symbol,
+                    name,
                     addr: sym_addr,
                     path,
                     line,
                     ..
                 } = sym;
                 println!(
-                    "0x{addr:x}: {symbol}@0x{addr:x}+{} {}:{line}",
+                    "0x{addr:x}: {name}@0x{addr:x}+{} {}:{line}",
                     addr - sym_addr,
                     path.display(),
                 )
@@ -56,14 +56,14 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
                 println!("0x{addr:x}:");
                 for sym in syms {
                     let Sym {
-                        symbol,
+                        name,
                         addr: sym_addr,
                         path,
                         line,
                         ..
                     } = sym;
                     println!(
-                        "\t0x{addr:x} {symbol}@0x{addr:x}+{} {}:{line}",
+                        "\t0x{addr:x} {name}@0x{addr:x}+{} {}:{line}",
                         addr - sym_addr,
                         path.display(),
                     )

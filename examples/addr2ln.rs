@@ -34,7 +34,7 @@ fn main() -> Result<()> {
         let result = &results[0][0];
         println!(
             "0x{addr:x} @ {} {}:{}",
-            result.symbol,
+            result.name,
             result.path.display(),
             result.line
         );

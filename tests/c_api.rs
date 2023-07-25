@@ -83,7 +83,7 @@ fn symbolize_from_elf() {
     let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
     let sym = &syms[0];
     assert_eq!(
-        unsafe { CStr::from_ptr(sym.symbol) },
+        unsafe { CStr::from_ptr(sym.name) },
         CStr::from_bytes_with_nul(b"factorial\0").unwrap()
     );
 
@@ -121,7 +121,7 @@ fn symbolize_from_gsym_data() {
     let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
     let sym = &syms[0];
     assert_eq!(
-        unsafe { CStr::from_ptr(sym.symbol) },
+        unsafe { CStr::from_ptr(sym.name) },
         CStr::from_bytes_with_nul(b"factorial\0").unwrap()
     );
 
@@ -157,7 +157,7 @@ fn symbolize_from_gsym_file() {
     let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
     let sym = &syms[0];
     assert_eq!(
-        unsafe { CStr::from_ptr(sym.symbol) },
+        unsafe { CStr::from_ptr(sym.name) },
         CStr::from_bytes_with_nul(b"factorial\0").unwrap()
     );
 
@@ -187,7 +187,7 @@ fn symbolize_in_process() {
     let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
     let sym = &syms[0];
     assert_eq!(
-        unsafe { CStr::from_ptr(sym.symbol) },
+        unsafe { CStr::from_ptr(sym.name) },
         CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()
     );
 
