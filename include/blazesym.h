@@ -263,12 +263,25 @@ typedef struct blaze_sym {
    */
   const char *name;
   /**
-   * The address (i.e.,the first byte) is where the symbol is located.
+   * The address at which the symbol is located (i.e., its "start").
    *
-   * The address is already relocated to the address space of
-   * the process.
+   * This is the "normalized" address of the symbol, as present in
+   * the file (and reported by tools such as `readelf(1)`,
+   * `llvm-gsymutil`, or similar).
    */
   uintptr_t addr;
+  /**
+   * The byte offset of the address that got symbolized from the
+   * start of the symbol (i.e., from `addr`).
+   *
+   * E.g., when normalizing address 0x1337 of a function that starts at
+   * 0x1330, the offset will be set to 0x07 (and `addr` will be 0x1330). This
+   * member is especially useful in contexts when input addresses are not
+   * already normalized, such as when normalizing an address in a process
+   * context (which may have been relocated and/or have layout randomizations
+   * applied).
+   */
+  size_t offset;
   /**
    * The path of the source file defining the symbol.
    */

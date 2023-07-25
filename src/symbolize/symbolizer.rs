@@ -73,11 +73,22 @@ fn maybe_demangle(name: &str, _language: SrcLang) -> String {
 pub struct Sym {
     /// The symbol name that an address may belong to.
     pub name: String,
-    /// The address where the symbol is located within the process.
+    /// The address at which the symbol is located (i.e., its "start").
     ///
-    /// The address is in the target process, not the offset from the
-    /// shared object file.
+    /// This is the "normalized" address of the symbol, as present in
+    /// the file (and reported by tools such as `readelf(1)`,
+    /// `llvm-gsymutil`, or similar).
     pub addr: Addr,
+    /// The byte offset of the address that got symbolized from the
+    /// start of the symbol (i.e., from `addr`).
+    ///
+    /// E.g., when normalizing address 0x1337 of a function that starts at
+    /// 0x1330, the offset will be set to 0x07 (and `addr` will be 0x1330). This
+    /// member is especially useful in contexts when input addresses are not
+    /// already normalized, such as when normalizing an address in a process
+    /// context (which may have been relocated and/or have layout randomizations
+    /// applied).
+    pub offset: usize,
     /// The source path that defines the symbol.
     pub path: PathBuf,
     /// The line number of the symbolized instruction in the source
@@ -212,6 +223,7 @@ impl Symbolizer {
                 Ok(vec![Sym {
                     name: "".to_string(),
                     addr: 0,
+                    offset: 0,
                     path: linfo.path,
                     line: linfo.line,
                     column: linfo.column,
@@ -224,20 +236,30 @@ impl Symbolizer {
             let mut results = vec![];
             for sym in syms {
                 if let Some(ref linfo) = linfo {
-                    let IntSym { name, addr, lang } = sym;
+                    let IntSym {
+                        name,
+                        addr: sym_addr,
+                        lang,
+                    } = sym;
                     results.push(Sym {
                         name: self.maybe_demangle(name, lang),
-                        addr,
+                        addr: sym_addr,
+                        offset: addr - sym_addr,
                         path: linfo.path.clone(),
                         line: linfo.line,
                         column: linfo.column,
                         _non_exhaustive: (),
                     });
                 } else {
-                    let IntSym { name, addr, lang } = sym;
+                    let IntSym {
+                        name,
+                        addr: sym_addr,
+                        lang,
+                    } = sym;
                     results.push(Sym {
                         name: self.maybe_demangle(name, lang),
-                        addr,
+                        addr: sym_addr,
+                        offset: addr - sym_addr,
                         path: PathBuf::new(),
                         line: 0,
                         column: 0,

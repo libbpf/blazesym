@@ -51,14 +51,14 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
                 let Sym {
                     name,
                     addr: sym_addr,
+                    offset,
                     path,
                     line,
                     ..
                 } = sym;
 
                 println!(
-                    "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{:x} {}:{line}",
-                    addr - sym_addr,
+                    "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{offset:x} {}:{line}",
                     path.display(),
                 );
             }

@@ -67,6 +67,8 @@ fn symbolize_gsym() {
 
         let result = results.first().unwrap();
         assert_eq!(result.name, "factorial");
+        assert_eq!(result.addr, 0x2000100);
+        assert_eq!(result.offset, 0);
 
         let test_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -86,6 +88,7 @@ fn symbolize_gsym() {
             let result = results.first().unwrap();
             assert_eq!(result.name, "factorial");
             assert_eq!(result.addr, 0x2000100);
+            assert_eq!(result.offset, offset);
         }
     }
 
@@ -120,6 +123,7 @@ fn symbolize_dwarf() {
     let result = results.first().unwrap();
     assert_eq!(result.name, "factorial");
     assert_eq!(result.addr, 0x2000100);
+    assert_eq!(result.offset, 0);
     assert_eq!(result.line, 8);
 
     // Inquire symbol size.
@@ -140,6 +144,7 @@ fn symbolize_dwarf() {
         let result = results.first().unwrap();
         assert_eq!(result.name, "factorial");
         assert_eq!(result.addr, 0x2000100);
+        assert_eq!(result.offset, offset);
     }
 }
 
