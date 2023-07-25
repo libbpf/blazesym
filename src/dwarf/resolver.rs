@@ -193,6 +193,7 @@ impl Debug for DwarfResolver {
 mod tests {
     use super::*;
 
+    use std::env::current_exe;
     use std::path::PathBuf;
 
     use test_log::test;
@@ -203,7 +204,7 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let bin_name = PathBuf::from(env::args().next().unwrap());
+        let bin_name = current_exe().unwrap();
         let resolver = DwarfResolver::open(&bin_name, true, true).unwrap();
         assert_ne!(format!("{resolver:?}"), "");
     }
