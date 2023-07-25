@@ -13,6 +13,7 @@ use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::zip;
 use crate::Addr;
+use crate::ErrorExt as _;
 use crate::Pid;
 use crate::Result;
 
@@ -99,15 +100,13 @@ fn make_apk_elf_meta(
 /// provided [`PathMapsEntry`].
 pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
     let file_off = virt_addr as u64 - entry.range.start as u64 + entry.offset;
-    let parser = ElfParser::open(&entry.path.maps_file)?;
-    let addr = normalize_elf_offset_with_parser(file_off, &parser)?.ok_or_else(|| {
-        Error::new(
-            ErrorKind::InvalidInput,
-            format!(
-                "failed to find ELF segment in {} that contains file offset 0x{:x}",
-                entry.path.symbolic_path.display(),
-                entry.offset,
-            ),
+    let parser = ElfParser::open(&entry.path.maps_file)
+        .with_context(|| format!("failed to open map file {}", entry.path.maps_file.display()))?;
+    let addr = normalize_elf_offset_with_parser(file_off, &parser)?.ok_or_invalid_input(|| {
+        format!(
+            "failed to find ELF segment in {} that contains file offset 0x{:x}",
+            entry.path.symbolic_path.display(),
+            entry.offset,
         )
     })?;
 
