@@ -2,6 +2,8 @@ Unreleased
 ----------
 - Added additional end-to-end benchmarks
   - Added benchmark result summary to CI runs
+- Fixed spurious maps file path creation for low addresses as part of
+  normalization/symbolization
 - Introduced `helper` module exposing `read_elf_build_id` function
 
 
