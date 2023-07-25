@@ -12,14 +12,17 @@ use std::ops::Deref;
 
 
 mod private {
+    use super::*;
+
     pub trait Sealed {}
 
     impl<T> Sealed for Option<T> {}
     impl<T, E> Sealed for Result<T, E> {}
     impl Sealed for &'static str {}
     impl Sealed for String {}
-    impl Sealed for super::Error {}
+    impl Sealed for Error {}
 
+    impl Sealed for io::Error {}
     #[cfg(feature = "dwarf")]
     impl Sealed for gimli::Error {}
 }
@@ -438,6 +441,25 @@ where
             Ok(val) => Ok(val),
             Err(err) => Err(err.with_context(f)),
         }
+    }
+}
+
+impl ErrorExt for io::Error {
+    type Output = Error;
+
+    fn context<C>(self, context: C) -> Error
+    where
+        C: IntoCowStr,
+    {
+        Error::from(self).context(context)
+    }
+
+    fn with_context<C, F>(self, f: F) -> Error
+    where
+        C: IntoCowStr,
+        F: FnOnce() -> C,
+    {
+        Error::from(self).with_context(f)
     }
 }
 
