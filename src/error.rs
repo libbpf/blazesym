@@ -233,6 +233,12 @@ impl error::Error for ErrorImpl {
 
 
 /// An enum providing a rough classification of errors.
+///
+/// The variants of this type partly resemble those of
+/// [`std::io::Error`], because these are the most common sources of
+/// error that the crate concerns itself with. On top of that, however,
+/// there are additional more specific variants such as
+/// [`InvalidDwarf`][ErrorKind::InvalidDwarf].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum ErrorKind {
@@ -271,6 +277,58 @@ pub enum ErrorKind {
 
 
 /// The error type used by the library.
+///
+/// Errors generally form a chain, with higher-level errors typically
+/// providing additional context for lower level ones. E.g., an IO error
+/// such as file not found could be reported by a system level API (such
+/// as [`std::fs::File::open`] and may be contextualized with the path
+/// to the file attempted to be opened.
+///
+/// ```
+/// use std::fs::File;
+/// use std::error::Error as _;
+/// # use blazesym::ErrorExt as _;
+///
+/// let path = "/does-not-exist";
+/// let result = File::open(path).with_context(|| format!("failed to open {path}"));
+///
+/// let err = result.unwrap_err();
+/// assert_eq!(err.to_string(), "failed to open /does-not-exist");
+///
+/// // Retrieve the underlying error.
+/// let inner_err = err.source().unwrap();
+/// assert!(inner_err.to_string().starts_with("No such file or directory"));
+/// ```
+///
+/// For convenient reporting, the [`Display`][std::fmt::Display]
+/// representation takes care of reporting the complete error chain when
+/// the alternate flag is set:
+/// ```
+/// # use std::fs::File;
+/// # use std::error::Error as _;
+/// # use blazesym::ErrorExt as _;
+/// # let path = "/does-not-exist";
+/// # let result = File::open(path).with_context(|| format!("failed to open {path}"));
+/// # let err = result.unwrap_err();
+/// // > failed to open /does-not-exist: No such file or directory (os error 2)
+/// println!("{err:#}");
+/// ```
+///
+/// The [`Debug`][std::fmt::Debug] representation similarly will print
+/// the entire error chain, but will do so in a multi-line format:
+/// ```
+/// # use std::fs::File;
+/// # use std::error::Error as _;
+/// # use blazesym::ErrorExt as _;
+/// # let path = "/does-not-exist";
+/// # let result = File::open(path).with_context(|| format!("failed to open {path}"));
+/// # let err = result.unwrap_err();
+/// // > Error: failed to open /does-not-exist
+/// // >
+/// // > Caused by:
+/// // >     No such file or directory (os error 2)
+/// println!("{err:?}");
+/// ```
 // Representation is optimized for fast copying (a single machine word),
 // not so much for fast creation (as it is heap allocated). We generally
 // expect errors to be exceptional, though a lot of functionality is
