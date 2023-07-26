@@ -8,6 +8,8 @@ Unreleased
   - Added benchmark result summary to CI runs
 - Fixed spurious maps file path creation for low addresses as part of
   normalization/symbolization
+- Improved symbolization of addresses in ELF files with potentially
+  bogus symbol sizes
 - Introduced `blazecli` command line interface for the library
 - Introduced `helper` module exposing `read_elf_build_id` function
 

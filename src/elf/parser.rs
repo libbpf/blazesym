@@ -51,22 +51,18 @@ fn find_sym<'mmap>(
         None => Ok(None),
         Some(idx) => symtab[idx..]
             .iter()
-            .find_map(|sym| {
-                if sym.st_shndx == SHN_UNDEF || sym.type_() != st_type {
-                    return None
-                }
-
-                let addr = addr as u64;
-                if sym.contains(addr) {
-                    let name = match symbol_name(strtab, sym) {
-                        Ok(name) => name,
-                        Err(err) => return Some(Err(err)),
-                    };
-                    let addr = sym.st_value as Addr;
-                    Some(Ok((name, addr)))
-                } else {
-                    None
-                }
+            .find(|sym| sym.type_() == st_type && sym.st_shndx != SHN_UNDEF)
+            // Given our symbol table ordering (ascending by address and
+            // descending by size for equal addresses), we *always* pick
+            // the first symbol of given type. In effect, we completely
+            // ignore symbol size, because it can be bogus anyway
+            // (https://github.com/libbpf/blazesym/issues/269) and so
+            // the first symbol found will always end up being the best
+            // candidate.
+            .map(|sym| {
+                let name = symbol_name(strtab, sym)?;
+                let addr = sym.st_value as Addr;
+                Ok((name, addr))
             })
             .transpose(),
     }
@@ -568,5 +564,60 @@ mod tests {
         assert_eq!(syms[0].name, "factorial_wrapper");
         assert_eq!(syms[1].name, "factorial_wrapper");
         assert_ne!(syms[0].addr, syms[1].addr);
+    }
+
+    /// Check that we report a symbol with a potentially incorrect
+    /// `st_size` value, if it is the only conceivable match.
+    #[test]
+    fn lookup_symbol_with_bogus_size() {
+        fn test(symtab: &[&Elf64_Sym]) {
+            let strtab = b"\x00__libc_init_first\x00versionsort64\x00";
+            let result = find_sym(symtab, strtab, 0x29d00, STT_FUNC)
+                .unwrap()
+                .unwrap();
+            assert_eq!(result, ("__libc_init_first", 0x29d00));
+
+            // Strictly speaking this address is way outside of the range of
+            // the second symbol (which is only five bytes in size).
+            // However, said symbol's size could be bogus. Given that there
+            // is no better candidate, we err on the side of reporting what
+            // is the *likely* symbol. See
+            // https://github.com/libbpf/blazesym/issues/269 for a real life
+            // example.
+            let result = find_sym(symtab, strtab, 0x29d90, STT_FUNC)
+                .unwrap()
+                .unwrap();
+            assert_eq!(result, ("__libc_init_first", 0x29d00));
+        }
+
+        let symtab = [
+            &Elf64_Sym {
+                st_name: 0,
+                st_info: 0,
+                st_other: 0,
+                st_shndx: 0,
+                st_value: 0,
+                st_size: 0,
+            },
+            &Elf64_Sym {
+                st_name: 0x1,
+                st_info: 0x12,
+                st_other: 0x0,
+                st_shndx: 0xf,
+                st_value: 0x29d00,
+                st_size: 0x5,
+            },
+            &Elf64_Sym {
+                st_name: 0xdeadbeef,
+                st_info: 0x12,
+                st_other: 0x0,
+                st_shndx: 0xf,
+                st_value: 0x29dc0,
+                st_size: 0x148,
+            },
+        ];
+
+        test(&symtab);
+        test(&symtab[0..2]);
     }
 }
