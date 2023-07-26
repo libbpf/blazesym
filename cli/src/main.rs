@@ -21,18 +21,17 @@ use tracing_subscriber::FmtSubscriber;
 /// The handler for the 'symbolize' command.
 fn symbolize(symbolize: args::Symbolize) -> Result<()> {
     let symbolizer = Symbolizer::new();
-    match symbolize {
-        args::Symbolize::Process(process) => symbolize_process(symbolizer, process),
-    }
-}
+    let (src, addrs) = match symbolize {
+        args::Symbolize::Process(args::Process { pid, addrs }) => {
+            let src = Source::from(Process::new(pid));
+            (src, addrs)
+        }
+    };
 
-/// Symbolize an address inside a process.
-fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<()> {
-    let args::Process { addrs, pid } = process;
-    let src = Source::from(Process::new(pid));
     let syms = symbolizer
         .symbolize(&src, &addrs)
         .context("failed to symbolize addresses")?;
+
     for (addr, syms) in addrs.into_iter().zip(syms) {
         match syms.as_slice() {
             [] => {
@@ -47,7 +46,7 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
                     ..
                 } = sym;
                 println!(
-                    "0x{addr:x}: {name}@0x{addr:x}+{} {}:{line}",
+                    "0x{addr:x}: {name}@0x{sym_addr:x}+{} {}:{line}",
                     addr - sym_addr,
                     path.display(),
                 )
@@ -63,7 +62,7 @@ fn symbolize_process(symbolizer: Symbolizer, process: args::Process) -> Result<(
                         ..
                     } = sym;
                     println!(
-                        "\t0x{addr:x} {name}@0x{addr:x}+{} {}:{line}",
+                        "\t0x{addr:x} {name}@0x{sym_addr:x}+{} {}:{line}",
                         addr - sym_addr,
                         path.display(),
                     )
