@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anyhow::Context as _;
 use anyhow::Result;
 
@@ -54,7 +56,22 @@ pub enum Command {
 /// An type representing the `backup` command.
 #[derive(Debug, Subcommand)]
 pub enum Symbolize {
+    Elf(Elf),
     Process(Process),
+}
+
+#[derive(Debug, Arguments)]
+pub struct Elf {
+    /// The path to the ELF file.
+    #[clap(short, long)]
+    pub path: PathBuf,
+    /// The addresses to symbolize.
+    ///
+    /// Addresses are assumed to already be normalized to the file
+    /// itself (i.e., with relocation and address randomization effects
+    /// removed).
+    #[arg(value_parser = parse_addr)]
+    pub addrs: Vec<Addr>,
 }
 
 #[derive(Debug, Arguments)]
