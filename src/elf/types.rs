@@ -88,12 +88,6 @@ impl Elf64_Sym {
     pub fn type_(&self) -> u8 {
         self.st_info & 0xf
     }
-
-    /// Check whether this symbols contains the provided address.
-    pub fn contains(&self, addr: Elf64_Addr) -> bool {
-        (self.st_size == 0 && self.st_value == addr)
-            || (self.st_size != 0 && (self.st_value..self.st_value + self.st_size).contains(&addr))
-    }
 }
 
 // SAFETY: `Elf64_Sym` is valid for any bit pattern.
