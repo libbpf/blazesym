@@ -5,6 +5,7 @@ mod args;
 use anyhow::Context;
 use anyhow::Result;
 
+use blazesym::symbolize::Elf;
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Sym;
@@ -22,6 +23,10 @@ use tracing_subscriber::FmtSubscriber;
 fn symbolize(symbolize: args::Symbolize) -> Result<()> {
     let symbolizer = Symbolizer::new();
     let (src, addrs) = match symbolize {
+        args::Symbolize::Elf(args::Elf { path, addrs }) => {
+            let src = Source::from(Elf::new(path));
+            (src, addrs)
+        }
         args::Symbolize::Process(args::Process { pid, addrs }) => {
             let src = Source::from(Process::new(pid));
             (src, addrs)
