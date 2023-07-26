@@ -41,6 +41,37 @@ fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str
     Ok(name)
 }
 
+fn find_sym<'mmap>(
+    symtab: &[&Elf64_Sym],
+    strtab: &'mmap [u8],
+    addr: Addr,
+    st_type: u8,
+) -> Result<Option<(&'mmap str, Addr)>> {
+    match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
+        None => Ok(None),
+        Some(idx) => symtab[idx..]
+            .iter()
+            .find_map(|sym| {
+                if sym.st_shndx == SHN_UNDEF || sym.type_() != st_type {
+                    return None
+                }
+
+                let addr = addr as u64;
+                if sym.contains(addr) {
+                    let name = match symbol_name(strtab, sym) {
+                        Ok(name) => name,
+                        Err(err) => return Some(Err(err)),
+                    };
+                    let addr = sym.st_value as Addr;
+                    Some(Ok((name, addr)))
+                } else {
+                    None
+                }
+            })
+            .transpose(),
+    }
+}
+
 
 struct Cache<'mmap> {
     /// A slice of the raw ELF data that we are about to parse.
@@ -376,29 +407,7 @@ impl ElfParser {
         //         available.
         let symtab = cache.symtab.as_ref().unwrap();
 
-        match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
-            None => Ok(None),
-            Some(idx) => symtab[idx..]
-                .iter()
-                .find_map(|sym| {
-                    if sym.st_shndx == SHN_UNDEF || sym.type_() != st_type {
-                        return None
-                    }
-
-                    let addr = addr as u64;
-                    if sym.contains(addr) {
-                        let name = match symbol_name(strtab, sym) {
-                            Ok(name) => name,
-                            Err(err) => return Some(Err(err)),
-                        };
-                        let addr = sym.st_value as Addr;
-                        Some(Ok((name, addr)))
-                    } else {
-                        None
-                    }
-                })
-                .transpose(),
-        }
+        find_sym(symtab, strtab, addr, st_type)
     }
 
     pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
