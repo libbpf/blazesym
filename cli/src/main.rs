@@ -15,6 +15,7 @@ use clap::Parser as _;
 
 use tracing::subscriber::set_global_default as set_global_subscriber;
 use tracing_subscriber::filter::LevelFilter;
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::time::SystemTime;
 use tracing_subscriber::FmtSubscriber;
 
@@ -90,6 +91,7 @@ fn main() -> Result<()> {
 
     let subscriber = FmtSubscriber::builder()
         .with_max_level(level)
+        .with_span_events(FmtSpan::FULL)
         .with_timer(SystemTime)
         .finish();
 
