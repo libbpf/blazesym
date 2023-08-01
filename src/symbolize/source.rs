@@ -192,7 +192,7 @@ impl From<GsymFile> for Source<'static> {
 ///
 /// The source of symbols and debug information can be an ELF file, kernel
 /// image, or process.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 #[non_exhaustive]
 pub enum Source<'dat> {
     /// A single ELF file
@@ -203,6 +203,17 @@ pub enum Source<'dat> {
     Process(Process),
     /// A Gsym file.
     Gsym(Gsym<'dat>),
+}
+
+impl Debug for Source<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Elf(elf) => Debug::fmt(elf, f),
+            Self::Kernel(kernel) => Debug::fmt(kernel, f),
+            Self::Process(process) => Debug::fmt(process, f),
+            Self::Gsym(gsym) => Debug::fmt(gsym, f),
+        }
+    }
 }
 
 
@@ -216,11 +227,14 @@ mod tests {
     fn debug_repr() {
         let elf = Elf::new("/a-path/with/components.elf");
         assert_eq!(format!("{elf:?}"), "Elf(\"/a-path/with/components.elf\")");
+        let src = Source::Elf(elf);
+        assert_eq!(format!("{src:?}"), "Elf(\"/a-path/with/components.elf\")");
 
         let process = Process::new(Pid::Slf);
         assert_eq!(format!("{process:?}"), "Process(self)");
-
         let process = Process::new(Pid::from(1234));
         assert_eq!(format!("{process:?}"), "Process(1234)");
+        let src = Source::Process(process);
+        assert_eq!(format!("{src:?}"), "Process(1234)");
     }
 }
