@@ -124,7 +124,7 @@ fn symbolize_dwarf() {
     assert_eq!(result.name, "factorial");
     assert_eq!(result.addr, 0x2000100);
     assert_eq!(result.offset, 0);
-    assert_eq!(result.line, 8);
+    assert_eq!(result.line, Some(8));
 
     // Inquire symbol size.
     let size = find_function_size("factorial", &test_dwarf);
@@ -191,7 +191,7 @@ fn symbolize_dwarf_complex() {
     let result = results.first().unwrap();
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.addr, 0xffffffff8110ecb0);
-    assert_eq!(result.line, 534);
+    assert_eq!(result.line, Some(534));
 }
 
 /// Symbolize a normalized address inside an ELF file, with and without

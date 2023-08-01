@@ -90,17 +90,17 @@ pub struct Sym {
     /// applied).
     pub offset: usize,
     /// The source path that defines the symbol.
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
     /// The line number of the symbolized instruction in the source
     /// code.
     ///
     /// This is the line number of the instruction of the address being
     /// symbolized, not the line number that defines the symbol
     /// (function).
-    pub line: u32,
+    pub line: Option<u32>,
     /// The column number of the symbolized instruction in the source
     /// code.
-    pub column: u16,
+    pub column: Option<u16>,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
 }
@@ -224,9 +224,9 @@ impl Symbolizer {
                     name: "".to_string(),
                     addr: 0,
                     offset: 0,
-                    path: linfo.path,
-                    line: linfo.line.unwrap_or(0),
-                    column: linfo.column.unwrap_or(0),
+                    path: Some(linfo.path),
+                    line: linfo.line,
+                    column: linfo.column,
                     _non_exhaustive: (),
                 }])
             } else {
@@ -245,9 +245,9 @@ impl Symbolizer {
                         name: self.maybe_demangle(name, lang),
                         addr: sym_addr,
                         offset: addr - sym_addr,
-                        path: linfo.path.clone(),
-                        line: linfo.line.unwrap_or(0),
-                        column: linfo.column.unwrap_or(0),
+                        path: Some(linfo.path.clone()),
+                        line: linfo.line,
+                        column: linfo.column,
                         _non_exhaustive: (),
                     });
                 } else {
@@ -260,9 +260,9 @@ impl Symbolizer {
                         name: self.maybe_demangle(name, lang),
                         addr: sym_addr,
                         offset: addr - sym_addr,
-                        path: PathBuf::new(),
-                        line: 0,
-                        column: 0,
+                        path: None,
+                        line: None,
+                        column: None,
                         _non_exhaustive: (),
                     });
                 }

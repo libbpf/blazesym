@@ -38,7 +38,7 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
         .symbolize(&src, &addrs)
         .context("failed to symbolize addresses")?;
 
-    for (addr, syms) in addrs.into_iter().zip(syms) {
+    for (addr, syms) in addrs.iter().zip(syms) {
         let mut addr_fmt = format!("0x{addr:016x}:");
         if syms.is_empty() {
             println!("{addr_fmt} <no-symbol>")
@@ -49,18 +49,20 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
                 }
 
                 let Sym {
-                    name,
-                    addr: sym_addr,
-                    offset,
-                    path,
-                    line,
-                    ..
+                    name, addr, offset, ..
                 } = sym;
 
-                println!(
-                    "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{offset:x} {}:{line}",
-                    path.display(),
-                );
+                let src_loc = if let (Some(path), Some(line)) = (sym.path, sym.line) {
+                    if let Some(col) = sym.column {
+                        format!(" {}:{line}:{col}", path.display())
+                    } else {
+                        format!(" {}:{line}", path.display())
+                    }
+                } else {
+                    String::new()
+                };
+
+                println!("{addr_fmt} {name} @ 0x{addr:x}+0x{offset:x}{src_loc}");
             }
         }
     }

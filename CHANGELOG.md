@@ -8,6 +8,7 @@ Unreleased
   - Renamed `Sym::symbol` to `name`
   - Added `Sym::offset` member
   - Changed `Sym::line` to be of type `u32` and `Sym::column` to `u16`
+  - Made all source code location information optional
 - Added additional end-to-end benchmarks
   - Added benchmark result summary to CI runs
 - Fixed spurious maps file path creation for low addresses as part of

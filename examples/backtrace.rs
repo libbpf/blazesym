@@ -1,13 +1,14 @@
+use std::cmp::min;
+use std::mem::size_of;
+use std::mem::transmute;
+use std::ptr;
+
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::Pid;
-use std::cmp::min;
-use std::mem::size_of;
-use std::mem::transmute;
-use std::ptr;
 
 
 fn symbolize_current_bt() {
@@ -25,8 +26,8 @@ fn symbolize_current_bt() {
     let src = Source::Process(Process::new(Pid::Slf));
     let symbolizer = Symbolizer::new();
 
-    let bt_syms = symbolizer.symbolize(&src, bt).unwrap();
-    for (addr, syms) in bt.iter().zip(bt_syms) {
+    let syms = symbolizer.symbolize(&src, bt).unwrap();
+    for (addr, syms) in bt.iter().zip(syms) {
         let mut addr_fmt = format!("0x{addr:016x}:");
         if syms.is_empty() {
             println!("{addr_fmt} <no-symbol>")
@@ -37,18 +38,20 @@ fn symbolize_current_bt() {
                 }
 
                 let Sym {
-                    name,
-                    addr: sym_addr,
-                    path,
-                    line,
-                    ..
+                    name, addr, offset, ..
                 } = sym;
 
-                println!(
-                    "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{:x} {}:{line}",
-                    addr - sym_addr,
-                    path.display(),
-                );
+                let src_loc = if let (Some(path), Some(line)) = (sym.path, sym.line) {
+                    if let Some(col) = sym.column {
+                        format!(" {}:{line}:{col}", path.display())
+                    } else {
+                        format!(" {}:{line}", path.display())
+                    }
+                } else {
+                    String::new()
+                };
+
+                println!("{addr_fmt} {name} @ 0x{addr:x}+0x{offset:x}{src_loc}");
             }
         }
     }
