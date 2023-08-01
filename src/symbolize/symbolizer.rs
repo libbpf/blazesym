@@ -213,62 +213,51 @@ impl Symbolizer {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{addr:x}"), resolver = ?resolver)))]
     fn symbolize_with_resolver(&self, addr: Addr, resolver: &dyn SymResolver) -> Result<Vec<Sym>> {
         let syms = resolver.find_syms(addr)?;
+        if syms.is_empty() {
+            return Ok(Vec::new())
+        }
+
         let linfo = if self.src_location {
             resolver.find_line_info(addr)?
         } else {
             None
         };
-        if syms.is_empty() {
-            if let Some(linfo) = linfo {
-                Ok(vec![Sym {
-                    name: "".to_string(),
-                    addr: 0,
-                    offset: 0,
-                    path: Some(linfo.path),
+
+        let mut results = vec![];
+        for sym in syms {
+            if let Some(ref linfo) = linfo {
+                let IntSym {
+                    name,
+                    addr: sym_addr,
+                    lang,
+                } = sym;
+                results.push(Sym {
+                    name: self.maybe_demangle(name, lang),
+                    addr: sym_addr,
+                    offset: addr - sym_addr,
+                    path: Some(linfo.path.clone()),
                     line: linfo.line,
                     column: linfo.column,
                     _non_exhaustive: (),
-                }])
+                });
             } else {
-                Ok(Vec::new())
+                let IntSym {
+                    name,
+                    addr: sym_addr,
+                    lang,
+                } = sym;
+                results.push(Sym {
+                    name: self.maybe_demangle(name, lang),
+                    addr: sym_addr,
+                    offset: addr - sym_addr,
+                    path: None,
+                    line: None,
+                    column: None,
+                    _non_exhaustive: (),
+                });
             }
-        } else {
-            let mut results = vec![];
-            for sym in syms {
-                if let Some(ref linfo) = linfo {
-                    let IntSym {
-                        name,
-                        addr: sym_addr,
-                        lang,
-                    } = sym;
-                    results.push(Sym {
-                        name: self.maybe_demangle(name, lang),
-                        addr: sym_addr,
-                        offset: addr - sym_addr,
-                        path: Some(linfo.path.clone()),
-                        line: linfo.line,
-                        column: linfo.column,
-                        _non_exhaustive: (),
-                    });
-                } else {
-                    let IntSym {
-                        name,
-                        addr: sym_addr,
-                        lang,
-                    } = sym;
-                    results.push(Sym {
-                        name: self.maybe_demangle(name, lang),
-                        addr: sym_addr,
-                        offset: addr - sym_addr,
-                        path: None,
-                        line: None,
-                        column: None,
-                        _non_exhaustive: (),
-                    });
-                }
-            }
-            Ok(results)
         }
+        Ok(results)
     }
 
     /// Symbolize a list of addresses using the provided [`SymResolver`].
