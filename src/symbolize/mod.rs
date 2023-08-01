@@ -32,23 +32,31 @@
 //! let symbolizer = Symbolizer::new();
 //!
 //! let bt_syms = symbolizer.symbolize(&src, bt).unwrap();
-//! for (addr, syms) in bt.iter().zip(bt_syms) {
-//!   match &syms[..] {
-//!     [] => println!("0x{addr:016x}: <no-symbols>"),
-//!     [sym] => {
-//!       let Sym {name, addr, path, line, ..} = sym;
-//!       println!("0x{addr:016x} {name} @ 0x{addr:x} {}:{line}", path.display());
-//!     },
-//!     syms => {
-//!       // One address may get several results.
-//!       println!("0x{addr:016x} ({} entries)", syms.len());
+//! for (addr, syms) in addrs.into_iter().zip(syms) {
+//!     let mut addr_fmt = format!("0x{addr:016x}:");
+//!     if syms.is_empty() {
+//!         println!("{addr_fmt} <no-symbol>")
+//!     } else {
+//!         for (i, sym) in syms.into_iter().enumerate() {
+//!             if i == 1 {
+//!                 addr_fmt = addr_fmt.replace(|_c| true, " ");
+//!             }
 //!
-//!       for sym in syms {
-//!         let Sym {name, addr, path, line, ..} = sym;
-//!         println!("    {name} @ 0x{addr:016x} {}:{line}", path.display());
-//!       }
-//!     },
-//!   }
+//!             let Sym {
+//!                 name,
+//!                 addr: sym_addr,
+//!                 path,
+//!                 line,
+//!                 ..
+//!             } = sym;
+//!
+//!             println!(
+//!                 "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{:x} {}:{line}",
+//!                 addr - sym_addr,
+//!                 path.display(),
+//!             );
+//!         }
+//!     }
 //! }
 //! ```
 

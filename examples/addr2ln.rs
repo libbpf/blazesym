@@ -6,6 +6,7 @@ use anyhow::Result;
 
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::Source;
+use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 
@@ -14,7 +15,7 @@ fn main() -> Result<()> {
 
     if args.len() != 3 {
         bail!(
-            "Usage: {} <pid> <address>",
+            "Usage: {} <elf-path> <address>",
             args.first().map(String::as_str).unwrap_or("addr2ln_pid")
         );
     }
@@ -27,19 +28,35 @@ fn main() -> Result<()> {
     let addr = Addr::from_str_radix(addr_str.trim_start_matches("0x"), 16)
         .with_context(|| format!("failed to parse address: {addr_str}"))?;
 
-    let results = symbolizer
+    let syms = symbolizer
         .symbolize(&src, &[addr])
         .with_context(|| format!("failed to symbolize address 0x{addr:x}"))?;
-    if results.len() == 1 && !results[0].is_empty() {
-        let result = &results[0][0];
-        println!(
-            "0x{addr:x} @ {} {}:{}",
-            result.name,
-            result.path.display(),
-            result.line
-        );
-    } else {
-        println!("0x{addr:x} is not found");
+
+    for (addr, syms) in [addr].into_iter().zip(syms) {
+        let mut addr_fmt = format!("0x{addr:016x}:");
+        if syms.is_empty() {
+            println!("{addr_fmt} <no-symbol>")
+        } else {
+            for (i, sym) in syms.into_iter().enumerate() {
+                if i == 1 {
+                    addr_fmt = addr_fmt.replace(|_c| true, " ");
+                }
+
+                let Sym {
+                    name,
+                    addr: sym_addr,
+                    path,
+                    line,
+                    ..
+                } = sym;
+
+                println!(
+                    "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{:x} {}:{line}",
+                    addr - sym_addr,
+                    path.display(),
+                );
+            }
+        }
     }
 
     Ok(())

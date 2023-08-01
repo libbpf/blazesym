@@ -39,11 +39,15 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
         .context("failed to symbolize addresses")?;
 
     for (addr, syms) in addrs.into_iter().zip(syms) {
-        match syms.as_slice() {
-            [] => {
-                println!("0x{addr:x}: not found")
-            }
-            [sym] => {
+        let mut addr_fmt = format!("0x{addr:016x}:");
+        if syms.is_empty() {
+            println!("{addr_fmt} <no-symbol>")
+        } else {
+            for (i, sym) in syms.into_iter().enumerate() {
+                if i == 1 {
+                    addr_fmt = addr_fmt.replace(|_c| true, " ");
+                }
+
                 let Sym {
                     name,
                     addr: sym_addr,
@@ -51,28 +55,12 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
                     line,
                     ..
                 } = sym;
+
                 println!(
-                    "0x{addr:x}: {name}@0x{sym_addr:x}+{} {}:{line}",
+                    "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{:x} {}:{line}",
                     addr - sym_addr,
                     path.display(),
-                )
-            }
-            syms => {
-                println!("0x{addr:x}:");
-                for sym in syms {
-                    let Sym {
-                        name,
-                        addr: sym_addr,
-                        path,
-                        line,
-                        ..
-                    } = sym;
-                    println!(
-                        "\t0x{addr:x} {name}@0x{sym_addr:x}+{} {}:{line}",
-                        addr - sym_addr,
-                        path.display(),
-                    )
-                }
+                );
             }
         }
     }
