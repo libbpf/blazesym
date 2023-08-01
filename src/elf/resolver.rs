@@ -99,7 +99,7 @@ impl SymResolver for ElfResolver {
                 .map(|(dir, file, line)| AddrLineInfo {
                     path: dir.join(file),
                     line,
-                    column: 0,
+                    column: None,
                 });
             Ok(addr_line_info)
         } else {

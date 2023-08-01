@@ -225,8 +225,8 @@ impl Symbolizer {
                     addr: 0,
                     offset: 0,
                     path: linfo.path,
-                    line: linfo.line,
-                    column: linfo.column,
+                    line: linfo.line.unwrap_or(0),
+                    column: linfo.column.unwrap_or(0),
                     _non_exhaustive: (),
                 }])
             } else {
@@ -246,8 +246,8 @@ impl Symbolizer {
                         addr: sym_addr,
                         offset: addr - sym_addr,
                         path: linfo.path.clone(),
-                        line: linfo.line,
-                        column: linfo.column,
+                        line: linfo.line.unwrap_or(0),
+                        column: linfo.column.unwrap_or(0),
                         _non_exhaustive: (),
                     });
                 } else {

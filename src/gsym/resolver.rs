@@ -187,8 +187,8 @@ impl SymResolver for GsymResolver<'_> {
                 let path = Path::new(dirname).join(filename);
                 return Some(AddrLineInfo {
                     path,
-                    line: lntab_row.file_line,
-                    column: 0,
+                    line: Some(lntab_row.file_line),
+                    column: None,
                 })
             }
             None
@@ -248,13 +248,13 @@ mod tests {
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
         let info = resolver.find_line_info(0x2000000).unwrap().unwrap();
-        assert_eq!(info.line, 34);
+        assert_eq!(info.line, Some(34));
         assert!(info.path.ends_with("test-stable-addresses.c"));
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
         let info = resolver.find_line_info(0x2000100).unwrap().unwrap();
-        assert_eq!(info.line, 8);
+        assert_eq!(info.line, Some(8));
         assert!(info.path.ends_with("test-stable-addresses.c"));
     }
 }
