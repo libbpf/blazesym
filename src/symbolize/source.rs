@@ -10,7 +10,7 @@ use super::Symbolizer;
 
 
 /// A single ELF file.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Elf {
     /// The name of ELF file.
     ///
@@ -36,6 +36,17 @@ impl Elf {
 impl From<Elf> for Source<'static> {
     fn from(elf: Elf) -> Self {
         Source::Elf(elf)
+    }
+}
+
+impl Debug for Elf {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Elf {
+            path,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(Elf)).field(path).finish()
     }
 }
 
@@ -200,9 +211,12 @@ mod tests {
     use super::*;
 
 
-    /// Check that the `Debug` representation of [`Entry`] is as expected.
+    /// Exercise the `Debug` representation of various types.
     #[test]
-    fn process_debug() {
+    fn debug_repr() {
+        let elf = Elf::new("/a-path/with/components.elf");
+        assert_eq!(format!("{elf:?}"), "Elf(\"/a-path/with/components.elf\")");
+
         let process = Process::new(Pid::Slf);
         assert_eq!(format!("{process:?}"), "Process(self)");
 
