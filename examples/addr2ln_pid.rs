@@ -31,24 +31,35 @@ print its symbol, the file name of the source, and the line number.",
 
     let src = Source::Process(Process::new(pid.into()));
     let symbolizer = Symbolizer::new();
-    let symlist = symbolizer
+    let syms = symbolizer
         .symbolize(&src, &[addr])
         .with_context(|| format!("failed to symbolize address 0x{addr:x}"))?;
-    if !symlist[0].is_empty() {
-        let Sym {
-            name,
-            addr: sym_addr,
-            path,
-            line,
-            ..
-        } = &symlist[0][0];
-        println!(
-            "0x{addr:x} {name}@0x{addr:x}+{} {}:{line}",
-            addr - sym_addr,
-            path.display(),
-        );
-    } else {
-        println!("0x{addr:x} is not found");
+
+    for (addr, syms) in [addr].into_iter().zip(syms) {
+        let mut addr_fmt = format!("0x{addr:016x}:");
+        if syms.is_empty() {
+            println!("{addr_fmt} <no-symbol>")
+        } else {
+            for (i, sym) in syms.into_iter().enumerate() {
+                if i == 1 {
+                    addr_fmt = addr_fmt.replace(|_c| true, " ");
+                }
+
+                let Sym {
+                    name,
+                    addr: sym_addr,
+                    path,
+                    line,
+                    ..
+                } = sym;
+
+                println!(
+                    "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{:x} {}:{line}",
+                    addr - sym_addr,
+                    path.display(),
+                );
+            }
+        }
     }
 
     Ok(())
