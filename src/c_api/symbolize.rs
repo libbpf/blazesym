@@ -313,7 +313,13 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze
     // Allocate a buffer to contain a blaze_result, all
     // blaze_sym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
-        acc + result.name.len() + result.path.as_os_str().len() + 2
+        acc + result.name.len()
+            + result
+                .path
+                .as_ref()
+                .map(|p| p.as_os_str().len())
+                .unwrap_or(0)
+            + 2
     });
     let all_csym_size = results.iter().flatten().count();
     let buf_size = strtab_size
@@ -362,16 +368,16 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze
         entry_last = unsafe { entry_last.add(1) };
 
         for r in entry {
-            let symbol_ptr = make_cstr(OsStr::new(&r.name));
-
-            let path_ptr = make_cstr(r.path.as_os_str());
+            let name_ptr = make_cstr(OsStr::new(&r.name));
+            let path_ptr = make_cstr(r.path.as_ref().map(|p| p.as_os_str()).unwrap_or_default());
 
             let csym_ref = unsafe { &mut *csym_last };
-            csym_ref.name = symbol_ptr;
+            csym_ref.name = name_ptr;
             csym_ref.addr = r.addr;
+            csym_ref.offset = r.offset;
             csym_ref.path = path_ptr;
-            csym_ref.line = r.line;
-            csym_ref.column = r.column;
+            csym_ref.line = r.line.unwrap_or(0);
+            csym_ref.column = r.column.unwrap_or(0);
 
             csym_last = unsafe { csym_last.add(1) };
         }

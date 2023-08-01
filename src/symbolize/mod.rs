@@ -31,8 +31,8 @@
 //! let src = Source::Process(Process::new(Pid::Slf));
 //! let symbolizer = Symbolizer::new();
 //!
-//! let bt_syms = symbolizer.symbolize(&src, bt).unwrap();
-//! for (addr, syms) in addrs.into_iter().zip(syms) {
+//! let syms = symbolizer.symbolize(&src, bt).unwrap();
+//! for (addr, syms) in bt.iter().zip(syms) {
 //!     let mut addr_fmt = format!("0x{addr:016x}:");
 //!     if syms.is_empty() {
 //!         println!("{addr_fmt} <no-symbol>")
@@ -43,18 +43,20 @@
 //!             }
 //!
 //!             let Sym {
-//!                 name,
-//!                 addr: sym_addr,
-//!                 path,
-//!                 line,
-//!                 ..
+//!                 name, addr, offset, ..
 //!             } = sym;
 //!
-//!             println!(
-//!                 "{addr_fmt} {name} @ 0x{sym_addr:x}+0x{:x} {}:{line}",
-//!                 addr - sym_addr,
-//!                 path.display(),
-//!             );
+//!             let src_loc = if let (Some(path), Some(line)) = (sym.path, sym.line) {
+//!                 if let Some(col) = sym.column {
+//!                     format!(" {}:{line}:{col}", path.display())
+//!                 } else {
+//!                     format!(" {}:{line}", path.display())
+//!                 }
+//!             } else {
+//!                 String::new()
+//!             };
+//!
+//!             println!("{addr_fmt} {name} @ 0x{addr:x}+0x{offset:x}{src_loc}");
 //!         }
 //!     }
 //! }
