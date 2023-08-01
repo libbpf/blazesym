@@ -79,6 +79,6 @@ pub use symbolizer::Symbolizer;
 
 pub(crate) struct AddrLineInfo {
     pub path: PathBuf,
-    pub line: u32,
-    pub column: u16,
+    pub line: Option<u32>,
+    pub column: Option<u16>,
 }
