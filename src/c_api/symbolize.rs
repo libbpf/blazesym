@@ -188,6 +188,8 @@ pub struct blaze_sym {
     /// applied).
     pub offset: usize,
     /// The path of the source file defining the symbol.
+    ///
+    /// This attribute is optional and may be NULL.
     pub path: *const c_char,
     /// The line number on which the symbol is located in the source
     /// code.
@@ -369,7 +371,11 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze
 
         for r in entry {
             let name_ptr = make_cstr(OsStr::new(&r.name));
-            let path_ptr = make_cstr(r.path.as_ref().map(|p| p.as_os_str()).unwrap_or_default());
+            let path_ptr = r
+                .path
+                .as_ref()
+                .map(|p| make_cstr(p.as_os_str()))
+                .unwrap_or_else(ptr::null_mut);
 
             let csym_ref = unsafe { &mut *csym_last };
             csym_ref.name = name_ptr;
