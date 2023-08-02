@@ -59,37 +59,61 @@ fn symbolizer_creation_with_opts() {
 
 /// Make sure that we can symbolize an address in an ELF file.
 #[test]
-fn symbolize_from_elf() {
-    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+fn symbolize_elf_dwarf() {
+    fn test(path: &CStr, dwarf: bool) {
+        let elf_src = blaze_symbolize_src_elf {
+            path: path.as_ptr(),
+        };
+
+        let symbolizer = blaze_symbolizer_new();
+        let addrs = [0x2000100];
+        let result =
+            unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.size, 1);
+        let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
+        let entry = &entries[0];
+        assert_eq!(entry.size, 1);
+
+        let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
+        let sym = &syms[0];
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym.name) },
+            CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+        );
+        assert_eq!(sym.addr, 0x2000100);
+        assert_eq!(sym.offset, 0);
+
+        if dwarf {
+            assert!(!sym.path.is_null());
+            assert!(unsafe { CStr::from_ptr(sym.path) }
+                .to_str()
+                .unwrap()
+                .ends_with("test-stable-addresses.c"));
+            assert_eq!(sym.line, 8);
+        } else {
+            assert!(sym.path.is_null());
+            assert_eq!(sym.line, 0);
+        }
+
+        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
-    let test_dwarf_c = CString::new(test_dwarf.to_str().unwrap()).unwrap();
+    let path_c = CString::new(path.to_str().unwrap()).unwrap();
+    test(&path_c, false);
 
-    let elf_src = blaze_symbolize_src_elf {
-        path: test_dwarf_c.as_ptr(),
-    };
-
-    let symbolizer = blaze_symbolizer_new();
-    let addrs = [0x2000100];
-    let result = unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
-
-    assert!(!result.is_null());
-
-    let result = unsafe { &*result };
-    assert_eq!(result.size, 1);
-    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
-    let entry = &entries[0];
-    assert_eq!(entry.size, 1);
-
-    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
-    let sym = &syms[0];
-    assert_eq!(
-        unsafe { CStr::from_ptr(sym.name) },
-        CStr::from_bytes_with_nul(b"factorial\0").unwrap()
-    );
-
-    let () = unsafe { blaze_result_free(result) };
-    let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-dwarf-only.bin");
+    let path_c = CString::new(path.to_str().unwrap()).unwrap();
+    test(&path_c, true);
 }
 
 
