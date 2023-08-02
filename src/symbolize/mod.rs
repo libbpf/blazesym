@@ -65,7 +65,8 @@
 mod source;
 mod symbolizer;
 
-use std::path::PathBuf;
+use std::ffi::OsStr;
+use std::path::Path;
 
 pub use source::Elf;
 pub use source::Gsym;
@@ -79,8 +80,9 @@ pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
 
 
-pub(crate) struct AddrLineInfo {
-    pub path: PathBuf,
+pub(crate) struct AddrLineInfo<'src> {
+    pub dir: &'src Path,
+    pub file: &'src OsStr,
     pub line: Option<u32>,
     pub column: Option<u16>,
 }

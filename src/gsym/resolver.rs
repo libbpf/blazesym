@@ -128,8 +128,11 @@ impl SymResolver for GsymResolver<'_> {
     ///
     /// The `AddrLineInfo` corresponding to the address or `None`.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {
-        fn find_line_info_impl(ctx: &GsymContext<'_>, addr: Addr) -> Option<AddrLineInfo> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo<'_>>> {
+        fn find_line_info_impl<'src>(
+            ctx: &'src GsymContext<'src>,
+            addr: Addr,
+        ) -> Option<AddrLineInfo<'src>> {
             let idx = ctx.find_addr(addr)?;
             let symaddr = ctx.addr_at(idx)?;
             if addr < symaddr {
@@ -178,11 +181,11 @@ impl SymResolver for GsymResolver<'_> {
                 }
 
                 let finfo = ctx.file_info(lntab_row.file_idx as usize)?;
-                let dirname = ctx.get_str(finfo.directory as usize)?;
-                let filename = ctx.get_str(finfo.filename as usize)?;
-                let path = Path::new(dirname).join(filename);
+                let dir = ctx.get_str(finfo.directory as usize)?;
+                let file = ctx.get_str(finfo.filename as usize)?;
                 return Some(AddrLineInfo {
-                    path,
+                    dir: Path::new(dir),
+                    file,
                     line: Some(lntab_row.file_line),
                     column: None,
                 })
@@ -245,12 +248,12 @@ mod tests {
         // line.
         let info = resolver.find_line_info(0x2000000).unwrap().unwrap();
         assert_eq!(info.line, Some(34));
-        assert!(info.path.ends_with("test-stable-addresses.c"));
+        assert_eq!(info.file, "test-stable-addresses.c");
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
         let info = resolver.find_line_info(0x2000100).unwrap().unwrap();
         assert_eq!(info.line, Some(8));
-        assert!(info.path.ends_with("test-stable-addresses.c"));
+        assert_eq!(info.file, "test-stable-addresses.c");
     }
 }
