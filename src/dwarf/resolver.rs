@@ -1,6 +1,5 @@
 #[cfg(test)]
 use std::env;
-use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -15,12 +14,14 @@ use crate::elf::ElfParser;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
+use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::Error;
 use crate::IntSym;
 use crate::Result;
 use crate::SrcLang;
 
+use super::location::Location;
 use super::reader;
 use super::units::Units;
 
@@ -95,17 +96,25 @@ impl DwarfResolver {
     /// `addr` is an offset from the head of the loaded binary/or shared
     /// object. This function returns a tuple of `(dir_name, file_name,
     /// line_no)`.
-    // TODO: We likely want to return a more structured type.
-    pub fn find_line(&self, addr: Addr) -> Result<Option<(&Path, &OsStr, Option<u32>)>> {
+    pub fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo<'_>>> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
         if self.line_number_info {
             let location = self.units.find_location(addr as u64)?.map(|location| {
-                let dir = location.dir;
-                let file = location.file;
-                let line = location.line;
-                (dir, file, line)
+                let Location {
+                    dir,
+                    file,
+                    line,
+                    column,
+                } = location;
+
+                AddrLineInfo {
+                    dir,
+                    file,
+                    line,
+                    column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                }
             });
             Ok(location)
         } else {
@@ -240,10 +249,11 @@ mod tests {
             .join("test-stable-addresses.bin");
         let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
 
-        let (dir, file, line) = resolver.find_line(0x2000100).unwrap().unwrap();
-        assert_ne!(dir, PathBuf::new());
-        assert_eq!(file, "test-stable-addresses.c");
-        assert_eq!(line, Some(8));
+        let line_info = resolver.find_line_info(0x2000100).unwrap().unwrap();
+        assert_ne!(line_info.dir, PathBuf::new());
+        assert_eq!(line_info.file, "test-stable-addresses.c");
+        assert_eq!(line_info.line, Some(8));
+        assert!(line_info.column.is_some());
     }
 
     /// Check that we can look up a symbol in DWARF debug information.
