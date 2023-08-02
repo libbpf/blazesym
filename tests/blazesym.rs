@@ -104,37 +104,14 @@ fn symbolize_gsym() {
     test(src);
 }
 
-/// Check that we can symbolize an address using DWARF.
+/// Check that we can symbolize an address using ELF or DWARF.
 #[test]
-fn symbolize_dwarf() {
-    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses-dwarf-only.bin");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(&test_dwarf));
-    let symbolizer = Symbolizer::new();
-    let results = symbolizer
-        .symbolize(&src, &[0x2000100])
-        .unwrap()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
-
-    let result = results.first().unwrap();
-    assert_eq!(result.name, "factorial");
-    assert_eq!(result.addr, 0x2000100);
-    assert_eq!(result.offset, 0);
-    assert_eq!(result.line, Some(8));
-
-    // Inquire symbol size.
-    let size = find_function_size("factorial", &test_dwarf);
-    assert_ne!(size, 0);
-
-    // Now check that we can symbolize addresses at a positive offset from the
-    // start of the function.
-    for offset in 1..size {
+fn symbolize_elf_dwarf() {
+    fn test(path: &Path, dwarf: bool) {
+        let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+        let symbolizer = Symbolizer::new();
         let results = symbolizer
-            .symbolize(&src, &[0x2000100 + offset])
+            .symbolize(&src, &[0x2000100])
             .unwrap()
             .into_iter()
             .flatten()
@@ -144,8 +121,63 @@ fn symbolize_dwarf() {
         let result = results.first().unwrap();
         assert_eq!(result.name, "factorial");
         assert_eq!(result.addr, 0x2000100);
-        assert_eq!(result.offset, offset);
+        assert_eq!(result.offset, 0);
+
+        if dwarf {
+            assert!(result
+                .path
+                .as_ref()
+                .unwrap()
+                .ends_with("test-stable-addresses.c"));
+            assert_eq!(result.line, Some(8));
+        } else {
+            assert_eq!(result.path, None);
+            assert_eq!(result.line, None);
+        }
+
+        // Inquire symbol size.
+        let size = find_function_size("factorial", path);
+        assert_ne!(size, 0);
+
+        // Now check that we can symbolize addresses at a positive offset from the
+        // start of the function.
+        for offset in 1..size {
+            let results = symbolizer
+                .symbolize(&src, &[0x2000100 + offset])
+                .unwrap()
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            assert_eq!(results.len(), 1);
+
+            let result = results.first().unwrap();
+            assert_eq!(result.name, "factorial");
+            assert_eq!(result.addr, 0x2000100);
+            assert_eq!(result.offset, offset);
+
+            if dwarf {
+                assert!(result
+                    .path
+                    .as_ref()
+                    .unwrap()
+                    .ends_with("test-stable-addresses.c"));
+                assert!(result.line.is_some());
+            } else {
+                assert_eq!(result.path, None);
+                assert_eq!(result.line, None);
+            }
+        }
     }
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-no-dwarf.bin");
+    test(&path, false);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-dwarf-only.bin");
+    test(&path, true);
 }
 
 /// Check that we can symbolize the `abort_creds` function inside a
