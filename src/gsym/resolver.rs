@@ -89,6 +89,7 @@ impl SymResolver for GsymResolver<'_> {
             let name = self
                 .ctx
                 .get_str(info.name as usize)
+                .and_then(|s| s.to_str())
                 .ok_or_invalid_data(|| {
                     format!("failed to read string table entry at offset {}", info.name)
                 })?;

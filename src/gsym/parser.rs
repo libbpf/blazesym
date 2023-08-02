@@ -35,7 +35,9 @@
 //!
 //! See <https://reviews.llvm.org/D53379>
 
+use std::ffi::OsStr;
 use std::mem::align_of;
+use std::os::unix::ffi::OsStrExt as _;
 
 use crate::log::warn;
 use crate::util::find_match_or_lower_bound;
@@ -196,8 +198,9 @@ impl GsymContext<'_> {
 
     /// Get the string at the given offset from the String Table.
     #[inline]
-    pub fn get_str(&self, offset: usize) -> Option<&str> {
-        self.str_tab.get(offset..)?.read_cstr()?.to_str().ok()
+    pub fn get_str(&self, offset: usize) -> Option<&OsStr> {
+        let bytes = self.str_tab.get(offset..)?.read_cstr()?.to_bytes();
+        Some(OsStr::from_bytes(bytes))
     }
 
     #[inline]
