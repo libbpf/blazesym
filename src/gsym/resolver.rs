@@ -1,8 +1,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::io::Error;
-use std::io::ErrorKind;
 use std::mem;
 use std::path::Path;
 use std::path::PathBuf;
@@ -13,6 +11,7 @@ use crate::mmap::Mmap;
 use crate::symbolize::AddrLineInfo;
 use crate::Addr;
 use crate::IntSym;
+use crate::IntoError as _;
 use crate::Result;
 use crate::SrcLang;
 use crate::SymResolver;
@@ -75,28 +74,24 @@ impl<'dat> GsymResolver<'dat> {
 impl SymResolver for GsymResolver<'_> {
     fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
-            let found = self.ctx.addr_at(idx).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    format!("failed to read address table entry {idx}"),
-                )
-            })?;
+            let found = self
+                .ctx
+                .addr_at(idx)
+                .ok_or_invalid_data(|| format!("failed to read address table entry {idx}"))?;
             if addr < found {
                 return Ok(Vec::new())
             }
 
-            let info = self.ctx.addr_info(idx).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    format!("failed to read address information entry {idx}"),
-                )
-            })?;
-            let name = self.ctx.get_str(info.name as usize).ok_or_else(|| {
-                Error::new(
-                    ErrorKind::InvalidData,
-                    format!("failed to read string table entry at offset {}", info.name),
-                )
-            })?;
+            let info = self
+                .ctx
+                .addr_info(idx)
+                .ok_or_invalid_data(|| format!("failed to read address information entry {idx}"))?;
+            let name = self
+                .ctx
+                .get_str(info.name as usize)
+                .ok_or_invalid_data(|| {
+                    format!("failed to read string table entry at offset {}", info.name)
+                })?;
             // Gsym does not carry any source code language information.
             let lang = SrcLang::Unknown;
             let sym = IntSym {
