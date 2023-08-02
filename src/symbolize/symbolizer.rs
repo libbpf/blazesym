@@ -235,7 +235,7 @@ impl Symbolizer {
                     name: self.maybe_demangle(name, lang),
                     addr: sym_addr,
                     offset: addr - sym_addr,
-                    path: Some(linfo.path.clone()),
+                    path: Some(linfo.dir.join(linfo.file)),
                     line: linfo.line,
                     column: linfo.column,
                     _non_exhaustive: (),

@@ -92,12 +92,13 @@ impl SymResolver for ElfResolver {
     }
 
     #[cfg(feature = "dwarf")]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo<'_>>> {
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             let addr_line_info = dwarf
                 .find_line(addr)?
                 .map(|(dir, file, line)| AddrLineInfo {
-                    path: dir.join(file),
+                    dir,
+                    file,
                     line,
                     column: None,
                 });
