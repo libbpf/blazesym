@@ -284,6 +284,8 @@ typedef struct blaze_sym {
   size_t offset;
   /**
    * The path of the source file defining the symbol.
+   *
+   * This attribute is optional and may be NULL.
    */
   const char *path;
   /**
