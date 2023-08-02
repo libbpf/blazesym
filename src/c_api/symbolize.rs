@@ -187,10 +187,14 @@ pub struct blaze_sym {
     /// context (which may have been relocated and/or have layout randomizations
     /// applied).
     pub offset: usize,
-    /// The path of the source file defining the symbol.
+    /// The directory in which the source file resides.
     ///
     /// This attribute is optional and may be NULL.
-    pub path: *const c_char,
+    pub dir: *const c_char,
+    /// The file that defines the symbol.
+    ///
+    /// This attribute is optional and may be NULL.
+    pub file: *const c_char,
     /// The line number on which the symbol is located in the source
     /// code.
     pub line: u32,
@@ -316,12 +320,13 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze
     // blaze_sym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
         acc + result.name.len()
+            + 1
             + result
-                .path
+                .dir
                 .as_ref()
-                .map(|p| p.as_os_str().len())
+                .map(|p| p.as_os_str().len() + 1)
                 .unwrap_or(0)
-            + 2
+            + result.file.as_ref().map(|p| p.len() + 1).unwrap_or(0)
     });
     let all_csym_size = results.iter().flatten().count();
     let buf_size = strtab_size
@@ -371,17 +376,23 @@ unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze
 
         for r in entry {
             let name_ptr = make_cstr(OsStr::new(&r.name));
-            let path_ptr = r
-                .path
+            let dir_ptr = r
+                .dir
                 .as_ref()
-                .map(|p| make_cstr(p.as_os_str()))
+                .map(|d| make_cstr(d.as_os_str()))
+                .unwrap_or_else(ptr::null_mut);
+            let file_ptr = r
+                .file
+                .as_ref()
+                .map(|f| make_cstr(f))
                 .unwrap_or_else(ptr::null_mut);
 
             let csym_ref = unsafe { &mut *csym_last };
             csym_ref.name = name_ptr;
             csym_ref.addr = r.addr;
             csym_ref.offset = r.offset;
-            csym_ref.path = path_ptr;
+            csym_ref.dir = dir_ptr;
+            csym_ref.file = file_ptr;
             csym_ref.line = r.line.unwrap_or(0);
             csym_ref.column = r.column.unwrap_or(0);
 
@@ -604,13 +615,14 @@ mod tests {
             name: ptr::null(),
             addr: 0x1337,
             offset: 24,
-            path: ptr::null(),
+            dir: ptr::null(),
+            file: ptr::null(),
             line: 42,
             column: 1,
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, offset: 24, path: 0x0, line: 42, column: 1 }"
+            "blaze_sym { name: 0x0, addr: 4919, offset: 24, dir: 0x0, file: 0x0, line: 42, column: 1 }"
         );
 
         let entry = blaze_entry {

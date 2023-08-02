@@ -9,6 +9,7 @@
 //! # use std::cmp::min;
 //! # use std::mem::size_of;
 //! # use std::mem::transmute;
+//! # use std::path::PathBuf;
 //! # use std::ptr;
 //! use blazesym::symbolize::Source;
 //! use blazesym::symbolize::Process;
@@ -46,7 +47,12 @@
 //!                 name, addr, offset, ..
 //!             } = sym;
 //!
-//!             let src_loc = if let (Some(path), Some(line)) = (sym.path, sym.line) {
+//!             let path = match (sym.dir, sym.file) {
+//!                 (Some(dir), Some(file)) => Some(dir.join(file)),
+//!                 (dir, file) => dir.or_else(|| file.map(PathBuf::from)),
+//!             };
+//!
+//!             let src_loc = if let (Some(path), Some(line)) = (path, sym.line) {
 //!                 if let Some(col) = sym.column {
 //!                     format!(" {}:{line}:{col}", path.display())
 //!                 } else {
