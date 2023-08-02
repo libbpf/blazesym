@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::path::Path;
 use std::path::PathBuf;
@@ -89,8 +90,10 @@ pub struct Sym {
     /// context (which may have been relocated and/or have layout randomizations
     /// applied).
     pub offset: usize,
-    /// The source path that defines the symbol.
-    pub path: Option<PathBuf>,
+    /// The directory in which the source file resides.
+    pub dir: Option<PathBuf>,
+    /// The file that defines the symbol.
+    pub file: Option<OsString>,
     /// The line number of the symbolized instruction in the source
     /// code.
     ///
@@ -235,7 +238,8 @@ impl Symbolizer {
                     name: self.maybe_demangle(name, lang),
                     addr: sym_addr,
                     offset: addr - sym_addr,
-                    path: Some(linfo.dir.join(linfo.file)),
+                    dir: Some(linfo.dir.to_path_buf()),
+                    file: Some(linfo.file.to_os_string()),
                     line: linfo.line,
                     column: linfo.column,
                     _non_exhaustive: (),
@@ -250,7 +254,8 @@ impl Symbolizer {
                     name: self.maybe_demangle(name, lang),
                     addr: sym_addr,
                     offset: addr - sym_addr,
-                    path: None,
+                    dir: None,
+                    file: None,
                     line: None,
                     column: None,
                     _non_exhaustive: (),

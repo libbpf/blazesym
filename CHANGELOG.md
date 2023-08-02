@@ -3,12 +3,13 @@ Unreleased
 - Added support for automatic demangling of symbols, controlled by
   `demangle` feature (at compile time) and corresponding flag in
   `symbolize::Builder` (at runtime)
-- Renamed `symbolize::SymbolizedResult` to `Sym` and made it
-  non-exhaustive
-  - Renamed `Sym::symbol` to `name`
-  - Added `Sym::offset` member
-  - Changed `Sym::line` to be of type `u32` and `Sym::column` to `u16`
+- Renamed `symbolize::SymbolizedResult` to `Sym` and reworked it
+  - Made it non-exhaustive
+  - Renamed `symbol` member to `name`
+  - Added `offset` member
+  - Changed `line` member to be of type `u32` and `column` to `u16`
   - Made all source code location information optional
+  - Split `path` member into `dir` and `file`
 - Added additional end-to-end benchmarks
   - Added benchmark result summary to CI runs
 - Fixed spurious maps file path creation for low addresses as part of

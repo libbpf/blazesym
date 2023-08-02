@@ -88,14 +88,16 @@ fn symbolize_elf_dwarf() {
         assert_eq!(sym.offset, 0);
 
         if dwarf {
-            assert!(!sym.path.is_null());
-            assert!(unsafe { CStr::from_ptr(sym.path) }
-                .to_str()
-                .unwrap()
-                .ends_with("test-stable-addresses.c"));
+            assert!(!sym.dir.is_null());
+            assert!(!sym.file.is_null());
+            assert_eq!(
+                unsafe { CStr::from_ptr(sym.file) },
+                CStr::from_bytes_with_nul(b"test-stable-addresses.c\0").unwrap()
+            );
             assert_eq!(sym.line, 8);
         } else {
-            assert!(sym.path.is_null());
+            assert!(sym.dir.is_null());
+            assert!(sym.file.is_null());
             assert_eq!(sym.line, 0);
         }
 

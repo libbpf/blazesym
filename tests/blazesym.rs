@@ -2,6 +2,7 @@
 
 use std::env::current_exe;
 use std::ffi::CString;
+use std::ffi::OsStr;
 use std::fs::read as read_file;
 use std::io::Error;
 use std::os::unix::ffi::OsStringExt as _;
@@ -124,14 +125,15 @@ fn symbolize_elf_dwarf() {
         assert_eq!(result.offset, 0);
 
         if dwarf {
-            assert!(result
-                .path
-                .as_ref()
-                .unwrap()
-                .ends_with("test-stable-addresses.c"));
+            assert_ne!(result.dir, None);
+            assert_eq!(
+                result.file.as_deref(),
+                Some(OsStr::new("test-stable-addresses.c"))
+            );
             assert_eq!(result.line, Some(8));
         } else {
-            assert_eq!(result.path, None);
+            assert_eq!(result.dir, None);
+            assert_eq!(result.file, None);
             assert_eq!(result.line, None);
         }
 
@@ -156,14 +158,15 @@ fn symbolize_elf_dwarf() {
             assert_eq!(result.offset, offset);
 
             if dwarf {
-                assert!(result
-                    .path
-                    .as_ref()
-                    .unwrap()
-                    .ends_with("test-stable-addresses.c"));
+                assert_ne!(result.dir, None);
+                assert_eq!(
+                    result.file.as_deref(),
+                    Some(OsStr::new("test-stable-addresses.c"))
+                );
                 assert!(result.line.is_some());
             } else {
-                assert_eq!(result.path, None);
+                assert_eq!(result.dir, None);
+                assert_eq!(result.file, None);
                 assert_eq!(result.line, None);
             }
         }
