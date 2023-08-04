@@ -18,6 +18,7 @@ use blazesym::c_api::blaze_normalize_user_addrs;
 use blazesym::c_api::blaze_normalize_user_addrs_sorted;
 use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
+use blazesym::c_api::blaze_result;
 use blazesym::c_api::blaze_result_free;
 use blazesym::c_api::blaze_symbolize_elf;
 use blazesym::c_api::blaze_symbolize_gsym_data;
@@ -27,6 +28,7 @@ use blazesym::c_api::blaze_symbolize_src_elf;
 use blazesym::c_api::blaze_symbolize_src_gsym_data;
 use blazesym::c_api::blaze_symbolize_src_gsym_file;
 use blazesym::c_api::blaze_symbolize_src_process;
+use blazesym::c_api::blaze_symbolizer;
 use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
@@ -57,18 +59,17 @@ fn symbolizer_creation_with_opts() {
 }
 
 
-/// Make sure that we can symbolize an address in an ELF file.
+/// Make sure that we can symbolize an address using ELF, DWARF, and
+/// GSYM.
 #[test]
-fn symbolize_elf_dwarf() {
-    fn test(path: &CStr, dwarf: bool) {
-        let elf_src = blaze_symbolize_src_elf {
-            path: path.as_ptr(),
-        };
-
+fn symbolize_elf_dwarf_gsym() {
+    fn test<F>(symbolize: F, has_src_loc: bool)
+    where
+        F: FnOnce(*mut blaze_symbolizer, *const Addr, usize) -> *const blaze_result,
+    {
         let symbolizer = blaze_symbolizer_new();
         let addrs = [0x2000100];
-        let result =
-            unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+        let result = symbolize(symbolizer, addrs.as_ptr(), addrs.len());
 
         assert!(!result.is_null());
 
@@ -87,7 +88,7 @@ fn symbolize_elf_dwarf() {
         assert_eq!(sym.addr, 0x2000100);
         assert_eq!(sym.offset, 0);
 
-        if dwarf {
+        if has_src_loc {
             assert!(!sym.dir.is_null());
             assert!(!sym.file.is_null());
             assert_eq!(
@@ -109,87 +110,50 @@ fn symbolize_elf_dwarf() {
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
     let path_c = CString::new(path.to_str().unwrap()).unwrap();
-    test(&path_c, false);
+    let elf_src = blaze_symbolize_src_elf {
+        path: path_c.as_ptr(),
+    };
+    let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
+        blaze_symbolize_elf(symbolizer, &elf_src, addrs, addr_cnt)
+    };
+    test(symbolize, false);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-dwarf-only.bin");
     let path_c = CString::new(path.to_str().unwrap()).unwrap();
-    test(&path_c, true);
-}
+    let elf_src = blaze_symbolize_src_elf {
+        path: path_c.as_ptr(),
+    };
+    let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
+        blaze_symbolize_elf(symbolizer, &elf_src, addrs, addr_cnt)
+    };
+    test(symbolize, true);
 
-
-/// Make sure that we can symbolize an address in "raw" Gsym data.
-#[test]
-fn symbolize_from_gsym_data() {
-    let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses.gsym");
+    let path_c = CString::new(path.to_str().unwrap()).unwrap();
+    let gsym_src = blaze_symbolize_src_gsym_file {
+        path: path_c.as_ptr(),
+    };
+    let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
+        blaze_symbolize_gsym_file(symbolizer, &gsym_src, addrs, addr_cnt)
+    };
+    test(symbolize, true);
 
-    let data = read_file(test_gsym).unwrap();
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.gsym");
+    let data = read_file(path).unwrap();
     let gsym_src = blaze_symbolize_src_gsym_data {
         data: data.as_ptr(),
         data_len: data.len(),
     };
-
-    let symbolizer = blaze_symbolizer_new();
-    let addrs = [0x2000100];
-    let result =
-        unsafe { blaze_symbolize_gsym_data(symbolizer, &gsym_src, addrs.as_ptr(), addrs.len()) };
-
-    assert!(!result.is_null());
-
-    let result = unsafe { &*result };
-    assert_eq!(result.size, 1);
-    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
-    let entry = &entries[0];
-    assert_eq!(entry.size, 1);
-
-    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
-    let sym = &syms[0];
-    assert_eq!(
-        unsafe { CStr::from_ptr(sym.name) },
-        CStr::from_bytes_with_nul(b"factorial\0").unwrap()
-    );
-
-    let () = unsafe { blaze_result_free(result) };
-    let () = unsafe { blaze_symbolizer_free(symbolizer) };
-}
-
-
-/// Make sure that we can symbolize an address in a Gsym file.
-#[test]
-fn symbolize_from_gsym_file() {
-    let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses.gsym");
-    let test_gsym_c = CString::new(test_gsym.to_str().unwrap()).unwrap();
-    let gsym_src = blaze_symbolize_src_gsym_file {
-        path: test_gsym_c.as_ptr(),
+    let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
+        blaze_symbolize_gsym_data(symbolizer, &gsym_src, addrs, addr_cnt)
     };
-
-    let symbolizer = blaze_symbolizer_new();
-    let addrs = [0x2000100];
-    let result =
-        unsafe { blaze_symbolize_gsym_file(symbolizer, &gsym_src, addrs.as_ptr(), addrs.len()) };
-
-    assert!(!result.is_null());
-
-    let result = unsafe { &*result };
-    assert_eq!(result.size, 1);
-    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
-    let entry = &entries[0];
-    assert_eq!(entry.size, 1);
-
-    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
-    let sym = &syms[0];
-    assert_eq!(
-        unsafe { CStr::from_ptr(sym.name) },
-        CStr::from_bytes_with_nul(b"factorial\0").unwrap()
-    );
-
-    let () = unsafe { blaze_result_free(result) };
-    let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    test(symbolize, true);
 }
 
 

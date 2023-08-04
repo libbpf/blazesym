@@ -52,64 +52,10 @@ fn find_function_size(name: &str, elf: &Path) -> usize {
     size
 }
 
-/// Check that we can correctly symbolize an address using GSYM.
+/// Check that we can symbolize an address using ELF, DWARF, and GSYM.
 #[test]
-fn symbolize_gsym() {
-    fn test(src: symbolize::Source) {
-        let symbolizer = Symbolizer::new();
-
-        let results = symbolizer
-            .symbolize(&src, &[0x2000100])
-            .unwrap()
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
-
-        let result = results.first().unwrap();
-        assert_eq!(result.name, "factorial");
-        assert_eq!(result.addr, 0x2000100);
-        assert_eq!(result.offset, 0);
-
-        let test_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-stable-addresses.bin");
-        let size = find_function_size("factorial", &test_bin);
-        assert_ne!(size, 0);
-
-        for offset in 1..size {
-            let results = symbolizer
-                .symbolize(&src, &[0x2000100 + offset])
-                .unwrap()
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
-            assert_eq!(results.len(), 1);
-
-            let result = results.first().unwrap();
-            assert_eq!(result.name, "factorial");
-            assert_eq!(result.addr, 0x2000100);
-            assert_eq!(result.offset, offset);
-        }
-    }
-
-    let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses.gsym");
-
-    let src = symbolize::Source::from(symbolize::GsymFile::new(&test_gsym));
-    test(src);
-
-    let data = read_file(&test_gsym).unwrap();
-    let src = symbolize::Source::from(symbolize::GsymData::new(&data));
-    test(src);
-}
-
-/// Check that we can symbolize an address using ELF or DWARF.
-#[test]
-fn symbolize_elf_dwarf() {
-    fn test(path: &Path, dwarf: bool) {
-        let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+fn symbolize_elf_dwarf_gsym() {
+    fn test(src: symbolize::Source, has_src_loc: bool) {
         let symbolizer = Symbolizer::new();
         let results = symbolizer
             .symbolize(&src, &[0x2000100])
@@ -124,7 +70,7 @@ fn symbolize_elf_dwarf() {
         assert_eq!(result.addr, 0x2000100);
         assert_eq!(result.offset, 0);
 
-        if dwarf {
+        if has_src_loc {
             assert_ne!(result.dir, None);
             assert_eq!(
                 result.file.as_deref(),
@@ -138,7 +84,10 @@ fn symbolize_elf_dwarf() {
         }
 
         // Inquire symbol size.
-        let size = find_function_size("factorial", path);
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.bin");
+        let size = find_function_size("factorial", &path);
         assert_ne!(size, 0);
 
         // Now check that we can symbolize addresses at a positive offset from the
@@ -157,7 +106,7 @@ fn symbolize_elf_dwarf() {
             assert_eq!(result.addr, 0x2000100);
             assert_eq!(result.offset, offset);
 
-            if dwarf {
+            if has_src_loc {
                 assert_ne!(result.dir, None);
                 assert_eq!(
                     result.file.as_deref(),
@@ -175,12 +124,24 @@ fn symbolize_elf_dwarf() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
-    test(&path, false);
+    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+    test(src, false);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-dwarf-only.bin");
-    test(&path, true);
+    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+    test(src, true);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.gsym");
+    let src = symbolize::Source::from(symbolize::GsymFile::new(&path));
+    test(src, true);
+
+    let data = read_file(&path).unwrap();
+    let src = symbolize::Source::from(symbolize::GsymData::new(&data));
+    test(src, true);
 }
 
 /// Check that we can symbolize the `abort_creds` function inside a
