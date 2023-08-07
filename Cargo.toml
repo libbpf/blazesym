@@ -35,7 +35,7 @@ autobenches = false
 
 [lib]
 name = "blazesym"
-crate-type = ["cdylib", "rlib", "staticlib"]
+crate-type = ["lib", "cdylib", "staticlib"]
 
 [features]
 default = ["demangle", "dwarf", "lru"]
