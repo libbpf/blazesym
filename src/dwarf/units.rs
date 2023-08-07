@@ -209,7 +209,7 @@ impl<'dwarf> Units<'dwarf> {
             res_units.push(Unit::new(dw_unit, lang, lines))
         }
 
-        // Sort this for faster lookup in `find_unit_and_address` below.
+        // Sort this for faster lookups.
         unit_ranges.sort_by_key(|i| i.range.begin);
 
         // Calculate the `max_end` field now that we've determined the order of
