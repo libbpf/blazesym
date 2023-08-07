@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.4
+-------------
 - Added support for automatic demangling of symbols, controlled by
   `demangle` feature (at compile time) and corresponding flag in
   `symbolize::Builder` (at runtime)

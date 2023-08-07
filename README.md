@@ -59,7 +59,7 @@ project manager (e.g., `cargo build`).
 Consumption from a Rust project should happen via `Cargo.toml`:
 ```toml
 [dependencies]
-blazesym = "0.2.0-alpha.3"
+blazesym = "0.2.0-alpha.4"
 ```
 
 For a quick set of examples please refer to the [`examples/` folder](examples/).
@@ -89,6 +89,18 @@ A detailed [documentation of the C API](https://docs.rs/blazesym/latest/blazesym
 is available as part of the Rust documentation or can be generated locally from
 the current repository snapshot using `cargo doc` (grouped under the `c_api`
 module).
+
+
+### Command-line
+The library also comes with a [command line interface](cli/) for quick
+experimentation and debugging. You can run it directly from the
+repository, e.g.:
+```sh
+cargo run -p blazecli -- symbolize elf --path /lib64/libc.so.6 00000000000caee1
+```
+
+Please refer to its [`README`](cli/README.md) as well as the help text
+for additional information and usage instructions.
 
 
 [cargo-semver]: https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility
