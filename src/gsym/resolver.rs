@@ -22,8 +22,8 @@ use super::linetab::LineTableRow;
 use super::linetab::RunResult;
 use super::parser::parse_address_data;
 use super::parser::GsymContext;
-use super::types::InfoTypeInlineInfo;
-use super::types::InfoTypeLineTableInfo;
+use super::types::INFO_TYPE_INLINE_INFO;
+use super::types::INFO_TYPE_LINE_TABLE_INFO;
 use crate::log::warn;
 
 
@@ -148,7 +148,7 @@ impl SymResolver for GsymResolver<'_> {
             let addrdatas = parse_address_data(addrinfo.data);
             for addr_ent in addrdatas {
                 match addr_ent.typ {
-                    InfoTypeLineTableInfo => {
+                    INFO_TYPE_LINE_TABLE_INFO => {
                         // Continue to execute all GSYM line table operations
                         // until the end of the buffer is reached or a row
                         // containing addr is located.
@@ -191,7 +191,7 @@ impl SymResolver for GsymResolver<'_> {
                             column: None,
                         })
                     }
-                    InfoTypeInlineInfo => (),
+                    INFO_TYPE_INLINE_INFO => (),
                     typ => {
                         warn!("encountered unknown info type: {typ}; ignoring...");
                         continue

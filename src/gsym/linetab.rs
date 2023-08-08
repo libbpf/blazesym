@@ -36,9 +36,9 @@ pub struct LineTableHeader {
 }
 
 impl LineTableHeader {
-    /// Parse [`AddrData`] of type [`InfoTypeLineTableInfo`].
+    /// Parse [`AddrData`] of type [`INFO_TYPE_LINE_TABLE_INFO`].
     ///
-    /// An `AddrData` of `InfoTypeLineTableInfo` type is a table of line numbers
+    /// An `AddrData` of `INFO_TYPE_LINE_TABLE_INFO` type is a table of line numbers
     /// for a symbol. `AddrData` is the payload of `AddrInfo`. One `AddrInfo`
     /// may have several `AddrData` entries in its payload. Each `AddrData`
     /// entry stores a type of data related to the symbol the `AddrInfo`

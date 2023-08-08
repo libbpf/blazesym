@@ -34,15 +34,12 @@ pub struct AddrInfo<'a> {
 }
 
 pub struct AddrData<'a> {
-    /// The data type. Its value should be one of InfoType*.
+    /// The data type. Its value should be one of `INFO_TYPE_*`.
     pub typ: u32,
     pub length: u32,
     pub data: &'a [u8],
 }
 
-#[allow(non_upper_case_globals)]
-pub const InfoTypeEndOfList: u32 = 0;
-#[allow(non_upper_case_globals)]
-pub const InfoTypeLineTableInfo: u32 = 1;
-#[allow(non_upper_case_globals)]
-pub const InfoTypeInlineInfo: u32 = 2;
+pub const INFO_TYPE_END_OF_LIST: u32 = 0;
+pub const INFO_TYPE_LINE_TABLE_INFO: u32 = 1;
+pub const INFO_TYPE_INLINE_INFO: u32 = 2;
