@@ -17,8 +17,8 @@ use crate::SrcLang;
 use crate::SymResolver;
 
 use super::linetab::run_op;
-use super::linetab::LineTableRow;
 use super::linetab::LineTableHeader;
+use super::linetab::LineTableRow;
 use super::linetab::RunResult;
 use super::parser::parse_address_data;
 use super::parser::GsymContext;
@@ -143,15 +143,15 @@ impl SymResolver for GsymResolver<'_> {
                 return None
             }
 
-            let addrdatas = parse_address_data(addrinfo.data)?;
-            for adr_ent in addrdatas {
-                if adr_ent.typ != InfoTypeLineTableInfo {
+            let addrdatas = parse_address_data(addrinfo.data);
+            for addr_ent in addrdatas {
+                if addr_ent.typ != InfoTypeLineTableInfo {
                     continue
                 }
                 // Continue to execute all GSYM line table operations
                 // until the end of the buffer is reached or a row
                 // containing addr is located.
-                let mut data = adr_ent.data;
+                let mut data = addr_ent.data;
                 let lntab_hdr = LineTableHeader::parse(&mut data)?;
                 let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
                 let mut last_lntab_row = lntab_row.clone();
