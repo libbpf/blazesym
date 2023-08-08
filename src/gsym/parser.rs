@@ -36,10 +36,10 @@
 //! See <https://reviews.llvm.org/D53379>
 
 use std::ffi::OsStr;
+use std::iter;
 use std::mem::align_of;
 use std::os::unix::ffi::OsStrExt as _;
 
-use crate::log::warn;
 use crate::util::find_match_or_lower_bound;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
@@ -53,8 +53,6 @@ use super::types::AddrInfo;
 use super::types::FileInfo;
 use super::types::Header;
 use super::types::InfoTypeEndOfList;
-use super::types::InfoTypeInlineInfo;
-use super::types::InfoTypeLineTableInfo;
 use super::types::GSYM_MAGIC;
 use super::types::GSYM_VERSION;
 
@@ -218,30 +216,26 @@ impl GsymContext<'_> {
 /// # Arguments
 ///
 /// * `data` - is the slice from AddrInfo::data.
-pub fn parse_address_data(mut data: &[u8]) -> Option<Vec<AddrData>> {
-    let mut data_objs = vec![];
-
-    while !data.is_empty() {
+pub fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData> {
+    iter::from_fn(move || {
         let typ = data.read_u32()?;
-        let length = data.read_u32()?;
-        let d = data.read_slice(length as usize)?;
-        data_objs.push(AddrData {
-            typ,
-            length,
-            data: d,
-        });
-
-        #[allow(non_upper_case_globals)]
-        match typ {
-            InfoTypeEndOfList => break,
-            InfoTypeLineTableInfo | InfoTypeInlineInfo => {}
-            _ => {
-                warn!("unknown info type");
-            }
+        if typ == InfoTypeEndOfList {
+            // We are done.
+            return None
         }
-    }
 
-    Some(data_objs)
+        let len = data.read_u32()?;
+        let d = data.read_slice(len as usize)?;
+
+        // We don't validate `typ` here, because callers will have to dispatch
+        // on it anyway.
+
+        Some(AddrData {
+            typ,
+            length: len,
+            data: d,
+        })
+    })
 }
 
 
