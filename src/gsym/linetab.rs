@@ -78,7 +78,7 @@ impl LineTableRow {
     ///
     /// * `header` - is a [`LineTableHeader`] returned by [`parse_line_table_header()`].
     /// * `symaddr` - the address of the symbol that `header` belongs to.
-    pub fn line_table_row_from(header: &LineTableHeader, symaddr: Addr) -> LineTableRow {
+    pub fn from_header(header: &LineTableHeader, symaddr: Addr) -> Self {
         Self {
             address: symaddr,
             file_idx: 1,
@@ -93,8 +93,8 @@ impl LineTableRow {
 /// # Arguments
 ///
 /// * `ctx` - a line table row to present the current states of the virtual
-///           machine. [`line_table_row_from()`] can create a `LineTableRow` to
-///           keep the states of a virtual machine.
+///           machine. [`LineTableRow::from_header`] can create a `LineTableRow`
+///           to keep the states of a virtual machine.
 /// * `header` - is a `LineTableHeader`.
 /// * `ops` - is the buffer of the operators following the `LineTableHeader` in
 ///           a GSYM file.

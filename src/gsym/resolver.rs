@@ -154,7 +154,7 @@ impl SymResolver for GsymResolver<'_> {
                         // containing addr is located.
                         let mut data = addr_ent.data;
                         let lntab_hdr = LineTableHeader::parse(&mut data)?;
-                        let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
+                        let mut lntab_row = LineTableRow::from_header(&lntab_hdr, symaddr);
                         let mut last_lntab_row = lntab_row.clone();
                         let mut row_cnt = 0;
                         while !data.is_empty() {
