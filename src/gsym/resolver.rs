@@ -131,78 +131,95 @@ impl SymResolver for GsymResolver<'_> {
     /// The `AddrLineInfo` corresponding to the address or `None`.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
     fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo<'_>>> {
-        fn find_line_info_impl<'src>(
-            ctx: &'src GsymContext<'src>,
-            addr: Addr,
-        ) -> Option<AddrLineInfo<'src>> {
-            let idx = ctx.find_addr(addr)?;
-            let symaddr = ctx.addr_at(idx)?;
-            if addr < symaddr {
-                return None
-            }
-            let addrinfo = ctx.addr_info(idx)?;
-            if addr >= (symaddr + addrinfo.size as Addr) {
-                return None
-            }
-
-            let addrdatas = parse_address_data(addrinfo.data);
-            for addr_ent in addrdatas {
-                match addr_ent.typ {
-                    INFO_TYPE_LINE_TABLE_INFO => {
-                        // Continue to execute all GSYM line table operations
-                        // until the end of the buffer is reached or a row
-                        // containing addr is located.
-                        let mut data = addr_ent.data;
-                        let lntab_hdr = LineTableHeader::parse(&mut data)?;
-                        let mut lntab_row = LineTableRow::from_header(&lntab_hdr, symaddr);
-                        let mut last_lntab_row = lntab_row.clone();
-                        let mut row_cnt = 0;
-                        while !data.is_empty() {
-                            match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
-                                Some(RunResult::Ok) => {}
-                                Some(RunResult::NewRow) => {
-                                    row_cnt += 1;
-                                    if addr < lntab_row.address {
-                                        if row_cnt == 1 {
-                                            // The address is lower than the first row.
-                                            return None
-                                        }
-                                        // Rollback to the last row.
-                                        lntab_row = last_lntab_row;
-                                        break
-                                    }
-                                    last_lntab_row = lntab_row.clone();
-                                }
-                                Some(RunResult::End) | None => break,
-                            }
-                        }
-
-                        if row_cnt == 0 {
-                            continue
-                        }
-
-                        let finfo = ctx.file_info(lntab_row.file_idx as usize)?;
-                        let dir = ctx.get_str(finfo.directory as usize)?;
-                        let file = ctx.get_str(finfo.filename as usize)?;
-                        return Some(AddrLineInfo {
-                            dir: Path::new(dir),
-                            file,
-                            line: Some(lntab_row.file_line),
-                            column: None,
-                        })
-                    }
-                    INFO_TYPE_INLINE_INFO => (),
-                    typ => {
-                        warn!("encountered unknown info type: {typ}; ignoring...");
-                        continue
-                    }
-                }
-            }
-            None
+        let idx = match self.ctx.find_addr(addr) {
+            Some(idx) => idx,
+            None => return Ok(None),
+        };
+        let symaddr = self
+            .ctx
+            .addr_at(idx)
+            .ok_or_invalid_data(|| format!("failed to read address table entry {idx}"))?;
+        if addr < symaddr {
+            return Ok(None)
+        }
+        let addrinfo = self
+            .ctx
+            .addr_info(idx)
+            .ok_or_invalid_data(|| format!("failed to read address info entry {idx}"))?;
+        if addr >= (symaddr + addrinfo.size as Addr) {
+            return Ok(None)
         }
 
-        let addr_info = find_line_info_impl(&self.ctx, addr);
-        Ok(addr_info)
+        let addrdatas = parse_address_data(addrinfo.data);
+        'addr_data: for addr_ent in addrdatas {
+            match addr_ent.typ {
+                INFO_TYPE_LINE_TABLE_INFO => {
+                    // Continue to execute all GSYM line table operations
+                    // until the end of the buffer is reached or a row
+                    // containing addr is located.
+                    let mut data = addr_ent.data;
+                    let lntab_hdr = LineTableHeader::parse(&mut data)
+                        .ok_or_invalid_data(|| "failed to parse line table header")?;
+                    let mut lntab_row = LineTableRow::from_header(&lntab_hdr, symaddr);
+                    let mut last_lntab_row = lntab_row.clone();
+                    let mut row_cnt = 0;
+                    while !data.is_empty() {
+                        match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
+                            Some(RunResult::Ok) => {}
+                            Some(RunResult::NewRow) => {
+                                row_cnt += 1;
+                                if addr < lntab_row.address {
+                                    if row_cnt == 1 {
+                                        // The address is lower than the first row.
+                                        continue 'addr_data
+                                    }
+                                    // Rollback to the last row.
+                                    lntab_row = last_lntab_row;
+                                    break
+                                }
+                                last_lntab_row = lntab_row.clone();
+                            }
+                            Some(RunResult::End) | None => break,
+                        }
+                    }
+
+                    if row_cnt == 0 {
+                        continue
+                    }
+
+                    let finfo = self
+                        .ctx
+                        .file_info(lntab_row.file_idx as usize)
+                        .ok_or_invalid_data(|| {
+                            format!("failed to retrieve file info data @ {}", lntab_row.file_idx)
+                        })?;
+                    let dir = self
+                        .ctx
+                        .get_str(finfo.directory as usize)
+                        .ok_or_invalid_data(|| {
+                            format!("failed to retrieve directory string @ {}", finfo.directory)
+                        })?;
+                    let file = self
+                        .ctx
+                        .get_str(finfo.filename as usize)
+                        .ok_or_invalid_data(|| {
+                            format!("failed to retrieve file name string @ {}", finfo.filename)
+                        })?;
+                    return Ok(Some(AddrLineInfo {
+                        dir: Path::new(dir),
+                        file,
+                        line: Some(lntab_row.file_line),
+                        column: None,
+                    }))
+                }
+                INFO_TYPE_INLINE_INFO => (),
+                typ => {
+                    warn!("encountered unknown info type: {typ}; ignoring...");
+                    continue
+                }
+            }
+        }
+        Ok(None)
     }
 
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
