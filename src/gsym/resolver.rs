@@ -22,7 +22,9 @@ use super::linetab::LineTableRow;
 use super::linetab::RunResult;
 use super::parser::parse_address_data;
 use super::parser::GsymContext;
+use super::types::InfoTypeInlineInfo;
 use super::types::InfoTypeLineTableInfo;
+use crate::log::warn;
 
 
 enum Data<'dat> {
@@ -145,50 +147,56 @@ impl SymResolver for GsymResolver<'_> {
 
             let addrdatas = parse_address_data(addrinfo.data);
             for addr_ent in addrdatas {
-                if addr_ent.typ != InfoTypeLineTableInfo {
-                    continue
-                }
-                // Continue to execute all GSYM line table operations
-                // until the end of the buffer is reached or a row
-                // containing addr is located.
-                let mut data = addr_ent.data;
-                let lntab_hdr = LineTableHeader::parse(&mut data)?;
-                let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
-                let mut last_lntab_row = lntab_row.clone();
-                let mut row_cnt = 0;
-                while !data.is_empty() {
-                    match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
-                        Some(RunResult::Ok) => {}
-                        Some(RunResult::NewRow) => {
-                            row_cnt += 1;
-                            if addr < lntab_row.address {
-                                if row_cnt == 1 {
-                                    // The address is lower than the first row.
-                                    return None
+                match addr_ent.typ {
+                    InfoTypeLineTableInfo => {
+                        // Continue to execute all GSYM line table operations
+                        // until the end of the buffer is reached or a row
+                        // containing addr is located.
+                        let mut data = addr_ent.data;
+                        let lntab_hdr = LineTableHeader::parse(&mut data)?;
+                        let mut lntab_row = LineTableRow::line_table_row_from(&lntab_hdr, symaddr);
+                        let mut last_lntab_row = lntab_row.clone();
+                        let mut row_cnt = 0;
+                        while !data.is_empty() {
+                            match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
+                                Some(RunResult::Ok) => {}
+                                Some(RunResult::NewRow) => {
+                                    row_cnt += 1;
+                                    if addr < lntab_row.address {
+                                        if row_cnt == 1 {
+                                            // The address is lower than the first row.
+                                            return None
+                                        }
+                                        // Rollback to the last row.
+                                        lntab_row = last_lntab_row;
+                                        break
+                                    }
+                                    last_lntab_row = lntab_row.clone();
                                 }
-                                // Rollback to the last row.
-                                lntab_row = last_lntab_row;
-                                break
+                                Some(RunResult::End) | None => break,
                             }
-                            last_lntab_row = lntab_row.clone();
                         }
-                        Some(RunResult::End) | None => break,
+
+                        if row_cnt == 0 {
+                            continue
+                        }
+
+                        let finfo = ctx.file_info(lntab_row.file_idx as usize)?;
+                        let dir = ctx.get_str(finfo.directory as usize)?;
+                        let file = ctx.get_str(finfo.filename as usize)?;
+                        return Some(AddrLineInfo {
+                            dir: Path::new(dir),
+                            file,
+                            line: Some(lntab_row.file_line),
+                            column: None,
+                        })
+                    }
+                    InfoTypeInlineInfo => (),
+                    typ => {
+                        warn!("encountered unknown info type: {typ}; ignoring...");
+                        continue
                     }
                 }
-
-                if row_cnt == 0 {
-                    continue
-                }
-
-                let finfo = ctx.file_info(lntab_row.file_idx as usize)?;
-                let dir = ctx.get_str(finfo.directory as usize)?;
-                let file = ctx.get_str(finfo.filename as usize)?;
-                return Some(AddrLineInfo {
-                    dir: Path::new(dir),
-                    file,
-                    line: Some(lntab_row.file_line),
-                    column: None,
-                })
             }
             None
         }
