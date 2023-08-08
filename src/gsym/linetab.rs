@@ -35,6 +35,32 @@ pub struct LineTableHeader {
     pub first_line: u32,
 }
 
+impl LineTableHeader {
+    /// Parse [`AddrData`] of type [`InfoTypeLineTableInfo`].
+    ///
+    /// An `AddrData` of `InfoTypeLineTableInfo` type is a table of line numbers
+    /// for a symbol. `AddrData` is the payload of `AddrInfo`. One `AddrInfo`
+    /// may have several `AddrData` entries in its payload. Each `AddrData`
+    /// entry stores a type of data related to the symbol the `AddrInfo`
+    /// presents.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - is what [`AddrData::data`] is.
+    pub(super) fn parse(data: &mut &[u8]) -> Option<Self> {
+        let (min_delta, _bytes) = data.read_i128_leb128()?;
+        let (max_delta, _bytes) = data.read_i128_leb128()?;
+        let (first_line, _bytes) = data.read_u128_leb128()?;
+
+        let header = Self {
+            min_delta: min_delta as i64,
+            max_delta: max_delta as i64,
+            first_line: first_line as u32,
+        };
+        Some(header)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LineTableRow {
     pub address: Addr,
