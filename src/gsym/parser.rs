@@ -52,9 +52,9 @@ use super::types::AddrData;
 use super::types::AddrInfo;
 use super::types::FileInfo;
 use super::types::Header;
-use super::types::InfoTypeEndOfList;
 use super::types::GSYM_MAGIC;
 use super::types::GSYM_VERSION;
+use super::types::INFO_TYPE_END_OF_LIST;
 
 /// Hold the major parts of a standalone GSYM file.
 ///
@@ -219,7 +219,7 @@ impl GsymContext<'_> {
 pub fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData> {
     iter::from_fn(move || {
         let typ = data.read_u32()?;
-        if typ == InfoTypeEndOfList {
+        if typ == INFO_TYPE_END_OF_LIST {
             // We are done.
             return None
         }
