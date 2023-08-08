@@ -280,8 +280,8 @@ pub enum ErrorKind {
 ///
 /// Errors generally form a chain, with higher-level errors typically
 /// providing additional context for lower level ones. E.g., an IO error
-/// such as file not found could be reported by a system level API (such
-/// as [`std::fs::File::open`] and may be contextualized with the path
+/// such as file-not-found could be reported by a system level API (such
+/// as [`std::fs::File::open`]) and may be contextualized with the path
 /// to the file attempted to be opened.
 ///
 /// ```
