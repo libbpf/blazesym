@@ -25,7 +25,7 @@
 //! // fopen (0x7f5f8e23a790) corresponds to address 0x77790 within
 //! // Elf(Elf { path: "/usr/lib64/libc.so.6", build_id: Some([...]), ... })
 //! println!(
-//!   "fopen (0x{fopen_addr:x}) corresponds to address 0x{addr:x} within {:?}",
+//!   "fopen ({fopen_addr:#x}) corresponds to address {addr:#x} within {:?}",
 //!   norm_addrs.meta[meta_idx]
 //! );
 //! ```

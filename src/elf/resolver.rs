@@ -55,7 +55,7 @@ impl ElfResolver {
 }
 
 impl SymResolver for ElfResolver {
-    #[cfg_attr(feature = "tracing", crate::log::instrument)]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
     fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
         let parser = self.get_parser();
         if let Some((name, addr)) = parser.find_sym(addr, STT_FUNC)? {

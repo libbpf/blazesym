@@ -40,7 +40,7 @@ pub struct Args {
     #[command(subcommand)]
     pub command: Command,
     /// Increase verbosity (can be supplied multiple times).
-    #[clap(short = 'v', long = "verbose", global = true, action = ArgAction::Count)]
+    #[arg(short = 'v', long = "verbose", global = true, action = ArgAction::Count)]
     pub verbosity: u8,
 }
 

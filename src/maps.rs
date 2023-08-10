@@ -90,9 +90,9 @@ impl Debug for PathMapsEntry {
         } = self;
 
         f.debug_struct(stringify!(PathMapsEntry))
-            .field(stringify!(range), &format_args!("0x{range:x?}"))
-            .field(stringify!(mode), &format_args!("b{mode:04b}"))
-            .field(stringify!(offset), &format_args!("0x{offset:x}"))
+            .field(stringify!(range), &format_args!("{range:#x?}"))
+            .field(stringify!(mode), &format_args!("{mode:#06b}"))
+            .field(stringify!(offset), &format_args!("{offset:#x}"))
             .field(stringify!(path), &path)
             .finish()
     }
@@ -299,7 +299,7 @@ mod tests {
         let dbg = format!("{entry:?}");
         assert!(
             dbg.starts_with(
-                r#"PathMapsEntry { range: 0x1000..1337, mode: b0010, offset: 0x5000, "#
+                r#"PathMapsEntry { range: 0x1000..0x1337, mode: 0b0010, offset: 0x5000, "#
             ),
             "{dbg}"
         );

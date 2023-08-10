@@ -29,7 +29,7 @@ fn symbolize_current_bt() {
 
     let syms = symbolizer.symbolize(&src, bt).unwrap();
     for (addr, syms) in bt.iter().zip(syms) {
-        let mut addr_fmt = format!("0x{addr:016x}:");
+        let mut addr_fmt = format!("{addr:#016x}:");
         if syms.is_empty() {
             println!("{addr_fmt} <no-symbol>")
         } else {
@@ -57,7 +57,7 @@ fn symbolize_current_bt() {
                     String::new()
                 };
 
-                println!("{addr_fmt} {name} @ 0x{addr:x}+0x{offset:x}{src_loc}");
+                println!("{addr_fmt} {name} @ {addr:#x}+{offset:#x}{src_loc}");
             }
         }
     }

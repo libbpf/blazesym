@@ -104,7 +104,7 @@ pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Resu
         .with_context(|| format!("failed to open map file {}", entry.path.maps_file.display()))?;
     let addr = normalize_elf_offset_with_parser(file_off, &parser)?.ok_or_invalid_input(|| {
         format!(
-            "failed to find ELF segment in {} that contains file offset 0x{:x}",
+            "failed to find ELF segment in {} that contains file offset {:#x}",
             entry.path.symbolic_path.display(),
             entry.offset,
         )
@@ -151,7 +151,7 @@ pub(crate) fn normalize_apk_addr(
     Err(Error::new(
         ErrorKind::InvalidInput,
         format!(
-            "failed to find ELF entry in {} that contains file offset 0x{:x}",
+            "failed to find ELF entry in {} that contains file offset {:#x}",
             entry.path.symbolic_path.display(),
             file_off,
         ),
@@ -289,7 +289,7 @@ impl<R> Handler for NormalizationHandler<R>
 where
     R: BuildIdReader,
 {
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{addr:x}"))))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"))))]
     fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()> {
         self.unknown_idx = self.normalized.add_unknown_addr(addr, self.unknown_idx);
         Ok(())
