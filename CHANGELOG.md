@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.5
+-------------
 - Fixed potentially incorrect reporting of symbols from ELF source
 
 
