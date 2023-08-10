@@ -49,24 +49,30 @@ fn find_sym<'mmap>(
 ) -> Result<Option<(&'mmap str, Addr)>> {
     match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
         None => Ok(None),
-        Some(idx) => symtab[idx..]
-            .iter()
-            .find(|sym| {
-                sym.st_value as Addr <= addr && sym.type_() == st_type && sym.st_shndx != SHN_UNDEF
-            })
-            // Given our symbol table ordering (ascending by address and
-            // descending by size for equal addresses), we *always* pick
-            // the first symbol of given type. In effect, we completely
-            // ignore symbol size, because it can be bogus anyway
-            // (https://github.com/libbpf/blazesym/issues/269) and so
-            // the first symbol found will always end up being the best
-            // candidate.
-            .map(|sym| {
-                let name = symbol_name(strtab, sym)?;
-                let addr = sym.st_value as Addr;
-                Ok((name, addr))
-            })
-            .transpose(),
+        Some(idx) => {
+            for sym in symtab[idx..].iter() {
+                if sym.st_value as Addr > addr {
+                    // Once we are seeing start addresses past the provided
+                    // address, we can no longer be dealing with a match and
+                    // stop the search.
+                    break
+                }
+
+                if sym.type_() == st_type && sym.st_shndx != SHN_UNDEF {
+                    // Given our symbol table ordering (ascending by address and
+                    // descending by size for equal addresses), we *always* pick
+                    // the first symbol of given type. In effect, we completely
+                    // ignore symbol size, because it can be bogus anyway
+                    // (https://github.com/libbpf/blazesym/issues/269) and so
+                    // the first symbol found will always end up being the best
+                    // candidate.
+                    let name = symbol_name(strtab, sym)?;
+                    let addr = sym.st_value as Addr;
+                    return Ok(Some((name, addr)))
+                }
+            }
+            Ok(None)
+        }
     }
 }
 
