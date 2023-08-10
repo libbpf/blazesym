@@ -34,10 +34,10 @@ print its symbol, the file name of the source, and the line number.",
     let symbolizer = Symbolizer::new();
     let syms = symbolizer
         .symbolize(&src, &[addr])
-        .with_context(|| format!("failed to symbolize address 0x{addr:x}"))?;
+        .with_context(|| format!("failed to symbolize address {addr:#x}"))?;
 
     for (addr, syms) in [addr].iter().zip(syms) {
-        let mut addr_fmt = format!("0x{addr:016x}:");
+        let mut addr_fmt = format!("{addr:#016x}:");
         if syms.is_empty() {
             println!("{addr_fmt} <no-symbol>")
         } else {
@@ -65,7 +65,7 @@ print its symbol, the file name of the source, and the line number.",
                     String::new()
                 };
 
-                println!("{addr_fmt} {name} @ 0x{addr:x}+0x{offset:x}{src_loc}");
+                println!("{addr_fmt} {name} @ {addr:#x}+{offset:#x}{src_loc}");
             }
         }
     }

@@ -213,7 +213,7 @@ impl Symbolizer {
     }
 
     /// Symbolize an address using the provided [`SymResolver`].
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{addr:x}"), resolver = ?resolver)))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver)))]
     fn symbolize_with_resolver(&self, addr: Addr, resolver: &dyn SymResolver) -> Result<Vec<Sym>> {
         let syms = resolver.find_syms(addr)?;
         if syms.is_empty() {
@@ -315,7 +315,7 @@ impl Symbolizer {
                     .resolve_addr_in_elf(norm_addr, path)
                     .with_context(|| {
                         format!(
-                            "failed to symbolize normalized address 0x{norm_addr:x} in ELF file {}",
+                            "failed to symbolize normalized address {norm_addr:#x} in ELF file {}",
                             path.display()
                         )
                     })?;
@@ -325,7 +325,7 @@ impl Symbolizer {
         }
 
         impl normalize::Handler for SymbolizeHandler<'_> {
-            #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("0x{_addr:x}"))))]
+            #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
             fn handle_unknown_addr(&mut self, _addr: Addr) -> Result<()> {
                 let () = self.all_symbols.push(Vec::new());
                 Ok(())
@@ -434,7 +434,7 @@ impl Symbolizer {
     ///
     /// Symbolize a list of addresses according to the configuration
     /// provided via `src`.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{addrs:x?}"))))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{addrs:#x?}"))))]
     pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<Sym>>> {
         match src {
             Source::Elf(Elf {
