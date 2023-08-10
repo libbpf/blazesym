@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Fixed potentially incorrect reporting of symbols from ELF source
+
+
 0.2.0-alpha.4
 -------------
 - Added support for automatic demangling of symbols, controlled by
