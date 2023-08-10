@@ -51,7 +51,9 @@ fn find_sym<'mmap>(
         None => Ok(None),
         Some(idx) => symtab[idx..]
             .iter()
-            .find(|sym| sym.type_() == st_type && sym.st_shndx != SHN_UNDEF)
+            .find(|sym| {
+                sym.st_value as Addr <= addr && sym.type_() == st_type && sym.st_shndx != SHN_UNDEF
+            })
             // Given our symbol table ordering (ascending by address and
             // descending by size for equal addresses), we *always* pick
             // the first symbol of given type. In effect, we completely
@@ -564,6 +566,43 @@ mod tests {
         assert_eq!(syms[0].name, "factorial_wrapper");
         assert_eq!(syms[1].name, "factorial_wrapper");
         assert_ne!(syms[0].addr, syms[1].addr);
+    }
+
+    /// Make sure that we do not report a symbol if there is no conceivable
+    /// match.
+    #[test]
+    fn lookup_symbol_without_match() {
+        let strtab = b"\x00_glapi_tls_Context\x00_glapi_get_dispatch_table_size\x00";
+        let symtab = [
+            &Elf64_Sym {
+                st_name: 0,
+                st_info: 0,
+                st_other: 0,
+                st_shndx: 0,
+                st_value: 0,
+                st_size: 0,
+            },
+            &Elf64_Sym {
+                st_name: 0x1,
+                // Note: the type is *not* `STT_FUNC`.
+                st_info: 0x16,
+                st_other: 0x0,
+                st_shndx: 0x14,
+                st_value: 0x8,
+                st_size: 0x8,
+            },
+            &Elf64_Sym {
+                st_name: 0x21,
+                st_info: 0x12,
+                st_other: 0x0,
+                st_shndx: 0xe,
+                st_value: 0x1a4a0,
+                st_size: 0xa,
+            },
+        ];
+
+        let result = find_sym(&symtab, strtab, 0x10d20, STT_FUNC).unwrap();
+        assert_eq!(result, None);
     }
 
     /// Check that we report a symbol with a potentially incorrect
