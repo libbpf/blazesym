@@ -3,6 +3,7 @@ members = [
   ".",
   "capi",
   "cli",
+  "debuginfod",
 ]
 
 [package]

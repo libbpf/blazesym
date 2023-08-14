@@ -1,0 +1,12 @@
+[package]
+name = "blazesym-debuginfod"
+version = "0.0.0"
+edition = "2021"
+
+
+[dependencies]
+anyhow = "1.0.68"
+dirs = "5.0.1"
+reqwest = {version = "0.11.18", features = ["blocking", "gzip"]}
+blazesym = {path = ".."}
+
