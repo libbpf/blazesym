@@ -7,10 +7,7 @@ use std::path::PathBuf;
 use anyhow::Context;
 use anyhow::Result;
 
-use blazesym::symbolize::Elf;
-use blazesym::symbolize::Process;
-use blazesym::symbolize::Source;
-use blazesym::symbolize::Sym;
+use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 
 use clap::Parser as _;
@@ -27,11 +24,11 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
     let symbolizer = Symbolizer::new();
     let (src, addrs) = match symbolize {
         args::Symbolize::Elf(args::Elf { path, addrs }) => {
-            let src = Source::from(Elf::new(path));
+            let src = symbolize::Source::from(symbolize::Elf::new(path));
             (src, addrs)
         }
         args::Symbolize::Process(args::Process { pid, addrs }) => {
-            let src = Source::from(Process::new(pid));
+            let src = symbolize::Source::from(symbolize::Process::new(pid));
             (src, addrs)
         }
     };
@@ -50,7 +47,7 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
                     addr_fmt = addr_fmt.replace(|_c| true, " ");
                 }
 
-                let Sym {
+                let symbolize::Sym {
                     name, addr, offset, ..
                 } = sym;
 
