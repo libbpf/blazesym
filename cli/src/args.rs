@@ -53,7 +53,7 @@ pub enum Command {
 }
 
 
-/// An type representing the `backup` command.
+/// A type representing the `symbolize` command.
 #[derive(Debug, Subcommand)]
 pub enum Symbolize {
     Elf(Elf),
