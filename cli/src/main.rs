@@ -7,6 +7,8 @@ use std::path::PathBuf;
 use anyhow::Context;
 use anyhow::Result;
 
+use blazesym::normalize;
+use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 
@@ -18,6 +20,64 @@ use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::fmt::time::SystemTime;
 use tracing_subscriber::FmtSubscriber;
 
+
+fn format_build_id_bytes(build_id: &[u8]) -> String {
+    build_id
+        .iter()
+        .fold(String::with_capacity(build_id.len() * 2), |mut s, b| {
+            let () = s.push_str(&format!("{b:02x}"));
+            s
+        })
+}
+
+fn format_build_id(build_id: Option<&[u8]>) -> String {
+    if let Some(build_id) = build_id {
+        format!(" (build ID: {})", format_build_id_bytes(build_id))
+    } else {
+        String::new()
+    }
+}
+
+fn normalize(normalize: args::Normalize) -> Result<()> {
+    let normalizer = Normalizer::new();
+    match normalize {
+        args::Normalize::User(args::User { pid, addrs }) => {
+            let norm_addrs = normalizer
+                .normalize_user_addrs(addrs.as_slice(), pid)
+                .context("failed to normalize addresses")?;
+            for (addr, (norm_addr, meta_idx)) in addrs.iter().zip(&norm_addrs.addrs) {
+                print!("{addr:#016x}: ");
+
+                let meta = &norm_addrs.meta[*meta_idx];
+                match meta {
+                    normalize::UserAddrMeta::ApkElf(normalize::ApkElf {
+                        apk_path,
+                        elf_path,
+                        elf_build_id,
+                        ..
+                    }) => {
+                        let build_id = format_build_id(elf_build_id.as_deref());
+                        println!(
+                            "{norm_addr:#x} @ {} in {}{build_id}",
+                            elf_path.display(),
+                            apk_path.display()
+                        )
+                    }
+                    normalize::UserAddrMeta::Elf(normalize::Elf { path, build_id, .. }) => {
+                        let build_id = format_build_id(build_id.as_deref());
+                        println!("{norm_addr:#x} @ {}{build_id}", path.display())
+                    }
+                    normalize::UserAddrMeta::Unknown(normalize::Unknown { .. }) => {
+                        println!("<unknown>")
+                    }
+                    // This is a bug and should be reported as such.
+                    _ => panic!("encountered unsupported user address meta data: {meta:?}"),
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 /// The handler for the 'symbolize' command.
 fn symbolize(symbolize: args::Symbolize) -> Result<()> {
@@ -93,6 +153,7 @@ fn main() -> Result<()> {
         set_global_subscriber(subscriber).with_context(|| "failed to set tracing subscriber")?;
 
     match args.command {
+        args::Command::Normalize(normalize) => self::normalize(normalize),
         args::Command::Symbolize(symbolize) => self::symbolize(symbolize),
     }
 }
