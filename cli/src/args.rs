@@ -47,9 +47,31 @@ pub struct Args {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Normalize one or more addresses.
+    #[command(subcommand)]
+    Normalize(Normalize),
     /// Symbolize one or more addresses.
     #[command(subcommand)]
     Symbolize(Symbolize),
+}
+
+
+/// A type representing the `normalize` command.
+#[derive(Debug, Subcommand)]
+pub enum Normalize {
+    /// Normalize user space addresses.
+    User(User),
+}
+
+#[derive(Debug, Arguments)]
+pub struct User {
+    /// The PID of the process the provided addresses belong to.
+    #[clap(short, long)]
+    #[arg(value_parser = parse_pid)]
+    pub pid: Pid,
+    /// The addresses to normalize.
+    #[arg(value_parser = parse_addr)]
+    pub addrs: Vec<Addr>,
 }
 
 
