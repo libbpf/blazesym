@@ -312,10 +312,9 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 
 /// Convert [`Sym`] objects to [`blaze_result`] ones.
 ///
-/// # Safety
-///
-/// The returned pointer should be freed by [`blaze_result_free`].
-unsafe fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze_result {
+/// The returned pointer should be released using [`blaze_result_free`] once
+/// usage concluded.
+fn convert_symbolizedresults_to_c(results: Vec<Vec<Sym>>) -> *const blaze_result {
     // Allocate a buffer to contain a blaze_result, all
     // blaze_sym, and C strings of symbol and path.
     let strtab_size = results.iter().flatten().fold(0, |acc, result| {
@@ -422,7 +421,7 @@ unsafe fn blaze_symbolize_impl(
             warn!("empty result while request for {addr_cnt}");
             ptr::null()
         }
-        Ok(results) => unsafe { convert_symbolizedresults_to_c(results) },
+        Ok(results) => convert_symbolizedresults_to_c(results),
         Err(_err) => {
             error!("failed to symbolize {addr_cnt} addresses: {_err}");
             ptr::null()
