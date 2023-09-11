@@ -438,10 +438,13 @@ impl From<io::Error> for Error {
     }
 }
 
-
+/// A trait providing ergonomic chaining capabilities to [`Error`].
 pub trait ErrorExt: private::Sealed {
+    /// The output type produced by [`context`](Self::context) and
+    /// [`with_context`](Self::with_context).
     type Output;
 
+    /// Add context to this error.
     // If we had specialization of sorts we could be more lenient as to
     // what we can accept, but for now this method always works with
     // static strings and nothing else.
@@ -449,6 +452,7 @@ pub trait ErrorExt: private::Sealed {
     where
         C: IntoCowStr;
 
+    /// Add context to this error, using a closure for lazy evaluation.
     fn with_context<C, F>(self, f: F) -> Self::Output
     where
         C: IntoCowStr,
@@ -458,14 +462,14 @@ pub trait ErrorExt: private::Sealed {
 impl ErrorExt for Error {
     type Output = Error;
 
-    fn context<C>(self, context: C) -> Error
+    fn context<C>(self, context: C) -> Self::Output
     where
         C: IntoCowStr,
     {
         self.layer_context(context.into_cow_str())
     }
 
-    fn with_context<C, F>(self, f: F) -> Error
+    fn with_context<C, F>(self, f: F) -> Self::Output
     where
         C: IntoCowStr,
         F: FnOnce() -> C,
@@ -505,14 +509,14 @@ where
 impl ErrorExt for io::Error {
     type Output = Error;
 
-    fn context<C>(self, context: C) -> Error
+    fn context<C>(self, context: C) -> Self::Output
     where
         C: IntoCowStr,
     {
         Error::from(self).context(context)
     }
 
-    fn with_context<C, F>(self, f: F) -> Error
+    fn with_context<C, F>(self, f: F) -> Self::Output
     where
         C: IntoCowStr,
         F: FnOnce() -> C,
@@ -525,14 +529,14 @@ impl ErrorExt for io::Error {
 impl ErrorExt for gimli::Error {
     type Output = Error;
 
-    fn context<C>(self, context: C) -> Error
+    fn context<C>(self, context: C) -> Self::Output
     where
         C: IntoCowStr,
     {
         Error::from(self).context(context)
     }
 
-    fn with_context<C, F>(self, f: F) -> Error
+    fn with_context<C, F>(self, f: F) -> Self::Output
     where
         C: IntoCowStr,
         F: FnOnce() -> C,
