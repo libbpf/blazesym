@@ -93,9 +93,7 @@ impl DwarfResolver {
 
     /// Find line information of an address.
     ///
-    /// `addr` is an offset from the head of the loaded binary/or shared
-    /// object. This function returns a tuple of `(dir_name, file_name,
-    /// line_no)`.
+    /// `addr` is a normalized address.
     pub fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo<'_>>> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
