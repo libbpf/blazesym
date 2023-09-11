@@ -198,6 +198,8 @@ pub struct blaze_sym {
     /// The line number on which the symbol is located in the source
     /// code.
     pub line: u32,
+    /// The column number of the symbolized instruction in the source
+    /// code.
     pub column: u16,
 }
 

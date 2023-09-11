@@ -227,6 +227,7 @@ impl From<blaze_user_addr_meta_elf> for Elf {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_addr_meta_unknown {
+    /// This member is unused.
     pub _unused: u8,
 }
 

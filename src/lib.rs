@@ -23,9 +23,14 @@
 
 #![allow(clippy::collapsible_if, clippy::let_and_return, clippy::let_unit_value)]
 #![deny(unsafe_op_in_unsafe_fn)]
-#![warn(missing_debug_implementations)]
+#![warn(
+    missing_debug_implementations,
+    missing_docs,
+    rustdoc::broken_intra_doc_links
+)]
 #![cfg_attr(feature = "nightly", feature(test))]
 #![cfg_attr(not(feature = "lru"), allow(dead_code))]
+
 
 #[cfg(feature = "nightly")]
 extern crate test;
