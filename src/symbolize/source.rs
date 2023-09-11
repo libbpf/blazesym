@@ -126,6 +126,7 @@ impl From<Process> for Source<'static> {
 }
 
 
+/// Enumeration of supported Gsym sources.
 #[derive(Clone, Debug)]
 pub enum Gsym<'dat> {
     /// "Raw" Gsym data.

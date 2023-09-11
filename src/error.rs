@@ -438,6 +438,7 @@ impl From<io::Error> for Error {
     }
 }
 
+
 /// A trait providing ergonomic chaining capabilities to [`Error`].
 pub trait ErrorExt: private::Sealed {
     /// The output type produced by [`context`](Self::context) and
@@ -552,11 +553,14 @@ pub trait IntoError<T>: private::Sealed
 where
     Self: Sized,
 {
+    /// Unwrap `self` into an `Ok` or an [`Error`] of the given kind.
     fn ok_or_error<C, F>(self, kind: io::ErrorKind, f: F) -> Result<T, Error>
     where
         C: ToString,
         F: FnOnce() -> C;
 
+    /// Unwrap `self` into an `Ok` or an [`Error`] of the
+    /// [`ErrorKind::InvalidData`] kind.
     #[inline]
     fn ok_or_invalid_data<C, F>(self, f: F) -> Result<T, Error>
     where
@@ -566,6 +570,8 @@ where
         self.ok_or_error(io::ErrorKind::InvalidData, f)
     }
 
+    /// Unwrap `self` into an `Ok` or an [`Error`] of the
+    /// [`ErrorKind::InvalidInput`] kind.
     #[inline]
     fn ok_or_invalid_input<C, F>(self, f: F) -> Result<T, Error>
     where
@@ -575,6 +581,8 @@ where
         self.ok_or_error(io::ErrorKind::InvalidInput, f)
     }
 
+    /// Unwrap `self` into an `Ok` or an [`Error`] of the
+    /// [`ErrorKind::UnexpectedEof`] kind.
     #[inline]
     fn ok_or_unexpected_eof<C, F>(self, f: F) -> Result<T, Error>
     where
@@ -592,7 +600,7 @@ impl<T> IntoError<T> for Option<T> {
         C: ToString,
         F: FnOnce() -> C,
     {
-        self.ok_or_else(|| Error::with_io_error(kind, f().to_string()))
+        self.ok_or_else(|| Error::with_io_error(kind, f()))
     }
 }
 

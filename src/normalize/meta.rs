@@ -81,8 +81,11 @@ impl From<Unknown> for UserAddrMeta {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum UserAddrMeta {
+    /// The address belongs to an ELF file residing in an APK.
     ApkElf(ApkElf),
+    /// The address belongs to an ELF file.
     Elf(Elf),
+    /// The address' origin is unknown.
     Unknown(Unknown),
 }
 

@@ -113,11 +113,17 @@ impl From<SymType> for blaze_sym_type {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_sym_info {
+    /// See [`inspect::SymInfo::name`].
     pub name: *const c_char,
+    /// See [`inspect::SymInfo::addr`].
     pub addr: Addr,
+    /// See [`inspect::SymInfo::size`].
     pub size: usize,
+    /// See [`inspect::SymInfo::file_offset`].
     pub file_offset: u64,
+    /// See [`inspect::SymInfo::obj_file_name`].
     pub obj_file_name: *const c_char,
+    /// See [`inspect::SymInfo::sym_type`].
     pub sym_type: blaze_sym_type,
 }
 

@@ -74,11 +74,29 @@ typedef struct blaze_symbolizer blaze_symbolizer;
  * Information about a looked up symbol.
  */
 typedef struct blaze_sym_info {
+  /**
+   * See [`inspect::SymInfo::name`].
+   */
   const char *name;
+  /**
+   * See [`inspect::SymInfo::addr`].
+   */
   uintptr_t addr;
+  /**
+   * See [`inspect::SymInfo::size`].
+   */
   size_t size;
+  /**
+   * See [`inspect::SymInfo::file_offset`].
+   */
   uint64_t file_offset;
+  /**
+   * See [`inspect::SymInfo::obj_file_name`].
+   */
   const char *obj_file_name;
+  /**
+   * See [`inspect::SymInfo::sym_type`].
+   */
   enum blaze_sym_type sym_type;
 } blaze_sym_info;
 
@@ -144,6 +162,9 @@ typedef struct blaze_user_addr_meta_elf {
  * C compatible version of [`Unknown`].
  */
 typedef struct blaze_user_addr_meta_unknown {
+  /**
+   * This member is unused.
+   */
   uint8_t _unused;
 } blaze_user_addr_meta_unknown;
 
@@ -299,6 +320,10 @@ typedef struct blaze_sym {
    * code.
    */
   uint32_t line;
+  /**
+   * The column number of the symbolized instruction in the source
+   * code.
+   */
   uint16_t column;
 } blaze_sym;
 
