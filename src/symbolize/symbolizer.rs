@@ -263,10 +263,13 @@ impl Symbolizer {
                 addr: sym_addr,
                 offset: addr - sym_addr,
                 size: sym_size,
-                dir: linfo.as_ref().map(|linfo| linfo.dir.to_path_buf()),
-                file: linfo.as_ref().map(|linfo| linfo.file.to_os_string()),
-                line: linfo.as_ref().and_then(|linfo| linfo.line),
-                column: linfo.as_ref().and_then(|linfo| linfo.column),
+                // TODO: Should use direct.0 as name, if set.
+                dir: linfo.as_ref().map(|linfo| linfo.direct.1.dir.to_path_buf()),
+                file: linfo
+                    .as_ref()
+                    .map(|linfo| linfo.direct.1.file.to_os_string()),
+                line: linfo.as_ref().and_then(|linfo| linfo.direct.1.line),
+                column: linfo.as_ref().and_then(|linfo| linfo.direct.1.column),
                 _non_exhaustive: (),
             });
         }

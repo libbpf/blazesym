@@ -9,6 +9,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::FrameCodeInfo;
 use crate::Addr;
 use crate::IntSym;
 use crate::IntoError as _;
@@ -207,10 +208,16 @@ impl SymResolver for GsymResolver<'_> {
                             format!("failed to retrieve file name string @ {}", finfo.filename)
                         })?;
                     return Ok(Some(AddrCodeInfo {
-                        dir: Path::new(dir),
-                        file,
-                        line: Some(lntab_row.file_line),
-                        column: None,
+                        direct: (
+                            None,
+                            FrameCodeInfo {
+                                dir: Path::new(dir),
+                                file,
+                                line: Some(lntab_row.file_line),
+                                column: None,
+                            },
+                        ),
+                        inlined: Vec::new(),
                     }))
                 }
                 INFO_TYPE_INLINE_INFO => (),
@@ -273,13 +280,13 @@ mod tests {
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
         let info = resolver.find_line_info(0x2000000).unwrap().unwrap();
-        assert_eq!(info.line, Some(34));
-        assert_eq!(info.file, "test-stable-addresses.c");
+        assert_eq!(info.direct.1.line, Some(34));
+        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
         let info = resolver.find_line_info(0x2000100).unwrap().unwrap();
-        assert_eq!(info.line, Some(8));
-        assert_eq!(info.file, "test-stable-addresses.c");
+        assert_eq!(info.direct.1.line, Some(8));
+        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
     }
 }

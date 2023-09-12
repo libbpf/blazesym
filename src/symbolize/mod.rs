@@ -101,9 +101,21 @@ pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
 
 
-pub(crate) struct AddrCodeInfo<'src> {
+pub(crate) struct FrameCodeInfo<'src> {
     pub dir: &'src Path,
     pub file: &'src OsStr,
     pub line: Option<u32>,
     pub column: Option<u16>,
+}
+
+pub(crate) struct AddrCodeInfo<'src> {
+    /// Source information about the top-level frame belonging to an
+    /// address.
+    ///
+    /// It also contains an optional name, which is necessary for
+    /// formats where inline information can "correct" (overwrite) the
+    /// name of the symbol.
+    pub direct: (Option<&'src str>, FrameCodeInfo<'src>),
+    /// Source information about inlined functions, along with their names.
+    pub inlined: Vec<(&'src str, Option<FrameCodeInfo<'src>>)>,
 }
