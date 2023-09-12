@@ -328,22 +328,18 @@ typedef struct blaze_sym {
 } blaze_sym;
 
 /**
- * `blaze_entry` is the output of symbolization for an address for C API.
- *
- * Every address has an `blaze_entry` in
- * [`blaze_result::entries`] to collect symbols found.
+ * `blaze_entry` is the output of symbolization for a call frame.
  */
 typedef struct blaze_entry {
   /**
-   * The number of symbols found for an address.
+   * The symbol.
    */
-  size_t size;
+  struct blaze_sym sym;
   /**
-   * All symbols found.
-   *
-   * `syms` is an array of [`blaze_sym`] in the size `size`.
+   * The index of the input address to which this symbolization result
+   * belongs.
    */
-  const struct blaze_sym *syms;
+  size_t addr_idx;
 } blaze_entry;
 
 /**
@@ -354,9 +350,9 @@ typedef struct blaze_entry {
  */
 typedef struct blaze_result {
   /**
-   * The number of addresses being symbolized.
+   * The number of symbols being reported.
    */
-  size_t size;
+  size_t cnt;
   /**
    * The entries for addresses.
    *
