@@ -72,6 +72,73 @@ impl<'dat> GsymResolver<'dat> {
 
         Ok(slf)
     }
+
+    fn query_frame_code_info(&self, file_idx: u32, line: Option<u32>) -> Result<FrameCodeInfo<'_>> {
+        let finfo = self
+            .ctx
+            .file_info(file_idx as usize)
+            .ok_or_invalid_data(|| format!("failed to retrieve file info data @ {}", file_idx))?;
+        let dir = self
+            .ctx
+            .get_str(finfo.directory as usize)
+            .ok_or_invalid_data(|| {
+                format!("failed to retrieve directory string @ {}", finfo.directory)
+            })?;
+        let file = self
+            .ctx
+            .get_str(finfo.filename as usize)
+            .ok_or_invalid_data(|| {
+                format!("failed to retrieve file name string @ {}", finfo.filename)
+            })?;
+
+        let info = FrameCodeInfo {
+            dir: Path::new(dir),
+            file,
+            line,
+            column: None,
+        };
+        Ok(info)
+    }
+
+    fn parse_line_tab_info(
+        &self,
+        mut data: &[u8],
+        symaddr: Addr,
+        addr: Addr,
+    ) -> Result<Option<LineTableRow>> {
+        // Continue to execute all GSYM line table operations
+        // until the end of the buffer is reached or a row
+        // containing addr is located.
+        let lntab_hdr = LineTableHeader::parse(&mut data)
+            .ok_or_invalid_data(|| "failed to parse line table header")?;
+        let mut lntab_row = LineTableRow::from_header(&lntab_hdr, symaddr);
+        let mut last_lntab_row = lntab_row.clone();
+        let mut row_cnt = 0;
+        while !data.is_empty() {
+            match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
+                Some(RunResult::Ok) => {}
+                Some(RunResult::NewRow) => {
+                    row_cnt += 1;
+                    if addr < lntab_row.address {
+                        if row_cnt == 1 {
+                            // The address is lower than the first row.
+                            return Ok(None)
+                        }
+                        // Rollback to the last row.
+                        lntab_row = last_lntab_row;
+                        break
+                    }
+                    last_lntab_row = lntab_row.clone();
+                }
+                Some(RunResult::End) | None => break,
+            }
+        }
+
+        if row_cnt == 0 {
+            return Ok(None)
+        }
+        Ok(Some(lntab_row))
+    }
 }
 
 impl SymResolver for GsymResolver<'_> {
@@ -152,73 +219,14 @@ impl SymResolver for GsymResolver<'_> {
             return Ok(None)
         }
 
+        let mut line_tab_info = None;
         let addrdatas = parse_address_data(addrinfo.data);
-        'addr_data: for addr_ent in addrdatas {
+        for addr_ent in addrdatas {
             match addr_ent.typ {
                 INFO_TYPE_LINE_TABLE_INFO => {
-                    // Continue to execute all GSYM line table operations
-                    // until the end of the buffer is reached or a row
-                    // containing addr is located.
-                    let mut data = addr_ent.data;
-                    let lntab_hdr = LineTableHeader::parse(&mut data)
-                        .ok_or_invalid_data(|| "failed to parse line table header")?;
-                    let mut lntab_row = LineTableRow::from_header(&lntab_hdr, symaddr);
-                    let mut last_lntab_row = lntab_row.clone();
-                    let mut row_cnt = 0;
-                    while !data.is_empty() {
-                        match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
-                            Some(RunResult::Ok) => {}
-                            Some(RunResult::NewRow) => {
-                                row_cnt += 1;
-                                if addr < lntab_row.address {
-                                    if row_cnt == 1 {
-                                        // The address is lower than the first row.
-                                        continue 'addr_data
-                                    }
-                                    // Rollback to the last row.
-                                    lntab_row = last_lntab_row;
-                                    break
-                                }
-                                last_lntab_row = lntab_row.clone();
-                            }
-                            Some(RunResult::End) | None => break,
-                        }
+                    if line_tab_info.is_none() {
+                        line_tab_info = self.parse_line_tab_info(addr_ent.data, symaddr, addr)?;
                     }
-
-                    if row_cnt == 0 {
-                        continue
-                    }
-
-                    let finfo = self
-                        .ctx
-                        .file_info(lntab_row.file_idx as usize)
-                        .ok_or_invalid_data(|| {
-                            format!("failed to retrieve file info data @ {}", lntab_row.file_idx)
-                        })?;
-                    let dir = self
-                        .ctx
-                        .get_str(finfo.directory as usize)
-                        .ok_or_invalid_data(|| {
-                            format!("failed to retrieve directory string @ {}", finfo.directory)
-                        })?;
-                    let file = self
-                        .ctx
-                        .get_str(finfo.filename as usize)
-                        .ok_or_invalid_data(|| {
-                            format!("failed to retrieve file name string @ {}", finfo.filename)
-                        })?;
-                    return Ok(Some(AddrCodeInfo {
-                        direct: (
-                            None,
-                            FrameCodeInfo {
-                                dir: Path::new(dir),
-                                file,
-                                line: Some(lntab_row.file_line),
-                                column: None,
-                            },
-                        ),
-                        inlined: Vec::new(),
-                    }))
                 }
                 INFO_TYPE_INLINE_INFO => (),
                 typ => {
@@ -227,7 +235,19 @@ impl SymResolver for GsymResolver<'_> {
                 }
             }
         }
-        Ok(None)
+
+        if let Some(line_tab_row) = line_tab_info {
+            let line_tab_info =
+                self.query_frame_code_info(line_tab_row.file_idx, Some(line_tab_row.file_line))?;
+
+            let info = AddrCodeInfo {
+                direct: (None, line_tab_info),
+                inlined: Vec::new(),
+            };
+            Ok(Some(info))
+        } else {
+            Ok(None)
+        }
     }
 
     fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
