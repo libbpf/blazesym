@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::symbolize::AddrSrcInfo;
+use crate::symbolize::AddrCodeInfo;
 use crate::Addr;
 use crate::IntSym;
 use crate::Result;
@@ -92,7 +92,7 @@ impl SymResolver for ElfResolver {
     }
 
     #[cfg(feature = "dwarf")]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrSrcInfo<'_>>> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo<'_>>> {
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             dwarf.find_line_info(addr)
         } else {
@@ -101,7 +101,7 @@ impl SymResolver for ElfResolver {
     }
 
     #[cfg(not(feature = "dwarf"))]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrSrcInfo>> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo>> {
         Ok(None)
     }
 
