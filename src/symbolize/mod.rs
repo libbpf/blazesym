@@ -86,7 +86,7 @@ pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
 
 
-pub(crate) struct AddrSrcInfo<'src> {
+pub(crate) struct AddrCodeInfo<'src> {
     pub dir: &'src Path,
     pub file: &'src OsStr,
     pub line: Option<u32>,

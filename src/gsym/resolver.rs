@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
-use crate::symbolize::AddrSrcInfo;
+use crate::symbolize::AddrCodeInfo;
 use crate::Addr;
 use crate::IntSym;
 use crate::IntoError as _;
@@ -128,9 +128,9 @@ impl SymResolver for GsymResolver<'_> {
     ///
     /// # Returns
     ///
-    /// The `AddrSrcInfo` corresponding to the address or `None`.
+    /// The `AddrCodeInfo` corresponding to the address or `None`.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrSrcInfo<'_>>> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo<'_>>> {
         let idx = match self.ctx.find_addr(addr) {
             Some(idx) => idx,
             None => return Ok(None),
@@ -205,7 +205,7 @@ impl SymResolver for GsymResolver<'_> {
                         .ok_or_invalid_data(|| {
                             format!("failed to retrieve file name string @ {}", finfo.filename)
                         })?;
-                    return Ok(Some(AddrSrcInfo {
+                    return Ok(Some(AddrCodeInfo {
                         dir: Path::new(dir),
                         file,
                         line: Some(lntab_row.file_line),
