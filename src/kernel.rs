@@ -8,7 +8,7 @@ use crate::elf::ElfResolver;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
-use crate::symbolize::AddrLineInfo;
+use crate::symbolize::AddrSrcInfo;
 use crate::Addr;
 use crate::Error;
 use crate::IntSym;
@@ -52,7 +52,7 @@ impl SymResolver for KernelResolver {
         Ok(Vec::new())
     }
 
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo>> {
+    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrSrcInfo>> {
         if let Some(resolver) = self.elf_resolver.as_ref() {
             resolver.find_line_info(addr)
         } else {
