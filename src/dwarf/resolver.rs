@@ -14,7 +14,7 @@ use crate::elf::ElfParser;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
-use crate::symbolize::AddrLineInfo;
+use crate::symbolize::AddrSrcInfo;
 use crate::Addr;
 use crate::Error;
 use crate::IntSym;
@@ -94,7 +94,7 @@ impl DwarfResolver {
     /// Find line information of an address.
     ///
     /// `addr` is a normalized address.
-    pub fn find_line_info(&self, addr: Addr) -> Result<Option<AddrLineInfo<'_>>> {
+    pub fn find_line_info(&self, addr: Addr) -> Result<Option<AddrSrcInfo<'_>>> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
@@ -107,7 +107,7 @@ impl DwarfResolver {
                     column,
                 } = location;
 
-                AddrLineInfo {
+                AddrSrcInfo {
                     dir,
                     file,
                     line,

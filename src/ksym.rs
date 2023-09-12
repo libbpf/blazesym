@@ -13,7 +13,7 @@ use std::rc::Rc;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
-use crate::symbolize::AddrLineInfo;
+use crate::symbolize::AddrSrcInfo;
 use crate::Addr;
 use crate::IntSym;
 use crate::Result;
@@ -172,7 +172,7 @@ impl SymResolver for KSymResolver {
         }
     }
 
-    fn find_line_info(&self, _addr: Addr) -> Result<Option<AddrLineInfo>> {
+    fn find_line_info(&self, _addr: Addr) -> Result<Option<AddrSrcInfo>> {
         Ok(None)
     }
 
