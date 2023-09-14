@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.6
+-------------
 - Fixed potential panic when normalizing an APK ELF file using the C APIs
 
 
