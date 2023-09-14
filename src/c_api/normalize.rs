@@ -299,6 +299,28 @@ impl From<UserAddrMeta> for blaze_user_addr_meta {
     }
 }
 
+impl From<blaze_user_addr_meta> for UserAddrMeta {
+    fn from(other: blaze_user_addr_meta) -> Self {
+        match other.kind {
+            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF => {
+                UserAddrMeta::ApkElf(ApkElf::from(ManuallyDrop::into_inner(unsafe {
+                    other.variant.apk_elf
+                })))
+            }
+            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF => {
+                UserAddrMeta::Elf(Elf::from(ManuallyDrop::into_inner(unsafe {
+                    other.variant.elf
+                })))
+            }
+            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN => {
+                UserAddrMeta::Unknown(Unknown::from(ManuallyDrop::into_inner(unsafe {
+                    other.variant.unknown
+                })))
+            }
+        }
+    }
+}
+
 
 /// An object representing normalized user addresses.
 ///
@@ -463,21 +485,7 @@ pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user
     .into_vec();
 
     for addr_meta in addr_metas {
-        match addr_meta.kind {
-            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF => {
-                let _apk_elf = ApkElf::from(ManuallyDrop::into_inner(unsafe {
-                    addr_meta.variant.apk_elf
-                }));
-            }
-            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF => {
-                let _elf = Elf::from(ManuallyDrop::into_inner(unsafe { addr_meta.variant.elf }));
-            }
-            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN => {
-                let _unknown = Unknown::from(ManuallyDrop::into_inner(unsafe {
-                    addr_meta.variant.unknown
-                }));
-            }
-        }
+        let _meta = UserAddrMeta::from(addr_meta);
     }
 }
 
