@@ -282,7 +282,12 @@ pub struct blaze_user_addr_meta {
 impl From<UserAddrMeta> for blaze_user_addr_meta {
     fn from(other: UserAddrMeta) -> Self {
         match other {
-            UserAddrMeta::ApkElf(_apk) => todo!(),
+            UserAddrMeta::ApkElf(apk_elf) => Self {
+                kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF,
+                variant: blaze_user_addr_meta_variant {
+                    apk_elf: ManuallyDrop::new(blaze_user_addr_meta_apk_elf::from(apk_elf)),
+                },
+            },
             UserAddrMeta::Elf(elf) => Self {
                 kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF,
                 variant: blaze_user_addr_meta_variant {
@@ -570,6 +575,10 @@ mod tests {
 
         let unknown_new = Unknown::from(blaze_user_addr_meta_unknown::from(unknown.clone()));
         assert_eq!(unknown_new, unknown);
+
+        let meta = UserAddrMeta::Unknown(unknown_new);
+        let meta_new = UserAddrMeta::from(blaze_user_addr_meta::from(meta.clone()));
+        assert_eq!(meta_new, meta);
     }
 
     /// Check that we can convert an [`ApkElf`] into a
@@ -595,6 +604,10 @@ mod tests {
 
         let apk_new = ApkElf::from(blaze_user_addr_meta_apk_elf::from(apk.clone()));
         assert_eq!(apk_new, apk);
+
+        let meta = UserAddrMeta::ApkElf(apk_new);
+        let meta_new = UserAddrMeta::from(blaze_user_addr_meta::from(meta.clone()));
+        assert_eq!(meta_new, meta);
     }
 
     /// Check that we can convert an [`Elf`] into a [`blaze_user_addr_meta_elf`]
@@ -609,5 +622,9 @@ mod tests {
 
         let elf_new = Elf::from(blaze_user_addr_meta_elf::from(elf.clone()));
         assert_eq!(elf_new, elf);
+
+        let meta = UserAddrMeta::Elf(elf_new);
+        let meta_new = UserAddrMeta::from(blaze_user_addr_meta::from(meta.clone()));
+        assert_eq!(meta_new, meta);
     }
 }
