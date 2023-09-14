@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Fixed potential panic when normalizing an APK ELF file using the C APIs
+
+
 0.2.0-alpha.5
 -------------
 - Fixed potentially incorrect reporting of symbols from ELF source
