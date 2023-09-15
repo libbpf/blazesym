@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::mem;
+use std::mem::swap;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -17,6 +18,7 @@ use crate::Result;
 use crate::SrcLang;
 use crate::SymResolver;
 
+use super::inline::InlineInfo;
 use super::linetab::run_op;
 use super::linetab::LineTableHeader;
 use super::linetab::LineTableRow;
@@ -220,6 +222,7 @@ impl SymResolver for GsymResolver<'_> {
         }
 
         let mut line_tab_info = None;
+        let mut inline_info = None;
         let addrdatas = parse_address_data(addrinfo.data);
         for addr_ent in addrdatas {
             match addr_ent.typ {
@@ -228,7 +231,13 @@ impl SymResolver for GsymResolver<'_> {
                         line_tab_info = self.parse_line_tab_info(addr_ent.data, symaddr, addr)?;
                     }
                 }
-                INFO_TYPE_INLINE_INFO => (),
+                INFO_TYPE_INLINE_INFO => {
+                    if inline_info.is_none() {
+                        let mut data = addr_ent.data;
+                        inline_info =
+                            InlineInfo::parse(&mut data, symaddr as u64, Some(addr as u64))?;
+                    }
+                }
                 typ => {
                     warn!("encountered unknown info type: {typ}; ignoring...");
                     continue
@@ -237,12 +246,66 @@ impl SymResolver for GsymResolver<'_> {
         }
 
         if let Some(line_tab_row) = line_tab_info {
-            let line_tab_info =
+            let mut line_tab_info =
                 self.query_frame_code_info(line_tab_row.file_idx, Some(line_tab_row.file_line))?;
 
+            let mut direct_name = None;
+            let mut inlined = Vec::new();
+
+            if let Some(inline_info) = inline_info {
+                let inline_stack = inline_info.inline_stack(addr as u64);
+                let () = inlined.reserve(inline_stack.len());
+
+                for frame in inline_stack {
+                    let name = self
+                        .ctx
+                        .get_str(frame.name as usize)
+                        .and_then(|s| s.to_str())
+                        .ok_or_invalid_data(|| {
+                            format!("failed to read string table entry at offset {}", frame.name)
+                        })?;
+
+                    let code_info = if let Some(file) = frame.call_file {
+                        let code_info = self.query_frame_code_info(file, frame.call_line)?;
+                        Some(code_info)
+                    } else {
+                        None
+                    };
+                    let () = inlined.push((name, code_info));
+                }
+
+                if !inlined.is_empty() {
+                    let (name, _code_info) = inlined.remove(0);
+                    let mut prev = Option::<usize>::None;
+
+                    for i in 0..inlined.len() {
+                        if let Some(prev_i) = prev {
+                            let inlined = inlined.as_mut_ptr();
+                            // TODO: Use `slice::get_many_mut` once it is stable.
+                            // SAFETY: `i` and `prev_i` are different so
+                            //         we are creating exclusive
+                            //         references to disjunct region of
+                            //         memory. It is an invariant that
+                            //         both are within bounds of the
+                            //         `symbols` slice.
+                            let first = unsafe { &mut *inlined.add(i) };
+                            let second = unsafe { &mut *inlined.add(prev_i) };
+                            let () = swap(&mut first.1, &mut second.1);
+                        } else {
+                            direct_name = Some(name);
+                            if let Some(code_info) = &mut inlined[i].1 {
+                                let () = swap(code_info, &mut line_tab_info);
+                            }
+                        }
+
+                        prev = Some(i);
+                    }
+                }
+            }
+
             let info = AddrCodeInfo {
-                direct: (None, line_tab_info),
-                inlined: Vec::new(),
+                direct: (direct_name, line_tab_info),
+                inlined,
             };
             Ok(Some(info))
         } else {
