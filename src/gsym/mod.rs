@@ -1,3 +1,4 @@
+mod inline;
 mod linetab;
 mod parser;
 mod resolver;
