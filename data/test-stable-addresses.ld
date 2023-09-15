@@ -4,6 +4,8 @@ SECTIONS {
     *(.text)
     . = ABSOLUTE(0x2000100);
     *(.text.factorial)
+    . = ABSOLUTE(0x2000200);
+    *(.text.inline)
   }
   .data : {
     *(.data)

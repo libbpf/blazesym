@@ -363,13 +363,42 @@ mod tests {
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
         let info = resolver.find_line_info(0x2000000).unwrap().unwrap();
-        assert_eq!(info.direct.1.line, Some(34));
+        assert_eq!(info.direct.1.line, Some(50));
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.inlined, Vec::new());
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
         let info = resolver.find_line_info(0x2000100).unwrap().unwrap();
         assert_eq!(info.direct.1.line, Some(8));
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.inlined, Vec::new());
+
+        // Address is hopefully sufficiently far into `factorial_inline_test` to
+        // always fall into the inlined region, no matter toolchain. If not, add
+        // padding bytes/dummy instructions and adjust some more.
+        let addr = 0x200020a;
+        let syms = resolver.find_syms(addr).unwrap();
+        assert_eq!(syms.len(), 1);
+        let sym = &syms[0];
+        assert_eq!(sym.name, "factorial_inline_test");
+
+        let info = resolver.find_line_info(addr).unwrap().unwrap();
+        println!("{info:#?}");
+        assert_eq!(info.direct.1.line, Some(32));
+        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.inlined.len(), 2);
+
+        let name = &info.inlined[0].0;
+        assert_eq!(*name, "factorial_inline_wrapper");
+        let frame = info.inlined[0].1.as_ref().unwrap();
+        assert_eq!(frame.file, "test-stable-addresses.c");
+        assert_eq!(frame.line, Some(26));
+
+        let name = &info.inlined[1].0;
+        assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
+        let frame = info.inlined[1].1.as_ref().unwrap();
+        assert_eq!(frame.file, "test-stable-addresses.c");
+        assert_eq!(frame.line, Some(21));
     }
 }

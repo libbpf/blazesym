@@ -101,6 +101,7 @@ pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
 
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct FrameCodeInfo<'src> {
     pub dir: &'src Path,
     pub file: &'src OsStr,
@@ -108,6 +109,7 @@ pub(crate) struct FrameCodeInfo<'src> {
     pub column: Option<u16>,
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct AddrCodeInfo<'src> {
     /// Source information about the top-level frame belonging to an
     /// address.
