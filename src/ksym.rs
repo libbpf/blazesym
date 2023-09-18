@@ -35,6 +35,8 @@ impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
         IntSym {
             name,
             addr: *addr,
+            // There is no size information in kallsyms.
+            size: None,
             // Kernel symbols don't carry any source code language
             // information.
             lang: SrcLang::Unknown,

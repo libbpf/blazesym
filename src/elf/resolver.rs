@@ -58,14 +58,19 @@ impl SymResolver for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
     fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
         let parser = self.get_parser();
-        if let Some((name, addr)) = parser.find_sym(addr, STT_FUNC)? {
+        if let Some((name, addr, size)) = parser.find_sym(addr, STT_FUNC)? {
             // ELF does not carry any source code language information.
             let lang = SrcLang::Unknown;
             // We found the address in ELF.
             // TODO: Long term we probably want a different heuristic here, as
             //       there can be valid differences between the two formats
             //       (e.g., DWARF could contain more symbols).
-            return Ok(vec![IntSym { name, addr, lang }])
+            return Ok(vec![IntSym {
+                name,
+                addr,
+                size: Some(size),
+                lang,
+            }])
         }
 
         match &self.backend {

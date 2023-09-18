@@ -46,7 +46,7 @@ fn find_sym<'mmap>(
     strtab: &'mmap [u8],
     addr: Addr,
     st_type: u8,
-) -> Result<Option<(&'mmap str, Addr)>> {
+) -> Result<Option<(&'mmap str, Addr, usize)>> {
     match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
         None => Ok(None),
         Some(idx) => {
@@ -68,7 +68,8 @@ fn find_sym<'mmap>(
                     // candidate.
                     let name = symbol_name(strtab, sym)?;
                     let addr = sym.st_value as Addr;
-                    return Ok(Some((name, addr)))
+                    let size = usize::try_from(sym.st_size).unwrap_or(usize::MAX);
+                    return Ok(Some((name, addr, size)))
                 }
             }
             Ok(None)
@@ -403,7 +404,7 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr)>> {
+    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr, usize)>> {
         let mut cache = self.cache.borrow_mut();
         let strtab = cache.ensure_strtab()?;
         let () = cache.ensure_symtab()?;
@@ -479,7 +480,7 @@ impl ElfParser {
     }
 
     #[cfg(test)]
-    fn pick_symtab_addr(&self) -> (&str, Addr) {
+    fn pick_symtab_addr(&self) -> (&str, Addr, usize) {
         let mut cache = self.cache.borrow_mut();
         let () = cache.ensure_symtab().unwrap();
         let symtab = cache.symtab.as_ref().unwrap();
@@ -490,10 +491,15 @@ impl ElfParser {
         }
         let sym = &symtab[idx];
         let addr = sym.st_value;
+        let size = sym.st_size;
         drop(cache);
 
         let sym_name = self.get_symbol_name(idx).unwrap();
-        (sym_name, addr as Addr)
+        (
+            sym_name,
+            addr as Addr,
+            usize::try_from(size).unwrap_or(usize::MAX),
+        )
     }
 }
 
@@ -526,12 +532,13 @@ mod tests {
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
-        let (sym_name, addr) = parser.pick_symtab_addr();
+        let (name, addr, size) = parser.pick_symtab_addr();
 
         let sym = parser.find_sym(addr, STT_FUNC).unwrap().unwrap();
-        let (sym_name_ret, addr_ret) = sym;
+        let (name_ret, addr_ret, size_ret) = sym;
         assert_eq!(addr_ret, addr);
-        assert_eq!(sym_name_ret, sym_name);
+        assert_eq!(name_ret, name);
+        assert_eq!(size_ret, size);
     }
 
     #[test]
@@ -543,13 +550,13 @@ mod tests {
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
-        let (sym_name, addr) = parser.pick_symtab_addr();
+        let (name, addr, size) = parser.pick_symtab_addr();
 
-        println!("{sym_name}");
+        println!("{name}");
         let opts = FindAddrOpts::default();
-        let addr_r = parser.find_addr(sym_name, &opts).unwrap();
+        let addr_r = parser.find_addr(name, &opts).unwrap();
         assert_eq!(addr_r.len(), 1);
-        assert!(addr_r.iter().any(|x| x.addr == addr));
+        assert!(addr_r.iter().any(|x| x.addr == addr && x.size == size));
     }
 
     /// Make sure that we can look up a symbol in an ELF file.
@@ -620,7 +627,7 @@ mod tests {
             let result = find_sym(symtab, strtab, 0x29d00, STT_FUNC)
                 .unwrap()
                 .unwrap();
-            assert_eq!(result, ("__libc_init_first", 0x29d00));
+            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x5));
 
             // Strictly speaking this address is way outside of the range of
             // the second symbol (which is only five bytes in size).
@@ -632,7 +639,7 @@ mod tests {
             let result = find_sym(symtab, strtab, 0x29d90, STT_FUNC)
                 .unwrap()
                 .unwrap();
-            assert_eq!(result, ("__libc_init_first", 0x29d00));
+            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x5));
         }
 
         let symtab = [

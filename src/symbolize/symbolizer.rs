@@ -90,6 +90,8 @@ pub struct Sym {
     /// context (which may have been relocated and/or have layout randomizations
     /// applied).
     pub offset: usize,
+    /// The symbol's size, if available.
+    pub size: Option<usize>,
     /// The directory in which the source file resides.
     pub dir: Option<PathBuf>,
     /// The file that defines the symbol.
@@ -232,12 +234,14 @@ impl Symbolizer {
                 let IntSym {
                     name,
                     addr: sym_addr,
+                    size: sym_size,
                     lang,
                 } = sym;
                 results.push(Sym {
                     name: self.maybe_demangle(name, lang),
                     addr: sym_addr,
                     offset: addr - sym_addr,
+                    size: sym_size,
                     dir: Some(linfo.dir.to_path_buf()),
                     file: Some(linfo.file.to_os_string()),
                     line: linfo.line,
@@ -248,12 +252,14 @@ impl Symbolizer {
                 let IntSym {
                     name,
                     addr: sym_addr,
+                    size: sym_size,
                     lang,
                 } = sym;
                 results.push(Sym {
                     name: self.maybe_demangle(name, lang),
                     addr: sym_addr,
                     offset: addr - sym_addr,
+                    size: sym_size,
                     dir: None,
                     file: None,
                     line: None,

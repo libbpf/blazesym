@@ -26,6 +26,8 @@ pub(crate) struct IntSym<'src> {
     pub(crate) name: &'src str,
     /// The symbol's normalized address.
     pub(crate) addr: Addr,
+    /// The symbol's size, if available.
+    pub(crate) size: Option<usize>,
     /// The source code language from which the symbol originates.
     pub(crate) lang: SrcLang,
 }

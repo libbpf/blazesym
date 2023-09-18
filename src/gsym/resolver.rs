@@ -100,6 +100,7 @@ impl SymResolver for GsymResolver<'_> {
             let sym = IntSym {
                 name,
                 addr: found,
+                size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
                 lang,
             };
 
