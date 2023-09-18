@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fmt::Debug;
@@ -108,6 +109,25 @@ pub struct Sym {
     pub column: Option<u16>,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
+}
+
+impl Sym {
+    /// Helper method to retrieve the path to the represented source file,
+    /// on a best-effort basis. It depends on the symbolization source data
+    /// whether this path is absolute or relative and, if its the latter, what
+    /// directory it is relative to. In general this path is mostly intended for
+    /// displaying purposes.
+    ///
+    /// # Notes
+    /// For the unlikely case that only a source code directory is present, no
+    /// file path will be reported.
+    #[inline]
+    pub fn to_path(&self) -> Option<Cow<'_, Path>> {
+        self.file.as_ref().map(|f| match &self.dir {
+            Some(dir) => Cow::Owned(dir.join(f)),
+            None => Cow::Borrowed(Path::new(f)),
+        })
+    }
 }
 
 
@@ -500,6 +520,35 @@ mod tests {
 
     use test_log::test;
 
+
+    /// Check that we can correctly construct the source code path to a symbol.
+    #[test]
+    fn symbol_source_code_path() {
+        let mut sym = Sym {
+            name: "symbol".to_string(),
+            addr: 0x1337,
+            offset: 42,
+            size: Some(43),
+            dir: None,
+            file: None,
+            line: Some(1),
+            column: Some(2),
+            _non_exhaustive: (),
+        };
+        assert_eq!(sym.to_path(), None);
+
+        sym.dir = Some(PathBuf::from("/foobar"));
+        assert_eq!(sym.to_path(), None);
+
+        sym.file = Some(OsString::from("source.c"));
+        assert_eq!(
+            sym.to_path().as_deref(),
+            Some(Path::new("/foobar/source.c"))
+        );
+
+        sym.dir = None;
+        assert_eq!(sym.to_path().as_deref(), Some(Path::new("source.c")));
+    }
 
     /// Check that we can symbolize an address residing in a zip archive.
     #[test]

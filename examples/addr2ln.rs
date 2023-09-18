@@ -1,5 +1,4 @@
 use std::env;
-use std::path::PathBuf;
 
 use anyhow::bail;
 use anyhow::Context as _;
@@ -45,14 +44,9 @@ fn main() -> Result<()> {
 
                 let Sym {
                     name, addr, offset, ..
-                } = sym;
+                } = &sym;
 
-                let path = match (sym.dir, sym.file) {
-                    (Some(dir), Some(file)) => Some(dir.join(file)),
-                    (dir, file) => dir.or_else(|| file.map(PathBuf::from)),
-                };
-
-                let src_loc = if let (Some(path), Some(line)) = (path, sym.line) {
+                let src_loc = if let (Some(path), Some(line)) = (sym.to_path(), sym.line) {
                     if let Some(col) = sym.column {
                         format!(" {}:{line}:{col}", path.display())
                     } else {

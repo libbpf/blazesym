@@ -1,6 +1,6 @@
 Unreleased
 ----------
-- Added `size` member to `symbolize::Sym` type
+- Added `size` member and `to_path` helper to `symbolize::Sym` type
 
 
 0.2.0-alpha.6
