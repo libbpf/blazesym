@@ -195,7 +195,7 @@ fn symbolize_dwarf_complex() {
 #[test]
 fn symbolize_elf_demangle() {
     let test_elf = current_exe().unwrap();
-    let addr = Normalizer::new as Addr;
+    let addr = Normalizer::normalize_user_addrs_sorted as Addr;
     let normalizer = Normalizer::new();
     let norm_addrs = normalizer
         .normalize_user_addrs_sorted(&[addr], Pid::Slf)
@@ -213,7 +213,12 @@ fn symbolize_elf_demangle() {
     assert_eq!(results.len(), 1);
 
     let result = &results[0];
-    assert!(result.name.contains("Normalizer3new"), "{result:x?}");
+    assert!(
+        result
+            .name
+            .contains("Normalizer27normalize_user_addrs_sorted"),
+        "{result:x?}"
+    );
 
     // Do it again, this time with demangling enabled.
     let symbolizer = Symbolizer::new();
@@ -227,8 +232,9 @@ fn symbolize_elf_demangle() {
 
     let result = &results[0];
     assert!(
-        result.name == "blazesym::normalize::normalizer::Normalizer::new"
-            || result.name == "<blazesym::normalize::normalizer::Normalizer>::new",
+        result.name == "blazesym::normalize::normalizer::Normalizer::normalize_user_addrs_sorted"
+            || result.name
+                == "<blazesym::normalize::normalizer::Normalizer>::normalize_user_addrs_sorted",
         "{}",
         result.name
     );
