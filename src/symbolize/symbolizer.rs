@@ -250,43 +250,24 @@ impl Symbolizer {
 
         let mut results = vec![];
         for sym in syms {
-            if let Some(ref linfo) = linfo {
-                let IntSym {
-                    name,
-                    addr: sym_addr,
-                    size: sym_size,
-                    lang,
-                } = sym;
-                results.push(Sym {
-                    name: self.maybe_demangle(name, lang),
-                    addr: sym_addr,
-                    offset: addr - sym_addr,
-                    size: sym_size,
-                    dir: Some(linfo.dir.to_path_buf()),
-                    file: Some(linfo.file.to_os_string()),
-                    line: linfo.line,
-                    column: linfo.column,
-                    _non_exhaustive: (),
-                });
-            } else {
-                let IntSym {
-                    name,
-                    addr: sym_addr,
-                    size: sym_size,
-                    lang,
-                } = sym;
-                results.push(Sym {
-                    name: self.maybe_demangle(name, lang),
-                    addr: sym_addr,
-                    offset: addr - sym_addr,
-                    size: sym_size,
-                    dir: None,
-                    file: None,
-                    line: None,
-                    column: None,
-                    _non_exhaustive: (),
-                });
-            }
+            let IntSym {
+                name,
+                addr: sym_addr,
+                size: sym_size,
+                lang,
+            } = sym;
+
+            results.push(Sym {
+                name: self.maybe_demangle(name, lang),
+                addr: sym_addr,
+                offset: addr - sym_addr,
+                size: sym_size,
+                dir: linfo.as_ref().map(|linfo| linfo.dir.to_path_buf()),
+                file: linfo.as_ref().map(|linfo| linfo.file.to_os_string()),
+                line: linfo.as_ref().and_then(|linfo| linfo.line),
+                column: linfo.as_ref().and_then(|linfo| linfo.column),
+                _non_exhaustive: (),
+            });
         }
         Ok(results)
     }
