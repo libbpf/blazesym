@@ -144,6 +144,8 @@ pub struct Builder {
     /// This setting implies usage of debug symbols and forces the corresponding
     /// flag to `true`.
     src_location: bool,
+    /// Whether to report inlined functions as part of symbolization.
+    inlined_fns: bool,
     /// Whether or not to transparently demangle symbols.
     ///
     /// Demangling happens on a best-effort basis. Currently supported
@@ -153,17 +155,24 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Enable/disable line number information.
-    pub fn enable_src_location(mut self, enable: bool) -> Builder {
-        self.src_location = enable;
-        self
-    }
-
     /// Enable/disable usage of debug symbols.
     ///
     /// That can be useful in cases where ELF symbol information is stripped.
     pub fn enable_debug_syms(mut self, enable: bool) -> Builder {
         self.debug_syms = enable;
+        self
+    }
+
+    /// Enable/disable source code location information (line numbers,
+    /// file names etc.).
+    pub fn enable_src_location(mut self, enable: bool) -> Builder {
+        self.src_location = enable;
+        self
+    }
+
+    /// Enable/disable inlined function reporting.
+    pub fn enable_inlined_fns(mut self, enable: bool) -> Builder {
+        self.inlined_fns = enable;
         self
     }
 
@@ -180,6 +189,7 @@ impl Builder {
         let Builder {
             debug_syms,
             src_location,
+            inlined_fns,
             demangle,
         } = self;
         let ksym_cache = KSymCache::new();
@@ -189,6 +199,7 @@ impl Builder {
             ksym_cache,
             elf_cache,
             src_location,
+            inlined_fns,
             demangle,
         }
     }
@@ -197,8 +208,9 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
-            src_location: true,
             debug_syms: true,
+            src_location: true,
+            inlined_fns: true,
             demangle: true,
         }
     }
@@ -211,6 +223,7 @@ pub struct Symbolizer {
     ksym_cache: KSymCache,
     elf_cache: ElfCache,
     src_location: bool,
+    inlined_fns: bool,
     demangle: bool,
 }
 
