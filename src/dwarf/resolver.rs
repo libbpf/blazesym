@@ -142,9 +142,13 @@ impl DwarfResolver {
                 .range
                 .map(|range| range.begin as usize)
                 .unwrap_or(0);
+            let size = function
+                .range
+                .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
             let sym = IntSym {
                 name,
                 addr,
+                size,
                 lang: language.into(),
             };
             Ok(vec![sym])
@@ -191,7 +195,7 @@ impl DwarfResolver {
                             .range
                             .as_ref()
                             .and_then(|range| range.end.checked_sub(range.begin))
-                            .map(|size| size as usize)
+                            .map(|size| usize::try_from(size).unwrap_or(usize::MAX))
                             .unwrap_or(0);
                         let info = SymInfo {
                             name,
