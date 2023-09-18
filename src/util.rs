@@ -11,8 +11,16 @@ use std::ptr::NonNull;
 use std::slice;
 
 
+#[inline]
+fn swap_array_elems<T>(array: &mut [T], i: usize, j: usize) {
+    array.swap(i, j)
+}
+
 /// Reorder elements of `array` based on index information in `indices`.
-fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
+fn reorder<T, U, S>(array: &mut [T], indices: Vec<(U, usize)>, mut swap: S)
+where
+    S: FnMut(&mut [T], usize, usize),
+{
     debug_assert_eq!(array.len(), indices.len());
 
     let mut indices = indices;
@@ -20,13 +28,38 @@ fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
     // (second member).
     for i in 0..array.len() {
         while indices[i].1 != i {
-            let () = array.swap(i, indices[i].1);
+            let () = swap(array, i, indices[i].1);
             let idx = indices[i].1;
             let () = indices.swap(i, idx);
         }
     }
 }
 
+
+/// [`with_ordered_elems`], but with a customizable "swap" function.
+pub(crate) fn with_ordered_elems_with_swap<T, U, E, H, R, Err, S>(
+    slice: &[T],
+    extract: E,
+    handle: H,
+    swap: S,
+) -> Result<R, Err>
+where
+    T: Copy + Ord,
+    E: FnOnce(&mut R) -> &mut [U],
+    H: FnOnce(iter::Map<slice::Iter<'_, (T, usize)>, fn(&(T, usize)) -> T>) -> Result<R, Err>,
+    S: FnMut(&mut [U], usize, usize),
+{
+    let mut vec = slice
+        .iter()
+        .enumerate()
+        .map(|(idx, t)| (*t, idx))
+        .collect::<Vec<_>>();
+    let () = vec.sort_unstable();
+
+    let mut result = handle(vec.iter().map(|(t, _idx)| *t))?;
+    let () = reorder(extract(&mut result), vec, swap);
+    Ok(result)
+}
 
 /// Take a slice `slice` of unordered elements, sort them into a vector, then
 /// invoke a function `handle` on the vector, take the result of this function
@@ -42,16 +75,7 @@ where
     E: FnOnce(&mut R) -> &mut [U],
     H: FnOnce(iter::Map<slice::Iter<'_, (T, usize)>, fn(&(T, usize)) -> T>) -> Result<R, Err>,
 {
-    let mut vec = slice
-        .iter()
-        .enumerate()
-        .map(|(idx, t)| (*t, idx))
-        .collect::<Vec<_>>();
-    let () = vec.sort_unstable();
-
-    let mut result = handle(vec.iter().map(|(t, _idx)| *t))?;
-    let () = reorder(extract(&mut result), vec);
-    Ok(result)
+    with_ordered_elems_with_swap(slice, extract, handle, swap_array_elems)
 }
 
 
@@ -426,16 +450,17 @@ mod tests {
     #[test]
     fn array_reordering() {
         let mut array = vec![];
-        reorder::<usize, ()>(&mut array, vec![]);
+        reorder::<usize, (), _>(&mut array, vec![], swap_array_elems);
 
         let mut array = vec![8];
-        reorder(&mut array, vec![((), 0)]);
+        reorder(&mut array, vec![((), 0)], swap_array_elems);
         assert_eq!(array, vec![8]);
 
         let mut array = vec![8, 1, 4, 0, 3];
         reorder(
             &mut array,
             [4, 1, 3, 0, 2].into_iter().map(|x| ((), x)).collect(),
+            swap_array_elems,
         );
         assert_eq!(array, vec![0, 1, 3, 4, 8]);
     }
