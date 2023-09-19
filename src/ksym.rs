@@ -129,18 +129,6 @@ impl KSymResolver {
             .take_while(move |sym| sym.addr == self.syms[l - 1].addr)
     }
 
-    #[cfg(test)]
-    pub fn find_addresses_ksym_simple(&self, addr: Addr) -> impl Iterator<Item = &Ksym> {
-        let mut i = 0;
-        while i < self.syms.len() && addr >= self.syms[i].addr {
-            i += 1;
-        }
-        self.syms[..i]
-            .iter()
-            .rev()
-            .take_while(move |x| x.addr == self.syms[i - 1].addr)
-    }
-
     /// Retrieve the path to the kallsyms file used by this resolver.
     pub(crate) fn file_name(&self) -> &Path {
         &self.file_name
@@ -222,8 +210,6 @@ impl KSymCache {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::cmp::Ordering;
 
     use test_log::test;
 
@@ -365,57 +351,5 @@ mod tests {
         assert_eq!(syms.len(), 1);
         assert_eq!(syms[0].addr, 0x12345);
         assert_eq!(syms[0].name, "3");
-    }
-
-    #[test]
-    fn find_addresses_ksym_exhaust() {
-        let syms_sz = 10;
-        let mut resolver = KSymResolver {
-            syms: (0..syms_sz)
-                .map(|x| Ksym {
-                    addr: 1,
-                    name: x.to_string(),
-                })
-                .collect(),
-            sym_to_addr: RefCell::default(),
-            file_name: PathBuf::new(),
-        };
-
-        // A full-adder has a carry-out signal, right?
-        // Yes! Here it is.
-        let raised_carry_out = |addr| addr > syms_sz;
-
-        while !raised_carry_out(resolver.syms[0].addr) {
-            // Test find_addresses_ksym() against every address in the
-            // range [0..syms_sz+1].
-            for i in 0..=(syms_sz + 1) {
-                let result: Vec<_> = resolver.find_addresses_ksym(i).collect();
-                let result_s: Vec<_> = resolver.find_addresses_ksym_simple(i).collect();
-                assert_eq!(result.len(), result_s.len());
-                assert_eq!(
-                    result
-                        .iter()
-                        .map(|x| x.name.as_str())
-                        .cmp(result_s.iter().map(|x| x.name.as_str())),
-                    Ordering::Equal
-                );
-            }
-
-            let mut i = syms_sz - 1;
-            // Increase the address of the last symbol.
-            resolver.syms[i].addr += 1;
-            while i > 0 && raised_carry_out(resolver.syms[i].addr) {
-                // Bring the raised carry-out it to the left.
-                i -= 1;
-                resolver.syms[i].addr += 1;
-            }
-            // Every symbol on the right side have a raised carry-out.
-            // Reset their addresses.
-            let low_addr = resolver.syms[i].addr;
-            while i < (syms_sz - 1) {
-                i += 1;
-                resolver.syms[i].addr = low_addr;
-            }
-        }
     }
 }
