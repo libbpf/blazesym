@@ -71,10 +71,47 @@ fn maybe_demangle(name: &str, _language: SrcLang) -> String {
 }
 
 
-/// The result of symbolization by [`Symbolizer`].
-#[derive(Clone, Debug)]
+/// Source code location information for a symbol or inlined function.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CodeInfo {
+    /// The directory in which the source file resides.
+    pub dir: Option<PathBuf>,
+    /// The file that defines the symbol.
+    pub file: OsString,
+    /// The line number of the symbolized instruction in the source
+    /// code.
+    ///
+    /// This is the line number of the instruction of the address being
+    /// symbolized, not the line number that defines the symbol
+    /// (function).
+    pub line: Option<u32>,
+    /// The column number of the symbolized instruction in the source
+    /// code.
+    pub column: Option<u16>,
+    /// The struct is non-exhaustive and open to extension.
+    pub(crate) _non_exhaustive: (),
+}
+
+impl CodeInfo {
+    /// Helper method to retrieve the path to the represented source file,
+    /// on a best-effort basis. It depends on the symbolization source data
+    /// whether this path is absolute or relative and, if its the latter, what
+    /// directory it is relative to. In general this path is mostly intended for
+    /// displaying purposes.
+    #[inline]
+    pub fn to_path(&self) -> Cow<'_, Path> {
+        self.dir.as_ref().map_or_else(
+            || Cow::Borrowed(Path::new(&self.file)),
+            |dir| Cow::Owned(dir.join(&self.file)),
+        )
+    }
+}
+
+
+/// The result of address symbolization by [`Symbolizer`].
+#[derive(Clone, Debug, PartialEq)]
 pub struct Sym {
-    /// The symbol name that an address may belong to.
+    /// The symbol name that an address belongs to.
     pub name: String,
     /// The address at which the symbol is located (i.e., its "start").
     ///
@@ -94,41 +131,10 @@ pub struct Sym {
     pub offset: usize,
     /// The symbol's size, if available.
     pub size: Option<usize>,
-    /// The directory in which the source file resides.
-    pub dir: Option<PathBuf>,
-    /// The file that defines the symbol.
-    pub file: Option<OsString>,
-    /// The line number of the symbolized instruction in the source
-    /// code.
-    ///
-    /// This is the line number of the instruction of the address being
-    /// symbolized, not the line number that defines the symbol
-    /// (function).
-    pub line: Option<u32>,
-    /// The column number of the symbolized instruction in the source
-    /// code.
-    pub column: Option<u16>,
+    /// Source code location information for the symbol.
+    pub code_info: Option<CodeInfo>,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
-}
-
-impl Sym {
-    /// Helper method to retrieve the path to the represented source file,
-    /// on a best-effort basis. It depends on the symbolization source data
-    /// whether this path is absolute or relative and, if its the latter, what
-    /// directory it is relative to. In general this path is mostly intended for
-    /// displaying purposes.
-    ///
-    /// # Notes
-    /// For the unlikely case that only a source code directory is present, no
-    /// file path will be reported.
-    #[inline]
-    pub fn to_path(&self) -> Option<Cow<'_, Path>> {
-        self.file.as_ref().map(|f| match &self.dir {
-            Some(dir) => Cow::Owned(dir.join(f)),
-            None => Cow::Borrowed(Path::new(f)),
-        })
-    }
 }
 
 
@@ -256,7 +262,7 @@ impl Symbolizer {
             return Ok(Vec::new())
         }
 
-        let linfo = if self.src_location {
+        let src_loc = if self.src_location {
             resolver.find_code_info(addr, self.inlined_fns)?
         } else {
             None
@@ -264,25 +270,27 @@ impl Symbolizer {
 
         let mut results = vec![];
         for sym in syms {
+            let (name, code_info) = if let Some(src_loc) = &src_loc {
+                let name = src_loc.direct.0;
+                let frame_code_info = &src_loc.direct.1;
+                (name, Some(CodeInfo::from(frame_code_info)))
+            } else {
+                (None, None)
+            };
+
             let IntSym {
-                name,
+                name: sym_name,
                 addr: sym_addr,
                 size: sym_size,
                 lang,
             } = sym;
 
             results.push(Sym {
-                name: self.maybe_demangle(name, lang),
+                name: self.maybe_demangle(name.unwrap_or(sym_name), lang),
                 addr: sym_addr,
                 offset: addr - sym_addr,
                 size: sym_size,
-                // TODO: Should use direct.0 as name, if set.
-                dir: linfo.as_ref().map(|linfo| linfo.direct.1.dir.to_path_buf()),
-                file: linfo
-                    .as_ref()
-                    .map(|linfo| linfo.direct.1.file.to_os_string()),
-                line: linfo.as_ref().and_then(|linfo| linfo.direct.1.line),
-                column: linfo.as_ref().and_then(|linfo| linfo.direct.1.column),
+                code_info,
                 _non_exhaustive: (),
             });
         }
@@ -594,30 +602,17 @@ mod tests {
     /// Check that we can correctly construct the source code path to a symbol.
     #[test]
     fn symbol_source_code_path() {
-        let mut sym = Sym {
-            name: "symbol".to_string(),
-            addr: 0x1337,
-            offset: 42,
-            size: Some(43),
+        let mut info = CodeInfo {
             dir: None,
-            file: None,
+            file: OsString::from("source.c"),
             line: Some(1),
             column: Some(2),
             _non_exhaustive: (),
         };
-        assert_eq!(sym.to_path(), None);
+        assert_eq!(info.to_path(), Path::new("source.c"));
 
-        sym.dir = Some(PathBuf::from("/foobar"));
-        assert_eq!(sym.to_path(), None);
-
-        sym.file = Some(OsString::from("source.c"));
-        assert_eq!(
-            sym.to_path().as_deref(),
-            Some(Path::new("/foobar/source.c"))
-        );
-
-        sym.dir = None;
-        assert_eq!(sym.to_path().as_deref(), Some(Path::new("source.c")));
+        info.dir = Some(PathBuf::from("/foobar"));
+        assert_eq!(info.to_path(), Path::new("/foobar/source.c"));
     }
 
     /// Check that we can symbolize an address residing in a zip archive.

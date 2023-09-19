@@ -162,10 +162,31 @@ impl From<&blaze_symbolize_src_gsym_file> for GsymFile {
 pub type blaze_symbolizer = Symbolizer;
 
 
+/// Source code location information for a symbol or inlined function.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_symbolize_code_info {
+    /// The directory in which the source file resides.
+    ///
+    /// This attribute is optional and may be NULL.
+    pub dir: *const c_char,
+    /// The file that defines the symbol.
+    ///
+    /// This attribute is optional and may be NULL.
+    pub file: *const c_char,
+    /// The line number on which the symbol is located in the source
+    /// code.
+    pub line: u32,
+    /// The column number of the symbolized instruction in the source
+    /// code.
+    pub column: u16,
+}
+
+
 /// The result of symbolization of an address.
 ///
 /// A `blaze_sym` is the information of a symbol found for an
-/// address. One address may result in several symbols.
+/// address.
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_sym {
@@ -187,20 +208,8 @@ pub struct blaze_sym {
     /// context (which may have been relocated and/or have layout randomizations
     /// applied).
     pub offset: usize,
-    /// The directory in which the source file resides.
-    ///
-    /// This attribute is optional and may be NULL.
-    pub dir: *const c_char,
-    /// The file that defines the symbol.
-    ///
-    /// This attribute is optional and may be NULL.
-    pub file: *const c_char,
-    /// The line number on which the symbol is located in the source
-    /// code.
-    pub line: u32,
-    /// The column number of the symbolized instruction in the source
-    /// code.
-    pub column: u16,
+    /// Source code location information for the symbol.
+    pub code_info: blaze_symbolize_code_info,
 }
 
 /// `blaze_entry` is the output of symbolization for a call frame.
@@ -319,11 +328,15 @@ fn convert_symbolizedresults_to_c(results: Vec<(Sym, usize)>) -> *const blaze_re
         acc + result.name.len()
             + 1
             + result
-                .dir
+                .code_info
                 .as_ref()
-                .map(|p| p.as_os_str().len() + 1)
+                .and_then(|info| info.dir.as_ref().map(|d| d.as_os_str().len() + 1))
                 .unwrap_or(0)
-            + result.file.as_ref().map(|p| p.len() + 1).unwrap_or(0)
+            + result
+                .code_info
+                .as_ref()
+                .map(|info| info.file.len() + 1)
+                .unwrap_or(0)
     });
     let buf_size = strtab_size
         + mem::size_of::<blaze_result>()
@@ -362,24 +375,32 @@ fn convert_symbolizedresults_to_c(results: Vec<(Sym, usize)>) -> *const blaze_re
 
         let name_ptr = make_cstr(OsStr::new(&sym.name));
         let dir_ptr = sym
-            .dir
+            .code_info
             .as_ref()
-            .map(|d| make_cstr(d.as_os_str()))
+            .and_then(|info| info.dir.as_ref().map(|d| make_cstr(d.as_os_str())))
             .unwrap_or_else(ptr::null_mut);
         let file_ptr = sym
-            .file
+            .code_info
             .as_ref()
-            .map(|f| make_cstr(f))
+            .map(|info| make_cstr(&info.file))
             .unwrap_or_else(ptr::null_mut);
 
         entry_ref.addr_idx = i;
         entry_ref.sym.name = name_ptr;
         entry_ref.sym.addr = sym.addr;
         entry_ref.sym.offset = sym.offset;
-        entry_ref.sym.dir = dir_ptr;
-        entry_ref.sym.file = file_ptr;
-        entry_ref.sym.line = sym.line.unwrap_or(0);
-        entry_ref.sym.column = sym.column.unwrap_or(0);
+        entry_ref.sym.code_info.dir = dir_ptr;
+        entry_ref.sym.code_info.file = file_ptr;
+        entry_ref.sym.code_info.line = sym
+            .code_info
+            .as_ref()
+            .and_then(|info| info.line)
+            .unwrap_or(0);
+        entry_ref.sym.code_info.column = sym
+            .code_info
+            .as_ref()
+            .and_then(|info| info.column)
+            .unwrap_or(0);
 
         entry_last = unsafe { entry_last.add(1) };
     }
@@ -599,18 +620,23 @@ mod tests {
             name: ptr::null(),
             addr: 0x1337,
             offset: 24,
-            dir: ptr::null(),
-            file: ptr::null(),
-            line: 42,
-            column: 1,
+            code_info: blaze_symbolize_code_info {
+                dir: ptr::null(),
+                file: ptr::null(),
+                line: 42,
+                column: 1,
+            },
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, offset: 24, dir: 0x0, file: 0x0, line: 42, column: 1 }"
+            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 } }"
         );
 
         let entry = blaze_entry { sym, addr_idx: 0 };
-        assert_eq!(format!("{entry:?}"), "blaze_entry { sym: blaze_sym { name: 0x0, addr: 4919, offset: 24, dir: 0x0, file: 0x0, line: 42, column: 1 }, addr_idx: 0 }");
+        assert_eq!(
+            format!("{entry:?}"),
+            "blaze_entry { sym: blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 } }, addr_idx: 0 }",
+        );
 
         let result = blaze_result {
             cnt: 0,

@@ -73,7 +73,7 @@ fn symbolize_dwarf_no_lines() {
 
     let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
-    assert_eq!(result.line, None);
+    assert_eq!(result.code_info.as_ref(), None);
 }
 
 /// Symbolize an address in a DWARF file, end-to-end, i.e., including all
@@ -94,7 +94,7 @@ fn symbolize_dwarf() {
 
     let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
-    assert_eq!(result.line, Some(534));
+    assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
 }
 
 /// Symbolize an address in a GSYM file, end-to-end, i.e., including all

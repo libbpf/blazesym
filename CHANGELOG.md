@@ -3,7 +3,9 @@ Unreleased
 - "Flattened" return type of `symbolize::Symbolizer::symbolize` method from
   nested `Vec` to a single level `Vec` with indices of corresponding input
   address
-- Added `size` member and `to_path` helper to `symbolize::Sym` type
+- Further changes to `symbolize::Sym`:
+  - Added `size` member and `to_path` helper method
+  - Factored out `CodeInfo` type capturing all source code location information
 - Adjusted ELF symbolization code to honor symbol sizes
 
 

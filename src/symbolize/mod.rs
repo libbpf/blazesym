@@ -9,7 +9,6 @@
 //! # use std::cmp::min;
 //! # use std::mem::size_of;
 //! # use std::mem::transmute;
-//! # use std::path::PathBuf;
 //! # use std::ptr;
 //! use blazesym::symbolize::Source;
 //! use blazesym::symbolize::Process;
@@ -48,16 +47,18 @@
 //!         name,
 //!         addr,
 //!         offset,
-//!         line,
-//!         column,
+//!         code_info,
 //!         ..
 //!     } = &sym;
 //!
-//!     let src_loc = if let (Some(path), Some(line)) = (sym.to_path(), line) {
-//!         if let Some(col) = column {
-//!             format!(" {}:{line}:{col}", path.display())
-//!         } else {
-//!             format!(" {}:{line}", path.display())
+//!     let src_loc = if let Some(code_info) = code_info {
+//!         let path = code_info.to_path();
+//!         let path = path.display();
+//!
+//!         match (code_info.line, code_info.column) {
+//!             (Some(line), Some(col)) => format!(" {path}:{line}:{col}"),
+//!             (Some(line), None) => format!(" {path}:{line}"),
+//!             (None, _) => format!(" {path}"),
 //!         }
 //!     } else {
 //!         String::new()
@@ -97,6 +98,7 @@ pub use source::Kernel;
 pub use source::Process;
 pub use source::Source;
 pub use symbolizer::Builder;
+pub use symbolizer::CodeInfo;
 pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
 
@@ -107,6 +109,18 @@ pub(crate) struct FrameCodeInfo<'src> {
     pub file: &'src OsStr,
     pub line: Option<u32>,
     pub column: Option<u16>,
+}
+
+impl From<&FrameCodeInfo<'_>> for CodeInfo {
+    fn from(other: &FrameCodeInfo<'_>) -> Self {
+        Self {
+            dir: Some(other.dir.to_path_buf()),
+            file: other.file.to_os_string(),
+            line: other.line,
+            column: other.column,
+            _non_exhaustive: (),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]

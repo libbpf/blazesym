@@ -273,10 +273,38 @@ typedef struct blaze_symbolizer_opts {
 } blaze_symbolizer_opts;
 
 /**
+ * Source code location information for a symbol or inlined function.
+ */
+typedef struct blaze_symbolize_code_info {
+  /**
+   * The directory in which the source file resides.
+   *
+   * This attribute is optional and may be NULL.
+   */
+  const char *dir;
+  /**
+   * The file that defines the symbol.
+   *
+   * This attribute is optional and may be NULL.
+   */
+  const char *file;
+  /**
+   * The line number on which the symbol is located in the source
+   * code.
+   */
+  uint32_t line;
+  /**
+   * The column number of the symbolized instruction in the source
+   * code.
+   */
+  uint16_t column;
+} blaze_symbolize_code_info;
+
+/**
  * The result of symbolization of an address.
  *
  * A `blaze_sym` is the information of a symbol found for an
- * address. One address may result in several symbols.
+ * address.
  */
 typedef struct blaze_sym {
   /**
@@ -304,27 +332,9 @@ typedef struct blaze_sym {
    */
   size_t offset;
   /**
-   * The directory in which the source file resides.
-   *
-   * This attribute is optional and may be NULL.
+   * Source code location information for the symbol.
    */
-  const char *dir;
-  /**
-   * The file that defines the symbol.
-   *
-   * This attribute is optional and may be NULL.
-   */
-  const char *file;
-  /**
-   * The line number on which the symbol is located in the source
-   * code.
-   */
-  uint32_t line;
-  /**
-   * The column number of the symbolized instruction in the source
-   * code.
-   */
-  uint16_t column;
+  struct blaze_symbolize_code_info code_info;
 } blaze_sym;
 
 /**

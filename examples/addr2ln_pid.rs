@@ -51,16 +51,18 @@ print its symbol, the file name of the source, and the line number.",
             name,
             addr,
             offset,
-            line,
-            column,
+            code_info,
             ..
         } = &sym;
 
-        let src_loc = if let (Some(path), Some(line)) = (sym.to_path(), line) {
-            if let Some(col) = column {
-                format!(" {}:{line}:{col}", path.display())
-            } else {
-                format!(" {}:{line}", path.display())
+        let src_loc = if let Some(code_info) = code_info {
+            let path = code_info.to_path();
+            let path = path.display();
+
+            match (code_info.line, code_info.column) {
+                (Some(line), Some(col)) => format!(" {path}:{line}:{col}"),
+                (Some(line), None) => format!(" {path}:{line}"),
+                (None, _) => format!(" {path}"),
             }
         } else {
             String::new()
