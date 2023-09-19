@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- "Flattened" return type of `symbolize::Symbolizer::symbolize` method from
+  nested `Vec` to a single level `Vec`
 - Added `size` member and `to_path` helper to `symbolize::Sym` type
 
 

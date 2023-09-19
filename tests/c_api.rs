@@ -74,13 +74,12 @@ fn symbolize_elf_dwarf_gsym() {
         assert!(!result.is_null());
 
         let result = unsafe { &*result };
-        assert_eq!(result.size, 1);
-        let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
+        assert_eq!(result.cnt, 1);
+        let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.cnt) };
         let entry = &entries[0];
-        assert_eq!(entry.size, 1);
+        assert_eq!(entry.addr_idx, 0);
 
-        let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
-        let sym = &syms[0];
+        let sym = &entry.sym;
         assert_eq!(
             unsafe { CStr::from_ptr(sym.name) },
             CStr::from_bytes_with_nul(b"factorial\0").unwrap()
@@ -170,13 +169,12 @@ fn symbolize_in_process() {
     assert!(!result.is_null());
 
     let result = unsafe { &*result };
-    assert_eq!(result.size, 1);
-    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.size) };
+    assert_eq!(result.cnt, 1);
+    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.cnt) };
     let entry = &entries[0];
-    assert_eq!(entry.size, 1);
+    assert_eq!(entry.addr_idx, 0);
 
-    let syms = unsafe { slice::from_raw_parts(entry.syms, entry.size) };
-    let sym = &syms[0];
+    let sym = &entry.sym;
     assert_eq!(
         unsafe { CStr::from_ptr(sym.name) },
         CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()

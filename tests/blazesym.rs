@@ -61,11 +61,10 @@ fn symbolize_elf_dwarf_gsym() {
             .symbolize(&src, &[0x2000100])
             .unwrap()
             .into_iter()
-            .flatten()
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 1);
 
-        let result = results.first().unwrap();
+        let (result, _addr_idx) = &results[0];
         assert_eq!(result.name, "factorial");
         assert_eq!(result.addr, 0x2000100);
         assert_eq!(result.offset, 0);
@@ -97,11 +96,10 @@ fn symbolize_elf_dwarf_gsym() {
                 .symbolize(&src, &[0x2000100 + offset])
                 .unwrap()
                 .into_iter()
-                .flatten()
                 .collect::<Vec<_>>();
             assert_eq!(results.len(), 1);
 
-            let result = results.first().unwrap();
+            let (result, _addr_idx) = &results[0];
             assert_eq!(result.name, "factorial");
             assert_eq!(result.addr, 0x2000100);
             assert_eq!(result.offset, offset);
@@ -180,11 +178,10 @@ fn symbolize_dwarf_complex() {
         .symbolize(&src, &[0xffffffff8110ecb0])
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = results.first().unwrap();
+    let (result, _addr_idx) = &results[0];
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.addr, 0xffffffff8110ecb0);
     assert_eq!(result.line, Some(534));
@@ -208,11 +205,10 @@ fn symbolize_elf_demangle() {
         .symbolize(&src, &[addr])
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = &results[0];
+    let result = &results[0].0;
     assert!(
         result
             .name
@@ -226,11 +222,10 @@ fn symbolize_elf_demangle() {
         .symbolize(&src, &[addr])
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = &results[0];
+    let result = &results[0].0;
     assert!(
         result.name == "blazesym::normalize::normalizer::Normalizer::normalize_user_addrs_sorted"
             || result.name
@@ -250,14 +245,15 @@ fn symbolize_process() {
         .symbolize(&src, &addrs)
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 2);
 
-    let result = &results[0];
+    let (result, addr_idx) = &results[0];
+    assert_eq!(*addr_idx, 0);
     assert!(result.name.contains("symbolize_process"), "{result:x?}");
 
-    let result = &results[1];
+    let (result, addr_idx) = &results[1];
+    assert_eq!(*addr_idx, 1);
     // It's not entirely clear why we have seen two different demangled
     // symbols, but they both seem legit.
     assert!(
@@ -301,11 +297,10 @@ fn normalize_elf_addr() {
             .symbolize(&src, &[norm_addr.0])
             .unwrap()
             .into_iter()
-            .flatten()
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 1);
 
-        let result = results.first().unwrap();
+        let (result, _addr_idx) = &results[0];
         assert_eq!(result.name, "the_answer");
     }
 
@@ -327,7 +322,7 @@ fn inspect() {
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 1);
 
-        let result = results.first().unwrap();
+        let result = &results[0];
         assert_eq!(result.addr, 0x2000100);
         assert_ne!(result.file_offset, 0);
         assert_eq!(
@@ -380,7 +375,7 @@ fn inspect_file_offset_elf() {
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = results.first().unwrap();
+    let result = &results[0];
     assert_ne!(result.file_offset, 0);
     let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset);
     assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);

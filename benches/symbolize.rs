@@ -48,11 +48,10 @@ fn symbolize_elf() {
         .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = results.first().unwrap();
+    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
 }
 
@@ -69,11 +68,10 @@ fn symbolize_dwarf_no_lines() {
         .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = results.first().unwrap();
+    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.line, None);
 }
@@ -91,11 +89,10 @@ fn symbolize_dwarf() {
         .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = results.first().unwrap();
+    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.line, Some(534));
 }
@@ -113,11 +110,10 @@ fn symbolize_gsym() {
         .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
         .unwrap()
         .into_iter()
-        .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = results.first().unwrap();
+    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
 }
 
