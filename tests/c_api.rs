@@ -88,17 +88,17 @@ fn symbolize_elf_dwarf_gsym() {
         assert_eq!(sym.offset, 0);
 
         if has_src_loc {
-            assert!(!sym.dir.is_null());
-            assert!(!sym.file.is_null());
+            assert!(!sym.code_info.dir.is_null());
+            assert!(!sym.code_info.file.is_null());
             assert_eq!(
-                unsafe { CStr::from_ptr(sym.file) },
+                unsafe { CStr::from_ptr(sym.code_info.file) },
                 CStr::from_bytes_with_nul(b"test-stable-addresses.c\0").unwrap()
             );
-            assert_eq!(sym.line, 8);
+            assert_eq!(sym.code_info.line, 8);
         } else {
-            assert!(sym.dir.is_null());
-            assert!(sym.file.is_null());
-            assert_eq!(sym.line, 0);
+            assert!(sym.code_info.dir.is_null());
+            assert!(sym.code_info.file.is_null());
+            assert_eq!(sym.code_info.line, 0);
         }
 
         let () = unsafe { blaze_result_free(result) };

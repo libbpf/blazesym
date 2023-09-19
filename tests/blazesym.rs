@@ -70,16 +70,12 @@ fn symbolize_elf_dwarf_gsym() {
         assert_eq!(result.offset, 0);
 
         if has_src_loc {
-            assert_ne!(result.dir, None);
-            assert_eq!(
-                result.file.as_deref(),
-                Some(OsStr::new("test-stable-addresses.c"))
-            );
-            assert_eq!(result.line, Some(8));
+            let code_info = result.code_info.as_ref().unwrap();
+            assert_ne!(code_info.dir, None);
+            assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(code_info.line, Some(8));
         } else {
-            assert_eq!(result.dir, None);
-            assert_eq!(result.file, None);
-            assert_eq!(result.line, None);
+            assert_eq!(result.code_info, None);
         }
 
         // Inquire symbol size.
@@ -105,16 +101,12 @@ fn symbolize_elf_dwarf_gsym() {
             assert_eq!(result.offset, offset);
 
             if has_src_loc {
-                assert_ne!(result.dir, None);
-                assert_eq!(
-                    result.file.as_deref(),
-                    Some(OsStr::new("test-stable-addresses.c"))
-                );
-                assert!(result.line.is_some());
+                let code_info = result.code_info.as_ref().unwrap();
+                assert_ne!(code_info.dir, None);
+                assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+                assert!(code_info.line.is_some());
             } else {
-                assert_eq!(result.dir, None);
-                assert_eq!(result.file, None);
-                assert_eq!(result.line, None);
+                assert_eq!(result.code_info, None);
             }
         }
     }
@@ -184,7 +176,7 @@ fn symbolize_dwarf_complex() {
     let (result, _addr_idx) = &results[0];
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.addr, 0xffffffff8110ecb0);
-    assert_eq!(result.line, Some(534));
+    assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
 }
 
 /// Symbolize a normalized address inside an ELF file, with and without
