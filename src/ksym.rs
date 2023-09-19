@@ -174,7 +174,7 @@ impl SymResolver for KSymResolver {
         }
     }
 
-    fn find_line_info(&self, _addr: Addr) -> Result<Option<AddrCodeInfo>> {
+    fn find_code_info(&self, _addr: Addr, _inlined_fns: bool) -> Result<Option<AddrCodeInfo>> {
         Ok(None)
     }
 

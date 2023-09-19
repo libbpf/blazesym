@@ -52,9 +52,9 @@ impl SymResolver for KernelResolver {
         Ok(Vec::new())
     }
 
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo>> {
+    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo>> {
         if let Some(resolver) = self.elf_resolver.as_ref() {
-            resolver.find_line_info(addr)
+            resolver.find_code_info(addr, inlined_fns)
         } else {
             Ok(None)
         }
