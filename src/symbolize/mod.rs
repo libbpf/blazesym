@@ -99,6 +99,7 @@ pub use source::Process;
 pub use source::Source;
 pub use symbolizer::Builder;
 pub use symbolizer::CodeInfo;
+pub use symbolizer::InlinedFn;
 pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
 

@@ -6,6 +6,8 @@ Unreleased
 - Further changes to `symbolize::Sym`:
   - Added `size` member and `to_path` helper method
   - Factored out `CodeInfo` type capturing all source code location information
+  - Included optional inlined function information via `inlined` attribute
+- Added support for reporting inlined functions for Gsym format
 - Adjusted ELF symbolization code to honor symbol sizes
 
 

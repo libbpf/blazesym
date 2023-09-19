@@ -108,6 +108,18 @@ impl CodeInfo {
 }
 
 
+/// A type representing an inlined function.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InlinedFn {
+    /// The symbol name of the function.
+    pub name: String,
+    /// Source code location information for the call to the function.
+    pub code_info: Option<CodeInfo>,
+    /// The struct is non-exhaustive and open to extension.
+    pub(crate) _non_exhaustive: (),
+}
+
+
 /// The result of address symbolization by [`Symbolizer`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct Sym {
@@ -133,6 +145,18 @@ pub struct Sym {
     pub size: Option<usize>,
     /// Source code location information for the symbol.
     pub code_info: Option<CodeInfo>,
+    /// Inlined function information, if requested and available.
+    ///
+    /// Availability depends on both the underlying symbolization source (e.g.,
+    /// ELF does not contain inline information, but DWARF does) as well as
+    /// whether a function was actually inlined at the address in question.
+    ///
+    /// Inlined functions are reported in the order in which their calls are
+    /// nested. For example, if the instruction at the address to symbolize
+    /// falls into a function `f` at an inlined call to `g`, which in turn
+    /// contains an inlined call to `h`, the symbols will be reported in the
+    /// order `f`, `g`, `h`.
+    pub inlined: Box<[InlinedFn]>,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
 }
@@ -278,6 +302,24 @@ impl Symbolizer {
                 (None, None)
             };
 
+            let inlined = if let Some(src_loc) = &src_loc {
+                src_loc
+                    .inlined
+                    .iter()
+                    .map(|(name, info)| {
+                        let name = name.to_string();
+                        let info = info.as_ref().map(CodeInfo::from);
+                        InlinedFn {
+                            name,
+                            code_info: info,
+                            _non_exhaustive: (),
+                        }
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
+
             let IntSym {
                 name: sym_name,
                 addr: sym_addr,
@@ -291,6 +333,7 @@ impl Symbolizer {
                 offset: addr - sym_addr,
                 size: sym_size,
                 code_info,
+                inlined: inlined.into_boxed_slice(),
                 _non_exhaustive: (),
             });
         }
@@ -498,26 +541,14 @@ impl Symbolizer {
     /// Symbolize a list of addresses using the provided symbolization
     /// [`Source`][Source].
     ///
-    /// This function returns zero, one or more [`Sym`] objects per input
-    /// address:
+    /// This function returns zero or one objects per input address:
     /// - zero symbols are returned in case the address could not be symbolized
-    /// - more than one symbol is returned in case inlined function reporting is
-    ///   enabled, supported by the underlying source (e.g., ELF does not
-    ///   contain inline information, but DWARF does), and if inlined calls are
-    ///   available
-    /// - in all other cases a single symbol should be returned
+    /// - otherwise a single symbol is returned
     ///
-    /// Each symbols is accompanied by the index of the input address (the
-    /// second member in each tuple). These indices are guaranteed to be
-    /// ascending. When an input address could not be symbolized, there won't be
-    /// a symbol with the corresponding index reported. If inlined functions the
-    /// corresponding [`Sym`] objects will will have the same index associated.
-    ///
-    /// If present, inlined functions are reported in the order in which their
-    /// calls are nested. For example, if the instruction at the address to
-    /// symbolize falls into a function `f` at an inlined call to `g`, which in
-    /// turn contains an inlined call to `h`, the symbols will be reported in
-    /// the order `f`, `g`, `h`.
+    /// Each symbol is accompanied by the index of the input address (the second
+    /// member in each tuple). These indices are guaranteed to be ascending.
+    /// When an input address could not be symbolized, there won't be a symbol
+    /// with the corresponding index reported.
     ///
     /// The following table lists which features the various formats
     /// (represented by the [`Source`][Source] argument) support. If a feature
