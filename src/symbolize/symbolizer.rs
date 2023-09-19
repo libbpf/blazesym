@@ -257,7 +257,7 @@ impl Symbolizer {
         }
 
         let linfo = if self.src_location {
-            resolver.find_line_info(addr)?
+            resolver.find_code_info(addr, self.inlined_fns)?
         } else {
             None
         };

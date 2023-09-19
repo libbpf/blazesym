@@ -97,9 +97,9 @@ impl SymResolver for ElfResolver {
     }
 
     #[cfg(feature = "dwarf")]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo<'_>>> {
+    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
-            dwarf.find_line_info(addr)
+            dwarf.find_code_info(addr, inlined_fns)
         } else {
             Ok(None)
         }

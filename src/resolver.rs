@@ -46,8 +46,14 @@ where
     fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>>;
     /// Find the address and size of a symbol name.
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>>;
-    /// Find the file name and the line number of an address.
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo>>;
+    /// Finds the source code location for a given address.
+    ///
+    /// This function tries to find source code information for the given
+    /// address. If no such information was found, `None` will be returned. If
+    /// `inlined_fns` is true, information about inlined calls at the very
+    /// address will also be looked up and reported as the optional
+    /// [`AddrCodeInfo::inlined`] attribute.
+    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo>>;
     /// Translate an address (virtual) in a process to the file offset
     /// in the object file.
     fn addr_file_off(&self, addr: Addr) -> Option<u64>;

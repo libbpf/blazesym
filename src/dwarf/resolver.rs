@@ -95,7 +95,11 @@ impl DwarfResolver {
     /// Find source code information of an address.
     ///
     /// `addr` is a normalized address.
-    pub fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo<'_>>> {
+    pub fn find_code_info(
+        &self,
+        addr: Addr,
+        _inlined_fns: bool,
+    ) -> Result<Option<AddrCodeInfo<'_>>> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
@@ -118,6 +122,7 @@ impl DwarfResolver {
                             column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
                         },
                     ),
+                    // TODO: Gather and furnish inlined function information.
                     inlined: Vec::new(),
                 }
             });
@@ -258,7 +263,7 @@ mod tests {
             .join("test-stable-addresses.bin");
         let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
 
-        let info = resolver.find_line_info(0x2000100).unwrap().unwrap();
+        let info = resolver.find_code_info(0x2000100, false).unwrap().unwrap();
         assert_ne!(info.direct.1.dir, PathBuf::new());
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
         assert_eq!(info.direct.1.line, Some(8));

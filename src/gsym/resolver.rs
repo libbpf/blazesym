@@ -186,22 +186,8 @@ impl SymResolver for GsymResolver<'_> {
         Ok(Vec::new())
     }
 
-    /// Finds the source code location for a given address.
-    ///
-    /// This function takes in an address and returns the file path,
-    /// line number and column of the line in the source code that
-    /// the address corresponds to. If it doesn't find any match it
-    /// returns `None`.
-    ///
-    /// # Arguments
-    ///
-    /// * `addr` - The address to find the source code location for.
-    ///
-    /// # Returns
-    ///
-    /// The `AddrCodeInfo` corresponding to the address or `None`.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo<'_>>> {
+    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
         let idx = match self.ctx.find_addr(addr) {
             Some(idx) => idx,
             None => return Ok(None),
@@ -231,7 +217,7 @@ impl SymResolver for GsymResolver<'_> {
                         line_tab_info = self.parse_line_tab_info(addr_ent.data, symaddr, addr)?;
                     }
                 }
-                INFO_TYPE_INLINE_INFO => {
+                INFO_TYPE_INLINE_INFO if inlined_fns => {
                     if inline_info.is_none() {
                         let mut data = addr_ent.data;
                         inline_info =
@@ -362,14 +348,14 @@ mod tests {
 
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
-        let info = resolver.find_line_info(0x2000000).unwrap().unwrap();
+        let info = resolver.find_code_info(0x2000000, true).unwrap().unwrap();
         assert_eq!(info.direct.1.line, Some(50));
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
         assert_eq!(info.inlined, Vec::new());
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
-        let info = resolver.find_line_info(0x2000100).unwrap().unwrap();
+        let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
         assert_eq!(info.direct.1.line, Some(8));
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
         assert_eq!(info.inlined, Vec::new());
@@ -383,8 +369,7 @@ mod tests {
         let sym = &syms[0];
         assert_eq!(sym.name, "factorial_inline_test");
 
-        let info = resolver.find_line_info(addr).unwrap().unwrap();
-        println!("{info:#?}");
+        let info = resolver.find_code_info(addr, true).unwrap().unwrap();
         assert_eq!(info.direct.1.line, Some(32));
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
         assert_eq!(info.inlined.len(), 2);
@@ -400,5 +385,13 @@ mod tests {
         let frame = info.inlined[1].1.as_ref().unwrap();
         assert_eq!(frame.file, "test-stable-addresses.c");
         assert_eq!(frame.line, Some(21));
+
+        let info = resolver.find_code_info(addr, false).unwrap().unwrap();
+        // Note that the line number reported without inline information is
+        // different to that when using inlined function information, because in
+        // Gsym this additional data is used to "refine" the result.
+        assert_eq!(info.direct.1.line, Some(21));
+        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.inlined, Vec::new());
     }
 }
