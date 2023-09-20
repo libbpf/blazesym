@@ -441,6 +441,21 @@ impl Symbolizer {
     ///
     /// Symbolize a list of addresses according to the configuration
     /// provided via `src`.
+    ///
+    /// | Format        | Feature                          | Supported by format?     | Supported by blazesym?   |
+    /// |---------------|----------------------------------|:------------------------:|:------------------------:|
+    /// | ELF           | symbol size                      | yes                      | yes                      |
+    /// |               | source code location information | no                       | N/A                      |
+    /// |               | inlined function information     | no                       | N/A                      |
+    /// | DWARF         | symbol size                      | yes                      | yes                      |
+    /// |               | source code location information | yes                      | yes                      |
+    /// |               | inlined function information     | yes                      | no                       |
+    /// | Gsym          | symbol size                      | yes                      | yes                      |
+    /// |               | source code location information | yes                      | yes                      |
+    /// |               | inlined function information     | yes                      | yes                      |
+    /// | Ksym          | symbol size                      | no                       | N/A                      |
+    /// |               | source code location information | no                       | N/A                      |
+    /// |               | inlined function information     | no                       | N/A                      |
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{addrs:#x?}"))))]
     pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Vec<Sym>>> {
         match src {
