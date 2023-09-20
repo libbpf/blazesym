@@ -41,9 +41,8 @@ pub(crate) trait SymResolver
 where
     Self: Debug,
 {
-    /// Find the names and the start addresses of a symbol found for
-    /// the given address.
-    fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>>;
+    /// Find the symbol corresponding to the given address.
+    fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>>;
     /// Find the address and size of a symbol name.
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>>;
     /// Finds the source code location for a given address.

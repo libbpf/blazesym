@@ -280,11 +280,16 @@ impl Symbolizer {
 
     /// Symbolize an address using the provided [`SymResolver`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver)))]
-    fn symbolize_with_resolver(&self, addr: Addr, resolver: &dyn SymResolver) -> Result<Vec<Sym>> {
-        let syms = resolver.find_syms(addr)?;
-        if syms.is_empty() {
-            return Ok(Vec::new())
-        }
+    fn symbolize_with_resolver(
+        &self,
+        addr: Addr,
+        resolver: &dyn SymResolver,
+    ) -> Result<Option<Sym>> {
+        let sym = if let Some(sym) = resolver.find_sym(addr)? {
+            sym
+        } else {
+            return Ok(None)
+        };
 
         let src_loc = if self.src_location {
             resolver.find_code_info(addr, self.inlined_fns)?
@@ -292,52 +297,49 @@ impl Symbolizer {
             None
         };
 
-        let mut results = vec![];
-        for sym in syms {
-            let (name, code_info) = if let Some(src_loc) = &src_loc {
-                let name = src_loc.direct.0;
-                let frame_code_info = &src_loc.direct.1;
-                (name, Some(CodeInfo::from(frame_code_info)))
-            } else {
-                (None, None)
-            };
+        let (name, code_info) = if let Some(src_loc) = &src_loc {
+            let name = src_loc.direct.0;
+            let frame_code_info = &src_loc.direct.1;
+            (name, Some(CodeInfo::from(frame_code_info)))
+        } else {
+            (None, None)
+        };
 
-            let inlined = if let Some(src_loc) = &src_loc {
-                src_loc
-                    .inlined
-                    .iter()
-                    .map(|(name, info)| {
-                        let name = name.to_string();
-                        let info = info.as_ref().map(CodeInfo::from);
-                        InlinedFn {
-                            name,
-                            code_info: info,
-                            _non_exhaustive: (),
-                        }
-                    })
-                    .collect()
-            } else {
-                Vec::new()
-            };
+        let inlined = if let Some(src_loc) = &src_loc {
+            src_loc
+                .inlined
+                .iter()
+                .map(|(name, info)| {
+                    let name = name.to_string();
+                    let info = info.as_ref().map(CodeInfo::from);
+                    InlinedFn {
+                        name,
+                        code_info: info,
+                        _non_exhaustive: (),
+                    }
+                })
+                .collect()
+        } else {
+            Vec::new()
+        };
 
-            let IntSym {
-                name: sym_name,
-                addr: sym_addr,
-                size: sym_size,
-                lang,
-            } = sym;
+        let IntSym {
+            name: sym_name,
+            addr: sym_addr,
+            size: sym_size,
+            lang,
+        } = sym;
 
-            results.push(Sym {
-                name: self.maybe_demangle(name.unwrap_or(sym_name), lang),
-                addr: sym_addr,
-                offset: addr - sym_addr,
-                size: sym_size,
-                code_info,
-                inlined: inlined.into_boxed_slice(),
-                _non_exhaustive: (),
-            });
-        }
-        Ok(results)
+        let sym = Sym {
+            name: self.maybe_demangle(name.unwrap_or(sym_name), lang),
+            addr: sym_addr,
+            offset: addr - sym_addr,
+            size: sym_size,
+            code_info,
+            inlined: inlined.into_boxed_slice(),
+            _non_exhaustive: (),
+        };
+        Ok(Some(sym))
     }
 
     /// Symbolize a list of addresses using the provided [`SymResolver`].
@@ -354,11 +356,11 @@ impl Symbolizer {
         Ok(syms)
     }
 
-    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Vec<Sym>> {
+    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Option<Sym>> {
         let backend = self.elf_cache.find(path)?;
         let resolver = ElfResolver::with_backend(path, backend)?;
-        let symbols = self.symbolize_with_resolver(addr, &resolver)?;
-        Ok(symbols)
+        let symbol = self.symbolize_with_resolver(addr, &resolver)?;
+        Ok(symbol)
     }
 
     /// Symbolize the given list of user space addresses in the provided
@@ -383,19 +385,19 @@ impl Symbolizer {
                 let backend = ElfBackend::Elf(Rc::new(elf_parser));
 
                 let resolver = ElfResolver::with_backend(&apk_elf_path, backend)?;
-                let symbols = self
+                let symbol = self
                     .symbolizer
                     .symbolize_with_resolver(norm_addr, &resolver)?;
                 let () = self
                     .all_symbols
-                    .extend(symbols.into_iter().map(|sym| (sym, self.addr_idx)));
+                    .extend(symbol.into_iter().map(|sym| (sym, self.addr_idx)));
                 Ok(())
             }
 
             fn handle_elf_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let path = &entry.path.maps_file;
                 let norm_addr = normalize_elf_addr(addr, entry)?;
-                let symbols = self
+                let symbol = self
                     .symbolizer
                     .resolve_addr_in_elf(norm_addr, path)
                     .with_context(|| {
@@ -406,7 +408,7 @@ impl Symbolizer {
                     })?;
                 let () = self
                     .all_symbols
-                    .extend(symbols.into_iter().map(|sym| (sym, self.addr_idx)));
+                    .extend(symbol.into_iter().map(|sym| (sym, self.addr_idx)));
                 Ok(())
             }
         }

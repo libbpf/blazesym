@@ -144,14 +144,14 @@ impl<'dat> GsymResolver<'dat> {
 }
 
 impl SymResolver for GsymResolver<'_> {
-    fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
+    fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let found = self
                 .ctx
                 .addr_at(idx)
                 .ok_or_invalid_data(|| format!("failed to read address table entry {idx}"))?;
             if addr < found {
-                return Ok(Vec::new())
+                return Ok(None)
             }
 
             let info = self
@@ -174,9 +174,9 @@ impl SymResolver for GsymResolver<'_> {
                 lang,
             };
 
-            Ok(vec![sym])
+            Ok(Some(sym))
         } else {
-            Ok(Vec::new())
+            Ok(None)
         }
     }
 
@@ -364,9 +364,7 @@ mod tests {
         // always fall into the inlined region, no matter toolchain. If not, add
         // padding bytes/dummy instructions and adjust some more.
         let addr = 0x200020a;
-        let syms = resolver.find_syms(addr).unwrap();
-        assert_eq!(syms.len(), 1);
-        let sym = &syms[0];
+        let sym = resolver.find_sym(addr).unwrap().unwrap();
         assert_eq!(sym.name, "factorial_inline_test");
 
         let info = resolver.find_code_info(addr, true).unwrap().unwrap();
