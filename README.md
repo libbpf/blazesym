@@ -22,6 +22,9 @@ it tries to do the expected thing by default. When offering such convenience
 comes at the cost of performance, we aim to provide advanced APIs that allow for
 runtime configuration of the corresponding features.
 
+**blazesym** supports a variety of formats, such as DWARF, ELF, and Gsym (see
+below for an up-to-date list).
+
 The library is written in Rust and provides a first class C API. This crate
 adheres to Cargo's [semantic versioning rules][cargo-semver]. At a minimum, it
 builds with the most recent Rust stable release minus five minor versions ("N -
@@ -33,6 +36,26 @@ guaranteed to build with `1.63` and higher.
 **blazesym** is being actively worked on. Feel free to contribute with
 discussions, feature suggestions, or code contributions!
 
+As alluded to above, the library provides support for a variety of formats. For
+symbolization specifically, the following table lays out what features each
+format supports and whether **blazesym** can currently use this feature:
+
+| Format        | Feature                          | Supported by format?     | Supported by blazesym?   |
+| ------------- | -------------------------------- | ------------------------ | ------------------------ |
+| ELF           | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
+|               | source code location information | :heavy_multiplication_x: | :heavy_multiplication_x: |
+|               | inlined function information     | :heavy_multiplication_x: | :heavy_multiplication_x: |
+| DWARF         | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
+|               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
+|               | inlined function information     | :heavy_check_mark:       | :heavy_multiplication_x: |
+| Gsym          | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
+|               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
+|               | inlined function information     | :heavy_check_mark:       | :heavy_check_mark:       |
+| Ksym          | symbol size                      | :heavy_multiplication_x: | :heavy_multiplication_x: |
+|               | source code location information | :heavy_multiplication_x: | :heavy_multiplication_x: |
+|               | inlined function information     | :heavy_multiplication_x: | :heavy_multiplication_x: |
+
+
 Here is rough roadmap of currently planned features (in no particular order):
 
 - [ ] Fully support handling of kernel addresses
@@ -42,7 +65,7 @@ Here is rough roadmap of currently planned features (in no particular order):
   - doing so will allow us to:
     - [x] Support more versions of the DWARF standard (https://github.com/libbpf/blazesym/issues/42 & https://github.com/libbpf/blazesym/issues/57)
     - [ ] Support split debug information (https://github.com/libbpf/blazesym/issues/60)
-    - [ ] Support inlined function lookup (https://github.com/libbpf/blazesym/issues/192)
+    - [ ] Support inlined function lookup for DWARF (https://github.com/libbpf/blazesym/issues/192)
 - [x] Support symbolization of addresses in APKs (relevant for Android) (https://github.com/libbpf/blazesym/pull/222 & https://github.com/libbpf/blazesym/pull/227)
 - [ ] Support ELF32 binaries (https://github.com/libbpf/blazesym/issues/53)
 - [x] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)
