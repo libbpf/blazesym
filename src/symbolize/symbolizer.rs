@@ -466,7 +466,7 @@ impl Symbolizer {
         Ok(handler.all_symbols)
     }
 
-    fn symbolize_kernel_addrs(&self, addrs: &[Addr], src: &Kernel) -> Result<Vec<(Sym, usize)>> {
+    fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
         let Kernel {
             kallsyms,
             kernel_image,
@@ -533,9 +533,7 @@ impl Symbolizer {
             }
         };
 
-        let resolver = KernelResolver::new(ksym_resolver, elf_resolver)?;
-        let symbols = self.symbolize_addrs(addrs, &resolver)?;
-        Ok(symbols)
+        KernelResolver::new(ksym_resolver, elf_resolver)
     }
 
     /// Symbolize a list of addresses.
@@ -583,7 +581,11 @@ impl Symbolizer {
                 let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)
             }
-            Source::Kernel(kernel) => self.symbolize_kernel_addrs(addrs, kernel),
+            Source::Kernel(kernel) => {
+                let resolver = self.create_kernel_resolver(kernel)?;
+                let symbols = self.symbolize_addrs(addrs, &resolver)?;
+                Ok(symbols)
+            }
             Source::Process(Process {
                 pid,
                 _non_exhaustive: (),
