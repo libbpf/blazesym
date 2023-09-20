@@ -58,14 +58,14 @@ fn find_sym<'mmap>(
                     break
                 }
 
-                if sym.type_() == st_type && sym.st_shndx != SHN_UNDEF {
-                    // Given our symbol table ordering (ascending by address and
-                    // descending by size for equal addresses), we *always* pick
-                    // the first symbol of given type. In effect, we completely
-                    // ignore symbol size, because it can be bogus anyway
-                    // (https://github.com/libbpf/blazesym/issues/269) and so
-                    // the first symbol found will always end up being the best
-                    // candidate.
+                let addr = addr as u64;
+                // In ELF, a symbol size of 0 indicates "no size or an unknown
+                // size" (see elf(5)). We take our changes and report these on a
+                // best-effort basis.
+                if sym.type_() == st_type
+                    && sym.st_shndx != SHN_UNDEF
+                    && (sym.st_size == 0 || addr < sym.st_value + sym.st_size)
+                {
                     let name = symbol_name(strtab, sym)?;
                     let addr = sym.st_value as Addr;
                     let size = usize::try_from(sym.st_size).unwrap_or(usize::MAX);
@@ -618,28 +618,30 @@ mod tests {
         assert_eq!(result, None);
     }
 
-    /// Check that we report a symbol with a potentially incorrect
-    /// `st_size` value, if it is the only conceivable match.
+    /// Check that we report a symbol with an unknown `st_size` value is
+    /// reported, if it is the only conceivable match.
     #[test]
-    fn lookup_symbol_with_bogus_size() {
+    fn lookup_symbol_with_unknown_size() {
         fn test(symtab: &[&Elf64_Sym]) {
             let strtab = b"\x00__libc_init_first\x00versionsort64\x00";
             let result = find_sym(symtab, strtab, 0x29d00, STT_FUNC)
                 .unwrap()
                 .unwrap();
-            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x5));
+            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x0));
 
-            // Strictly speaking this address is way outside of the range of
-            // the second symbol (which is only five bytes in size).
-            // However, said symbol's size could be bogus. Given that there
-            // is no better candidate, we err on the side of reporting what
-            // is the *likely* symbol. See
-            // https://github.com/libbpf/blazesym/issues/269 for a real life
-            // example.
+            // Because the symbol has a size of 0 and is the only conceivable
+            // match, we report it on the basis that ELF reserves these for "no
+            // size or an unknown size" cases.
             let result = find_sym(symtab, strtab, 0x29d90, STT_FUNC)
                 .unwrap()
                 .unwrap();
-            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x5));
+            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x0));
+
+            // Note that despite of the first symbol (the invalid one; present
+            // by default and reserved by ELF), is not being reported here
+            // because it has an `st_shndx` value of `SHN_UNDEF`.
+            let result = find_sym(symtab, strtab, 0x1, STT_FUNC).unwrap();
+            assert_eq!(result, None);
         }
 
         let symtab = [
@@ -657,7 +659,7 @@ mod tests {
                 st_other: 0x0,
                 st_shndx: 0xf,
                 st_value: 0x29d00,
-                st_size: 0x5,
+                st_size: 0x0,
             },
             &Elf64_Sym {
                 st_name: 0xdeadbeef,

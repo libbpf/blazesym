@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Added `size` member and `to_path` helper to `symbolize::Sym` type
+- Adjusted ELF symbolization code to honor symbol sizes
 
 
 0.2.0-alpha.6
