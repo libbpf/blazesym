@@ -608,6 +608,51 @@ impl Symbolizer {
             }
         }
     }
+
+    /// Symbolize a single address.
+    ///
+    /// In general, it is more performant to symbolize addresses in batches
+    /// using [`symbolize`][Self::symbolize]. However, in cases where only a
+    /// single address is available, this method provides a more convenient API.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addr = format_args!("{addr:#x?}"))))]
+    pub fn symbolize_single(&self, src: &Source, addr: Addr) -> Result<Option<Sym>> {
+        match src {
+            Source::Elf(Elf {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let backend = self.elf_cache.find(path)?;
+                let resolver = ElfResolver::with_backend(path, backend)?;
+                self.symbolize_with_resolver(addr, &resolver)
+            }
+            Source::Kernel(kernel) => {
+                let resolver = self.create_kernel_resolver(kernel)?;
+                self.symbolize_with_resolver(addr, &resolver)
+            }
+            Source::Process(Process {
+                pid,
+                _non_exhaustive: (),
+            }) => {
+                let mut symbols = self.symbolize_user_addrs(&[addr], *pid)?;
+                debug_assert!(symbols.len() <= 1, "{symbols:#?}");
+                Ok(symbols.pop().map(|(sym, _idx)| sym))
+            }
+            Source::Gsym(Gsym::Data(GsymData {
+                data,
+                _non_exhaustive: (),
+            })) => {
+                let resolver = GsymResolver::with_data(data)?;
+                self.symbolize_with_resolver(addr, &resolver)
+            }
+            Source::Gsym(Gsym::File(GsymFile {
+                path,
+                _non_exhaustive: (),
+            })) => {
+                let resolver = GsymResolver::new(path.clone())?;
+                self.symbolize_with_resolver(addr, &resolver)
+            }
+        }
+    }
 }
 
 impl Default for Symbolizer {

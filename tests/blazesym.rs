@@ -57,14 +57,11 @@ fn find_function_size(name: &str, elf: &Path) -> usize {
 fn symbolize_elf_dwarf_gsym() {
     fn test(src: symbolize::Source, has_src_loc: bool) {
         let symbolizer = Symbolizer::new();
-        let results = symbolizer
-            .symbolize(&src, &[0x2000100])
+        let result = symbolizer
+            .symbolize_single(&src, 0x2000100)
             .unwrap()
-            .into_iter()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
+            .unwrap();
 
-        let (result, _addr_idx) = &results[0];
         assert_eq!(result.name, "factorial");
         assert_eq!(result.addr, 0x2000100);
         assert_eq!(result.offset, 0);
@@ -87,18 +84,22 @@ fn symbolize_elf_dwarf_gsym() {
 
         // Now check that we can symbolize addresses at a positive offset from the
         // start of the function.
-        for offset in 1..size {
-            let results = symbolizer
-                .symbolize(&src, &[0x2000100 + offset])
-                .unwrap()
-                .into_iter()
-                .collect::<Vec<_>>();
-            assert_eq!(results.len(), 1);
+        let offsets = (1..size).collect::<Vec<_>>();
+        let addrs = offsets
+            .iter()
+            .map(|offset| 0x2000100 + offset)
+            .collect::<Vec<_>>();
+        let results = symbolizer
+            .symbolize(&src, &addrs)
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), addrs.len());
 
-            let (result, _addr_idx) = &results[0];
+        for (i, (result, _addr_idx)) in results.into_iter().enumerate() {
             assert_eq!(result.name, "factorial");
             assert_eq!(result.addr, 0x2000100);
-            assert_eq!(result.offset, offset);
+            assert_eq!(result.offset, offsets[i]);
 
             if has_src_loc {
                 let code_info = result.code_info.as_ref().unwrap();

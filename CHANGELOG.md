@@ -8,6 +8,8 @@ Unreleased
   - Factored out `CodeInfo` type capturing all source code location information
   - Included optional inlined function information via `inlined` attribute
 - Added support for reporting inlined functions for Gsym format
+- Introduced `symbolize::Symbolizer::symbolize_single` for more convenient
+  symbolization of a single address
 - Adjusted ELF symbolization code to honor symbol sizes
 
 
