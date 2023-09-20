@@ -132,8 +132,8 @@ impl DwarfResolver {
         }
     }
 
-    /// Lookup the symbol(s) at an address.
-    pub(crate) fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>, Error> {
+    /// Lookup the symbol at an address.
+    pub(crate) fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>, Error> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
@@ -163,9 +163,9 @@ impl DwarfResolver {
                 size,
                 lang: language.into(),
             };
-            Ok(vec![sym])
+            Ok(Some(sym))
         } else {
-            Ok(Vec::new())
+            Ok(None)
         }
     }
 

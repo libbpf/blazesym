@@ -40,11 +40,11 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn find_syms(&self, addr: Addr) -> Result<Vec<IntSym<'_>>> {
+    fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
-            ksym_resolver.find_syms(addr)
+            ksym_resolver.find_sym(addr)
         } else {
-            self.elf_resolver.as_ref().unwrap().find_syms(addr)
+            self.elf_resolver.as_ref().unwrap().find_sym(addr)
         }
     }
 
