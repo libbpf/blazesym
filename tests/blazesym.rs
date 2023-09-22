@@ -36,22 +36,6 @@ fn error_on_non_existent_source() {
     }
 }
 
-/// Find the size of a function called `name` inside an ELF file `elf`.
-fn find_function_size(name: &str, elf: &Path) -> usize {
-    let src = inspect::Source::Elf(inspect::Elf::new(elf));
-    let inspector = Inspector::new();
-    let results = inspector
-        .lookup(&[name], &src)
-        .unwrap()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
-
-    let size = results.first().unwrap().size;
-    size
-}
-
 /// Check that we can symbolize an address using ELF, DWARF, and GSYM.
 #[test]
 fn symbolize_elf_dwarf_gsym() {
@@ -75,11 +59,7 @@ fn symbolize_elf_dwarf_gsym() {
             assert_eq!(result.code_info, None);
         }
 
-        // Inquire symbol size.
-        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-stable-addresses.bin");
-        let size = find_function_size("factorial", &path);
+        let size = result.size.unwrap();
         assert_ne!(size, 0);
 
         // Now check that we can symbolize addresses at a positive offset from the
