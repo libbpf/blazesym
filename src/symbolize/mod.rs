@@ -87,8 +87,11 @@
 mod source;
 mod symbolizer;
 
+use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::path::Path;
+use std::path::PathBuf;
 
 pub use source::Elf;
 pub use source::Gsym;
@@ -98,10 +101,9 @@ pub use source::Kernel;
 pub use source::Process;
 pub use source::Source;
 pub use symbolizer::Builder;
-pub use symbolizer::CodeInfo;
-pub use symbolizer::InlinedFn;
-pub use symbolizer::Sym;
 pub use symbolizer::Symbolizer;
+
+use crate::Addr;
 
 
 #[derive(Debug, PartialEq)]
@@ -135,4 +137,95 @@ pub(crate) struct AddrCodeInfo<'src> {
     pub direct: (Option<&'src str>, FrameCodeInfo<'src>),
     /// Source information about inlined functions, along with their names.
     pub inlined: Vec<(&'src str, Option<FrameCodeInfo<'src>>)>,
+}
+
+
+/// Source code location information for a symbol or inlined function.
+#[derive(Clone, Debug, PartialEq)]
+pub struct CodeInfo {
+    /// The directory in which the source file resides.
+    pub dir: Option<PathBuf>,
+    /// The file that defines the symbol.
+    pub file: OsString,
+    /// The line number of the symbolized instruction in the source
+    /// code.
+    ///
+    /// This is the line number of the instruction of the address being
+    /// symbolized, not the line number that defines the symbol
+    /// (function).
+    pub line: Option<u32>,
+    /// The column number of the symbolized instruction in the source
+    /// code.
+    pub column: Option<u16>,
+    /// The struct is non-exhaustive and open to extension.
+    pub(crate) _non_exhaustive: (),
+}
+
+impl CodeInfo {
+    /// Helper method to retrieve the path to the represented source file,
+    /// on a best-effort basis. It depends on the symbolization source data
+    /// whether this path is absolute or relative and, if its the latter, what
+    /// directory it is relative to. In general this path is mostly intended for
+    /// displaying purposes.
+    #[inline]
+    pub fn to_path(&self) -> Cow<'_, Path> {
+        self.dir.as_ref().map_or_else(
+            || Cow::Borrowed(Path::new(&self.file)),
+            |dir| Cow::Owned(dir.join(&self.file)),
+        )
+    }
+}
+
+
+/// A type representing an inlined function.
+#[derive(Clone, Debug, PartialEq)]
+pub struct InlinedFn {
+    /// The symbol name of the function.
+    pub name: String,
+    /// Source code location information for the call to the function.
+    pub code_info: Option<CodeInfo>,
+    /// The struct is non-exhaustive and open to extension.
+    pub(crate) _non_exhaustive: (),
+}
+
+
+/// The result of address symbolization by [`Symbolizer`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct Sym {
+    /// The symbol name that an address belongs to.
+    pub name: String,
+    /// The address at which the symbol is located (i.e., its "start").
+    ///
+    /// This is the "normalized" address of the symbol, as present in
+    /// the file (and reported by tools such as `readelf(1)`,
+    /// `llvm-gsymutil`, or similar).
+    pub addr: Addr,
+    /// The byte offset of the address that got symbolized from the
+    /// start of the symbol (i.e., from `addr`).
+    ///
+    /// E.g., when normalizing address 0x1337 of a function that starts at
+    /// 0x1330, the offset will be set to 0x07 (and `addr` will be 0x1330). This
+    /// member is especially useful in contexts when input addresses are not
+    /// already normalized, such as when normalizing an address in a process
+    /// context (which may have been relocated and/or have layout randomizations
+    /// applied).
+    pub offset: usize,
+    /// The symbol's size, if available.
+    pub size: Option<usize>,
+    /// Source code location information for the symbol.
+    pub code_info: Option<CodeInfo>,
+    /// Inlined function information, if requested and available.
+    ///
+    /// Availability depends on both the underlying symbolization source (e.g.,
+    /// ELF does not contain inline information, but DWARF does) as well as
+    /// whether a function was actually inlined at the address in question.
+    ///
+    /// Inlined functions are reported in the order in which their calls are
+    /// nested. For example, if the instruction at the address to symbolize
+    /// falls into a function `f` at an inlined call to `g`, which in turn
+    /// contains an inlined call to `h`, the symbols will be reported in the
+    /// order `f`, `g`, `h`.
+    pub inlined: Box<[InlinedFn]>,
+    /// The struct is non-exhaustive and open to extension.
+    pub(crate) _non_exhaustive: (),
 }
