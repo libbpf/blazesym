@@ -39,18 +39,19 @@ fn error_on_non_existent_source() {
 /// Check that we can symbolize an address using ELF, DWARF, and GSYM.
 #[test]
 fn symbolize_elf_dwarf_gsym() {
-    fn test(src: symbolize::Source, has_src_loc: bool) {
+    fn test(src: symbolize::Source, has_code_info: bool) {
         let symbolizer = Symbolizer::new();
         let result = symbolizer
             .symbolize_single(&src, 0x2000100)
             .unwrap()
+            .into_sym()
             .unwrap();
 
         assert_eq!(result.name, "factorial");
         assert_eq!(result.addr, 0x2000100);
         assert_eq!(result.offset, 0);
 
-        if has_src_loc {
+        if has_code_info {
             let code_info = result.code_info.as_ref().unwrap();
             assert_ne!(code_info.dir, None);
             assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
@@ -76,12 +77,13 @@ fn symbolize_elf_dwarf_gsym() {
             .collect::<Vec<_>>();
         assert_eq!(results.len(), addrs.len());
 
-        for (i, (result, _addr_idx)) in results.into_iter().enumerate() {
+        for (i, symbolized) in results.into_iter().enumerate() {
+            let result = symbolized.into_sym().unwrap();
             assert_eq!(result.name, "factorial");
             assert_eq!(result.addr, 0x2000100);
             assert_eq!(result.offset, offsets[i]);
 
-            if has_src_loc {
+            if has_code_info {
                 let code_info = result.code_info.as_ref().unwrap();
                 assert_ne!(code_info.dir, None);
                 assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
@@ -130,7 +132,7 @@ fn symbolize_gsym_inlined() {
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 1);
 
-        let (result, _addr_idx) = &results[0];
+        let result = results[0].as_sym().unwrap();
         let code_info = result.code_info.as_ref().unwrap();
         assert_ne!(code_info.dir, None);
         assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
@@ -207,7 +209,7 @@ fn symbolize_dwarf_complex() {
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let (result, _addr_idx) = &results[0];
+    let result = results[0].as_sym().unwrap();
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.addr, 0xffffffff8110ecb0);
     assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
@@ -234,7 +236,7 @@ fn symbolize_elf_demangle() {
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = &results[0].0;
+    let result = results[0].as_sym().unwrap();
     assert!(
         result
             .name
@@ -251,7 +253,7 @@ fn symbolize_elf_demangle() {
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let result = &results[0].0;
+    let result = results[0].as_sym().unwrap();
     assert!(
         result.name == "blazesym::normalize::normalizer::Normalizer::normalize_user_addrs_sorted"
             || result.name
@@ -274,12 +276,10 @@ fn symbolize_process() {
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 2);
 
-    let (result, addr_idx) = &results[0];
-    assert_eq!(*addr_idx, 0);
+    let result = results[0].as_sym().unwrap();
     assert!(result.name.contains("symbolize_process"), "{result:x?}");
 
-    let (result, addr_idx) = &results[1];
-    assert_eq!(*addr_idx, 1);
+    let result = results[1].as_sym().unwrap();
     // It's not entirely clear why we have seen two different demangled
     // symbols, but they both seem legit.
     assert!(
@@ -326,7 +326,7 @@ fn normalize_elf_addr() {
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 1);
 
-        let (result, _addr_idx) = &results[0];
+        let result = results[0].as_sym().unwrap();
         assert_eq!(result.name, "the_answer");
     }
 

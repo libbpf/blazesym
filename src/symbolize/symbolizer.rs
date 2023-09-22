@@ -1,6 +1,5 @@
 use std::ffi::OsStr;
 use std::fmt::Debug;
-use std::mem::swap;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -39,6 +38,7 @@ use super::source::Source;
 use super::CodeInfo;
 use super::InlinedFn;
 use super::Sym;
+use super::Symbolized;
 
 
 /// Demangle a symbol name using the demangling scheme for the given language.
@@ -193,11 +193,11 @@ impl Symbolizer {
         &self,
         addr: Addr,
         resolver: &dyn SymResolver,
-    ) -> Result<Option<Sym>> {
+    ) -> Result<Symbolized> {
         let sym = if let Some(sym) = resolver.find_sym(addr)? {
             sym
         } else {
-            return Ok(None)
+            return Ok(Symbolized::Unknown)
         };
 
         let addr_code_info = if self.code_info {
@@ -248,7 +248,7 @@ impl Symbolizer {
             inlined: inlined.into_boxed_slice(),
             _non_exhaustive: (),
         };
-        Ok(Some(sym))
+        Ok(Symbolized::Sym(sym))
     }
 
     /// Symbolize a list of addresses using the provided [`SymResolver`].
@@ -256,32 +256,28 @@ impl Symbolizer {
         &self,
         addrs: &[Addr],
         resolver: &dyn SymResolver,
-    ) -> Result<Vec<(Sym, usize)>> {
-        let mut syms = Vec::with_capacity(addrs.len());
-        for (i, addr) in addrs.iter().enumerate() {
-            let resolved = self.symbolize_with_resolver(*addr, resolver)?;
-            let () = syms.extend(resolved.into_iter().map(|sym| (sym, i)));
-        }
-        Ok(syms)
+    ) -> Result<Vec<Symbolized>> {
+        addrs
+            .iter()
+            .map(|addr| self.symbolize_with_resolver(*addr, resolver))
+            .collect()
     }
 
-    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Option<Sym>> {
+    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Symbolized> {
         let backend = self.elf_cache.find(path)?;
         let resolver = ElfResolver::with_backend(path, backend)?;
-        let symbol = self.symbolize_with_resolver(addr, &resolver)?;
-        Ok(symbol)
+        let symbolized = self.symbolize_with_resolver(addr, &resolver)?;
+        Ok(symbolized)
     }
 
     /// Symbolize the given list of user space addresses in the provided
     /// process.
-    fn symbolize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<Vec<(Sym, usize)>> {
+    fn symbolize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<Vec<Symbolized>> {
         struct SymbolizeHandler<'sym> {
             /// The "outer" `Symbolizer` instance.
             symbolizer: &'sym Symbolizer,
-            /// Running index of the address being symbolized.
-            addr_idx: usize,
             /// Symbols representing the symbolized addresses.
-            all_symbols: Vec<(Sym, usize)>,
+            all_symbols: Vec<Symbolized>,
         }
 
         impl SymbolizeHandler<'_> {
@@ -297,9 +293,7 @@ impl Symbolizer {
                 let symbol = self
                     .symbolizer
                     .symbolize_with_resolver(norm_addr, &resolver)?;
-                let () = self
-                    .all_symbols
-                    .extend(symbol.into_iter().map(|sym| (sym, self.addr_idx)));
+                let () = self.all_symbols.push(symbol);
                 Ok(())
             }
 
@@ -315,9 +309,7 @@ impl Symbolizer {
                             path.display()
                         )
                     })?;
-                let () = self
-                    .all_symbols
-                    .extend(symbol.into_iter().map(|sym| (sym, self.addr_idx)));
+                let () = self.all_symbols.push(symbol);
                 Ok(())
             }
         }
@@ -325,7 +317,7 @@ impl Symbolizer {
         impl normalize::Handler for SymbolizeHandler<'_> {
             #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
             fn handle_unknown_addr(&mut self, _addr: Addr) -> Result<()> {
-                self.addr_idx += 1;
+                let () = self.all_symbols.push(Symbolized::Unknown);
                 Ok(())
             }
 
@@ -335,42 +327,23 @@ impl Symbolizer {
                     .symbolic_path
                     .extension()
                     .unwrap_or_else(|| OsStr::new(""));
-                let result = match ext.to_str() {
+                match ext.to_str() {
                     Some("apk") | Some("zip") => self.handle_apk_addr(addr, entry),
                     _ => self.handle_elf_addr(addr, entry),
-                };
-                self.addr_idx += 1;
-                result
+                }
             }
         }
 
         let entries = maps::parse(pid)?;
         let handler = SymbolizeHandler {
             symbolizer: self,
-            addr_idx: 0,
             all_symbols: Vec::with_capacity(addrs.len()),
         };
 
-        let handler = util::with_ordered_elems_with_swap(
+        let handler = util::with_ordered_elems(
             addrs,
             |handler: &mut SymbolizeHandler<'_>| handler.all_symbols.as_mut_slice(),
             |sorted_addrs| normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, handler),
-            |symbols: &mut [(Sym, usize)], i, j| {
-                if i != j {
-                    debug_assert!(i <= symbols.len());
-                    debug_assert!(j <= symbols.len());
-
-                    let syms = symbols.as_mut_ptr();
-                    // TODO: Use `slice::get_many_mut` once it is stable.
-                    // SAFETY: `i` and `j` are different so we are creating
-                    //         exclusive references to disjunct region of
-                    //         memory. It is an invariant that both are within
-                    //         bounds of the `symbols` slice.
-                    let symi = unsafe { &mut *syms.add(i) };
-                    let symj = unsafe { &mut *syms.add(j) };
-                    swap(&mut symi.0, &mut symj.0)
-                }
-            },
         )?;
         Ok(handler.all_symbols)
     }
@@ -450,14 +423,8 @@ impl Symbolizer {
     /// Symbolize a list of addresses using the provided symbolization
     /// [`Source`][Source].
     ///
-    /// This function returns zero or one objects per input address:
-    /// - zero symbols are returned in case the address could not be symbolized
-    /// - otherwise a single symbol is returned
-    ///
-    /// Each symbol is accompanied by the index of the input address (the second
-    /// member in each tuple). These indices are guaranteed to be ascending.
-    /// When an input address could not be symbolized, there won't be a symbol
-    /// with the corresponding index reported.
+    /// This function returns exactly one [`Symbolized`] object for each input
+    /// address, in the order of input addresses.
     ///
     /// The following table lists which features the various formats
     /// (represented by the [`Source`][Source] argument) support. If a feature
@@ -479,7 +446,7 @@ impl Symbolizer {
     /// |               | source code location information | no                       | N/A                      |
     /// |               | inlined function information     | no                       | N/A                      |
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{addrs:#x?}"))))]
-    pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<(Sym, usize)>> {
+    pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Symbolized>> {
         match src {
             Source::Elf(Elf {
                 path,
@@ -524,7 +491,7 @@ impl Symbolizer {
     /// using [`symbolize`][Self::symbolize]. However, in cases where only a
     /// single address is available, this method provides a more convenient API.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addr = format_args!("{addr:#x?}"))))]
-    pub fn symbolize_single(&self, src: &Source, addr: Addr) -> Result<Option<Sym>> {
+    pub fn symbolize_single(&self, src: &Source, addr: Addr) -> Result<Symbolized> {
         match src {
             Source::Elf(Elf {
                 path,
@@ -544,7 +511,7 @@ impl Symbolizer {
             }) => {
                 let mut symbols = self.symbolize_user_addrs(&[addr], *pid)?;
                 debug_assert!(symbols.len() <= 1, "{symbols:#?}");
-                Ok(symbols.pop().map(|(sym, _idx)| sym))
+                Ok(symbols.pop().unwrap_or(Symbolized::Unknown))
             }
             Source::Gsym(Gsym::Data(GsymData {
                 data,
@@ -659,8 +626,7 @@ mod tests {
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 1);
 
-        let (result, addr_idx) = &results[0];
-        assert_eq!(*addr_idx, 0);
+        let result = results[0].as_sym().unwrap();
         assert_eq!(result.name, "the_answer");
         assert_eq!(result.addr, sym.addr);
     }

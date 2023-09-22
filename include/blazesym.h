@@ -309,6 +309,8 @@ typedef struct blaze_symbolize_code_info {
 typedef struct blaze_sym {
   /**
    * The symbol name is where the given address should belong to.
+   *
+   * If an address could not be symbolized, this member will be NULL.
    */
   const char *name;
   /**
@@ -338,21 +340,6 @@ typedef struct blaze_sym {
 } blaze_sym;
 
 /**
- * `blaze_entry` is the output of symbolization for a call frame.
- */
-typedef struct blaze_entry {
-  /**
-   * The symbol.
-   */
-  struct blaze_sym sym;
-  /**
-   * The index of the input address to which this symbolization result
-   * belongs.
-   */
-  size_t addr_idx;
-} blaze_entry;
-
-/**
  * `blaze_result` is the result of symbolization for C API.
  *
  * Instances of [`blaze_result`] are returned by any of the `blaze_symbolize_*`
@@ -364,13 +351,12 @@ typedef struct blaze_result {
    */
   size_t cnt;
   /**
-   * The entries for addresses.
+   * The symbols corresponding to input addresses.
    *
-   * Symbolization occurs based on the order of addresses.
-   * Therefore, every address must have an entry here on the same
-   * order.
+   * Symbolization happens based on the ordering of (input) addresses.
+   * Therefore, every input address has an associated symbol.
    */
-  struct blaze_entry entries[0];
+  struct blaze_sym syms[0];
 } blaze_result;
 
 /**

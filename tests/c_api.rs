@@ -63,7 +63,7 @@ fn symbolizer_creation_with_opts() {
 /// GSYM.
 #[test]
 fn symbolize_elf_dwarf_gsym() {
-    fn test<F>(symbolize: F, has_src_loc: bool)
+    fn test<F>(symbolize: F, has_code_info: bool)
     where
         F: FnOnce(*mut blaze_symbolizer, *const Addr, usize) -> *const blaze_result,
     {
@@ -75,11 +75,8 @@ fn symbolize_elf_dwarf_gsym() {
 
         let result = unsafe { &*result };
         assert_eq!(result.cnt, 1);
-        let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.cnt) };
-        let entry = &entries[0];
-        assert_eq!(entry.addr_idx, 0);
-
-        let sym = &entry.sym;
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
         assert_eq!(
             unsafe { CStr::from_ptr(sym.name) },
             CStr::from_bytes_with_nul(b"factorial\0").unwrap()
@@ -87,7 +84,7 @@ fn symbolize_elf_dwarf_gsym() {
         assert_eq!(sym.addr, 0x2000100);
         assert_eq!(sym.offset, 0);
 
-        if has_src_loc {
+        if has_code_info {
             assert!(!sym.code_info.dir.is_null());
             assert!(!sym.code_info.file.is_null());
             assert_eq!(
@@ -170,11 +167,8 @@ fn symbolize_in_process() {
 
     let result = unsafe { &*result };
     assert_eq!(result.cnt, 1);
-    let entries = unsafe { slice::from_raw_parts(result.entries.as_ptr(), result.cnt) };
-    let entry = &entries[0];
-    assert_eq!(entry.addr_idx, 0);
-
-    let sym = &entry.sym;
+    let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+    let sym = &syms[0];
     assert_eq!(
         unsafe { CStr::from_ptr(sym.name) },
         CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()

@@ -44,14 +44,12 @@ fn symbolize_elf() {
         .enable_code_info(false)
         .build();
 
-    let results = symbolizer
-        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
+    let result = symbolizer
+        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
         .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
+        .into_sym()
+        .unwrap();
 
-    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
 }
 
@@ -64,14 +62,12 @@ fn symbolize_dwarf_no_lines() {
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
     let symbolizer = Symbolizer::builder().enable_code_info(false).build();
 
-    let results = symbolizer
-        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
+    let result = symbolizer
+        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
         .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
+        .into_sym()
+        .unwrap();
 
-    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.code_info.as_ref(), None);
 }
@@ -85,14 +81,12 @@ fn symbolize_dwarf() {
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
     let symbolizer = Symbolizer::new();
 
-    let results = symbolizer
-        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
+    let result = symbolizer
+        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
         .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
+        .into_sym()
+        .unwrap();
 
-    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
 }
@@ -106,14 +100,12 @@ fn symbolize_gsym() {
     let src = Source::from(GsymFile::new(gsym_vmlinux));
     let symbolizer = Symbolizer::new();
 
-    let results = symbolizer
-        .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))
+    let result = symbolizer
+        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
         .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
+        .into_sym()
+        .unwrap();
 
-    let result = &results[0].0;
     assert_eq!(result.name, "abort_creds");
 }
 
