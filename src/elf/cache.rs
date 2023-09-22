@@ -179,9 +179,9 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let src_locations = true;
+        let code_info = true;
         let debug_syms = false;
-        let cache = ElfCache::new(src_locations, debug_syms);
+        let cache = ElfCache::new(code_info, debug_syms);
         let backend_first = cache.find(Path::new(&bin_name));
         let backend_second = cache.find(Path::new(&bin_name));
         assert!(backend_first.is_ok());

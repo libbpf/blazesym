@@ -173,7 +173,7 @@ pub struct Builder {
     ///
     /// This setting implies usage of debug symbols and forces the corresponding
     /// flag to `true`.
-    src_location: bool,
+    code_info: bool,
     /// Whether to report inlined functions as part of symbolization.
     inlined_fns: bool,
     /// Whether or not to transparently demangle symbols.
@@ -195,8 +195,8 @@ impl Builder {
 
     /// Enable/disable source code location information (line numbers,
     /// file names etc.).
-    pub fn enable_src_location(mut self, enable: bool) -> Builder {
-        self.src_location = enable;
+    pub fn enable_code_info(mut self, enable: bool) -> Builder {
+        self.code_info = enable;
         self
     }
 
@@ -218,17 +218,17 @@ impl Builder {
     pub fn build(self) -> Symbolizer {
         let Builder {
             debug_syms,
-            src_location,
+            code_info,
             inlined_fns,
             demangle,
         } = self;
         let ksym_cache = KSymCache::new();
-        let elf_cache = ElfCache::new(src_location, debug_syms);
+        let elf_cache = ElfCache::new(code_info, debug_syms);
 
         Symbolizer {
             ksym_cache,
             elf_cache,
-            src_location,
+            code_info,
             inlined_fns,
             demangle,
         }
@@ -239,7 +239,7 @@ impl Default for Builder {
     fn default() -> Self {
         Self {
             debug_syms: true,
-            src_location: true,
+            code_info: true,
             inlined_fns: true,
             demangle: true,
         }
@@ -252,7 +252,7 @@ impl Default for Builder {
 pub struct Symbolizer {
     ksym_cache: KSymCache,
     elf_cache: ElfCache,
-    src_location: bool,
+    code_info: bool,
     inlined_fns: bool,
     demangle: bool,
 }
@@ -291,22 +291,22 @@ impl Symbolizer {
             return Ok(None)
         };
 
-        let src_loc = if self.src_location {
+        let addr_code_info = if self.code_info {
             resolver.find_code_info(addr, self.inlined_fns)?
         } else {
             None
         };
 
-        let (name, code_info) = if let Some(src_loc) = &src_loc {
-            let name = src_loc.direct.0;
-            let frame_code_info = &src_loc.direct.1;
-            (name, Some(CodeInfo::from(frame_code_info)))
+        let (name, code_info) = if let Some(info) = &addr_code_info {
+            let name = info.direct.0;
+            let code_info = &info.direct.1;
+            (name, Some(CodeInfo::from(code_info)))
         } else {
             (None, None)
         };
 
-        let inlined = if let Some(src_loc) = &src_loc {
-            src_loc
+        let inlined = if let Some(code_info) = &addr_code_info {
+            code_info
                 .inlined
                 .iter()
                 .map(|(name, info)| {

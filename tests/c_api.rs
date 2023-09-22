@@ -51,7 +51,7 @@ fn symbolizer_creation() {
 fn symbolizer_creation_with_opts() {
     let opts = blaze_symbolizer_opts {
         debug_syms: true,
-        src_location: false,
+        code_info: false,
         demangle: true,
     };
     let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
