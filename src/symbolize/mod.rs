@@ -10,12 +10,46 @@
 //! # use std::mem::size_of;
 //! # use std::mem::transmute;
 //! # use std::ptr;
-//! use blazesym::symbolize::Source;
+//! use blazesym::symbolize::CodeInfo;
 //! use blazesym::symbolize::Process;
+//! use blazesym::symbolize::Source;
 //! use blazesym::symbolize::Sym;
+//! use blazesym::symbolize::Symbolized;
 //! use blazesym::symbolize::Symbolizer;
 //! use blazesym::Addr;
 //! use blazesym::Pid;
+//!
+//! const ADDR_WIDTH: usize = 16;
+//!
+//! fn print_frame(name: &str, addr_info: Option<(Addr, Addr, usize)>, code_info: &Option<CodeInfo>) {
+//!     let code_info = if let Some(code_info) = code_info {
+//!         let path = code_info.to_path();
+//!         let path = path.display();
+//!
+//!         match (code_info.line, code_info.column) {
+//!             (Some(line), Some(col)) => format!(" {path}:{line}:{col}"),
+//!             (Some(line), None) => format!(" {path}:{line}"),
+//!             (None, _) => format!(" {path}"),
+//!         }
+//!     } else {
+//!         String::new()
+//!     };
+//!
+//!     if let Some((input_addr, addr, offset)) = addr_info {
+//!         // If we have various address information bits we have a new symbol.
+//!         println!(
+//!             "{input_addr:#0width$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
+//!             width = ADDR_WIDTH
+//!         )
+//!     } else {
+//!         // Otherwise we are dealing with an inlined call.
+//!         println!(
+//!             "{:width$}  {name} @ {code_info} [inlined]",
+//!             " ",
+//!             width = ADDR_WIDTH
+//!         )
+//!     }
+//! }
 //!
 //! # assert_eq!(size_of::<*mut libc::c_void>(), size_of::<Addr>());
 //! // Retrieve up to 64 stack frames of the calling thread.
@@ -32,55 +66,25 @@
 //! let symbolizer = Symbolizer::new();
 //! let syms = symbolizer.symbolize(&src, addrs).unwrap();
 //!
-//! let addr_width = 16;
-//! let mut prev_addr_idx = None;
-//!
-//! for (sym, addr_idx) in syms {
-//!     if let Some(idx) = prev_addr_idx {
-//!         // Print a line for all addresses that did not get symbolized.
-//!         for input_addr in addrs.iter().take(addr_idx).skip(idx + 1) {
-//!             println!("{input_addr:#0width$x}: <no-symbol>", width = addr_width)
+//! for (input_addr, sym) in addrs.iter().copied().zip(syms) {
+//!     match sym {
+//!         Symbolized::Sym(Sym {
+//!             name,
+//!             addr,
+//!             offset,
+//!             code_info,
+//!             inlined,
+//!             ..
+//!         }) => {
+//!             print_frame(&name, Some((input_addr, addr, offset)), &code_info);
+//!             for frame in inlined.iter() {
+//!                 print_frame(&frame.name, None, &frame.code_info);
+//!             }
+//!         }
+//!         Symbolized::Unknown => {
+//!             println!("{input_addr:#0width$x}: <no-symbol>", width = ADDR_WIDTH)
 //!         }
 //!     }
-//!
-//!     let Sym {
-//!         name,
-//!         addr,
-//!         offset,
-//!         code_info,
-//!         ..
-//!     } = &sym;
-//!
-//!     let src_loc = if let Some(code_info) = code_info {
-//!         let path = code_info.to_path();
-//!         let path = path.display();
-//!
-//!         match (code_info.line, code_info.column) {
-//!             (Some(line), Some(col)) => format!(" {path}:{line}:{col}"),
-//!             (Some(line), None) => format!(" {path}:{line}"),
-//!             (None, _) => format!(" {path}"),
-//!         }
-//!     } else {
-//!         String::new()
-//!     };
-//!
-//!     if prev_addr_idx != Some(addr_idx) {
-//!         // If the address index changed we reached a new symbol.
-//!         println!(
-//!             "{input_addr:#0width$x}: {name} @ {addr:#x}+{offset:#x}{src_loc}",
-//!             input_addr = addrs[addr_idx],
-//!             width = addr_width
-//!         );
-//!     } else {
-//!         // Otherwise we are dealing with an inlined call.
-//!         println!(
-//!             "{:width$}  {name} @ {addr:#x}+{offset:#x}{src_loc}",
-//!             " ",
-//!             width = addr_width
-//!         );
-//!     }
-//!
-//!     prev_addr_idx = Some(addr_idx);
 //! }
 //! ```
 
@@ -228,4 +232,38 @@ pub struct Sym {
     pub inlined: Box<[InlinedFn]>,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
+}
+
+
+/// An enumeration used as reporting vehicle for address symbolization.
+// We keep this enum as exhaustive because additions to it, should they occur,
+// are expected to be backwards-compatibility breaking.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Symbolized {
+    /// The input address was symbolized as the provided symbol.
+    Sym(Sym),
+    /// The input address was not found and could not be symbolized.
+    Unknown,
+}
+
+impl Symbolized {
+    /// Convert the object into a [`Sym`] reference, if the corresponding
+    /// variant is active.
+    #[inline]
+    pub fn as_sym(&self) -> Option<&Sym> {
+        match self {
+            Self::Sym(sym) => Some(sym),
+            Self::Unknown => None,
+        }
+    }
+
+    /// Convert the object into a [`Sym`] object, if the corresponding variant
+    /// is active.
+    #[inline]
+    pub fn into_sym(self) -> Option<Sym> {
+        match self {
+            Self::Sym(sym) => Some(sym),
+            Self::Unknown => None,
+        }
+    }
 }

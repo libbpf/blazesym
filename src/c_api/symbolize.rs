@@ -19,7 +19,7 @@ use crate::symbolize::GsymFile;
 use crate::symbolize::Kernel;
 use crate::symbolize::Process;
 use crate::symbolize::Source;
-use crate::symbolize::Sym;
+use crate::symbolize::Symbolized;
 use crate::symbolize::Symbolizer;
 use crate::util::slice_from_user_array;
 use crate::Addr;
@@ -191,6 +191,8 @@ pub struct blaze_symbolize_code_info {
 #[derive(Debug)]
 pub struct blaze_sym {
     /// The symbol name is where the given address should belong to.
+    ///
+    /// If an address could not be symbolized, this member will be NULL.
     pub name: *const c_char,
     /// The address at which the symbol is located (i.e., its "start").
     ///
@@ -212,17 +214,6 @@ pub struct blaze_sym {
     pub code_info: blaze_symbolize_code_info,
 }
 
-/// `blaze_entry` is the output of symbolization for a call frame.
-#[repr(C)]
-#[derive(Debug)]
-pub struct blaze_entry {
-    /// The symbol.
-    pub sym: blaze_sym,
-    /// The index of the input address to which this symbolization result
-    /// belongs.
-    pub addr_idx: usize,
-}
-
 /// `blaze_result` is the result of symbolization for C API.
 ///
 /// Instances of [`blaze_result`] are returned by any of the `blaze_symbolize_*`
@@ -232,12 +223,11 @@ pub struct blaze_entry {
 pub struct blaze_result {
     /// The number of symbols being reported.
     pub cnt: usize,
-    /// The entries for addresses.
+    /// The symbols corresponding to input addresses.
     ///
-    /// Symbolization occurs based on the order of addresses.
-    /// Therefore, every address must have an entry here on the same
-    /// order.
-    pub entries: [blaze_entry; 0],
+    /// Symbolization happens based on the ordering of (input) addresses.
+    /// Therefore, every input address has an associated symbol.
+    pub syms: [blaze_sym; 0],
 }
 
 /// Create a `PathBuf` from a pointer of C string
@@ -321,26 +311,32 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 ///
 /// The returned pointer should be released using [`blaze_result_free`] once
 /// usage concluded.
-fn convert_symbolizedresults_to_c(results: Vec<(Sym, usize)>) -> *const blaze_result {
+fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_result {
     // Allocate a buffer to contain a blaze_result, all
     // blaze_sym, and C strings of symbol and path.
-    let strtab_size = results.iter().fold(0, |acc, (result, _i)| {
-        acc + result.name.len()
-            + 1
-            + result
-                .code_info
-                .as_ref()
-                .and_then(|info| info.dir.as_ref().map(|d| d.as_os_str().len() + 1))
-                .unwrap_or(0)
-            + result
-                .code_info
-                .as_ref()
-                .map(|info| info.file.len() + 1)
-                .unwrap_or(0)
-    });
-    let buf_size = strtab_size
-        + mem::size_of::<blaze_result>()
-        + mem::size_of::<blaze_entry>() * results.len();
+    let strtab_size = results
+        .iter()
+        .map(|sym| match sym {
+            Symbolized::Sym(sym) => {
+                sym.name.len()
+                    + 1
+                    + sym
+                        .code_info
+                        .as_ref()
+                        .and_then(|info| info.dir.as_ref().map(|d| d.as_os_str().len() + 1))
+                        .unwrap_or(0)
+                    + sym
+                        .code_info
+                        .as_ref()
+                        .map(|info| info.file.len() + 1)
+                        .unwrap_or(0)
+            }
+            Symbolized::Unknown => 0,
+        })
+        .sum::<usize>();
+
+    let buf_size =
+        strtab_size + mem::size_of::<blaze_result>() + mem::size_of::<blaze_sym>() * results.len();
     let raw_buf_with_sz =
         unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
     if raw_buf_with_sz.is_null() {
@@ -353,9 +349,9 @@ fn convert_symbolizedresults_to_c(results: Vec<(Sym, usize)>) -> *const blaze_re
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
 
     let result_ptr = raw_buf as *mut blaze_result;
-    let mut entry_last = unsafe { &mut (*result_ptr).entries as *mut blaze_entry };
+    let mut syms_last = unsafe { &mut (*result_ptr).syms as *mut blaze_sym };
     let mut cstr_last = unsafe {
-        raw_buf.add(mem::size_of::<blaze_result>() + mem::size_of::<blaze_entry>() * results.len())
+        raw_buf.add(mem::size_of::<blaze_result>() + mem::size_of::<blaze_sym>() * results.len())
     } as *mut c_char;
 
     let mut make_cstr = |src: &OsStr| {
@@ -369,40 +365,49 @@ fn convert_symbolizedresults_to_c(results: Vec<(Sym, usize)>) -> *const blaze_re
 
     unsafe { (*result_ptr).cnt = results.len() };
 
-    // Convert all `Sym`s to `blaze_entry`s and `blazesym_sym`s.
-    for (sym, i) in results {
-        let entry_ref = unsafe { &mut *entry_last };
+    // Convert all `Sym`s to `blazesym_sym`s.
+    for sym in results {
+        match sym {
+            Symbolized::Sym(sym) => {
+                let sym_ref = unsafe { &mut *syms_last };
+                let name_ptr = make_cstr(OsStr::new(&sym.name));
+                let dir_ptr = sym
+                    .code_info
+                    .as_ref()
+                    .and_then(|info| info.dir.as_ref().map(|d| make_cstr(d.as_os_str())))
+                    .unwrap_or_else(ptr::null_mut);
+                let file_ptr = sym
+                    .code_info
+                    .as_ref()
+                    .map(|info| make_cstr(&info.file))
+                    .unwrap_or_else(ptr::null_mut);
 
-        let name_ptr = make_cstr(OsStr::new(&sym.name));
-        let dir_ptr = sym
-            .code_info
-            .as_ref()
-            .and_then(|info| info.dir.as_ref().map(|d| make_cstr(d.as_os_str())))
-            .unwrap_or_else(ptr::null_mut);
-        let file_ptr = sym
-            .code_info
-            .as_ref()
-            .map(|info| make_cstr(&info.file))
-            .unwrap_or_else(ptr::null_mut);
+                sym_ref.name = name_ptr;
+                sym_ref.addr = sym.addr;
+                sym_ref.offset = sym.offset;
+                sym_ref.code_info.dir = dir_ptr;
+                sym_ref.code_info.file = file_ptr;
+                sym_ref.code_info.line = sym
+                    .code_info
+                    .as_ref()
+                    .and_then(|info| info.line)
+                    .unwrap_or(0);
+                sym_ref.code_info.column = sym
+                    .code_info
+                    .as_ref()
+                    .and_then(|info| info.column)
+                    .unwrap_or(0);
+            }
+            Symbolized::Unknown => {
+                // Unknown symbols/addresses are just represented with all
+                // fields set to zero.
+                // SAFETY: `syms_last` is pointing to a writable and properly
+                //         aligned `blaze_sym` object.
+                let () = unsafe { syms_last.write_bytes(0, 1) };
+            }
+        }
 
-        entry_ref.addr_idx = i;
-        entry_ref.sym.name = name_ptr;
-        entry_ref.sym.addr = sym.addr;
-        entry_ref.sym.offset = sym.offset;
-        entry_ref.sym.code_info.dir = dir_ptr;
-        entry_ref.sym.code_info.file = file_ptr;
-        entry_ref.sym.code_info.line = sym
-            .code_info
-            .as_ref()
-            .and_then(|info| info.line)
-            .unwrap_or(0);
-        entry_ref.sym.code_info.column = sym
-            .code_info
-            .as_ref()
-            .and_then(|info| info.column)
-            .unwrap_or(0);
-
-        entry_last = unsafe { entry_last.add(1) };
+        syms_last = unsafe { syms_last.add(1) };
     }
 
     result_ptr
@@ -632,20 +637,8 @@ mod tests {
             "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 } }"
         );
 
-        let entry = blaze_entry { sym, addr_idx: 0 };
-        assert_eq!(
-            format!("{entry:?}"),
-            "blaze_entry { sym: blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 } }, addr_idx: 0 }",
-        );
-
-        let result = blaze_result {
-            cnt: 0,
-            entries: [],
-        };
-        assert_eq!(
-            format!("{result:?}"),
-            "blaze_result { cnt: 0, entries: [] }"
-        );
+        let result = blaze_result { cnt: 0, syms: [] };
+        assert_eq!(format!("{result:?}"), "blaze_result { cnt: 0, syms: [] }");
 
         let opts = blaze_symbolizer_opts {
             debug_syms: true,
