@@ -23,7 +23,7 @@ impl InlineInfo {
         lookup_addr: Option<u64>,
     ) -> Result<Option<InlineInfo>> {
         let range_cnt = data
-            .read_u128_leb128()
+            .read_u64_leb128()
             .ok_or_invalid_data(|| "failed to read range count from inline information")?
             .0;
         let range_cnt = usize::try_from(range_cnt)
@@ -39,19 +39,13 @@ impl InlineInfo {
         if let Some(lookup_addr) = lookup_addr {
             for i in 0..range_cnt {
                 let offset = data
-                    .read_u128_leb128()
+                    .read_u64_leb128()
                     .ok_or_invalid_data(|| "failed to read offset from inline information")?
                     .0;
-                let offset = u64::try_from(offset)
-                    .ok()
-                    .ok_or_invalid_data(|| "offset ({}) is too big")?;
                 let size = data
-                    .read_u128_leb128()
+                    .read_u64_leb128()
                     .ok_or_invalid_data(|| "failed to read size from inline information")?
                     .0;
-                let size = u64::try_from(size)
-                    .ok()
-                    .ok_or_invalid_data(|| "size ({}) is too big")?;
 
                 let start = base_addr + offset;
                 let end = start + size;
@@ -67,10 +61,10 @@ impl InlineInfo {
         } else {
             for _ in 0..range_cnt {
                 let _offset = data
-                    .read_u128_leb128()
+                    .read_u64_leb128()
                     .ok_or_invalid_data(|| "failed to read offset from inline information")?;
                 let _size = data
-                    .read_u128_leb128()
+                    .read_u64_leb128()
                     .ok_or_invalid_data(|| "failed to read size from inline information")?;
             }
         }
@@ -85,24 +79,24 @@ impl InlineInfo {
 
         let (call_file, call_line) = if lookup_addr.is_some() {
             let call_file = data
-                .read_u128_leb128()
+                .read_u64_leb128()
                 .ok_or_invalid_data(|| "failed to read call file from inline information")?
                 .0;
             let call_file = u32::try_from(call_file)
                 .ok()
                 .ok_or_invalid_data(|| "call file index ({}) is too big")?;
             let call_line = data
-                .read_u128_leb128()
+                .read_u64_leb128()
                 .ok_or_invalid_data(|| "failed to read call line from inline information")?
                 .0;
             let call_line = u32::try_from(call_line).unwrap_or(u32::MAX);
             (Some(call_file), Some(call_line))
         } else {
             let _call_file = data
-                .read_u128_leb128()
+                .read_u64_leb128()
                 .ok_or_invalid_data(|| "failed to read call file from inline information")?;
             let _call_line = data
-                .read_u128_leb128()
+                .read_u64_leb128()
                 .ok_or_invalid_data(|| "failed to read call line from inline information")?;
             (None, None)
         };
