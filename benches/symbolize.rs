@@ -41,7 +41,7 @@ fn symbolize_elf() {
     let src = Source::Elf(Elf::new(elf_vmlinux));
     let symbolizer = Symbolizer::builder()
         .enable_debug_syms(false)
-        .enable_src_location(false)
+        .enable_code_info(false)
         .build();
 
     let results = symbolizer
@@ -62,7 +62,7 @@ fn symbolize_dwarf_no_lines() {
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
-    let symbolizer = Symbolizer::builder().enable_src_location(false).build();
+    let symbolizer = Symbolizer::builder().enable_code_info(false).build();
 
     let results = symbolizer
         .symbolize(black_box(&src), black_box(&[0xffffffff8110ecb0]))

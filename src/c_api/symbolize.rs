@@ -261,7 +261,7 @@ pub struct blaze_symbolizer_opts {
     /// Whether to attempt to gather source code location information.
     ///
     /// This setting implies `debug_syms` (and forces it to `true`).
-    pub src_location: bool,
+    pub code_info: bool,
     /// Whether or not to transparently demangle symbols.
     ///
     /// Demangling happens on a best-effort basis. Currently supported
@@ -291,13 +291,13 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     let opts = unsafe { &*opts };
     let blaze_symbolizer_opts {
         debug_syms,
-        src_location,
+        code_info,
         demangle,
     } = opts;
 
     let symbolizer = Symbolizer::builder()
         .enable_debug_syms(*debug_syms)
-        .enable_src_location(*src_location)
+        .enable_code_info(*code_info)
         .enable_demangling(*demangle)
         .build();
     let symbolizer_box = Box::new(symbolizer);
@@ -649,12 +649,12 @@ mod tests {
 
         let opts = blaze_symbolizer_opts {
             debug_syms: true,
-            src_location: false,
+            code_info: false,
             demangle: true,
         };
         assert_eq!(
             format!("{opts:?}"),
-            "blaze_symbolizer_opts { debug_syms: true, src_location: false, demangle: true }"
+            "blaze_symbolizer_opts { debug_syms: true, code_info: false, demangle: true }"
         );
     }
 

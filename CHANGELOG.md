@@ -11,6 +11,7 @@ Unreleased
 - Introduced `symbolize::Symbolizer::symbolize_single` for more convenient
   symbolization of a single address
 - Adjusted ELF symbolization code to honor symbol sizes
+- Renamed `symbolize::Builder::enable_src_location` to `enable_code_info`
 
 
 0.2.0-alpha.6

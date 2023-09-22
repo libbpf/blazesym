@@ -261,7 +261,7 @@ typedef struct blaze_symbolizer_opts {
    *
    * This setting implies `debug_syms` (and forces it to `true`).
    */
-  bool src_location;
+  bool code_info;
   /**
    * Whether or not to transparently demangle symbols.
    *
