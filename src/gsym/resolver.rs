@@ -239,52 +239,52 @@ impl SymResolver for GsymResolver<'_> {
             let mut inlined = Vec::new();
 
             if let Some(inline_info) = inline_info {
-                let inline_stack = inline_info.inline_stack(addr as u64);
-                let () = inlined.reserve(inline_stack.len());
+                let mut inline_stack = inline_info.inline_stack(addr as u64).into_iter();
+                // As per Gsym file format, the first "frame" only contains the
+                // name and it effectively is meant to overwrite what is already
+                // contained in the line table.
+                if let Some(inline_info) = inline_stack.next() {
+                    direct_name = Some(
+                        self.ctx
+                            .get_str(inline_info.name as usize)
+                            .and_then(|s| s.to_str())
+                            .ok_or_invalid_data(|| {
+                                format!(
+                                    "failed to read string table entry at offset {}",
+                                    inline_info.name
+                                )
+                            })?,
+                    );
 
-                for frame in inline_stack {
-                    let name = self
-                        .ctx
-                        .get_str(frame.name as usize)
-                        .and_then(|s| s.to_str())
-                        .ok_or_invalid_data(|| {
-                            format!("failed to read string table entry at offset {}", frame.name)
-                        })?;
+                    let () = inlined.reserve(inline_stack.len());
 
-                    let code_info = if let Some(file) = frame.call_file {
-                        let code_info = self.query_frame_code_info(file, frame.call_line)?;
-                        Some(code_info)
-                    } else {
-                        None
-                    };
-                    let () = inlined.push((name, code_info));
-                }
+                    for frame in inline_stack {
+                        let name = self
+                            .ctx
+                            .get_str(frame.name as usize)
+                            .and_then(|s| s.to_str())
+                            .ok_or_invalid_data(|| {
+                                format!(
+                                    "failed to read string table entry at offset {}",
+                                    frame.name
+                                )
+                            })?;
 
-                if !inlined.is_empty() {
-                    let (name, _code_info) = inlined.remove(0);
-                    let mut prev = Option::<usize>::None;
-
-                    for i in 0..inlined.len() {
-                        if let Some(prev_i) = prev {
-                            let inlined = inlined.as_mut_ptr();
-                            // TODO: Use `slice::get_many_mut` once it is stable.
-                            // SAFETY: `i` and `prev_i` are different so
-                            //         we are creating exclusive
-                            //         references to disjunct region of
-                            //         memory. It is an invariant that
-                            //         both are within bounds of the
-                            //         `symbols` slice.
-                            let first = unsafe { &mut *inlined.add(i) };
-                            let second = unsafe { &mut *inlined.add(prev_i) };
-                            let () = swap(&mut first.1, &mut second.1);
+                        let mut code_info = if let Some(file) = frame.call_file {
+                            let code_info = self.query_frame_code_info(file, frame.call_line)?;
+                            Some(code_info)
                         } else {
-                            direct_name = Some(name);
-                            if let Some(code_info) = &mut inlined[i].1 {
-                                let () = swap(code_info, &mut line_tab_info);
-                            }
-                        }
+                            None
+                        };
 
-                        prev = Some(i);
+                        // For each frame we need to move the code information
+                        // up by one layer.
+                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                            let () = swap(&mut code_info, last_code_info);
+                        } else if let Some(code_info) = &mut code_info {
+                            let () = swap(code_info, &mut line_tab_info);
+                        }
+                        let () = inlined.push((name, code_info));
                     }
                 }
             }
