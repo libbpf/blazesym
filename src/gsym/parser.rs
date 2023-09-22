@@ -284,9 +284,7 @@ mod tests {
 
         gsym_fo.read_to_end(&mut data).unwrap();
 
-        let mut addr_tab = Vec::<u8>::new();
-        addr_tab.resize(TEST_SIZE * 4, 0);
-
+        let mut addr_tab = vec![0; TEST_SIZE * 4];
         let mut values: Vec<u32> = (0_u32..(TEST_SIZE as u32)).collect();
 
         let copy_to_addr_tab = |values: &[u32], addr_tab: &mut Vec<u8>| {

@@ -48,13 +48,13 @@ impl LineTableHeader {
     ///
     /// * `data` - is what [`AddrData::data`] is.
     pub(super) fn parse(data: &mut &[u8]) -> Option<Self> {
-        let (min_delta, _bytes) = data.read_i128_leb128()?;
-        let (max_delta, _bytes) = data.read_i128_leb128()?;
-        let (first_line, _bytes) = data.read_u128_leb128()?;
+        let (min_delta, _bytes) = data.read_i64_leb128()?;
+        let (max_delta, _bytes) = data.read_i64_leb128()?;
+        let (first_line, _bytes) = data.read_u64_leb128()?;
 
         let header = Self {
-            min_delta: min_delta as i64,
-            max_delta: max_delta as i64,
+            min_delta,
+            max_delta,
             first_line: first_line as u32,
         };
         Some(header)
@@ -107,18 +107,18 @@ pub fn run_op(
     match op {
         END_SEQUENCE => Some(RunResult::End),
         SET_FILE => {
-            let (f, _bytes) = ops.read_u128_leb128()?;
+            let (f, _bytes) = ops.read_u64_leb128()?;
             ctx.file_idx = f as u32;
             Some(RunResult::Ok)
         }
         ADVANCE_PC => {
-            let (adv, _bytes) = ops.read_u128_leb128()?;
+            let (adv, _bytes) = ops.read_u64_leb128()?;
             ctx.address += adv as Addr;
             Some(RunResult::NewRow)
         }
         ADVANCE_LINE => {
-            let (adv, _bytes) = ops.read_i128_leb128()?;
-            ctx.file_line = (ctx.file_line as i64 + adv as i64) as u32;
+            let (adv, _bytes) = ops.read_i64_leb128()?;
+            ctx.file_line = (ctx.file_line as i64 + adv) as u32;
             Some(RunResult::Ok)
         }
         // Special operators.

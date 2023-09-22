@@ -325,17 +325,17 @@ pub(crate) trait ReadRaw<'data> {
         self.read_pod::<u64>()
     }
 
-    /// Read a `u128` encoded as unsigned variable length little endian base 128
+    /// Read a `u64` encoded as unsigned variable length little endian base 128
     /// value.
     ///
     /// The function returns the value read along with the number of bytes
     /// consumed.
-    fn read_u128_leb128(&mut self) -> Option<(u128, u8)> {
+    fn read_u64_leb128(&mut self) -> Option<(u64, u8)> {
         let mut shift = 0;
-        let mut value = 0u128;
+        let mut value = 0u64;
         while let Some(bytes) = self.read_slice(1) {
             if let [byte] = bytes {
-                value |= ((byte & 0b0111_1111) as u128) << shift;
+                value |= ((byte & 0b0111_1111) as u64) << shift;
                 shift += 7;
                 if (byte & 0b1000_0000) == 0 {
                     return Some((value, shift / 7))
@@ -347,15 +347,15 @@ pub(crate) trait ReadRaw<'data> {
         None
     }
 
-    /// Read a `u128` encoded as signed variable length little endian base 128
+    /// Read a `u64` encoded as signed variable length little endian base 128
     /// value.
     ///
     /// The function returns the value read along with the number of bytes
     /// consumed.
-    fn read_i128_leb128(&mut self) -> Option<(i128, u8)> {
-        let (value, shift) = self.read_u128_leb128()?;
-        let sign_bits = 128 - shift * 7;
-        let value = ((value as i128) << sign_bits) >> sign_bits;
+    fn read_i64_leb128(&mut self) -> Option<(i64, u8)> {
+        let (value, shift) = self.read_u64_leb128()?;
+        let sign_bits = u64::BITS as u8 - shift * 7;
+        let value = ((value as i64) << sign_bits) >> sign_bits;
         Some((value, shift))
     }
 }
@@ -619,11 +619,11 @@ mod tests {
     #[test]
     fn leb128_reading() {
         let data = [0xf4, 0xf3, 0x75];
-        let (v, s) = data.as_slice().read_u128_leb128().unwrap();
+        let (v, s) = data.as_slice().read_u64_leb128().unwrap();
         assert_eq!(v, 0x1d79f4);
         assert_eq!(s, 3);
 
-        let (v, s) = data.as_slice().read_i128_leb128().unwrap();
+        let (v, s) = data.as_slice().read_i64_leb128().unwrap();
         assert_eq!(v, -165388);
         assert_eq!(s, 3);
     }
