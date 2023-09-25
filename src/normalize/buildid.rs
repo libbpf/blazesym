@@ -116,6 +116,19 @@ impl BuildIdReader for DefaultBuildIdReader {
     }
 }
 
+
+pub(super) struct NoBuildIdReader;
+
+impl BuildIdReader for NoBuildIdReader {
+    fn read_build_id_from_elf(_path: &Path) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+    fn read_build_id(_parser: &ElfParser) -> Result<Option<Vec<u8>>> {
+        Ok(None)
+    }
+}
+
+
 /// Read the build ID of an ELF file located at the given path.
 ///
 /// Build IDs can have variable length, depending on which flavor is used (e.g.,

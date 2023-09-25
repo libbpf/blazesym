@@ -409,6 +409,8 @@ mod tests {
 
     use test_log::test;
 
+    use super::super::buildid::NoBuildIdReader;
+
 
     /// Check that we can create a path to an ELF inside an APK as expected.
     #[test]
@@ -423,17 +425,6 @@ mod tests {
     /// in any executable segment.
     #[test]
     fn user_address_normalization_static_maps() {
-        struct NoBuildIdReader;
-
-        impl BuildIdReader for NoBuildIdReader {
-            fn read_build_id_from_elf(_path: &Path) -> Result<Option<Vec<u8>>> {
-                Ok(None)
-            }
-            fn read_build_id(_parser: &ElfParser) -> Result<Option<Vec<u8>>> {
-                Ok(None)
-            }
-        }
-
         fn test(unknown_addr: Addr) {
             let maps = r#"
 55d3195b7000-55d3195b9000 r--p 00000000 00:12 2015701                    /bin/cat
