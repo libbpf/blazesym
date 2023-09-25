@@ -116,11 +116,11 @@ impl<'dwarf> Unit<'dwarf> {
             .map_err(gimli::Error::clone)
     }
 
-    pub(super) fn find_function_or_location(
+    pub(super) fn find_function(
         &self,
         probe: u64,
         sections: &gimli::Dwarf<R<'dwarf>>,
-    ) -> Result<(Option<&Function<'dwarf>>, Option<Location<'_>>), gimli::Error> {
+    ) -> Result<Option<&Function<'dwarf>>, gimli::Error> {
         let unit = &self.dw_unit;
         let functions = self.parse_functions_dwarf_and_unit(unit, sections)?;
         let function = match functions.find_address(probe) {
@@ -133,8 +133,7 @@ impl<'dwarf> Unit<'dwarf> {
             }
             None => None,
         };
-        let location = self.find_location(probe, sections)?;
-        Ok((function, location))
+        Ok(function)
     }
 
     pub(super) fn find_name<'slf>(
