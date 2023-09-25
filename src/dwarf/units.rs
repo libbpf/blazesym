@@ -301,17 +301,8 @@ impl<'dwarf> Units<'dwarf> {
     ) -> Result<Option<(&Function<'dwarf>, Option<gimli::DwLang>)>, gimli::Error> {
         let units_iter = self.find_units(probe);
         for unit in units_iter {
-            let result = unit.find_function_or_location(probe, &self.dwarf)?;
-            match result {
-                (Some(function), _) => return Ok(Some((function, unit.language()))),
-                (None, Some(_location)) => {
-                    // We found the address in the unit, we just couldn't get
-                    // any symbol information.
-                    return Ok(None)
-                }
-                (None, None) => {
-                    // No luck. Let's try another unit.
-                }
+            if let Some(function) = unit.find_function(probe, &self.dwarf)? {
+                return Ok(Some((function, unit.language())))
             }
         }
         Ok(None)
