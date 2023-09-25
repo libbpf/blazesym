@@ -8,6 +8,7 @@ use std::io::Error;
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 
+use blazesym::helper::read_elf_build_id;
 use blazesym::inspect;
 use blazesym::inspect::Inspector;
 use blazesym::normalize::Normalizer;
@@ -332,6 +333,49 @@ fn normalize_elf_addr() {
 
     test("libtest-so.so");
     test("libtest-so-no-separate-code.so");
+}
+
+
+/// Check that we can enable/disable the reading of build IDs.
+#[test]
+fn normalize_build_id_rading() {
+    fn test(read_build_ids: bool) {
+        let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("libtest-so.so");
+        let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
+        let handle = unsafe { libc::dlopen(so_cstr.as_ptr(), libc::RTLD_NOW) };
+        assert!(!handle.is_null());
+
+        let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
+        assert!(!the_answer_addr.is_null());
+
+        let normalizer = Normalizer::builder()
+            .enable_build_ids(read_build_ids)
+            .build();
+        let norm_addrs = normalizer
+            .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
+            .unwrap();
+        assert_eq!(norm_addrs.addrs.len(), 1);
+        assert_eq!(norm_addrs.meta.len(), 1);
+
+        let rc = unsafe { libc::dlclose(handle) };
+        assert_eq!(rc, 0, "{}", Error::last_os_error());
+
+        let norm_addr = norm_addrs.addrs[0];
+        let meta = &norm_addrs.meta[norm_addr.1];
+        let elf = meta.elf().unwrap();
+        assert_eq!(elf.path, test_so);
+        if read_build_ids {
+            let expected = read_elf_build_id(&test_so).unwrap().unwrap();
+            assert_eq!(elf.build_id.as_deref().unwrap(), &expected);
+        } else {
+            assert_eq!(elf.build_id, None);
+        }
+    }
+
+    test(true);
+    test(false);
 }
 
 
