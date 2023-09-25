@@ -219,7 +219,7 @@ fn symbolize_dwarf_complex() {
 fn symbolize_elf_demangle() {
     let test_elf = current_exe().unwrap();
     let addr = Normalizer::normalize_user_addrs_sorted as Addr;
-    let normalizer = Normalizer::new();
+    let normalizer = Normalizer::builder().enable_build_ids(false).build();
     let norm_addrs = normalizer
         .normalize_user_addrs_sorted(&[addr], Pid::Slf)
         .unwrap();

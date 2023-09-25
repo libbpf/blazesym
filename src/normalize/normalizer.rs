@@ -25,6 +25,38 @@ pub struct NormalizedAddrs<M> {
 }
 
 
+/// A builder for configurable construction of [`Normalizer`] objects.
+///
+/// By default all features are enabled.
+#[derive(Clone, Debug)]
+pub struct Builder {
+    /// Whether to read and report build IDs as part of the
+    /// normalization process.
+    build_ids: bool,
+}
+
+impl Builder {
+    /// Enable/disable the reading of build IDs.
+    pub fn enable_build_ids(mut self, enable: bool) -> Builder {
+        self.build_ids = enable;
+        self
+    }
+
+    /// Create the [`Normalizer`] object.
+    pub fn build(self) -> Normalizer {
+        let Builder { build_ids } = self;
+
+        Normalizer { build_ids }
+    }
+}
+
+impl Default for Builder {
+    fn default() -> Self {
+        Self { build_ids: true }
+    }
+}
+
+
 /// A normalizer for addresses.
 ///
 /// Address normalization is the process of taking virtual absolute
@@ -35,13 +67,21 @@ pub struct NormalizedAddrs<M> {
 /// and one would be able to see them using tools such as readelf(1).
 #[derive(Debug, Default)]
 pub struct Normalizer {
-    _private: (),
+    /// Flag indicating whether or not to read build IDs as part of the
+    /// normalization process.
+    build_ids: bool,
 }
 
 impl Normalizer {
-    /// Create a new `Normalizer`.
+    /// Create a new [`Normalizer`].
     pub fn new() -> Self {
-        Self { _private: () }
+        Builder::default().build()
+    }
+
+    /// Retrieve a [`Builder`] object for configurable construction of a
+    /// [`Normalizer`].
+    pub fn builder() -> Builder {
+        Builder::default()
     }
 
     /// Normalize `addresses` belonging to a process.

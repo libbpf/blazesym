@@ -39,6 +39,7 @@ pub use meta::ApkElf;
 pub use meta::Elf;
 pub use meta::Unknown;
 pub use meta::UserAddrMeta;
+pub use normalizer::Builder;
 pub use normalizer::Normalizer;
 pub use user::NormalizedUserAddrs;
 
