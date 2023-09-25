@@ -109,8 +109,7 @@ mod tests {
     use crate::inspect::FindAddrOpts;
     use crate::inspect::SymType;
     use crate::mmap::Mmap;
-    use crate::normalize::buildid::BuildIdReader;
-    use crate::normalize::buildid::DefaultBuildIdReader;
+    use crate::normalize::buildid::read_elf_build_id;
     use crate::normalize::ApkElf;
     use crate::normalize::Elf;
     use crate::normalize::Unknown;
@@ -235,11 +234,7 @@ mod tests {
             .join("data")
             .join("libtest-so.so");
         let expected_elf = Elf {
-            build_id: Some(
-                DefaultBuildIdReader::read_build_id_from_elf(&so_path)
-                    .unwrap()
-                    .unwrap(),
-            ),
+            build_id: Some(read_elf_build_id(&so_path).unwrap().unwrap()),
             path: so_path,
             _non_exhaustive: (),
         };
@@ -305,11 +300,7 @@ mod tests {
             let expected = ApkElf {
                 apk_path: test_zip,
                 elf_path: PathBuf::from(so_name),
-                elf_build_id: Some(
-                    DefaultBuildIdReader::read_build_id_from_elf(&so_path)
-                        .unwrap()
-                        .unwrap(),
-                ),
+                elf_build_id: Some(read_elf_build_id(&so_path).unwrap().unwrap()),
                 _non_exhaustive: (),
             };
             assert_eq!(meta, &UserAddrMeta::ApkElf(expected));
