@@ -21,6 +21,7 @@ use super::buildid::BuildIdFn;
 use super::buildid::BuildIdReader;
 use super::buildid::DefaultBuildIdReader;
 use super::buildid::ElfBuildIdFn;
+use super::buildid::NoBuildIdReader;
 use super::meta::ApkElf;
 use super::meta::Elf;
 use super::meta::Unknown;
@@ -390,16 +391,28 @@ where
 ///
 /// Normalized addresses are reported in the exact same order in which the
 /// non-normalized ones were provided.
-pub(super) fn normalize_user_addrs_sorted_impl<A>(addrs: A, pid: Pid) -> Result<NormalizedUserAddrs>
+pub(super) fn normalize_user_addrs_sorted_impl<A>(
+    addrs: A,
+    pid: Pid,
+    read_build_ids: bool,
+) -> Result<NormalizedUserAddrs>
 where
     A: ExactSizeIterator<Item = Addr> + Clone,
 {
     let addrs_cnt = addrs.len();
     let entries = maps::parse(pid)?;
-    let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-    let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
-    debug_assert_eq!(handler.normalized.addrs.len(), addrs_cnt);
-    Ok(handler.normalized)
+
+    if read_build_ids {
+        let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
+        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
+        debug_assert_eq!(handler.normalized.addrs.len(), addrs_cnt);
+        Ok(handler.normalized)
+    } else {
+        let handler = NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
+        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
+        debug_assert_eq!(handler.normalized.addrs.len(), addrs_cnt);
+        Ok(handler.normalized)
+    }
 }
 
 
@@ -408,8 +421,6 @@ mod tests {
     use super::*;
 
     use test_log::test;
-
-    use super::super::buildid::NoBuildIdReader;
 
 
     /// Check that we can create a path to an ELF inside an APK as expected.

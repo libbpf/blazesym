@@ -112,7 +112,7 @@ impl Normalizer {
         addrs: &[Addr],
         pid: Pid,
     ) -> Result<NormalizedUserAddrs> {
-        normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid)
+        normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid, self.build_ids)
     }
 
 
@@ -129,7 +129,7 @@ impl Normalizer {
         util::with_ordered_elems(
             addrs,
             |normalized: &mut NormalizedUserAddrs| normalized.addrs.as_mut_slice(),
-            |sorted_addrs| normalize_user_addrs_sorted_impl(sorted_addrs, pid),
+            |sorted_addrs| normalize_user_addrs_sorted_impl(sorted_addrs, pid, self.build_ids),
         )
     }
 }

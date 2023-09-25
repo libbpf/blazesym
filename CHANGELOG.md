@@ -10,6 +10,9 @@ Unreleased
 - Added support for reporting inlined functions for Gsym format
 - Introduced `symbolize::Symbolizer::symbolize_single` for more convenient
   symbolization of a single address
+- Introduced `normalize::Builder` type for customization of a
+  `normalize::Normalizer` instance and made reading of build IDs
+  configurable
 - Adjusted ELF symbolization code to honor symbol sizes
 - Renamed `symbolize::Builder::enable_src_location` to `enable_code_info`
 
