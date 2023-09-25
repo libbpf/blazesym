@@ -103,8 +103,8 @@ impl DwarfResolver {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
-        if self.line_number_info {
-            let location = self.units.find_location(addr as u64)?.map(|location| {
+        let code_info = if self.line_number_info {
+            if let Some(location) = self.units.find_location(addr as u64)? {
                 let Location {
                     dir,
                     file,
@@ -112,7 +112,7 @@ impl DwarfResolver {
                     column,
                 } = location;
 
-                AddrCodeInfo {
+                let code_info = AddrCodeInfo {
                     direct: (
                         None,
                         FrameCodeInfo {
@@ -124,12 +124,16 @@ impl DwarfResolver {
                     ),
                     // TODO: Gather and furnish inlined function information.
                     inlined: Vec::new(),
-                }
-            });
-            Ok(location)
+                };
+                Some(code_info)
+            } else {
+                None
+            }
         } else {
-            Ok(None)
-        }
+            None
+        };
+
+        Ok(code_info)
     }
 
     /// Lookup the symbol at an address.
