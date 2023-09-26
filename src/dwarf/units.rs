@@ -389,6 +389,17 @@ impl<'dwarf> Units<'dwarf> {
         Ok(())
     }
 
+    /// Initialize all inlined function data structures. This is used for
+    /// benchmarks.
+    #[cfg(test)]
+    #[cfg(feature = "nightly")]
+    fn parse_inlined_functions(&self) -> Result<(), gimli::Error> {
+        for unit in self.units.iter() {
+            let _functions = unit.parse_inlined_functions(&self.dwarf)?;
+        }
+        Ok(())
+    }
+
     /// Initialize all line data structures. This is used for benchmarks.
     #[cfg(test)]
     #[cfg(feature = "nightly")]
@@ -498,6 +509,37 @@ mod tests {
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
             let ctx = addr2line::Context::from_dwarf(dwarf).unwrap();
             let _funcs = black_box(ctx.parse_functions().unwrap());
+        });
+    }
+
+    /// Benchmark the parsing of inlined function information, end-to-end.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_inlined_function_parsing(b: &mut Bencher) {
+        let bin_name = env::current_exe().unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section);
+
+        let () = b.iter(|| {
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let units = Units::parse(black_box(dwarf)).unwrap();
+            let _lines = black_box(units.parse_inlined_functions().unwrap());
+        });
+    }
+
+    /// Benchmark the parsing of inlined function information, end-to-end, using
+    /// addr2line.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_inlined_function_parsing_addr2line(b: &mut Bencher) {
+        let bin_name = env::current_exe().unwrap();
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section);
+
+        let () = b.iter(|| {
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let ctx = addr2line::Context::from_dwarf(dwarf).unwrap();
+            let _lines = black_box(ctx.parse_inlined_functions().unwrap());
         });
     }
 

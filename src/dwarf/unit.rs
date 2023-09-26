@@ -73,6 +73,25 @@ impl<'dwarf> Unit<'dwarf> {
         Ok(functions)
     }
 
+    #[cfg(test)]
+    #[cfg(feature = "nightly")]
+    pub(super) fn parse_inlined_functions<'unit>(
+        &'unit self,
+        sections: &gimli::Dwarf<R<'dwarf>>,
+    ) -> Result<&'unit Functions<'dwarf>, gimli::Error> {
+        let unit = &self.dw_unit;
+        let functions = self
+            .funcs
+            .borrow_with(|| {
+                let funcs = Functions::parse(unit, sections)?;
+                let () = funcs.parse_inlined_functions(unit, sections)?;
+                Ok(funcs)
+            })
+            .as_ref()
+            .map_err(gimli::Error::clone)?;
+        Ok(functions)
+    }
+
     pub(super) fn parse_lines(
         &self,
         sections: &gimli::Dwarf<R<'dwarf>>,

@@ -388,6 +388,19 @@ impl<'dwarf> Functions<'dwarf> {
         })
     }
 
+    #[cfg(test)]
+    #[cfg(feature = "nightly")]
+    pub(crate) fn parse_inlined_functions(
+        &self,
+        unit: &gimli::Unit<R<'dwarf>>,
+        sections: &gimli::Dwarf<R<'dwarf>>,
+    ) -> Result<(), Error> {
+        for function in &*self.functions {
+            let _inlined_fns = function.parse_inlined_functions(unit, sections)?;
+        }
+        Ok(())
+    }
+
     pub(crate) fn find_address(&self, probe: u64) -> Option<usize> {
         self.addresses
             .binary_search_by(|address| {
