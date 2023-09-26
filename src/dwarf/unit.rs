@@ -73,10 +73,10 @@ impl<'dwarf> Unit<'dwarf> {
         Ok(functions)
     }
 
-    pub(super) fn parse_lines<'unit>(
-        &'unit self,
+    pub(super) fn parse_lines(
+        &self,
         sections: &gimli::Dwarf<R<'dwarf>>,
-    ) -> Result<Option<&'unit Lines<'dwarf>>, gimli::Error> {
+    ) -> Result<Option<&Lines<'dwarf>>, gimli::Error> {
         // NB: line information is always stored in the main debug file so this does not need
         // to handle DWOs.
         let ilnp = match self.dw_unit.line_program {
