@@ -126,14 +126,12 @@ fn symbolize_gsym_inlined() {
         let symbolizer = Symbolizer::builder()
             .enable_inlined_fns(inlined_fns)
             .build();
-        let results = symbolizer
-            .symbolize(&src, &[0x200020a])
+        let result = symbolizer
+            .symbolize_single(&src, 0x200020a)
             .unwrap()
-            .into_iter()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
+            .into_sym()
+            .unwrap();
 
-        let result = results[0].as_sym().unwrap();
         let code_info = result.code_info.as_ref().unwrap();
         assert_ne!(code_info.dir, None);
         assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
