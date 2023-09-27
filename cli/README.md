@@ -1,5 +1,5 @@
 [![pipeline](https://github.com/libbpf/blazesym/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/libbpf/blazesym/actions/workflows/test.yml)
-[![rustc](https://img.shields.io/badge/rustc-1.63+-blue.svg)](https://blog.rust-lang.org/2022/08/11/Rust-1.63.0.html)
+[![rustc](https://img.shields.io/badge/rustc-1.64+-blue.svg)](https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html)
 
 blazecli
 ========
