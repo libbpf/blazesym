@@ -36,6 +36,7 @@ use super::unit::Unit;
 
 
 /// A source location.
+#[derive(Debug, PartialEq)]
 pub struct Location<'dwarf> {
     /// The directory.
     pub dir: &'dwarf Path,

@@ -481,6 +481,42 @@ mod tests {
         }
     }
 
+    /// Check that we fail to find any data for an address not
+    /// represented.
+    #[test]
+    fn no_matching_data() {
+        let binaries = [
+            "test-dwarf-v2.bin",
+            "test-dwarf-v3.bin",
+            "test-dwarf-v4.bin",
+            "test-dwarf-v5.bin",
+        ];
+
+        for binary in binaries {
+            let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(binary);
+
+            let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+            let mut load_section = |section| reader::load_section(&parser, section);
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let units = Units::parse(dwarf).unwrap();
+
+            // Bogus address typically somewhere in kernel space but
+            // unlikely to be in any of our binaries.
+            let bogus_addr = 0xffffffffffff68d0;
+
+            let func = units.find_function(bogus_addr).unwrap();
+            assert!(func.is_none());
+
+            let loc = units.find_location(bogus_addr).unwrap();
+            assert_eq!(loc, None);
+
+            let inlined = units.find_inlined_functions(bogus_addr).unwrap();
+            assert!(inlined.is_none());
+        }
+    }
+
     /// Benchmark the parsing of all functions, end-to-end.
     #[cfg(feature = "nightly")]
     #[bench]
