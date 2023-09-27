@@ -74,7 +74,7 @@ codegen-units = 1
 
 [dependencies]
 cpp_demangle = {version = "0.4", optional = true}
-gimli = {version = "0.27.2", optional = true}
+gimli = {version = "0.28", optional = true}
 libc = "0.2.137"
 lru = {version = "0.10", optional = true}
 rustc-demangle = {version = "0.1", optional = true}
@@ -83,7 +83,7 @@ tracing = {version = "0.1", default-features = false, features = ["attributes"],
 [dev-dependencies]
 # For performance comparison; pinned, because we use #[doc(hidden)]
 # APIs.
-addr2line = "=0.20.0"
+addr2line = "=0.21.0"
 anyhow = "1.0.71"
 blazesym = {path = ".", features = ["generate-unit-test-files", "tracing"]}
 criterion = {version = "0.5.1", default-features = false, features = ["rayon", "cargo_bench_support"]}
