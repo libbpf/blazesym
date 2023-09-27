@@ -15,6 +15,7 @@ Unreleased
   configurable
 - Adjusted ELF symbolization code to honor symbol sizes
 - Renamed `symbolize::Builder::enable_src_location` to `enable_code_info`
+- Bumped minimum supported Rust version to `1.64`
 
 
 0.2.0-alpha.6
