@@ -1,3 +1,5 @@
+#![allow(clippy::let_unit_value)]
+
 use std::cmp::min;
 use std::mem::size_of;
 use std::mem::transmute;
@@ -16,7 +18,7 @@ const ADDR_WIDTH: usize = 16;
 
 
 fn print_frame(name: &str, addr_info: Option<(Addr, Addr, usize)>, code_info: &Option<CodeInfo>) {
-    let code_info = if let Some(code_info) = code_info {
+    let code_info = code_info.as_ref().map(|code_info| {
         let path = code_info.to_path();
         let path = path.display();
 
@@ -25,21 +27,24 @@ fn print_frame(name: &str, addr_info: Option<(Addr, Addr, usize)>, code_info: &O
             (Some(line), None) => format!(" {path}:{line}"),
             (None, _) => format!(" {path}"),
         }
-    } else {
-        String::new()
-    };
+    });
 
     if let Some((input_addr, addr, offset)) = addr_info {
         // If we have various address information bits we have a new symbol.
         println!(
             "{input_addr:#0width$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
+            code_info = code_info.as_deref().unwrap_or(""),
             width = ADDR_WIDTH
         )
     } else {
         // Otherwise we are dealing with an inlined call.
         println!(
-            "{:width$}  {name} @ {code_info} [inlined]",
+            "{:width$}  {name}{code_info} [inlined]",
             " ",
+            code_info = code_info
+                .map(|info| format!(" @{info}"))
+                .as_deref()
+                .unwrap_or(""),
             width = ADDR_WIDTH
         )
     }
@@ -52,8 +57,13 @@ fn symbolize_current_bt() {
 
     let mut bt_buf = [ptr::null_mut::<libc::c_void>(); MAX_CNT];
     let bt_cnt = unsafe { libc::backtrace(bt_buf.as_mut_ptr(), MAX_CNT as _) } as usize;
-    let bt = &bt_buf[0..min(bt_cnt, MAX_CNT)];
-    let bt = unsafe { transmute::<&[*mut libc::c_void], &[Addr]>(bt) };
+    let bt = &mut bt_buf[0..min(bt_cnt, MAX_CNT)];
+    let bt = unsafe { transmute::<&mut [*mut libc::c_void], &mut [Addr]>(bt) };
+
+    // For all but the top most address in the call stack, adjust for
+    // the fact that we captured the address we will return to, but not
+    // the one we called from.
+    let () = bt.iter_mut().skip(1).for_each(|addr| *addr -= 1);
 
     // Symbolize the addresses for the current process, as that's where
     // they were captured.
@@ -91,7 +101,7 @@ fn f() {
     g()
 }
 
-#[inline(never)]
+#[inline(always)]
 fn g() {
     h()
 }

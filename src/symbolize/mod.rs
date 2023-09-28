@@ -21,8 +21,12 @@
 //!
 //! const ADDR_WIDTH: usize = 16;
 //!
-//! fn print_frame(name: &str, addr_info: Option<(Addr, Addr, usize)>, code_info: &Option<CodeInfo>) {
-//!     let code_info = if let Some(code_info) = code_info {
+//! fn print_frame(
+//!     name: &str,
+//!     addr_info: Option<(Addr, Addr, usize)>,
+//!     code_info: &Option<CodeInfo>,
+//! ) {
+//!     let code_info = code_info.as_ref().map(|code_info| {
 //!         let path = code_info.to_path();
 //!         let path = path.display();
 //!
@@ -31,21 +35,24 @@
 //!             (Some(line), None) => format!(" {path}:{line}"),
 //!             (None, _) => format!(" {path}"),
 //!         }
-//!     } else {
-//!         String::new()
-//!     };
+//!     });
 //!
 //!     if let Some((input_addr, addr, offset)) = addr_info {
 //!         // If we have various address information bits we have a new symbol.
 //!         println!(
 //!             "{input_addr:#0width$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
+//!             code_info = code_info.as_deref().unwrap_or(""),
 //!             width = ADDR_WIDTH
 //!         )
 //!     } else {
 //!         // Otherwise we are dealing with an inlined call.
 //!         println!(
-//!             "{:width$}  {name} @ {code_info} [inlined]",
+//!             "{:width$}  {name}{code_info} [inlined]",
 //!             " ",
+//!             code_info = code_info
+//!                 .map(|info| format!(" @{info}"))
+//!                 .as_deref()
+//!                 .unwrap_or(""),
 //!             width = ADDR_WIDTH
 //!         )
 //!     }
