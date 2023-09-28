@@ -214,12 +214,19 @@ impl Symbolizer {
             (None, None)
         };
 
+        let IntSym {
+            name: sym_name,
+            addr: sym_addr,
+            size: sym_size,
+            lang,
+        } = sym;
+
         let inlined = if let Some(code_info) = &addr_code_info {
             code_info
                 .inlined
                 .iter()
                 .map(|(name, info)| {
-                    let name = name.to_string();
+                    let name = self.maybe_demangle(name, lang);
                     let info = info.as_ref().map(CodeInfo::from);
                     InlinedFn {
                         name,
@@ -231,13 +238,6 @@ impl Symbolizer {
         } else {
             Vec::new()
         };
-
-        let IntSym {
-            name: sym_name,
-            addr: sym_addr,
-            size: sym_size,
-            lang,
-        } = sym;
 
         let sym = Sym {
             name: self.maybe_demangle(name.unwrap_or(sym_name), lang),

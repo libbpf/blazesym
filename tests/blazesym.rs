@@ -221,52 +221,87 @@ fn symbolize_dwarf_complex() {
     assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
 }
 
+
+#[inline(always)]
+fn inlined_call() -> usize {
+    42
+}
+
+
+#[inline(never)]
+fn test_function() {
+    let _x = inlined_call();
+}
+
+
 /// Symbolize a normalized address inside an ELF file, with and without
 /// auto-demangling enabled.
 #[test]
 fn symbolize_elf_demangle() {
-    let test_elf = current_exe().unwrap();
-    let addr = Normalizer::normalize_user_addrs_sorted as Addr;
+    fn test(addr: Addr) -> Result<(), ()> {
+        let test_elf = current_exe().unwrap();
+        let src = symbolize::Source::Elf(symbolize::Elf::new(test_elf));
+        let symbolizer = Symbolizer::builder().enable_demangling(false).build();
+        let result = symbolizer
+            .symbolize_single(&src, addr)
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert!(
+            result.name.contains("blazesym13test_function"),
+            "{result:x?}"
+        );
+
+        if result.inlined.is_empty() {
+            return Err(())
+        }
+        assert!(result.inlined[0].name.contains("blazesym12inlined_call"));
+
+        // Do it again, this time with demangling enabled.
+        let symbolizer = Symbolizer::new();
+        let result = symbolizer
+            .symbolize_single(&src, addr)
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(result.name, "blazesym::test_function");
+        assert_eq!(result.inlined.len(), 1, "{:#?}", result.inlined);
+        assert_eq!(result.inlined[0].name, "blazesym::inlined_call");
+        Ok(())
+    }
+
+    if !cfg!(debug_assertions) {
+        return
+    }
+
+    let () = test_function();
+    let addrs = [test_function as Addr];
     let normalizer = Normalizer::builder().enable_build_ids(false).build();
     let norm_addrs = normalizer
-        .normalize_user_addrs_sorted(&[addr], Pid::Slf)
+        .normalize_user_addrs_sorted(&addrs, Pid::Slf)
         .unwrap();
     let (addr, _meta_idx) = norm_addrs.addrs[0];
 
+    let test_elf = current_exe().unwrap();
     let src = symbolize::Source::Elf(symbolize::Elf::new(test_elf));
     let symbolizer = Symbolizer::builder().enable_demangling(false).build();
-    let results = symbolizer
-        .symbolize(&src, &[addr])
+    let result = symbolizer
+        .symbolize_single(&src, addr)
         .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
+        .into_sym()
+        .unwrap();
 
-    let result = results[0].as_sym().unwrap();
-    assert!(
-        result
-            .name
-            .contains("Normalizer27normalize_user_addrs_sorted"),
-        "{result:x?}"
-    );
+    let addr = result.addr;
+    let size = result.size.unwrap();
+    for inst_addr in addr..addr + size {
+        if test(inst_addr).is_ok() {
+            return
+        }
+    }
 
-    // Do it again, this time with demangling enabled.
-    let symbolizer = Symbolizer::new();
-    let results = symbolizer
-        .symbolize(&src, &[addr])
-        .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
-
-    let result = results[0].as_sym().unwrap();
-    assert!(
-        result.name == "blazesym::normalize::normalizer::Normalizer::normalize_user_addrs_sorted"
-            || result.name
-                == "<blazesym::normalize::normalizer::Normalizer>::normalize_user_addrs_sorted",
-        "{}",
-        result.name
-    );
+    panic!("failed to find inlined function call");
 }
 
 /// Check that we can symbolize addresses inside our own process.
