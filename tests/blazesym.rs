@@ -35,7 +35,9 @@ fn error_on_non_existent_source() {
     let symbolizer = Symbolizer::default();
 
     for src in srcs {
-        let err = symbolizer.symbolize(&src, &[0x2000100]).unwrap_err();
+        let err = symbolizer
+            .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+            .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::NotFound);
     }
 }
@@ -46,7 +48,7 @@ fn symbolize_elf_dwarf_gsym() {
     fn test(src: symbolize::Source, has_code_info: bool) {
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, 0x2000100)
+            .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -75,7 +77,7 @@ fn symbolize_elf_dwarf_gsym() {
             .map(|offset| (0x2000100 + offset) as Addr)
             .collect::<Vec<_>>();
         let results = symbolizer
-            .symbolize(&src, &addrs)
+            .symbolize(&src, symbolize::Input::VirtOffset(&addrs))
             .unwrap()
             .into_iter()
             .collect::<Vec<_>>();
@@ -130,7 +132,7 @@ fn symbolize_dwarf_gsym_inlined() {
             .enable_inlined_fns(inlined_fns)
             .build();
         let result = symbolizer
-            .symbolize_single(&src, 0x200020a)
+            .symbolize_single(&src, symbolize::Input::VirtOffset(0x200020a))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -211,14 +213,12 @@ fn symbolize_dwarf_complex() {
         .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
     let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
     let symbolizer = Symbolizer::new();
-    let results = symbolizer
-        .symbolize(&src, &[0xffffffff8110ecb0])
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(0xffffffff8110ecb0))
         .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
+        .into_sym()
+        .unwrap();
 
-    let result = results[0].as_sym().unwrap();
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.addr, 0xffffffff8110ecb0);
     assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
@@ -233,7 +233,7 @@ fn symbolize_dwarf_demangle() {
         let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
         let symbolizer = Symbolizer::builder().enable_demangling(false).build();
         let result = symbolizer
-            .symbolize_single(&src, addr)
+            .symbolize_single(&src, symbolize::Input::VirtOffset(addr))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -256,7 +256,7 @@ fn symbolize_dwarf_demangle() {
         // Do it again, this time with demangling enabled.
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, addr)
+            .symbolize_single(&src, symbolize::Input::VirtOffset(addr))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -286,7 +286,7 @@ fn symbolize_dwarf_demangle() {
     let src = symbolize::Source::Elf(symbolize::Elf::new(&test_dwarf));
     let symbolizer = Symbolizer::builder().enable_demangling(false).build();
     let result = symbolizer
-        .symbolize_single(&src, addr)
+        .symbolize_single(&src, symbolize::Input::VirtOffset(addr))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -309,7 +309,7 @@ fn symbolize_process() {
     let addrs = [symbolize_process as Addr, Symbolizer::new as Addr];
     let symbolizer = Symbolizer::new();
     let results = symbolizer
-        .symbolize(&src, &addrs)
+        .symbolize(&src, symbolize::Input::AbsAddr(&addrs))
         .unwrap()
         .into_iter()
         .collect::<Vec<_>>();
@@ -358,14 +358,12 @@ fn normalize_elf_addr() {
         let elf = symbolize::Elf::new(test_so);
         let src = symbolize::Source::Elf(elf);
         let symbolizer = Symbolizer::new();
-        let results = symbolizer
-            .symbolize(&src, &[norm_addr.0])
+        let result = symbolizer
+            .symbolize_single(&src, symbolize::Input::VirtOffset(norm_addr.0))
             .unwrap()
-            .into_iter()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
+            .into_sym()
+            .unwrap();
 
-        let result = results[0].as_sym().unwrap();
         assert_eq!(result.name, "the_answer");
     }
 

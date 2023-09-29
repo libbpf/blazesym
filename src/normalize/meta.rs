@@ -31,7 +31,11 @@ type BuildId = Vec<u8>;
 ///
 /// let src = symbolize::Source::from(symbolize::Elf::new(elf_path));
 /// let symbolizer = symbolize::Symbolizer::new();
-/// let syms = symbolizer.symbolize(&src, &[norm_addr]).unwrap();
+/// let sym = symbolizer
+///   .symbolize_single(&src, symbolize::Input::VirtOffset(norm_addr))
+///   .unwrap()
+///   .into_sym()
+///   .unwrap();
 /// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct ApkElf {

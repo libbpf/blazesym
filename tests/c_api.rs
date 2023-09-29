@@ -25,10 +25,10 @@ use blazesym::c_api::blaze_normalizer_free;
 use blazesym::c_api::blaze_normalizer_new;
 use blazesym::c_api::blaze_result;
 use blazesym::c_api::blaze_result_free;
-use blazesym::c_api::blaze_symbolize_elf;
-use blazesym::c_api::blaze_symbolize_gsym_data;
-use blazesym::c_api::blaze_symbolize_gsym_file;
-use blazesym::c_api::blaze_symbolize_process;
+use blazesym::c_api::blaze_symbolize_elf_file_addrs;
+use blazesym::c_api::blaze_symbolize_gsym_data_file_addrs;
+use blazesym::c_api::blaze_symbolize_gsym_file_file_addrs;
+use blazesym::c_api::blaze_symbolize_process_virt_addrs;
 use blazesym::c_api::blaze_symbolize_src_elf;
 use blazesym::c_api::blaze_symbolize_src_gsym_data;
 use blazesym::c_api::blaze_symbolize_src_gsym_file;
@@ -116,7 +116,7 @@ fn symbolize_elf_dwarf_gsym() {
         path: path_c.as_ptr(),
     };
     let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-        blaze_symbolize_elf(symbolizer, &elf_src, addrs, addr_cnt)
+        blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs, addr_cnt)
     };
     test(symbolize, false);
 
@@ -128,7 +128,7 @@ fn symbolize_elf_dwarf_gsym() {
         path: path_c.as_ptr(),
     };
     let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-        blaze_symbolize_elf(symbolizer, &elf_src, addrs, addr_cnt)
+        blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs, addr_cnt)
     };
     test(symbolize, true);
 
@@ -140,7 +140,7 @@ fn symbolize_elf_dwarf_gsym() {
         path: path_c.as_ptr(),
     };
     let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-        blaze_symbolize_gsym_file(symbolizer, &gsym_src, addrs, addr_cnt)
+        blaze_symbolize_gsym_file_file_addrs(symbolizer, &gsym_src, addrs, addr_cnt)
     };
     test(symbolize, true);
 
@@ -153,7 +153,7 @@ fn symbolize_elf_dwarf_gsym() {
         data_len: data.len(),
     };
     let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-        blaze_symbolize_gsym_data(symbolizer, &gsym_src, addrs, addr_cnt)
+        blaze_symbolize_gsym_data_file_addrs(symbolizer, &gsym_src, addrs, addr_cnt)
     };
     test(symbolize, true);
 }
@@ -177,8 +177,9 @@ fn symbolize_dwarf_demangle() {
         };
         let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
         let addrs = [addr];
-        let result =
-            unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+        let result = unsafe {
+            blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+        };
         assert!(!result.is_null());
 
         let result = unsafe { &*result };
@@ -219,8 +220,9 @@ fn symbolize_dwarf_demangle() {
 
         let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
         let addrs = [addr];
-        let result =
-            unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+        let result = unsafe {
+            blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+        };
         assert!(!result.is_null());
 
         let result = unsafe { &*result };
@@ -265,7 +267,7 @@ fn symbolize_dwarf_demangle() {
         .enable_demangling(false)
         .build();
     let result = symbolizer
-        .symbolize_single(&src, addr)
+        .symbolize_single(&src, symbolize::Input::VirtOffset(addr))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -289,8 +291,9 @@ fn symbolize_in_process() {
 
     let symbolizer = blaze_symbolizer_new();
     let addrs = [blaze_symbolizer_new as Addr];
-    let result =
-        unsafe { blaze_symbolize_process(symbolizer, &process_src, addrs.as_ptr(), addrs.len()) };
+    let result = unsafe {
+        blaze_symbolize_process_virt_addrs(symbolizer, &process_src, addrs.as_ptr(), addrs.len())
+    };
 
     assert!(!result.is_null());
 

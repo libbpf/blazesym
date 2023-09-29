@@ -11,6 +11,7 @@
 //! # use std::mem::transmute;
 //! # use std::ptr;
 //! use blazesym::symbolize::CodeInfo;
+//! use blazesym::symbolize::Input;
 //! use blazesym::symbolize::Process;
 //! use blazesym::symbolize::Source;
 //! use blazesym::symbolize::Sym;
@@ -71,7 +72,7 @@
 //! // they were captured.
 //! let src = Source::Process(Process::new(Pid::Slf));
 //! let symbolizer = Symbolizer::new();
-//! let syms = symbolizer.symbolize(&src, addrs).unwrap();
+//! let syms = symbolizer.symbolize(&src, Input::AbsAddr(addrs)).unwrap();
 //!
 //! for (input_addr, sym) in addrs.iter().copied().zip(syms) {
 //!     match sym {
@@ -115,6 +116,42 @@ pub use symbolizer::Builder;
 pub use symbolizer::Symbolizer;
 
 use crate::Addr;
+
+
+/// A enumeration of the different input types the symbolization APIs
+/// support.
+#[derive(Clone, Copy, Debug)]
+pub enum Input<T> {
+    /// An absolute address.
+    ///
+    /// A absolute address is an address as a process would see it, for example.
+    /// It may include relocation or address space randomization artifacts.
+    AbsAddr(T),
+    /// A virtual offset.
+    ///
+    /// A virtual offset is an address as it would appear in a binary or debug
+    /// symbol file.
+    VirtOffset(T),
+    /// A file offset.
+    ///
+    /// A file offset is the linear offset of a symbol in a file.
+    FileOffset(T),
+}
+
+#[cfg(test)]
+impl<T> Input<&[T]>
+where
+    T: Copy,
+{
+    fn try_to_single(&self) -> Option<Input<T>> {
+        match self {
+            Self::AbsAddr([addr]) => Some(Input::AbsAddr(*addr)),
+            Self::VirtOffset([addr]) => Some(Input::VirtOffset(*addr)),
+            Self::FileOffset([offset]) => Some(Input::FileOffset(*offset)),
+            _ => None,
+        }
+    }
+}
 
 
 #[derive(Debug, PartialEq)]
