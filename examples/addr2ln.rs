@@ -6,6 +6,7 @@ use anyhow::Result;
 
 use blazesym::symbolize::CodeInfo;
 use blazesym::symbolize::Elf;
+use blazesym::symbolize::Input;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolized;
@@ -69,7 +70,7 @@ fn main() -> Result<()> {
     let addrs = [addr];
     let symbolizer = Symbolizer::new();
     let syms = symbolizer
-        .symbolize(&src, &addrs)
+        .symbolize(&src, Input::VirtOffset(&addrs))
         .with_context(|| format!("failed to symbolize address {addr:#x}"))?;
 
     for (input_addr, sym) in addrs.iter().copied().zip(syms) {

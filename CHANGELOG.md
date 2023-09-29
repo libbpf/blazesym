@@ -2,6 +2,8 @@ Unreleased
 ----------
 - Fixed build failure when `dwarf` feature is not enabled
 - Changed `Addr` to map to 64 bit integer
+- Introduced `symbolize::Input` enum and made it part of symbolization APIs to
+  distinguish between and support different input types
 
 
 0.2.0-alpha.7

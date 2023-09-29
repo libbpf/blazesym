@@ -132,7 +132,7 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
     };
 
     let syms = symbolizer
-        .symbolize(&src, &addrs)
+        .symbolize(&src, symbolize::Input::VirtOffset(&addrs))
         .context("failed to symbolize addresses")?;
 
     for (input_addr, sym) in addrs.iter().copied().zip(syms) {
