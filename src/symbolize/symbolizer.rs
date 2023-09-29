@@ -21,6 +21,7 @@ use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::util;
 use crate::util::uname_release;
 use crate::Addr;
+use crate::Error;
 use crate::ErrorExt as _;
 use crate::IntSym;
 use crate::Pid;
@@ -37,6 +38,7 @@ use super::source::Process;
 use super::source::Source;
 use super::CodeInfo;
 use super::InlinedFn;
+use super::Input;
 use super::Sym;
 use super::Symbolized;
 
@@ -447,19 +449,47 @@ impl Symbolizer {
     /// | Ksym          | symbol size                      | no                       | N/A                      |
     /// |               | source code location information | no                       | N/A                      |
     /// |               | inlined function information     | no                       | N/A                      |
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{addrs:#x?}"))))]
-    pub fn symbolize(&self, src: &Source, addrs: &[Addr]) -> Result<Vec<Symbolized>> {
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{input:#x?}"))))]
+    pub fn symbolize(&self, src: &Source, input: Input<&[u64]>) -> Result<Vec<Symbolized>> {
         match src {
             Source::Elf(Elf {
                 path,
                 _non_exhaustive: (),
             }) => {
+                let addrs = match input {
+                    Input::VirtOffset(addrs) => addrs,
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "ELF symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "ELF symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let backend = self.elf_cache.find(path)?;
                 let resolver = ElfResolver::with_backend(path, backend)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)
             }
             Source::Kernel(kernel) => {
+                let addrs = match input {
+                    Input::AbsAddr(addrs) => addrs,
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "kernel symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "kernel symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let resolver = self.create_kernel_resolver(kernel)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)
@@ -467,11 +497,41 @@ impl Symbolizer {
             Source::Process(Process {
                 pid,
                 _non_exhaustive: (),
-            }) => self.symbolize_user_addrs(addrs, *pid),
+            }) => {
+                let addrs = match input {
+                    Input::AbsAddr(addrs) => addrs,
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "process symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "process symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
+                self.symbolize_user_addrs(addrs, *pid)
+            }
             Source::Gsym(Gsym::Data(GsymData {
                 data,
                 _non_exhaustive: (),
             })) => {
+                let addrs = match input {
+                    Input::VirtOffset(addrs) => addrs,
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let resolver = GsymResolver::with_data(data)?;
                 let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)
@@ -480,6 +540,20 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             })) => {
+                let addrs = match input {
+                    Input::VirtOffset(addrs) => addrs,
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let resolver = GsymResolver::new(path.clone())?;
                 let symbols = self.symbolize_addrs(addrs, &resolver)?;
                 Ok(symbols)
@@ -487,23 +561,51 @@ impl Symbolizer {
         }
     }
 
-    /// Symbolize a single address.
+    /// Symbolize a single input address/offset.
     ///
     /// In general, it is more performant to symbolize addresses in batches
     /// using [`symbolize`][Self::symbolize]. However, in cases where only a
     /// single address is available, this method provides a more convenient API.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addr = format_args!("{addr:#x?}"))))]
-    pub fn symbolize_single(&self, src: &Source, addr: Addr) -> Result<Symbolized> {
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, input = format_args!("{input:#x?}"))))]
+    pub fn symbolize_single(&self, src: &Source, input: Input<u64>) -> Result<Symbolized> {
         match src {
             Source::Elf(Elf {
                 path,
                 _non_exhaustive: (),
             }) => {
+                let addr = match input {
+                    Input::VirtOffset(addr) => addr,
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "ELF symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "ELF symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let backend = self.elf_cache.find(path)?;
                 let resolver = ElfResolver::with_backend(path, backend)?;
                 self.symbolize_with_resolver(addr, &resolver)
             }
             Source::Kernel(kernel) => {
+                let addr = match input {
+                    Input::AbsAddr(addr) => addr,
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "kernel symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "kernel symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let resolver = self.create_kernel_resolver(kernel)?;
                 self.symbolize_with_resolver(addr, &resolver)
             }
@@ -511,6 +613,20 @@ impl Symbolizer {
                 pid,
                 _non_exhaustive: (),
             }) => {
+                let addr = match input {
+                    Input::AbsAddr(addr) => addr,
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "process symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "process symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let mut symbols = self.symbolize_user_addrs(&[addr], *pid)?;
                 debug_assert!(symbols.len() <= 1, "{symbols:#?}");
                 Ok(symbols.pop().unwrap_or(Symbolized::Unknown))
@@ -519,6 +635,20 @@ impl Symbolizer {
                 data,
                 _non_exhaustive: (),
             })) => {
+                let addr = match input {
+                    Input::VirtOffset(addr) => addr,
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let resolver = GsymResolver::with_data(data)?;
                 self.symbolize_with_resolver(addr, &resolver)
             }
@@ -526,6 +656,20 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             })) => {
+                let addr = match input {
+                    Input::VirtOffset(addr) => addr,
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "Gsym symbolization does not support file offset inputs",
+                        ))
+                    }
+                };
+
                 let resolver = GsymResolver::new(path.clone())?;
                 self.symbolize_with_resolver(addr, &resolver)
             }
@@ -555,6 +699,7 @@ mod tests {
     use crate::symbolize;
     use crate::symbolize::Symbolizer;
     use crate::zip;
+    use crate::ErrorKind;
 
     use test_log::test;
 
@@ -573,6 +718,63 @@ mod tests {
 
         info.dir = Some(PathBuf::from("/foobar"));
         assert_eq!(info.to_path(), Path::new("/foobar/source.c"));
+    }
+
+    /// Make sure that we error out as expected on certain input
+    /// variants.
+    #[test]
+    fn unsupported_inputs() {
+        let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.bin");
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.gsym");
+
+        let unsupported = [
+            (
+                symbolize::Source::Process(symbolize::Process::new(Pid::Slf)),
+                [
+                    Input::VirtOffset([42].as_slice()),
+                    Input::FileOffset([43].as_slice()),
+                ],
+            ),
+            (
+                symbolize::Source::Kernel(symbolize::Kernel::default()),
+                [
+                    Input::VirtOffset([44].as_slice()),
+                    Input::FileOffset([45].as_slice()),
+                ],
+            ),
+            (
+                symbolize::Source::Elf(symbolize::Elf::new(&test_elf)),
+                [
+                    Input::AbsAddr([45].as_slice()),
+                    Input::FileOffset([47].as_slice()),
+                ],
+            ),
+            (
+                symbolize::Source::Gsym(symbolize::Gsym::File(symbolize::GsymFile::new(
+                    &test_gsym,
+                ))),
+                [
+                    Input::AbsAddr([48].as_slice()),
+                    Input::FileOffset([49].as_slice()),
+                ],
+            ),
+        ];
+
+        let symbolizer = Symbolizer::new();
+        for (src, inputs) in unsupported {
+            for input in inputs {
+                let err = symbolizer.symbolize(&src, input).unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+                let input = input.try_to_single().unwrap();
+                let err = symbolizer.symbolize_single(&src, input).unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::Unsupported);
+            }
+        }
     }
 
     /// Check that we can symbolize an address residing in a zip archive.
@@ -621,14 +823,12 @@ mod tests {
         // process.
         let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
         let symbolizer = Symbolizer::new();
-        let results = symbolizer
-            .symbolize(&src, &[the_answer_addr as Addr])
+        let result = symbolizer
+            .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
             .unwrap()
-            .into_iter()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
+            .into_sym()
+            .unwrap();
 
-        let result = results[0].as_sym().unwrap();
         assert_eq!(result.name, "the_answer");
         assert_eq!(result.addr, sym.addr);
     }

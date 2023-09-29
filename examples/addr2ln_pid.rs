@@ -5,6 +5,7 @@ use anyhow::Context as _;
 use anyhow::Result;
 
 use blazesym::symbolize::CodeInfo;
+use blazesym::symbolize::Input;
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Sym;
@@ -72,7 +73,7 @@ print its symbol, the file name of the source, and the line number.",
     let addrs = [addr];
     let symbolizer = Symbolizer::new();
     let syms = symbolizer
-        .symbolize(&src, &addrs)
+        .symbolize(&src, Input::VirtOffset(&addrs))
         .with_context(|| format!("failed to symbolize address {addr:#x}"))?;
 
     for (input_addr, sym) in addrs.iter().copied().zip(syms) {

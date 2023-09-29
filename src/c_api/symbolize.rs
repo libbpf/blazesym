@@ -18,6 +18,7 @@ use crate::symbolize::Elf;
 use crate::symbolize::GsymData;
 use crate::symbolize::GsymFile;
 use crate::symbolize::InlinedFn;
+use crate::symbolize::Input;
 use crate::symbolize::Kernel;
 use crate::symbolize::Process;
 use crate::symbolize::Source;
@@ -475,32 +476,47 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
 unsafe fn blaze_symbolize_impl(
     symbolizer: *mut blaze_symbolizer,
     src: Source<'_>,
-    addrs: *const Addr,
-    addr_cnt: usize,
+    inputs: Input<*const u64>,
+    input_cnt: usize,
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
-    // SAFETY: The caller ensures that the pointer is valid and the count
-    //         matches.
-    let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
 
-    let result = symbolizer.symbolize(&src, addrs);
+    let input = match inputs {
+        Input::AbsAddr(addrs) => {
+            // SAFETY: The caller ensures that the pointer is valid and the count
+            //         matches.
+            Input::AbsAddr(unsafe { slice_from_user_array(addrs, input_cnt) })
+        }
+        Input::VirtOffset(addrs) => {
+            // SAFETY: The caller ensures that the pointer is valid and the count
+            //         matches.
+            Input::VirtOffset(unsafe { slice_from_user_array(addrs, input_cnt) })
+        }
+        Input::FileOffset(offsets) => {
+            // SAFETY: The caller ensures that the pointer is valid and the count
+            //         matches.
+            Input::FileOffset(unsafe { slice_from_user_array(offsets, input_cnt) })
+        }
+    };
+
+    let result = symbolizer.symbolize(&src, input);
 
     match result {
         Ok(results) if results.is_empty() => {
-            warn!("empty result while request for {addr_cnt}");
+            warn!("empty result symbolizing {input_cnt} inputs");
             ptr::null()
         }
         Ok(results) => convert_symbolizedresults_to_c(results),
         Err(_err) => {
-            error!("failed to symbolize {addr_cnt} addresses: {_err}");
+            error!("failed to symbolize {input_cnt} inputs: {_err}");
             ptr::null()
         }
     }
 }
 
 
-/// Symbolize addresses of a process.
+/// Symbolize a list of process virtual addresses.
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
@@ -512,7 +528,7 @@ unsafe fn blaze_symbolize_impl(
 /// [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_process(
+pub unsafe extern "C" fn blaze_symbolize_process_virt_addrs(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_process,
     addrs: *const Addr,
@@ -520,11 +536,11 @@ pub unsafe extern "C" fn blaze_symbolize_process(
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Process::from(unsafe { &*src }));
-    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+    unsafe { blaze_symbolize_impl(symbolizer, src, Input::AbsAddr(addrs), addr_cnt) }
 }
 
 
-/// Symbolize kernel addresses.
+/// Symbolize a list of kernel virtual addresses.
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
@@ -536,7 +552,7 @@ pub unsafe extern "C" fn blaze_symbolize_process(
 /// [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_kernel(
+pub unsafe extern "C" fn blaze_symbolize_kernel_virt_addrs(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_kernel,
     addrs: *const Addr,
@@ -544,11 +560,11 @@ pub unsafe extern "C" fn blaze_symbolize_kernel(
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Kernel::from(unsafe { &*src }));
-    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+    unsafe { blaze_symbolize_impl(symbolizer, src, Input::AbsAddr(addrs), addr_cnt) }
 }
 
 
-/// Symbolize addresses in an ELF file.
+/// Symbolize file addresses in an ELF file.
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
@@ -560,7 +576,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel(
 /// [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_elf(
+pub unsafe extern "C" fn blaze_symbolize_elf_file_addrs(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_elf,
     addrs: *const Addr,
@@ -568,11 +584,11 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(Elf::from(unsafe { &*src }));
-    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+    unsafe { blaze_symbolize_impl(symbolizer, src, Input::VirtOffset(addrs), addr_cnt) }
 }
 
 
-/// Symbolize addresses using "raw" Gsym data.
+/// Symbolize file addresses using "raw" Gsym data.
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
@@ -584,7 +600,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf(
 /// [`blaze_symbolize_src_gsym_data`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_gsym_data(
+pub unsafe extern "C" fn blaze_symbolize_gsym_data_file_addrs(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_gsym_data,
     addrs: *const Addr,
@@ -594,11 +610,11 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data(
     //         lifetime is entirely conjured up, but the object only needs to be
     //         valid for the call.
     let src = Source::from(GsymData::from(unsafe { &*src }));
-    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+    unsafe { blaze_symbolize_impl(symbolizer, src, Input::VirtOffset(addrs), addr_cnt) }
 }
 
 
-/// Symbolize addresses in a Gsym file.
+/// Symbolize file addresses in a Gsym file.
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
@@ -610,7 +626,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data(
 /// [`blaze_symbolize_src_gsym_file`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_gsym_file(
+pub unsafe extern "C" fn blaze_symbolize_gsym_file_file_addrs(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_gsym_file,
     addrs: *const Addr,
@@ -618,7 +634,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_file(
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let src = Source::from(GsymFile::from(unsafe { &*src }));
-    unsafe { blaze_symbolize_impl(symbolizer, src, addrs, addr_cnt) }
+    unsafe { blaze_symbolize_impl(symbolizer, src, Input::VirtOffset(addrs), addr_cnt) }
 }
 
 

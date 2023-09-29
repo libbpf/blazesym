@@ -6,6 +6,7 @@ use std::path::Path;
 use blazesym::c_api;
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::GsymFile;
+use blazesym::symbolize::Input;
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
@@ -29,7 +30,7 @@ fn symbolize_process() {
 
     let symbolizer = Symbolizer::new();
     let results = symbolizer
-        .symbolize(black_box(&src), black_box(&addrs))
+        .symbolize(black_box(&src), black_box(Input::AbsAddr(&addrs)))
         .unwrap();
     assert_eq!(results.len(), addrs.len());
 }
@@ -47,7 +48,10 @@ fn symbolize_elf() {
         .build();
 
     let result = symbolizer
-        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
+        .symbolize_single(
+            black_box(&src),
+            black_box(Input::VirtOffset(0xffffffff8110ecb0)),
+        )
         .unwrap()
         .into_sym()
         .unwrap();
@@ -65,7 +69,10 @@ fn symbolize_dwarf_no_lines() {
     let symbolizer = Symbolizer::builder().enable_code_info(false).build();
 
     let result = symbolizer
-        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
+        .symbolize_single(
+            black_box(&src),
+            black_box(Input::VirtOffset(0xffffffff8110ecb0)),
+        )
         .unwrap()
         .into_sym()
         .unwrap();
@@ -84,7 +91,10 @@ fn symbolize_dwarf() {
     let symbolizer = Symbolizer::new();
 
     let result = symbolizer
-        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
+        .symbolize_single(
+            black_box(&src),
+            black_box(Input::VirtOffset(0xffffffff8110ecb0)),
+        )
         .unwrap()
         .into_sym()
         .unwrap();
@@ -103,7 +113,10 @@ fn symbolize_gsym() {
     let symbolizer = Symbolizer::new();
 
     let result = symbolizer
-        .symbolize_single(black_box(&src), black_box(0xffffffff8110ecb0))
+        .symbolize_single(
+            black_box(&src),
+            black_box(Input::VirtOffset(0xffffffff8110ecb0)),
+        )
         .unwrap()
         .into_sym()
         .unwrap();
