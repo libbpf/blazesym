@@ -105,7 +105,6 @@ jobs:
           # https://github.com/japaric/rust-san#unrealiable-leaksanitizer
           sed -i '/\[features\]/i [profile.dev]' Cargo.toml
           sed -i '/profile.dev/a opt-level = 1' Cargo.toml
-          sed -i '/profile.dev/a debug-assertions = false' Cargo.toml
           cat Cargo.toml
     - name: cargo test -Zsanitizer=${{ matrix.sanitizer }}
       env:

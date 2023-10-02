@@ -57,6 +57,8 @@ where
     let instance = Command::new(command.as_ref())
         .stdin(Stdio::null())
         .stdout(Stdio::null())
+        .env_clear()
+        .envs(env::vars().filter(|(k, _)| k == "PATH"))
         .args(args.clone())
         .output()
         .map_err(|err| {
@@ -149,6 +151,11 @@ fn compile(compiler: &str, src: &Path, dst: &str, options: &[&str]) {
 /// Compile `src` into `dst` using `cc`.
 fn cc(src: &Path, dst: &str, options: &[&str]) {
     compile("cc", src, dst, options)
+}
+
+/// Compile `src` into `dst` using `rustc`.
+fn rustc(src: &Path, dst: &str, options: &[&str]) {
+    compile("rustc", src, dst, options)
 }
 
 /// Convert debug information contained in `src` into GSYM in `dst` using
@@ -283,6 +290,25 @@ fn zip(_files: &[PathBuf], _dst: &Path) {
 
 /// Prepare the various test files.
 fn prepare_test_files(crate_root: &Path) {
+    let src = crate_root.join("data").join("test.rs");
+    rustc(
+        &src,
+        "test-rs.bin",
+        &[
+            "--crate-type=bin",
+            "-C",
+            "panic=abort",
+            "-C",
+            "link-arg=-nostartfiles",
+            "-C",
+            "opt-level=0",
+            "-C",
+            "debuginfo=2",
+            "-C",
+            "symbol-mangling-version=v0",
+        ],
+    );
+
     let src = crate_root.join("data").join("test-so.c");
     cc(
         &src,

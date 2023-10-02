@@ -1,6 +1,5 @@
 #![allow(clippy::let_and_return, clippy::let_unit_value)]
 
-use std::env::current_exe;
 use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fs::read as read_file;
@@ -222,25 +221,12 @@ fn symbolize_dwarf_complex() {
 }
 
 
-#[inline(always)]
-fn inlined_call() -> usize {
-    42
-}
-
-
-#[inline(never)]
-fn test_function() {
-    let _x = inlined_call();
-}
-
-
-/// Symbolize a normalized address inside an ELF file, with and without
-/// auto-demangling enabled.
+/// Symbolize an address inside a DWARF file, with and without auto-demangling
+/// enabled.
 #[test]
-fn symbolize_elf_demangle() {
-    fn test(addr: Addr) -> Result<(), ()> {
-        let test_elf = current_exe().unwrap();
-        let src = symbolize::Source::Elf(symbolize::Elf::new(test_elf));
+fn symbolize_dwarf_demangle() {
+    fn test(test_dwarf: &Path, addr: Addr) -> Result<(), ()> {
+        let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
         let symbolizer = Symbolizer::builder().enable_demangling(false).build();
         let result = symbolizer
             .symbolize_single(&src, addr)
@@ -249,14 +235,19 @@ fn symbolize_elf_demangle() {
             .unwrap();
 
         assert!(
-            result.name.contains("blazesym13test_function"),
-            "{result:x?}"
+            result.name.contains("test13test_function"),
+            "{}",
+            result.name
         );
 
         if result.inlined.is_empty() {
             return Err(())
         }
-        assert!(result.inlined[0].name.contains("blazesym12inlined_call"));
+        assert!(
+            result.inlined[0].name.contains("test12inlined_call"),
+            "{}",
+            result.inlined[0].name
+        );
 
         // Do it again, this time with demangling enabled.
         let symbolizer = Symbolizer::new();
@@ -266,26 +257,38 @@ fn symbolize_elf_demangle() {
             .into_sym()
             .unwrap();
 
-        assert_eq!(result.name, "blazesym::test_function");
+        assert_eq!(result.name, "test::test_function");
         assert_eq!(result.inlined.len(), 1, "{:#?}", result.inlined);
-        assert_eq!(result.inlined[0].name, "blazesym::inlined_call");
+        assert_eq!(result.inlined[0].name, "test::inlined_call");
         Ok(())
     }
 
-    if !cfg!(debug_assertions) {
-        return
-    }
+    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-rs.bin");
+    let elf = inspect::Elf::new(&test_dwarf);
+    let src = inspect::Source::Elf(elf);
 
-    let () = test_function();
-    let addrs = [test_function as Addr];
-    let normalizer = Normalizer::builder().enable_build_ids(false).build();
-    let norm_addrs = normalizer
-        .normalize_user_addrs_sorted(&addrs, Pid::Slf)
-        .unwrap();
-    let (addr, _meta_idx) = norm_addrs.addrs[0];
+    let inspector = Inspector::new();
+    let results = inspector
+        .lookup(
+            // Evidently we could still end up with different mangled symbols
+            // for the same clear text name. Ugh.
+            &[
+                "_RNvCs69hjMPjVIJK_4test13test_function",
+                "_RNvCseTrKHoaUPIf_4test13test_function",
+                "_RNvCsfpyvYpDUPq_4test13test_function",
+            ],
+            &src,
+        )
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert!(!results.is_empty());
 
-    let test_elf = current_exe().unwrap();
-    let src = symbolize::Source::Elf(symbolize::Elf::new(test_elf));
+    let addr = results[0].addr;
+    let src = symbolize::Source::Elf(symbolize::Elf::new(&test_dwarf));
     let symbolizer = Symbolizer::builder().enable_demangling(false).build();
     let result = symbolizer
         .symbolize_single(&src, addr)
@@ -296,7 +299,7 @@ fn symbolize_elf_demangle() {
     let addr = result.addr;
     let size = result.size.unwrap();
     for inst_addr in addr..addr + size {
-        if test(inst_addr).is_ok() {
+        if test(&test_dwarf, inst_addr).is_ok() {
             return
         }
     }
