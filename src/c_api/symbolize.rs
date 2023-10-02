@@ -13,12 +13,14 @@ use std::ptr;
 
 use crate::log::error;
 use crate::log::warn;
+use crate::symbolize::CodeInfo;
 use crate::symbolize::Elf;
 use crate::symbolize::GsymData;
 use crate::symbolize::GsymFile;
 use crate::symbolize::Kernel;
 use crate::symbolize::Process;
 use crate::symbolize::Source;
+use crate::symbolize::Sym;
 use crate::symbolize::Symbolized;
 use crate::symbolize::Symbolizer;
 use crate::util::slice_from_user_array;
@@ -307,6 +309,21 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
     }
 }
 
+fn code_info_strtab_size(code_info: &Option<CodeInfo>) -> usize {
+    code_info
+        .as_ref()
+        .and_then(|info| info.dir.as_ref().map(|d| d.as_os_str().len() + 1))
+        .unwrap_or(0)
+        + code_info
+            .as_ref()
+            .map(|info| info.file.len() + 1)
+            .unwrap_or(0)
+}
+
+fn sym_strtab_size(sym: &Sym) -> usize {
+    sym.name.len() + 1 + code_info_strtab_size(&sym.code_info)
+}
+
 /// Convert [`Sym`] objects to [`blaze_result`] ones.
 ///
 /// The returned pointer should be released using [`blaze_result_free`] once
@@ -317,20 +334,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
     let strtab_size = results
         .iter()
         .map(|sym| match sym {
-            Symbolized::Sym(sym) => {
-                sym.name.len()
-                    + 1
-                    + sym
-                        .code_info
-                        .as_ref()
-                        .and_then(|info| info.dir.as_ref().map(|d| d.as_os_str().len() + 1))
-                        .unwrap_or(0)
-                    + sym
-                        .code_info
-                        .as_ref()
-                        .map(|info| info.file.len() + 1)
-                        .unwrap_or(0)
-            }
+            Symbolized::Sym(sym) => sym_strtab_size(sym),
             Symbolized::Unknown => 0,
         })
         .sum::<usize>();
