@@ -17,6 +17,7 @@ use crate::symbolize::CodeInfo;
 use crate::symbolize::Elf;
 use crate::symbolize::GsymData;
 use crate::symbolize::GsymFile;
+use crate::symbolize::InlinedFn;
 use crate::symbolize::Kernel;
 use crate::symbolize::Process;
 use crate::symbolize::Source;
@@ -185,6 +186,17 @@ pub struct blaze_symbolize_code_info {
 }
 
 
+/// Data about an inlined function call.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_symbolize_inlined_fn {
+    /// The symbol name of the inlined function.
+    pub name: *const c_char,
+    /// Source code location information for the inlined function.
+    pub code_info: blaze_symbolize_code_info,
+}
+
+
 /// The result of symbolization of an address.
 ///
 /// A `blaze_sym` is the information of a symbol found for an
@@ -214,6 +226,10 @@ pub struct blaze_sym {
     pub offset: usize,
     /// Source code location information for the symbol.
     pub code_info: blaze_symbolize_code_info,
+    /// The number of symbolized inlined function calls present.
+    pub inlined_cnt: usize,
+    /// An array of `inlined_cnt` symbolized inlined function calls.
+    pub inlined: *const blaze_symbolize_inlined_fn,
 }
 
 /// `blaze_result` is the result of symbolization for C API.
@@ -254,6 +270,8 @@ pub struct blaze_symbolizer_opts {
     ///
     /// This setting implies `debug_syms` (and forces it to `true`).
     pub code_info: bool,
+    /// Whether to report inlined functions as part of symbolization.
+    pub inlined_fns: bool,
     /// Whether or not to transparently demangle symbols.
     ///
     /// Demangling happens on a best-effort basis. Currently supported
@@ -284,12 +302,14 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     let blaze_symbolizer_opts {
         debug_syms,
         code_info,
+        inlined_fns,
         demangle,
     } = opts;
 
     let symbolizer = Symbolizer::builder()
         .enable_debug_syms(*debug_syms)
         .enable_code_info(*code_info)
+        .enable_inlined_fns(*inlined_fns)
         .enable_demangling(*demangle)
         .build();
     let symbolizer_box = Box::new(symbolizer);
@@ -320,8 +340,19 @@ fn code_info_strtab_size(code_info: &Option<CodeInfo>) -> usize {
             .unwrap_or(0)
 }
 
+fn inlined_fn_strtab_size(inlined_fn: &InlinedFn) -> usize {
+    inlined_fn.name.len() + 1 + code_info_strtab_size(&inlined_fn.code_info)
+}
+
 fn sym_strtab_size(sym: &Sym) -> usize {
-    sym.name.len() + 1 + code_info_strtab_size(&sym.code_info)
+    sym.name.len()
+        + 1
+        + code_info_strtab_size(&sym.code_info)
+        + sym
+            .inlined
+            .iter()
+            .map(inlined_fn_strtab_size)
+            .sum::<usize>()
 }
 
 fn convert_code_info(
@@ -354,16 +385,15 @@ fn convert_code_info(
 fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_result {
     // Allocate a buffer to contain a blaze_result, all
     // blaze_sym, and C strings of symbol and path.
-    let strtab_size = results
-        .iter()
-        .map(|sym| match sym {
-            Symbolized::Sym(sym) => sym_strtab_size(sym),
-            Symbolized::Unknown => 0,
-        })
-        .sum::<usize>();
+    let (strtab_size, inlined_fn_cnt) = results.iter().fold((0, 0), |acc, sym| match sym {
+        Symbolized::Sym(sym) => (acc.0 + sym_strtab_size(sym), acc.1 + sym.inlined.len()),
+        Symbolized::Unknown => acc,
+    });
 
-    let buf_size =
-        strtab_size + mem::size_of::<blaze_result>() + mem::size_of::<blaze_sym>() * results.len();
+    let buf_size = strtab_size
+        + mem::size_of::<blaze_result>()
+        + mem::size_of::<blaze_sym>() * results.len()
+        + mem::size_of::<blaze_symbolize_inlined_fn>() * inlined_fn_cnt;
     let raw_buf_with_sz =
         unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
     if raw_buf_with_sz.is_null() {
@@ -377,13 +407,20 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
 
     let result_ptr = raw_buf as *mut blaze_result;
     let mut syms_last = unsafe { &mut (*result_ptr).syms as *mut blaze_sym };
-    let mut cstr_last = unsafe {
+    let mut inlined_last = unsafe {
         raw_buf.add(mem::size_of::<blaze_result>() + mem::size_of::<blaze_sym>() * results.len())
+    } as *mut blaze_symbolize_inlined_fn;
+    let mut cstr_last = unsafe {
+        raw_buf.add(
+            mem::size_of::<blaze_result>()
+                + mem::size_of::<blaze_sym>() * results.len()
+                + mem::size_of::<blaze_symbolize_inlined_fn>() * inlined_fn_cnt,
+        )
     } as *mut c_char;
 
     let mut make_cstr = |src: &OsStr| {
         let cstr = cstr_last;
-        unsafe { ptr::copy(src.as_bytes().as_ptr(), cstr as *mut u8, src.len()) };
+        unsafe { ptr::copy_nonoverlapping(src.as_bytes().as_ptr(), cstr as *mut u8, src.len()) };
         unsafe { *cstr.add(src.len()) = 0 };
         cstr_last = unsafe { cstr_last.add(src.len() + 1) };
 
@@ -403,6 +440,22 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
                 sym_ref.addr = sym.addr;
                 sym_ref.offset = sym.offset;
                 convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut make_cstr);
+                sym_ref.inlined_cnt = sym.inlined.len();
+                sym_ref.inlined = inlined_last;
+
+                for inlined in sym.inlined.iter() {
+                    let inlined_ref = unsafe { &mut *inlined_last };
+
+                    let name_ptr = make_cstr(OsStr::new(&inlined.name));
+                    inlined_ref.name = name_ptr;
+                    convert_code_info(
+                        &inlined.code_info,
+                        &mut inlined_ref.code_info,
+                        &mut make_cstr,
+                    );
+
+                    inlined_last = unsafe { inlined_last.add(1) };
+                }
             }
             Symbolized::Unknown => {
                 // Unknown symbols/addresses are just represented with all
@@ -637,10 +690,12 @@ mod tests {
                 line: 42,
                 column: 1,
             },
+            inlined_cnt: 0,
+            inlined: ptr::null(),
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 } }"
+            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 }, inlined_cnt: 0, inlined: 0x0 }"
         );
 
         let result = blaze_result { cnt: 0, syms: [] };
@@ -649,11 +704,12 @@ mod tests {
         let opts = blaze_symbolizer_opts {
             debug_syms: true,
             code_info: false,
+            inlined_fns: false,
             demangle: true,
         };
         assert_eq!(
             format!("{opts:?}"),
-            "blaze_symbolizer_opts { debug_syms: true, code_info: false, demangle: true }"
+            "blaze_symbolizer_opts { debug_syms: true, code_info: false, inlined_fns: false, demangle: true }"
         );
     }
 

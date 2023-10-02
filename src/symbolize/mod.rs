@@ -191,7 +191,7 @@ impl CodeInfo {
 /// A type representing an inlined function.
 #[derive(Clone, Debug, PartialEq)]
 pub struct InlinedFn {
-    /// The symbol name of the function.
+    /// The symbol name of the inlined function.
     pub name: String,
     /// Source code location information for the call to the function.
     pub code_info: Option<CodeInfo>,

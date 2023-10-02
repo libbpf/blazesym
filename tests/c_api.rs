@@ -8,6 +8,7 @@ use std::ptr;
 use std::slice;
 
 use blazesym::inspect;
+use blazesym::symbolize;
 
 use blazesym::c_api::blaze_inspect_elf_src;
 use blazesym::c_api::blaze_inspect_syms_elf;
@@ -52,6 +53,7 @@ fn symbolizer_creation_with_opts() {
     let opts = blaze_symbolizer_opts {
         debug_syms: true,
         code_info: false,
+        inlined_fns: false,
         demangle: true,
     };
     let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
@@ -150,6 +152,138 @@ fn symbolize_elf_dwarf_gsym() {
         blaze_symbolize_gsym_data(symbolizer, &gsym_src, addrs, addr_cnt)
     };
     test(symbolize, true);
+}
+
+
+/// Symbolize an address inside a DWARF file, with and without auto-demangling
+/// enabled.
+#[test]
+fn symbolize_dwarf_demangle() {
+    fn test(path: &Path, addr: Addr) -> Result<(), ()> {
+        let opts = blaze_symbolizer_opts {
+            debug_syms: true,
+            code_info: true,
+            inlined_fns: true,
+            demangle: false,
+        };
+
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let elf_src = blaze_symbolize_src_elf {
+            path: path_c.as_ptr(),
+        };
+        let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
+        let addrs = [addr];
+        let result =
+            unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+        let name = unsafe { CStr::from_ptr(sym.name) };
+        assert!(
+            name.to_str().unwrap().contains("test13test_function"),
+            "{:?}",
+            name
+        );
+
+        if sym.inlined_cnt == 0 {
+            let () = unsafe { blaze_result_free(result) };
+            let () = unsafe { blaze_symbolizer_free(symbolizer) };
+            return Err(())
+        }
+
+        assert_eq!(sym.inlined_cnt, 1);
+        let name = unsafe { CStr::from_ptr((*sym.inlined).name) };
+        assert!(
+            name.to_str().unwrap().contains("test12inlined_call"),
+            "{:?}",
+            name
+        );
+
+        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+
+        // Do it again, this time with demangling enabled.
+        let opts = blaze_symbolizer_opts {
+            debug_syms: true,
+            code_info: true,
+            inlined_fns: true,
+            demangle: true,
+        };
+
+        let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
+        let addrs = [addr];
+        let result =
+            unsafe { blaze_symbolize_elf(symbolizer, &elf_src, addrs.as_ptr(), addrs.len()) };
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym.name) },
+            CStr::from_bytes_with_nul(b"test::test_function\0").unwrap()
+        );
+
+
+        assert_eq!(sym.inlined_cnt, 1);
+        assert_eq!(
+            unsafe { CStr::from_ptr((*sym.inlined).name) },
+            CStr::from_bytes_with_nul(b"test::inlined_call\0").unwrap()
+        );
+
+        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+        Ok(())
+    }
+
+    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-rs.bin");
+    let elf = inspect::Elf::new(&test_dwarf);
+    let src = inspect::Source::Elf(elf);
+
+    let inspector = inspect::Inspector::new();
+    let results = inspector
+        .lookup(
+            // Evidently we could still end up with different mangled symbols
+            // for the same clear text name. Ugh.
+            &[
+                "_RNvCs69hjMPjVIJK_4test13test_function",
+                "_RNvCseTrKHoaUPIf_4test13test_function",
+                "_RNvCsfpyvYpDUPq_4test13test_function",
+            ],
+            &src,
+        )
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert!(!results.is_empty());
+
+    let addr = results[0].addr;
+    let src = symbolize::Source::Elf(symbolize::Elf::new(&test_dwarf));
+    let symbolizer = symbolize::Symbolizer::builder()
+        .enable_demangling(false)
+        .build();
+    let result = symbolizer
+        .symbolize_single(&src, addr)
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    let addr = result.addr;
+    let size = result.size.unwrap();
+    for inst_addr in addr..addr + size {
+        if test(&test_dwarf, inst_addr).is_ok() {
+            return
+        }
+    }
+
+    panic!("failed to find inlined function call");
 }
 
 
