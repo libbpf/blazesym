@@ -76,7 +76,7 @@ codegen-units = 1
 cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.28", optional = true}
 libc = "0.2.137"
-lru = {version = "0.10", optional = true}
+lru = {version = "0.11", optional = true}
 rustc-demangle = {version = "0.1", optional = true}
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
 
