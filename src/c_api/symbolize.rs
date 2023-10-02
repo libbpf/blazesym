@@ -324,6 +324,29 @@ fn sym_strtab_size(sym: &Sym) -> usize {
     sym.name.len() + 1 + code_info_strtab_size(&sym.code_info)
 }
 
+fn convert_code_info(
+    code_info_in: &Option<CodeInfo>,
+    code_info_out: &mut blaze_symbolize_code_info,
+    mut make_cstr: impl FnMut(&OsStr) -> *mut c_char,
+) {
+    code_info_out.dir = code_info_in
+        .as_ref()
+        .and_then(|info| info.dir.as_ref().map(|d| make_cstr(d.as_os_str())))
+        .unwrap_or_else(ptr::null_mut);
+    code_info_out.file = code_info_in
+        .as_ref()
+        .map(|info| make_cstr(&info.file))
+        .unwrap_or_else(ptr::null_mut);
+    code_info_out.line = code_info_in
+        .as_ref()
+        .and_then(|info| info.line)
+        .unwrap_or(0);
+    code_info_out.column = code_info_in
+        .as_ref()
+        .and_then(|info| info.column)
+        .unwrap_or(0);
+}
+
 /// Convert [`Sym`] objects to [`blaze_result`] ones.
 ///
 /// The returned pointer should be released using [`blaze_result_free`] once
@@ -375,32 +398,11 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
             Symbolized::Sym(sym) => {
                 let sym_ref = unsafe { &mut *syms_last };
                 let name_ptr = make_cstr(OsStr::new(&sym.name));
-                let dir_ptr = sym
-                    .code_info
-                    .as_ref()
-                    .and_then(|info| info.dir.as_ref().map(|d| make_cstr(d.as_os_str())))
-                    .unwrap_or_else(ptr::null_mut);
-                let file_ptr = sym
-                    .code_info
-                    .as_ref()
-                    .map(|info| make_cstr(&info.file))
-                    .unwrap_or_else(ptr::null_mut);
 
                 sym_ref.name = name_ptr;
                 sym_ref.addr = sym.addr;
                 sym_ref.offset = sym.offset;
-                sym_ref.code_info.dir = dir_ptr;
-                sym_ref.code_info.file = file_ptr;
-                sym_ref.code_info.line = sym
-                    .code_info
-                    .as_ref()
-                    .and_then(|info| info.line)
-                    .unwrap_or(0);
-                sym_ref.code_info.column = sym
-                    .code_info
-                    .as_ref()
-                    .and_then(|info| info.column)
-                    .unwrap_or(0);
+                convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut make_cstr);
             }
             Symbolized::Unknown => {
                 // Unknown symbols/addresses are just represented with all
