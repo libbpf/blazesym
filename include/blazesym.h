@@ -263,6 +263,10 @@ typedef struct blaze_symbolizer_opts {
    */
   bool code_info;
   /**
+   * Whether to report inlined functions as part of symbolization.
+   */
+  bool inlined_fns;
+  /**
    * Whether or not to transparently demangle symbols.
    *
    * Demangling happens on a best-effort basis. Currently supported
@@ -301,6 +305,20 @@ typedef struct blaze_symbolize_code_info {
 } blaze_symbolize_code_info;
 
 /**
+ * Data about an inlined function call.
+ */
+typedef struct blaze_symbolize_inlined_fn {
+  /**
+   * The symbol name of the inlined function.
+   */
+  const char *name;
+  /**
+   * Source code location information for the inlined function.
+   */
+  struct blaze_symbolize_code_info code_info;
+} blaze_symbolize_inlined_fn;
+
+/**
  * The result of symbolization of an address.
  *
  * A `blaze_sym` is the information of a symbol found for an
@@ -337,6 +355,14 @@ typedef struct blaze_sym {
    * Source code location information for the symbol.
    */
   struct blaze_symbolize_code_info code_info;
+  /**
+   * The number of symbolized inlined function calls present.
+   */
+  size_t inlined_cnt;
+  /**
+   * An array of `inlined_cnt` symbolized inlined function calls.
+   */
+  const struct blaze_symbolize_inlined_fn *inlined;
 } blaze_sym;
 
 /**
