@@ -115,9 +115,11 @@ impl Builder {
         self
     }
 
-    /// Enable/disable usage of debug symbols.
+    /// Enable/disable transparent demangling of symbol names.
     ///
-    /// That can be useful in cases where ELF symbol information is stripped.
+    /// Demangling happens on a best-effort basis. Currently supported languages
+    /// are Rust and C++ and the flag will have no effect if the underlying
+    /// language does not mangle symbols (such as C).
     pub fn enable_demangling(mut self, enable: bool) -> Builder {
         self.demangle = enable;
         self
