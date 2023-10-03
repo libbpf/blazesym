@@ -7,7 +7,7 @@ members = [
 [package]
 name = "blazesym"
 description = "blazesym is a library for address symbolization and related tasks."
-version = "0.2.0-alpha.6"
+version = "0.2.0-alpha.7"
 edition = "2021"
 rust-version = "1.64"
 authors = ["Daniel Müller <deso@posteo.net>", "Kui-Feng <thinker.li@gmail.com>"]
