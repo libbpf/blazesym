@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.7
+-------------
 - "Flattened" return type of `symbolize::Symbolizer::symbolize` method from
   nested `Vec` to a single level `Vec` of newly introduced
   `symbolize::Symbolized` enum
