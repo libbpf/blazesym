@@ -304,6 +304,10 @@ fn prepare_test_files(crate_root: &Path) {
             "opt-level=0",
             "-C",
             "debuginfo=2",
+            // Note that despite us specifying the name mangling scheme
+            // here, because we want a stable mangled name the source
+            // actually uses a fixed "export name", which really is what
+            // is used for the function in question.
             "-C",
             "symbol-mangling-version=v0",
         ],
