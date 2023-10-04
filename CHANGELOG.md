@@ -4,6 +4,7 @@ Unreleased
 - Changed `Addr` to map to 64 bit integer
 - Introduced `symbolize::Input` enum and made it part of symbolization APIs to
   distinguish between and support different input types
+  - Added support for ELF symbolization using file offsets instead of addresses
 
 
 0.2.0-alpha.7

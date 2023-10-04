@@ -52,7 +52,10 @@ pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
 }
 
 
-fn normalize_elf_offset_with_parser(offset: u64, parser: &ElfParser) -> Result<Option<Addr>> {
+pub(crate) fn normalize_elf_offset_with_parser(
+    offset: u64,
+    parser: &ElfParser,
+) -> Result<Option<Addr>> {
     let phdrs = parser.program_headers()?;
     let addr = phdrs.iter().find_map(|phdr| {
         if phdr.p_type == elf::types::PT_LOAD {

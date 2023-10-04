@@ -39,7 +39,7 @@ impl ElfResolver {
         })
     }
 
-    fn parser(&self) -> &ElfParser {
+    pub(crate) fn parser(&self) -> &ElfParser {
         match &self.backend {
             #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(dwarf) => dwarf.parser(),
