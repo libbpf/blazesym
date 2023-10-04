@@ -80,7 +80,7 @@ jobs:
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
     - name: Test and gather coverage
-      run: cargo llvm-cov --all-targets --features=generate-large-test-files --lcov --output-path lcov.info
+      run: cargo llvm-cov --all-targets --features=nightly,generate-large-test-files --lcov --output-path lcov.info
     - name: Upload code coverage results
       uses: codecov/codecov-action@v3
       with:
@@ -148,6 +148,10 @@ jobs:
       run: git diff --exit-code ||
              (echo "!!!! CHECKED IN C HEADER IS OUTDATED !!!!" && false)
   bench:
+    # Only run benchmarks on the final push. They are generally only
+    # informative because the GitHub Runners do not provide a stable
+    # performance baseline anyway.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     name: Benchmark
     runs-on: ubuntu-22.04
     env:
