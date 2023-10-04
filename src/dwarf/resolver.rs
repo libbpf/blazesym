@@ -58,7 +58,7 @@ pub(crate) struct DwarfResolver {
 }
 
 impl DwarfResolver {
-    pub fn get_parser(&self) -> &ElfParser {
+    pub fn parser(&self) -> &ElfParser {
         &self.parser
     }
 
