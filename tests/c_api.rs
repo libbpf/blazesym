@@ -248,16 +248,7 @@ fn symbolize_dwarf_demangle() {
 
     let inspector = inspect::Inspector::new();
     let results = inspector
-        .lookup(
-            // Evidently we could still end up with different mangled symbols
-            // for the same clear text name. Ugh.
-            &[
-                "_RNvCs69hjMPjVIJK_4test13test_function",
-                "_RNvCseTrKHoaUPIf_4test13test_function",
-                "_RNvCsfpyvYpDUPq_4test13test_function",
-            ],
-            &src,
-        )
+        .lookup(&["_RNvCs69hjMPjVIJK_4test13test_function"], &src)
         .unwrap()
         .into_iter()
         .flatten()
