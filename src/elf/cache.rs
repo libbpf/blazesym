@@ -191,8 +191,8 @@ mod tests {
         assert!(backend_first.is_dwarf());
         assert!(backend_second.is_dwarf());
         assert_eq!(
-            ptr::addr_of!(*backend_first.to_dwarf().unwrap().get_parser()),
-            ptr::addr_of!(*backend_second.to_dwarf().unwrap().get_parser())
+            ptr::addr_of!(*backend_first.to_dwarf().unwrap().parser()),
+            ptr::addr_of!(*backend_second.to_dwarf().unwrap().parser())
         );
     }
 }

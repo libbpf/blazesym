@@ -40,10 +40,10 @@ impl ElfResolver {
         })
     }
 
-    fn get_parser(&self) -> &ElfParser {
+    fn parser(&self) -> &ElfParser {
         match &self.backend {
             #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(dwarf) => dwarf.get_parser(),
+            ElfBackend::Dwarf(dwarf) => dwarf.parser(),
             ElfBackend::Elf(parser) => parser,
         }
     }
@@ -57,7 +57,7 @@ impl ElfResolver {
 impl SymResolver for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
     fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
-        let parser = self.get_parser();
+        let parser = self.parser();
         if let Some((name, addr, size)) = parser.find_sym(addr, STT_FUNC)? {
             // ELF does not carry any source code language information.
             let lang = SrcLang::Unknown;
@@ -82,7 +82,7 @@ impl SymResolver for ElfResolver {
     }
 
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
-        let parser = self.get_parser();
+        let parser = self.parser();
         let syms = parser.find_addr(name, opts)?;
         if !syms.is_empty() {
             // We found symbols in ELF and DWARF wouldn't add information on
@@ -117,7 +117,7 @@ impl SymResolver for ElfResolver {
     //       require a bit of a larger rework, including on call sites].
     fn addr_file_off(&self, addr: Addr) -> Option<u64> {
         let addr = addr as u64;
-        let parser = self.get_parser();
+        let parser = self.parser();
         let phdrs = parser.program_headers().ok()?;
         let offset = phdrs.iter().find_map(|phdr| {
             if phdr.p_type == PT_LOAD {
