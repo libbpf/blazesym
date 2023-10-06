@@ -252,7 +252,7 @@ mod tests {
         assert_eq!(syms.len(), 1);
         let sym = syms.first().unwrap();
 
-        let the_answer_addr = unsafe { mmap.as_ptr().add(sym.addr) };
+        let the_answer_addr = unsafe { mmap.as_ptr().add(sym.addr as usize) };
         // Now just double check that everything worked out and the function
         // is actually where it was meant to be.
         let the_answer_fn =
@@ -301,7 +301,7 @@ mod tests {
                 .unwrap();
 
             let elf_mmap = mmap
-                .constrain(so.data_offset..so.data_offset + so.data.len())
+                .constrain(so.data_offset..so.data_offset + so.data.len() as u64)
                 .unwrap();
 
             // Look up the address of the `the_answer` function inside of the shared
@@ -316,7 +316,7 @@ mod tests {
             assert_eq!(syms.len(), 1);
             let sym = syms.first().unwrap();
 
-            let the_answer_addr = unsafe { elf_mmap.as_ptr().add(sym.addr) };
+            let the_answer_addr = unsafe { elf_mmap.as_ptr().add(sym.addr as usize) };
             // Now just double check that everything worked out and the function
             // is actually where it was meant to be.
             let the_answer_fn =

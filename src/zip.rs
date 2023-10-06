@@ -123,7 +123,7 @@ pub struct Entry<'archive> {
     /// The path to the file inside the archive.
     pub path: &'archive Path,
     /// The offset of the data from the beginning of the archive.
-    pub data_offset: usize,
+    pub data_offset: u64,
     /// Pointer to the file data.
     pub data: &'archive [u8],
 }
@@ -183,8 +183,8 @@ impl<'archive> EntryIter<'archive> {
 
             let _extra = data.read_slice(lfh.extra_field_length.into())?;
             // SAFETY: Both pointers point into the same underlying byte array.
-            let data_offset = offset as usize
-                + usize::try_from(unsafe { data.as_ptr().offset_from(start) }).unwrap();
+            let data_offset = u64::from(offset)
+                + u64::try_from(unsafe { data.as_ptr().offset_from(start) }).unwrap();
             let data = data.read_slice(lfh.compressed_size as usize)?;
 
             let entry = Entry {
@@ -447,7 +447,7 @@ mod tests {
             entry.data,
             archive
                 .mmap
-                .get(entry.data_offset..entry.data_offset + entry.data.len())
+                .get(entry.data_offset as usize..entry.data_offset as usize + entry.data.len())
                 .unwrap()
         );
 

@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Fixed build failure when `dwarf` feature is not enabled
+- Changed `Addr` to map to 64 bit integer
 
 
 0.2.0-alpha.7
