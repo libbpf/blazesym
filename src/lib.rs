@@ -21,7 +21,12 @@
 //! functions and on the ABI level this module organization has no relevance for
 //! C).
 
-#![allow(clippy::collapsible_if, clippy::let_and_return, clippy::let_unit_value)]
+#![allow(
+    clippy::collapsible_if,
+    clippy::fn_to_numeric_cast,
+    clippy::let_and_return,
+    clippy::let_unit_value
+)]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(
     missing_debug_implementations,
@@ -79,7 +84,7 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 
 
 /// A type representing addresses.
-pub type Addr = usize;
+pub type Addr = u64;
 
 
 /// Utility functionality not specific to any overarching theme.

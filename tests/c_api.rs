@@ -1,4 +1,8 @@
-#![allow(clippy::let_and_return, clippy::let_unit_value)]
+#![allow(
+    clippy::fn_to_numeric_cast,
+    clippy::let_and_return,
+    clippy::let_unit_value
+)]
 
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -267,7 +271,7 @@ fn symbolize_dwarf_demangle() {
         .unwrap();
 
     let addr = result.addr;
-    let size = result.size.unwrap();
+    let size = result.size.unwrap() as u64;
     for inst_addr in addr..addr + size {
         if test(&test_dwarf, inst_addr).is_ok() {
             return

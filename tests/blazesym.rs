@@ -1,4 +1,8 @@
-#![allow(clippy::let_and_return, clippy::let_unit_value)]
+#![allow(
+    clippy::fn_to_numeric_cast,
+    clippy::let_and_return,
+    clippy::let_unit_value
+)]
 
 use std::ffi::CString;
 use std::ffi::OsStr;
@@ -68,7 +72,7 @@ fn symbolize_elf_dwarf_gsym() {
         let offsets = (1..size).collect::<Vec<_>>();
         let addrs = offsets
             .iter()
-            .map(|offset| 0x2000100 + offset)
+            .map(|offset| (0x2000100 + offset) as Addr)
             .collect::<Vec<_>>();
         let results = symbolizer
             .symbolize(&src, &addrs)
@@ -288,7 +292,7 @@ fn symbolize_dwarf_demangle() {
         .unwrap();
 
     let addr = result.addr;
-    let size = result.size.unwrap();
+    let size = result.size.unwrap() as u64;
     for inst_addr in addr..addr + size {
         if test(&test_dwarf, inst_addr).is_ok() {
             return

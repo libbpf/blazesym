@@ -58,7 +58,6 @@ fn find_sym<'mmap>(
                     break
                 }
 
-                let addr = addr as u64;
                 // In ELF, a symbol size of 0 indicates "no size or an unknown
                 // size" (see elf(5)). We take our changes and report these on a
                 // best-effort basis.

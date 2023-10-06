@@ -68,7 +68,7 @@ impl Builder {
         let mapping = Mapping { ptr, len };
         let mmap = Mmap {
             mapping: Rc::new(mapping),
-            view: 0..len,
+            view: 0..len as u64,
         };
         Ok(mmap)
     }
@@ -106,7 +106,7 @@ pub(crate) struct Mmap {
     /// The actual memory mapping.
     mapping: Rc<Mapping>,
     /// The view on the memory mapping that this object represents.
-    view: Range<usize>,
+    view: Range<u64>,
 }
 
 impl Mmap {
@@ -123,7 +123,7 @@ impl Mmap {
     /// Create a new `Mmap` object (sharing the same underlying memory mapping
     /// as the current one) that restricts its view to the provided `range`.
     /// Adjustment happens relative to the current view.
-    pub fn constrain(&self, range: Range<usize>) -> Option<Self> {
+    pub fn constrain(&self, range: Range<u64>) -> Option<Self> {
         if self.view.start + range.end > self.view.end {
             return None
         }
@@ -139,7 +139,10 @@ impl Deref for Mmap {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        self.mapping.deref().get(self.view.clone()).unwrap()
+        self.mapping
+            .deref()
+            .get(self.view.start as usize..self.view.end as usize)
+            .unwrap()
     }
 }
 

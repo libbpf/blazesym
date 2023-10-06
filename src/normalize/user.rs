@@ -100,7 +100,7 @@ fn make_apk_elf_meta(
 /// Normalize a virtual address belonging to an ELF file represented by the
 /// provided [`PathMapsEntry`].
 pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
-    let file_off = virt_addr as u64 - entry.range.start as u64 + entry.offset;
+    let file_off = virt_addr - entry.range.start + entry.offset;
     let parser = ElfParser::open(&entry.path.maps_file)
         .with_context(|| format!("failed to open map file {}", entry.path.maps_file.display()))?;
     let addr = normalize_elf_offset_with_parser(file_off, &parser)?.ok_or_invalid_input(|| {
@@ -121,14 +121,14 @@ pub(crate) fn normalize_apk_addr(
     virt_addr: Addr,
     entry: &PathMapsEntry,
 ) -> Result<(Addr, PathBuf, ElfParser)> {
-    let file_off = virt_addr - entry.range.start + entry.offset as usize;
+    let file_off = virt_addr - entry.range.start + entry.offset;
     // An APK is nothing but a fancy zip archive.
     let apk = zip::Archive::open(&entry.path.maps_file)?;
 
     // Find the APK entry covering the calculated file offset.
     for apk_entry in apk.entries() {
         let apk_entry = apk_entry?;
-        let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len();
+        let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
 
         if bounds.contains(&file_off) {
             let mmap = apk
@@ -142,7 +142,7 @@ pub(crate) fn normalize_apk_addr(
                 })?;
             let parser = ElfParser::from_mmap(mmap);
             let elf_off = file_off - apk_entry.data_offset;
-            if let Some(addr) = normalize_elf_offset_with_parser(elf_off as u64, &parser)? {
+            if let Some(addr) = normalize_elf_offset_with_parser(elf_off, &parser)? {
                 return Ok((addr, apk_entry.path.to_path_buf(), parser))
             }
             break

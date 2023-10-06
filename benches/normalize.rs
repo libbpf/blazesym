@@ -1,3 +1,5 @@
+#![allow(clippy::fn_to_numeric_cast)]
+
 use std::hint::black_box;
 
 use blazesym::c_api;

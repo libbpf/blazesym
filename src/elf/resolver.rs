@@ -116,7 +116,6 @@ impl SymResolver for ElfResolver {
     //       the ELF symbol index (and potentially an offset from it) [this will
     //       require a bit of a larger rework, including on call sites].
     fn addr_file_off(&self, addr: Addr) -> Option<u64> {
-        let addr = addr as u64;
         let parser = self.parser();
         let phdrs = parser.program_headers().ok()?;
         let offset = phdrs.iter().find_map(|phdr| {

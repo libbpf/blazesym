@@ -220,8 +220,7 @@ impl SymResolver for GsymResolver<'_> {
                 INFO_TYPE_INLINE_INFO if inlined_fns => {
                     if inline_info.is_none() {
                         let mut data = addr_ent.data;
-                        inline_info =
-                            InlineInfo::parse(&mut data, symaddr as u64, Some(addr as u64))?;
+                        inline_info = InlineInfo::parse(&mut data, symaddr, Some(addr))?;
                     }
                 }
                 typ => {
@@ -239,7 +238,7 @@ impl SymResolver for GsymResolver<'_> {
             let mut inlined = Vec::new();
 
             if let Some(inline_info) = inline_info {
-                let mut inline_stack = inline_info.inline_stack(addr as u64).into_iter();
+                let mut inline_stack = inline_info.inline_stack(addr).into_iter();
                 // As per Gsym file format, the first "frame" only contains the
                 // name and it effectively is meant to overwrite what is already
                 // contained in the line table.

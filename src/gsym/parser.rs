@@ -324,7 +324,7 @@ mod tests {
                 ctx.header.base_address = 0;
                 ctx.addr_tab = addr_tab.as_slice();
 
-                let idx = ctx.find_addr(addr).unwrap_or(0);
+                let idx = ctx.find_addr(addr as Addr).unwrap_or(0);
                 let addr_u32 = addr as u32;
                 let idx1 = match values.binary_search(&addr_u32) {
                     Ok(idx) => idx,

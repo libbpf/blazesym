@@ -105,7 +105,7 @@ impl DwarfResolver {
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
         let code_info = if self.line_number_info {
-            if let Some(direct_location) = self.units.find_location(addr as u64)? {
+            if let Some(direct_location) = self.units.find_location(addr)? {
                 let Location {
                     dir,
                     file,
@@ -121,7 +121,7 @@ impl DwarfResolver {
                 };
 
                 let inlined = if inlined_fns {
-                    if let Some(inline_stack) = self.units.find_inlined_functions(addr as u64)? {
+                    if let Some(inline_stack) = self.units.find_inlined_functions(addr)? {
                         let mut inlined = Vec::with_capacity(inline_stack.len());
                         for result in inline_stack {
                             let (name, location) = result?;
@@ -186,17 +186,14 @@ impl DwarfResolver {
             ))
         }
 
-        let result = self.units.find_function(addr as u64)?;
+        let result = self.units.find_function(addr)?;
         if let Some((function, language)) = result {
             let name = function
                 .name
                 .map(|name| name.to_string())
                 .transpose()?
                 .unwrap_or("");
-            let addr = function
-                .range
-                .map(|range| range.begin as usize)
-                .unwrap_or(0);
+            let addr = function.range.map(|range| range.begin).unwrap_or(0);
             let size = function
                 .range
                 .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
