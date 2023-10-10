@@ -20,11 +20,14 @@ jobs:
         runs-on: [ubuntu-latest, macos-latest]
         rust: [1.64.0, stable]
         profile: [dev, release]
-        args: [""]
+        args: ["--workspace"]
         include:
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
+            # Make sure to build *without* `--workspace` or feature
+            # unification may mean that `--no-default-features` goes
+            # without effect.
             args: "--no-default-features"
     steps:
     - uses: actions/checkout@v4
@@ -35,7 +38,7 @@ jobs:
         override: true
     - name: Build ${{ matrix.profile }}
       run: |
-        cargo build --workspace --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
+        cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
   nop-rebuilds:
     name: No-op rebuilds
     runs-on: ubuntu-22.04
