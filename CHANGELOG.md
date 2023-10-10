@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Fixed build failure when `dwarf` feature is not enabled
+
+
 0.2.0-alpha.7
 -------------
 - "Flattened" return type of `symbolize::Symbolizer::symbolize` method from

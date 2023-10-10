@@ -107,7 +107,7 @@ impl SymResolver for ElfResolver {
     }
 
     #[cfg(not(feature = "dwarf"))]
-    fn find_line_info(&self, addr: Addr) -> Result<Option<AddrCodeInfo>> {
+    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
         Ok(None)
     }
 
