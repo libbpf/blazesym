@@ -121,22 +121,19 @@ impl From<u32> for Pid {
 
 #[cfg(feature = "tracing")]
 #[macro_use]
+#[allow(unused_imports)]
 mod log {
-    #[allow(unused)]
     pub(crate) use tracing::debug;
     pub(crate) use tracing::error;
-
-    pub(crate) use tracing::instrument;
-
-    #[allow(unused)]
     pub(crate) use tracing::info;
-    #[allow(unused)]
+    pub(crate) use tracing::instrument;
     pub(crate) use tracing::trace;
     pub(crate) use tracing::warn;
 }
 
 #[cfg(not(feature = "tracing"))]
 #[macro_use]
+#[allow(unused_imports)]
 mod log {
     macro_rules! debug {
         ($($args:tt)*) => {{
@@ -147,12 +144,9 @@ mod log {
           }
         }};
     }
-    #[allow(unused)]
     pub(crate) use debug;
     pub(crate) use debug as error;
-    #[allow(unused)]
     pub(crate) use debug as info;
-    #[allow(unused)]
     pub(crate) use debug as trace;
     pub(crate) use debug as warn;
 }
