@@ -30,6 +30,7 @@ use crate::Result;
 use crate::SrcLang;
 use crate::SymResolver;
 
+use super::source::Apk;
 use super::source::Elf;
 use super::source::Gsym;
 use super::source::GsymData;
@@ -453,6 +454,26 @@ impl Symbolizer {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{input:#x?}"))))]
     pub fn symbolize(&self, src: &Source, input: Input<&[u64]>) -> Result<Vec<Symbolized>> {
         match src {
+            Source::Apk(Apk {
+                path: _,
+                _non_exhaustive: (),
+            }) => {
+                let addrs = match input {
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "ELF symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "ELF symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(offsets) => {
+                        todo!()
+                    }
+                };
+            }
             Source::Elf(Elf {
                 path,
                 _non_exhaustive: (),
@@ -575,6 +596,26 @@ impl Symbolizer {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, input = format_args!("{input:#x?}"))))]
     pub fn symbolize_single(&self, src: &Source, input: Input<u64>) -> Result<Symbolized> {
         match src {
+            Source::Apk(Apk {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let addr = match input {
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "APK symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "APK symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(offset) => {
+                        todo!()
+                    }
+                };
+            }
             Source::Elf(Elf {
                 path,
                 _non_exhaustive: (),
