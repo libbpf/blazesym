@@ -21,11 +21,11 @@
 //! let normalized = normalizer.normalize_user_addrs(&addrs, pid).unwrap();
 //! assert_eq!(normalized.outputs.len(), 1);
 //!
-//! let (output, meta_idx) = normalized.outputs[0];
-//! // fopen (0x7f5f8e23a790) corresponds to address 0x77790 within
+//! let (file_offset, meta_idx) = normalized.outputs[0];
+//! // fopen (0x7f5f8e23a790) corresponds to file offset 0x77790 within
 //! // Elf(Elf { path: "/usr/lib64/libc.so.6", build_id: Some([...]), ... })
 //! println!(
-//!   "fopen ({fopen_addr:#x}) corresponds to address {output:#x} within {:?}",
+//!   "fopen ({fopen_addr:#x}) corresponds to file offset {file_offset:#x} within {:?}",
 //!   normalized.meta[meta_idx]
 //! );
 //! ```
@@ -35,7 +35,7 @@ mod meta;
 mod normalizer;
 mod user;
 
-pub use meta::ApkElf;
+pub use meta::Apk;
 pub use meta::Elf;
 pub use meta::Unknown;
 pub use meta::UserMeta;

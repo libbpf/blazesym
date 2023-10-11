@@ -11,7 +11,7 @@ use std::ptr;
 use std::slice;
 
 use crate::log::error;
-use crate::normalize::ApkElf;
+use crate::normalize::Apk;
 use crate::normalize::Elf;
 use crate::normalize::Normalizer;
 use crate::normalize::Unknown;
@@ -51,12 +51,13 @@ pub unsafe extern "C" fn blaze_normalizer_free(normalizer: *mut Normalizer) {
 }
 
 
-/// A normalized address along with an index into the associated
-/// [`blaze_user_meta`] array (such as [`blaze_normalized_user_output::metas`]).
+/// A file offset or non-normalized address along with an index into the
+/// associated [`blaze_user_meta`] array (such as
+/// [`blaze_normalized_user_output::metas`]).
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_normalized_output {
-    /// The normalized address.
+    /// The file offset or non-normalized address.
     pub output: u64,
     /// The index into the associated [`blaze_user_meta`] array.
     pub meta_idx: usize,
@@ -75,83 +76,44 @@ impl From<(u64, usize)> for blaze_normalized_output {
 pub enum blaze_user_meta_kind {
     /// [`blaze_user_meta_variant::unknown`] is valid.
     BLAZE_USER_META_UNKNOWN,
-    /// [`blaze_user_meta_variant::apk_elf`] is valid.
-    BLAZE_USER_META_APK_ELF,
+    /// [`blaze_user_meta_variant::apk`] is valid.
+    BLAZE_USER_META_APK,
     /// [`blaze_user_meta_variant::elf`] is valid.
     BLAZE_USER_META_ELF,
 }
 
 
-/// C compatible version of [`ApkElf`].
+/// C compatible version of [`Apk`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_user_meta_apk_elf {
+pub struct blaze_user_meta_apk {
     /// The canonical absolute path to the APK, including its name.
     /// This member is always present.
-    pub apk_path: *mut c_char,
-    /// The relative path to the ELF file inside the APK.
-    pub elf_path: *mut c_char,
-    /// The length of the build ID, in bytes.
-    pub elf_build_id_len: usize,
-    /// The optional build ID of the ELF file, if found.
-    pub elf_build_id: *mut u8,
+    pub path: *mut c_char,
 }
 
-impl From<ApkElf> for blaze_user_meta_apk_elf {
-    fn from(other: ApkElf) -> Self {
-        let ApkElf {
-            apk_path,
-            elf_path,
-            elf_build_id,
+impl From<Apk> for blaze_user_meta_apk {
+    fn from(other: Apk) -> Self {
+        let Apk {
+            path,
             _non_exhaustive: (),
         } = other;
         Self {
-            apk_path: CString::new(apk_path.into_os_string().into_vec())
+            path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
-            elf_path: CString::new(elf_path.into_os_string().into_vec())
-                .expect("encountered path with NUL bytes")
-                .into_raw(),
-            elf_build_id_len: elf_build_id
-                .as_ref()
-                .map(|build_id| build_id.len())
-                .unwrap_or(0),
-            elf_build_id: elf_build_id
-                .map(|build_id| {
-                    // SAFETY: We know the pointer is valid because it
-                    //         came from a `Box`.
-                    unsafe {
-                        Box::into_raw(build_id.into_boxed_slice())
-                            .as_mut()
-                            .unwrap()
-                            .as_mut_ptr()
-                    }
-                })
-                .unwrap_or_else(ptr::null_mut),
         }
     }
 }
 
-impl From<blaze_user_meta_apk_elf> for ApkElf {
-    fn from(other: blaze_user_meta_apk_elf) -> Self {
-        let blaze_user_meta_apk_elf {
-            apk_path,
-            elf_path,
-            elf_build_id_len,
-            elf_build_id,
-        } = other;
+impl From<blaze_user_meta_apk> for Apk {
+    fn from(other: blaze_user_meta_apk) -> Self {
+        let blaze_user_meta_apk { path } = other;
 
-        ApkElf {
-            apk_path: PathBuf::from(OsString::from_vec(
-                unsafe { CString::from_raw(apk_path) }.into_bytes(),
+        Apk {
+            path: PathBuf::from(OsString::from_vec(
+                unsafe { CString::from_raw(path) }.into_bytes(),
             )),
-            elf_path: PathBuf::from(OsString::from_vec(
-                unsafe { CString::from_raw(elf_path) }.into_bytes(),
-            )),
-            elf_build_id: (!elf_build_id.is_null()).then(|| unsafe {
-                Box::<[u8]>::from_raw(slice::from_raw_parts_mut(elf_build_id, elf_build_id_len))
-                    .into_vec()
-            }),
             _non_exhaustive: (),
         }
     }
@@ -252,8 +214,8 @@ impl From<blaze_user_meta_unknown> for Unknown {
 /// The actual variant data in [`blaze_user_meta`].
 #[repr(C)]
 pub union blaze_user_meta_variant {
-    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK_ELF`].
-    pub apk_elf: ManuallyDrop<blaze_user_meta_apk_elf>,
+    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK`].
+    pub apk: ManuallyDrop<blaze_user_meta_apk>,
     /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_ELF`].
     pub elf: ManuallyDrop<blaze_user_meta_elf>,
     /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN`].
@@ -280,10 +242,10 @@ pub struct blaze_user_meta {
 impl From<UserMeta> for blaze_user_meta {
     fn from(other: UserMeta) -> Self {
         match other {
-            UserMeta::ApkElf(apk_elf) => Self {
-                kind: blaze_user_meta_kind::BLAZE_USER_META_APK_ELF,
+            UserMeta::Apk(apk) => Self {
+                kind: blaze_user_meta_kind::BLAZE_USER_META_APK,
                 variant: blaze_user_meta_variant {
-                    apk_elf: ManuallyDrop::new(blaze_user_meta_apk_elf::from(apk_elf)),
+                    apk: ManuallyDrop::new(blaze_user_meta_apk::from(apk)),
                 },
             },
             UserMeta::Elf(elf) => Self {
@@ -305,9 +267,9 @@ impl From<UserMeta> for blaze_user_meta {
 impl From<blaze_user_meta> for UserMeta {
     fn from(other: blaze_user_meta) -> Self {
         match other.kind {
-            blaze_user_meta_kind::BLAZE_USER_META_APK_ELF => {
-                UserMeta::ApkElf(ApkElf::from(ManuallyDrop::into_inner(unsafe {
-                    other.variant.apk_elf
+            blaze_user_meta_kind::BLAZE_USER_META_APK => {
+                UserMeta::Apk(Apk::from(ManuallyDrop::into_inner(unsafe {
+                    other.variant.apk
                 })))
             }
             blaze_user_meta_kind::BLAZE_USER_META_ELF => {
@@ -509,19 +471,13 @@ mod tests {
             "blaze_normalized_output { output: 4919, meta_idx: 1 }"
         );
 
-        let meta_kind = blaze_user_meta_kind::BLAZE_USER_META_APK_ELF;
-        assert_eq!(format!("{meta_kind:?}"), "BLAZE_USER_META_APK_ELF");
+        let meta_kind = blaze_user_meta_kind::BLAZE_USER_META_APK;
+        assert_eq!(format!("{meta_kind:?}"), "BLAZE_USER_META_APK");
 
-        let apk_elf = blaze_user_meta_apk_elf {
-            apk_path: ptr::null_mut(),
-            elf_path: ptr::null_mut(),
-            elf_build_id_len: 0,
-            elf_build_id: ptr::null_mut(),
+        let apk = blaze_user_meta_apk {
+            path: ptr::null_mut(),
         };
-        assert_eq!(
-            format!("{apk_elf:?}"),
-            "blaze_user_meta_apk_elf { apk_path: 0x0, elf_path: 0x0, elf_build_id_len: 0, elf_build_id: 0x0 }",
-        );
+        assert_eq!(format!("{apk:?}"), "blaze_user_meta_apk { path: 0x0 }",);
 
         let elf = blaze_user_meta_elf {
             path: ptr::null_mut(),
@@ -578,31 +534,27 @@ mod tests {
         assert_eq!(meta_new, meta);
     }
 
-    /// Check that we can convert an [`ApkElf`] into a
-    /// [`blaze_user_meta_apk_elf`] and back.
+    /// Check that we can convert an [`Apk`] into a [`blaze_user_meta_apk`] and
+    /// back.
     #[test]
-    fn apk_elf_conversion() {
-        let apk = ApkElf {
-            apk_path: PathBuf::from("/tmp/archive.apk"),
-            elf_path: PathBuf::from("file.so"),
-            elf_build_id: Some(vec![0x01, 0x02, 0x03, 0x04]),
+    fn apk_conversion() {
+        let apk = Apk {
+            path: PathBuf::from("/tmp/archive.apk"),
             _non_exhaustive: (),
         };
 
-        let apk_new = ApkElf::from(blaze_user_meta_apk_elf::from(apk.clone()));
+        let apk_new = Apk::from(blaze_user_meta_apk::from(apk.clone()));
         assert_eq!(apk_new, apk);
 
-        let apk = ApkElf {
-            apk_path: PathBuf::new(),
-            elf_path: PathBuf::new(),
-            elf_build_id: None,
+        let apk = Apk {
+            path: PathBuf::new(),
             _non_exhaustive: (),
         };
 
-        let apk_new = ApkElf::from(blaze_user_meta_apk_elf::from(apk.clone()));
+        let apk_new = Apk::from(blaze_user_meta_apk::from(apk.clone()));
         assert_eq!(apk_new, apk);
 
-        let meta = UserMeta::ApkElf(apk_new);
+        let meta = UserMeta::Apk(apk_new);
         let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
         assert_eq!(meta_new, meta);
     }

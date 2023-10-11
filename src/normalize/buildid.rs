@@ -12,7 +12,6 @@ use crate::Result;
 
 /// Typedefs for functions reading build IDs.
 pub(crate) type BuildIdFn = dyn Fn(&Path) -> Result<Option<Vec<u8>>>;
-pub(crate) type ElfBuildIdFn = dyn Fn(&ElfParser) -> Result<Option<Vec<u8>>>;
 
 
 /// Iterate over all note sections to find one of type

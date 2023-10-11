@@ -359,7 +359,7 @@ fn normalize_elf_addr() {
         let src = symbolize::Source::Elf(elf);
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(output.0))
+            .symbolize_single(&src, symbolize::Input::FileOffset(output.0))
             .unwrap()
             .into_sym()
             .unwrap();
