@@ -172,6 +172,16 @@ impl ElfCache {
         let mut cache = self.cache.borrow_mut();
         cache.find(path)
     }
+
+    #[inline]
+    pub fn debug_syms(&self) -> bool {
+        self.cache.borrow().debug_info_symbols
+    }
+
+    #[inline]
+    pub fn code_info(&self) -> bool {
+        self.cache.borrow().line_number_info
+    }
 }
 
 #[cfg(test)]
