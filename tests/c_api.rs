@@ -336,8 +336,8 @@ fn normalize_user_addrs() {
     assert_ne!(result, ptr::null_mut());
 
     let user_addrs = unsafe { &*result };
-    assert_eq!(user_addrs.meta_count, 2);
-    assert_eq!(user_addrs.addr_count, 5);
+    assert_eq!(user_addrs.meta_cnt, 2);
+    assert_eq!(user_addrs.addr_cnt, 5);
 
     let () = unsafe { blaze_user_addrs_free(result) };
     let () = unsafe { blaze_normalizer_free(normalizer) };
@@ -365,8 +365,8 @@ fn normalize_user_addrs_sorted() {
     assert_ne!(result, ptr::null_mut());
 
     let user_addrs = unsafe { &*result };
-    assert_eq!(user_addrs.meta_count, 2);
-    assert_eq!(user_addrs.addr_count, 5);
+    assert_eq!(user_addrs.meta_cnt, 2);
+    assert_eq!(user_addrs.addr_cnt, 5);
 
     let () = unsafe { blaze_user_addrs_free(result) };
     let () = unsafe { blaze_normalizer_free(normalizer) };

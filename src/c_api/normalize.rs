@@ -334,19 +334,19 @@ impl From<blaze_user_addr_meta> for UserAddrMeta {
 #[derive(Debug)]
 pub struct blaze_normalized_user_addrs {
     /// The number of [`blaze_user_addr_meta`] objects present in `metas`.
-    pub meta_count: usize,
-    /// An array of `meta_count` objects.
+    pub meta_cnt: usize,
+    /// An array of `meta_cnt` objects.
     pub metas: *mut blaze_user_addr_meta,
     /// The number of [`blaze_normalized_addr`] objects present in `addrs`.
-    pub addr_count: usize,
-    /// An array of `addr_count` objects.
+    pub addr_cnt: usize,
+    /// An array of `addr_cnt` objects.
     pub addrs: *mut blaze_normalized_addr,
 }
 
 impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
     fn from(other: NormalizedUserAddrs) -> Self {
         Self {
-            meta_count: other.meta.len(),
+            meta_cnt: other.meta.len(),
             metas: unsafe {
                 Box::into_raw(
                     other
@@ -360,7 +360,7 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
                 .unwrap()
                 .as_mut_ptr()
             },
-            addr_count: other.addrs.len(),
+            addr_cnt: other.addrs.len(),
             addrs: unsafe {
                 Box::into_raw(
                     other
@@ -393,20 +393,20 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
-/// `addr_count` addresses.
+/// `addr_cnt` addresses.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs(
     normalizer: *const Normalizer,
     addrs: *const Addr,
-    addr_count: usize,
+    addr_cnt: usize,
     pid: u32,
 ) -> *mut blaze_normalized_user_addrs {
     // SAFETY: The caller needs to ensure that `normalizer` is a valid
     //         pointer.
     let normalizer = unsafe { &*normalizer };
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
-    //         that it points to `addr_count` elements.
-    let addrs = unsafe { slice_from_user_array(addrs, addr_count) };
+    //         that it points to `addr_cnt` elements.
+    let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
     let result = normalizer.normalize_user_addrs(addrs, pid.into());
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
@@ -434,20 +434,20 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
-/// `addr_count` addresses.
+/// `addr_cnt` addresses.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     normalizer: *const Normalizer,
     addrs: *const Addr,
-    addr_count: usize,
+    addr_cnt: usize,
     pid: u32,
 ) -> *mut blaze_normalized_user_addrs {
     // SAFETY: The caller needs to ensure that `normalizer` is a valid
     //         pointer.
     let normalizer = unsafe { &*normalizer };
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
-    //         that it points to `addr_count` elements.
-    let addrs = unsafe { slice_from_user_array(addrs, addr_count) };
+    //         that it points to `addr_cnt` elements.
+    let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
     let result = normalizer.normalize_user_addrs_sorted(addrs, pid.into());
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
@@ -477,14 +477,14 @@ pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user
     let addr_metas = unsafe {
         Box::<[blaze_user_addr_meta]>::from_raw(slice::from_raw_parts_mut(
             user_addrs.metas,
-            user_addrs.meta_count,
+            user_addrs.meta_cnt,
         ))
     }
     .into_vec();
     let _norm_addrs = unsafe {
         Box::<[blaze_normalized_addr]>::from_raw(slice::from_raw_parts_mut(
             user_addrs.addrs,
-            user_addrs.addr_count,
+            user_addrs.addr_cnt,
         ))
     }
     .into_vec();
@@ -554,14 +554,14 @@ mod tests {
         );
 
         let user_addrs = blaze_normalized_user_addrs {
-            meta_count: 0,
+            meta_cnt: 0,
             metas: ptr::null_mut(),
-            addr_count: 0,
+            addr_cnt: 0,
             addrs: ptr::null_mut(),
         };
         assert_eq!(
             format!("{user_addrs:?}"),
-            "blaze_normalized_user_addrs { meta_count: 0, metas: 0x0, addr_count: 0, addrs: 0x0 }",
+            "blaze_normalized_user_addrs { meta_cnt: 0, metas: 0x0, addr_cnt: 0, addrs: 0x0 }",
         );
     }
 

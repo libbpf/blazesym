@@ -225,17 +225,17 @@ typedef struct blaze_normalized_user_addrs {
   /**
    * The number of [`blaze_user_addr_meta`] objects present in `metas`.
    */
-  size_t meta_count;
+  size_t meta_cnt;
   /**
-   * An array of `meta_count` objects.
+   * An array of `meta_cnt` objects.
    */
   struct blaze_user_addr_meta *metas;
   /**
    * The number of [`blaze_normalized_addr`] objects present in `addrs`.
    */
-  size_t addr_count;
+  size_t addr_cnt;
   /**
-   * An array of `addr_count` objects.
+   * An array of `addr_cnt` objects.
    */
   struct blaze_normalized_addr *addrs;
 } blaze_normalized_user_addrs;
@@ -561,11 +561,11 @@ void blaze_normalizer_free(struct blaze_normalizer *normalizer);
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
- * `addr_count` addresses.
+ * `addr_cnt` addresses.
  */
 struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const struct blaze_normalizer *normalizer,
                                                                const uintptr_t *addrs,
-                                                               size_t addr_count,
+                                                               size_t addr_cnt,
                                                                uint32_t pid);
 
 /**
@@ -585,11 +585,11 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const struct blaz
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
- * `addr_count` addresses.
+ * `addr_cnt` addresses.
  */
 struct blaze_normalized_user_addrs *blaze_normalize_user_addrs_sorted(const struct blaze_normalizer *normalizer,
                                                                       const uintptr_t *addrs,
-                                                                      size_t addr_count,
+                                                                      size_t addr_cnt,
                                                                       uint32_t pid);
 
 /**
