@@ -105,6 +105,7 @@ use std::ffi::OsString;
 use std::path::Path;
 use std::path::PathBuf;
 
+pub use source::Apk;
 pub use source::Elf;
 pub use source::Gsym;
 pub use source::GsymData;
