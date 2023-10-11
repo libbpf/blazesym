@@ -13,10 +13,10 @@ use std::slice;
 use crate::log::error;
 use crate::normalize::ApkElf;
 use crate::normalize::Elf;
-use crate::normalize::NormalizedUserAddrs;
 use crate::normalize::Normalizer;
 use crate::normalize::Unknown;
-use crate::normalize::UserAddrMeta;
+use crate::normalize::UserMeta;
+use crate::normalize::UserOutput;
 use crate::util::slice_from_user_array;
 use crate::Addr;
 
@@ -52,41 +52,40 @@ pub unsafe extern "C" fn blaze_normalizer_free(normalizer: *mut Normalizer) {
 
 
 /// A normalized address along with an index into the associated
-/// [`blaze_user_addr_meta`] array (such as
-/// [`blaze_normalized_user_addrs::metas`]).
+/// [`blaze_user_meta`] array (such as [`blaze_normalized_user_output::metas`]).
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_normalized_addr {
+pub struct blaze_normalized_output {
     /// The normalized address.
-    pub addr: Addr,
-    /// The index into the associated [`blaze_user_addr_meta`] array.
+    pub output: u64,
+    /// The index into the associated [`blaze_user_meta`] array.
     pub meta_idx: usize,
 }
 
-impl From<(Addr, usize)> for blaze_normalized_addr {
-    fn from((addr, meta_idx): (Addr, usize)) -> Self {
-        Self { addr, meta_idx }
+impl From<(u64, usize)> for blaze_normalized_output {
+    fn from((output, meta_idx): (u64, usize)) -> Self {
+        Self { output, meta_idx }
     }
 }
 
 
-/// The valid variant kind in [`blaze_user_addr_meta`].
+/// The valid variant kind in [`blaze_user_meta`].
 #[repr(C)]
 #[derive(Debug)]
-pub enum blaze_user_addr_meta_kind {
-    /// [`blaze_user_addr_meta_variant::unknown`] is valid.
-    BLAZE_USER_ADDR_UNKNOWN,
-    /// [`blaze_user_addr_meta_variant::apk_elf`] is valid.
-    BLAZE_USER_ADDR_APK_ELF,
-    /// [`blaze_user_addr_meta_variant::elf`] is valid.
-    BLAZE_USER_ADDR_ELF,
+pub enum blaze_user_meta_kind {
+    /// [`blaze_user_meta_variant::unknown`] is valid.
+    BLAZE_USER_META_UNKNOWN,
+    /// [`blaze_user_meta_variant::apk_elf`] is valid.
+    BLAZE_USER_META_APK_ELF,
+    /// [`blaze_user_meta_variant::elf`] is valid.
+    BLAZE_USER_META_ELF,
 }
 
 
 /// C compatible version of [`ApkElf`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_user_addr_meta_apk_elf {
+pub struct blaze_user_meta_apk_elf {
     /// The canonical absolute path to the APK, including its name.
     /// This member is always present.
     pub apk_path: *mut c_char,
@@ -98,7 +97,7 @@ pub struct blaze_user_addr_meta_apk_elf {
     pub elf_build_id: *mut u8,
 }
 
-impl From<ApkElf> for blaze_user_addr_meta_apk_elf {
+impl From<ApkElf> for blaze_user_meta_apk_elf {
     fn from(other: ApkElf) -> Self {
         let ApkElf {
             apk_path,
@@ -133,9 +132,9 @@ impl From<ApkElf> for blaze_user_addr_meta_apk_elf {
     }
 }
 
-impl From<blaze_user_addr_meta_apk_elf> for ApkElf {
-    fn from(other: blaze_user_addr_meta_apk_elf) -> Self {
-        let blaze_user_addr_meta_apk_elf {
+impl From<blaze_user_meta_apk_elf> for ApkElf {
+    fn from(other: blaze_user_meta_apk_elf) -> Self {
+        let blaze_user_meta_apk_elf {
             apk_path,
             elf_path,
             elf_build_id_len,
@@ -162,7 +161,7 @@ impl From<blaze_user_addr_meta_apk_elf> for ApkElf {
 /// C compatible version of [`Elf`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_user_addr_meta_elf {
+pub struct blaze_user_meta_elf {
     /// The path to the ELF file. This member is always present.
     pub path: *mut c_char,
     /// The length of the build ID, in bytes.
@@ -171,7 +170,7 @@ pub struct blaze_user_addr_meta_elf {
     pub build_id: *mut u8,
 }
 
-impl From<Elf> for blaze_user_addr_meta_elf {
+impl From<Elf> for blaze_user_meta_elf {
     fn from(other: Elf) -> Self {
         let Elf {
             path,
@@ -202,9 +201,9 @@ impl From<Elf> for blaze_user_addr_meta_elf {
     }
 }
 
-impl From<blaze_user_addr_meta_elf> for Elf {
-    fn from(other: blaze_user_addr_meta_elf) -> Self {
-        let blaze_user_addr_meta_elf {
+impl From<blaze_user_meta_elf> for Elf {
+    fn from(other: blaze_user_meta_elf) -> Self {
+        let blaze_user_meta_elf {
             path,
             build_id_len,
             build_id,
@@ -226,12 +225,12 @@ impl From<blaze_user_addr_meta_elf> for Elf {
 /// C compatible version of [`Unknown`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_user_addr_meta_unknown {
+pub struct blaze_user_meta_unknown {
     /// This member is unused.
     pub _unused: u8,
 }
 
-impl From<Unknown> for blaze_user_addr_meta_unknown {
+impl From<Unknown> for blaze_user_meta_unknown {
     fn from(other: Unknown) -> Self {
         let Unknown {
             _non_exhaustive: (),
@@ -240,9 +239,9 @@ impl From<Unknown> for blaze_user_addr_meta_unknown {
     }
 }
 
-impl From<blaze_user_addr_meta_unknown> for Unknown {
-    fn from(other: blaze_user_addr_meta_unknown) -> Self {
-        let blaze_user_addr_meta_unknown { _unused } = other;
+impl From<blaze_user_meta_unknown> for Unknown {
+    fn from(other: blaze_user_meta_unknown) -> Self {
+        let blaze_user_meta_unknown { _unused } = other;
         Unknown {
             _non_exhaustive: (),
         }
@@ -250,75 +249,74 @@ impl From<blaze_user_addr_meta_unknown> for Unknown {
 }
 
 
-/// The actual variant data in [`blaze_user_addr_meta`].
+/// The actual variant data in [`blaze_user_meta`].
 #[repr(C)]
-pub union blaze_user_addr_meta_variant {
-    /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF`].
-    pub apk_elf: ManuallyDrop<blaze_user_addr_meta_apk_elf>,
-    /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF`].
-    pub elf: ManuallyDrop<blaze_user_addr_meta_elf>,
-    /// Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
-    pub unknown: ManuallyDrop<blaze_user_addr_meta_unknown>,
+pub union blaze_user_meta_variant {
+    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK_ELF`].
+    pub apk_elf: ManuallyDrop<blaze_user_meta_apk_elf>,
+    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_ELF`].
+    pub elf: ManuallyDrop<blaze_user_meta_elf>,
+    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN`].
+    pub unknown: ManuallyDrop<blaze_user_meta_unknown>,
 }
 
-impl Debug for blaze_user_addr_meta_variant {
+impl Debug for blaze_user_meta_variant {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.debug_struct(stringify!(blaze_user_addr_meta_variant))
-            .finish()
+        f.debug_struct(stringify!(blaze_user_meta_variant)).finish()
     }
 }
 
 
-/// C ABI compatible version of [`UserAddrMeta`].
+/// C ABI compatible version of [`UserMeta`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_user_addr_meta {
+pub struct blaze_user_meta {
     /// The variant kind that is present.
-    pub kind: blaze_user_addr_meta_kind,
+    pub kind: blaze_user_meta_kind,
     /// The actual variant with its data.
-    pub variant: blaze_user_addr_meta_variant,
+    pub variant: blaze_user_meta_variant,
 }
 
-impl From<UserAddrMeta> for blaze_user_addr_meta {
-    fn from(other: UserAddrMeta) -> Self {
+impl From<UserMeta> for blaze_user_meta {
+    fn from(other: UserMeta) -> Self {
         match other {
-            UserAddrMeta::ApkElf(apk_elf) => Self {
-                kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF,
-                variant: blaze_user_addr_meta_variant {
-                    apk_elf: ManuallyDrop::new(blaze_user_addr_meta_apk_elf::from(apk_elf)),
+            UserMeta::ApkElf(apk_elf) => Self {
+                kind: blaze_user_meta_kind::BLAZE_USER_META_APK_ELF,
+                variant: blaze_user_meta_variant {
+                    apk_elf: ManuallyDrop::new(blaze_user_meta_apk_elf::from(apk_elf)),
                 },
             },
-            UserAddrMeta::Elf(elf) => Self {
-                kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF,
-                variant: blaze_user_addr_meta_variant {
-                    elf: ManuallyDrop::new(blaze_user_addr_meta_elf::from(elf)),
+            UserMeta::Elf(elf) => Self {
+                kind: blaze_user_meta_kind::BLAZE_USER_META_ELF,
+                variant: blaze_user_meta_variant {
+                    elf: ManuallyDrop::new(blaze_user_meta_elf::from(elf)),
                 },
             },
-            UserAddrMeta::Unknown(unknown) => Self {
-                kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN,
-                variant: blaze_user_addr_meta_variant {
-                    unknown: ManuallyDrop::new(blaze_user_addr_meta_unknown::from(unknown)),
+            UserMeta::Unknown(unknown) => Self {
+                kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
+                variant: blaze_user_meta_variant {
+                    unknown: ManuallyDrop::new(blaze_user_meta_unknown::from(unknown)),
                 },
             },
         }
     }
 }
 
-impl From<blaze_user_addr_meta> for UserAddrMeta {
-    fn from(other: blaze_user_addr_meta) -> Self {
+impl From<blaze_user_meta> for UserMeta {
+    fn from(other: blaze_user_meta) -> Self {
         match other.kind {
-            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF => {
-                UserAddrMeta::ApkElf(ApkElf::from(ManuallyDrop::into_inner(unsafe {
+            blaze_user_meta_kind::BLAZE_USER_META_APK_ELF => {
+                UserMeta::ApkElf(ApkElf::from(ManuallyDrop::into_inner(unsafe {
                     other.variant.apk_elf
                 })))
             }
-            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF => {
-                UserAddrMeta::Elf(Elf::from(ManuallyDrop::into_inner(unsafe {
+            blaze_user_meta_kind::BLAZE_USER_META_ELF => {
+                UserMeta::Elf(Elf::from(ManuallyDrop::into_inner(unsafe {
                     other.variant.elf
                 })))
             }
-            blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN => {
-                UserAddrMeta::Unknown(Unknown::from(ManuallyDrop::into_inner(unsafe {
+            blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN => {
+                UserMeta::Unknown(Unknown::from(ManuallyDrop::into_inner(unsafe {
                     other.variant.unknown
                 })))
             }
@@ -329,22 +327,22 @@ impl From<blaze_user_addr_meta> for UserAddrMeta {
 
 /// An object representing normalized user addresses.
 ///
-/// C ABI compatible version of [`NormalizedUserAddrs`].
+/// C ABI compatible version of [`UserOutput`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_normalized_user_addrs {
-    /// The number of [`blaze_user_addr_meta`] objects present in `metas`.
+pub struct blaze_normalized_user_output {
+    /// The number of [`blaze_user_meta`] objects present in `metas`.
     pub meta_cnt: usize,
     /// An array of `meta_cnt` objects.
-    pub metas: *mut blaze_user_addr_meta,
-    /// The number of [`blaze_normalized_addr`] objects present in `addrs`.
-    pub addr_cnt: usize,
-    /// An array of `addr_cnt` objects.
-    pub addrs: *mut blaze_normalized_addr,
+    pub metas: *mut blaze_user_meta,
+    /// The number of [`blaze_normalized_output`] objects present in `outputs`.
+    pub output_cnt: usize,
+    /// An array of `output_cnt` objects.
+    pub outputs: *mut blaze_normalized_output,
 }
 
-impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
-    fn from(other: NormalizedUserAddrs) -> Self {
+impl From<UserOutput> for blaze_normalized_user_output {
+    fn from(other: UserOutput) -> Self {
         Self {
             meta_cnt: other.meta.len(),
             metas: unsafe {
@@ -352,7 +350,7 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
                     other
                         .meta
                         .into_iter()
-                        .map(blaze_user_addr_meta::from)
+                        .map(blaze_user_meta::from)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                 )
@@ -360,13 +358,13 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
                 .unwrap()
                 .as_mut_ptr()
             },
-            addr_cnt: other.addrs.len(),
-            addrs: unsafe {
+            output_cnt: other.outputs.len(),
+            outputs: unsafe {
                 Box::into_raw(
                     other
-                        .addrs
+                        .outputs
                         .into_iter()
-                        .map(blaze_normalized_addr::from)
+                        .map(blaze_normalized_output::from)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                 )
@@ -389,7 +387,7 @@ impl From<NormalizedUserAddrs> for blaze_normalized_user_addrs {
 ///
 /// C ABI compatible version of [`Normalizer::normalize_user_addrs`].
 /// Returns `NULL` on error. The resulting object should be freed using
-/// [`blaze_user_addrs_free`].
+/// [`blaze_user_output_free`].
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -400,7 +398,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     addrs: *const Addr,
     addr_cnt: usize,
     pid: u32,
-) -> *mut blaze_normalized_user_addrs {
+) -> *mut blaze_normalized_user_output {
     // SAFETY: The caller needs to ensure that `normalizer` is a valid
     //         pointer.
     let normalizer = unsafe { &*normalizer };
@@ -409,7 +407,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
     let result = normalizer.normalize_user_addrs(addrs, pid.into());
     match result {
-        Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
+        Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
         Err(err) => {
             error!("failed to normalize user addresses: {err}");
             ptr::null_mut()
@@ -430,7 +428,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 ///
 /// C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
 /// Returns `NULL` on error. The resulting object should be freed using
-/// [`blaze_user_addrs_free`].
+/// [`blaze_user_output_free`].
 ///
 /// # Safety
 /// Callers need to pass in a valid `addrs` pointer, pointing to memory of
@@ -441,7 +439,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     addrs: *const Addr,
     addr_cnt: usize,
     pid: u32,
-) -> *mut blaze_normalized_user_addrs {
+) -> *mut blaze_normalized_user_output {
     // SAFETY: The caller needs to ensure that `normalizer` is a valid
     //         pointer.
     let normalizer = unsafe { &*normalizer };
@@ -450,7 +448,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
     let result = normalizer.normalize_user_addrs_sorted(addrs, pid.into());
     match result {
-        Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_addrs::from(addrs))),
+        Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
         Err(err) => {
             error!("failed to normalize user addresses: {err}");
             ptr::null_mut()
@@ -458,39 +456,38 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     }
 }
 
-/// Free an object as returned by [`blaze_normalized_user_addrs`] or
+/// Free an object as returned by [`blaze_normalize_user_addrs`] or
 /// [`blaze_normalize_user_addrs_sorted`].
 ///
 /// # Safety
 /// The provided object should have been created by
-/// [`blaze_normalized_user_addrs`] or
-/// [`blaze_normalize_user_addrs_sorted`].
+/// [`blaze_normalize_user_addrs`] or [`blaze_normalize_user_addrs_sorted`].
 #[no_mangle]
-pub unsafe extern "C" fn blaze_user_addrs_free(addrs: *mut blaze_normalized_user_addrs) {
-    if addrs.is_null() {
+pub unsafe extern "C" fn blaze_user_output_free(output: *mut blaze_normalized_user_output) {
+    if output.is_null() {
         return
     }
 
-    // SAFETY: The caller should make sure that `addrs` was created by
-    //         `blaze_normalize_user_addrs_sorted`.
-    let user_addrs = unsafe { Box::from_raw(addrs) };
+    // SAFETY: The caller should make sure that `output` was created by one of
+    //         our blessed functions.
+    let user_output = unsafe { Box::from_raw(output) };
     let addr_metas = unsafe {
-        Box::<[blaze_user_addr_meta]>::from_raw(slice::from_raw_parts_mut(
-            user_addrs.metas,
-            user_addrs.meta_cnt,
+        Box::<[blaze_user_meta]>::from_raw(slice::from_raw_parts_mut(
+            user_output.metas,
+            user_output.meta_cnt,
         ))
     }
     .into_vec();
     let _norm_addrs = unsafe {
-        Box::<[blaze_normalized_addr]>::from_raw(slice::from_raw_parts_mut(
-            user_addrs.addrs,
-            user_addrs.addr_cnt,
+        Box::<[blaze_normalized_output]>::from_raw(slice::from_raw_parts_mut(
+            user_output.outputs,
+            user_output.output_cnt,
         ))
     }
     .into_vec();
 
     for addr_meta in addr_metas {
-        let _meta = UserAddrMeta::from(addr_meta);
+        let _meta = UserMeta::from(addr_meta);
     }
 }
 
@@ -503,19 +500,19 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let norm_addr = blaze_normalized_addr {
-            addr: 0x1337,
+        let output = blaze_normalized_output {
+            output: 0x1337,
             meta_idx: 1,
         };
         assert_eq!(
-            format!("{norm_addr:?}"),
-            "blaze_normalized_addr { addr: 4919, meta_idx: 1 }"
+            format!("{output:?}"),
+            "blaze_normalized_output { output: 4919, meta_idx: 1 }"
         );
 
-        let meta_kind = blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF;
-        assert_eq!(format!("{meta_kind:?}"), "BLAZE_USER_ADDR_APK_ELF");
+        let meta_kind = blaze_user_meta_kind::BLAZE_USER_META_APK_ELF;
+        assert_eq!(format!("{meta_kind:?}"), "BLAZE_USER_META_APK_ELF");
 
-        let apk_elf = blaze_user_addr_meta_apk_elf {
+        let apk_elf = blaze_user_meta_apk_elf {
             apk_path: ptr::null_mut(),
             elf_path: ptr::null_mut(),
             elf_build_id_len: 0,
@@ -523,66 +520,66 @@ mod tests {
         };
         assert_eq!(
             format!("{apk_elf:?}"),
-            "blaze_user_addr_meta_apk_elf { apk_path: 0x0, elf_path: 0x0, elf_build_id_len: 0, elf_build_id: 0x0 }",
+            "blaze_user_meta_apk_elf { apk_path: 0x0, elf_path: 0x0, elf_build_id_len: 0, elf_build_id: 0x0 }",
         );
 
-        let elf = blaze_user_addr_meta_elf {
+        let elf = blaze_user_meta_elf {
             path: ptr::null_mut(),
             build_id_len: 0,
             build_id: ptr::null_mut(),
         };
         assert_eq!(
             format!("{elf:?}"),
-            "blaze_user_addr_meta_elf { path: 0x0, build_id_len: 0, build_id: 0x0 }",
+            "blaze_user_meta_elf { path: 0x0, build_id_len: 0, build_id: 0x0 }",
         );
 
-        let unknown = blaze_user_addr_meta_unknown { _unused: 42 };
+        let unknown = blaze_user_meta_unknown { _unused: 42 };
         assert_eq!(
             format!("{unknown:?}"),
-            "blaze_user_addr_meta_unknown { _unused: 42 }",
+            "blaze_user_meta_unknown { _unused: 42 }",
         );
 
-        let meta = blaze_user_addr_meta {
-            kind: blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN,
-            variant: blaze_user_addr_meta_variant {
-                unknown: ManuallyDrop::new(blaze_user_addr_meta_unknown { _unused: 42 }),
+        let meta = blaze_user_meta {
+            kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
+            variant: blaze_user_meta_variant {
+                unknown: ManuallyDrop::new(blaze_user_meta_unknown { _unused: 42 }),
             },
         };
         assert_eq!(
             format!("{meta:?}"),
-            "blaze_user_addr_meta { kind: BLAZE_USER_ADDR_UNKNOWN, variant: blaze_user_addr_meta_variant }",
+            "blaze_user_meta { kind: BLAZE_USER_META_UNKNOWN, variant: blaze_user_meta_variant }",
         );
 
-        let user_addrs = blaze_normalized_user_addrs {
+        let user_addrs = blaze_normalized_user_output {
             meta_cnt: 0,
             metas: ptr::null_mut(),
-            addr_cnt: 0,
-            addrs: ptr::null_mut(),
+            output_cnt: 0,
+            outputs: ptr::null_mut(),
         };
         assert_eq!(
             format!("{user_addrs:?}"),
-            "blaze_normalized_user_addrs { meta_cnt: 0, metas: 0x0, addr_cnt: 0, addrs: 0x0 }",
+            "blaze_normalized_user_output { meta_cnt: 0, metas: 0x0, output_cnt: 0, outputs: 0x0 }",
         );
     }
 
     /// Check that we can convert an [`Unknown`] into a
-    /// [`blaze_user_addr_meta_unknown`] and back.
+    /// [`blaze_user_meta_unknown`] and back.
     #[test]
     fn unknown_conversion() {
         let unknown = Unknown {
             _non_exhaustive: (),
         };
 
-        let unknown_new = Unknown::from(blaze_user_addr_meta_unknown::from(unknown.clone()));
+        let unknown_new = Unknown::from(blaze_user_meta_unknown::from(unknown.clone()));
         assert_eq!(unknown_new, unknown);
 
-        let meta = UserAddrMeta::Unknown(unknown_new);
-        let meta_new = UserAddrMeta::from(blaze_user_addr_meta::from(meta.clone()));
+        let meta = UserMeta::Unknown(unknown_new);
+        let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
         assert_eq!(meta_new, meta);
     }
 
     /// Check that we can convert an [`ApkElf`] into a
-    /// [`blaze_user_addr_meta_apk_elf`] and back.
+    /// [`blaze_user_meta_apk_elf`] and back.
     #[test]
     fn apk_elf_conversion() {
         let apk = ApkElf {
@@ -592,7 +589,7 @@ mod tests {
             _non_exhaustive: (),
         };
 
-        let apk_new = ApkElf::from(blaze_user_addr_meta_apk_elf::from(apk.clone()));
+        let apk_new = ApkElf::from(blaze_user_meta_apk_elf::from(apk.clone()));
         assert_eq!(apk_new, apk);
 
         let apk = ApkElf {
@@ -602,15 +599,15 @@ mod tests {
             _non_exhaustive: (),
         };
 
-        let apk_new = ApkElf::from(blaze_user_addr_meta_apk_elf::from(apk.clone()));
+        let apk_new = ApkElf::from(blaze_user_meta_apk_elf::from(apk.clone()));
         assert_eq!(apk_new, apk);
 
-        let meta = UserAddrMeta::ApkElf(apk_new);
-        let meta_new = UserAddrMeta::from(blaze_user_addr_meta::from(meta.clone()));
+        let meta = UserMeta::ApkElf(apk_new);
+        let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
         assert_eq!(meta_new, meta);
     }
 
-    /// Check that we can convert an [`Elf`] into a [`blaze_user_addr_meta_elf`]
+    /// Check that we can convert an [`Elf`] into a [`blaze_user_meta_elf`]
     /// and back.
     #[test]
     fn elf_conversion() {
@@ -620,11 +617,11 @@ mod tests {
             _non_exhaustive: (),
         };
 
-        let elf_new = Elf::from(blaze_user_addr_meta_elf::from(elf.clone()));
+        let elf_new = Elf::from(blaze_user_meta_elf::from(elf.clone()));
         assert_eq!(elf_new, elf);
 
-        let meta = UserAddrMeta::Elf(elf_new);
-        let meta_new = UserAddrMeta::from(blaze_user_addr_meta::from(meta.clone()));
+        let meta = UserMeta::Elf(elf_new);
+        let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
         assert_eq!(meta_new, meta);
     }
 }

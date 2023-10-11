@@ -4,23 +4,23 @@ use crate::Pid;
 use crate::Result;
 
 use super::user::normalize_user_addrs_sorted_impl;
-use super::user::NormalizedUserAddrs;
+use super::user::UserOutput;
 
 
-/// A type capturing normalized addresses along with captured meta data.
+/// A type capturing normalized outputs along with captured meta data.
 ///
 /// This type enables "remote" symbolization. That is to say, it represents the
 /// input necessary for addresses to be symbolized on a system other than where
 /// they were recorded.
 #[derive(Clone, Debug)]
-pub struct NormalizedAddrs<M> {
-    /// Normalized addresses along with an index into `meta` for retrieval of
-    /// the corresponding [`AddrMeta`] information.
+pub struct Output<M> {
+    /// Outputs along with an index into `meta` for retrieval of the
+    /// corresponding meta information.
     ///
     /// A normalized address is one as it would appear in a binary or debug
     /// symbol file, i.e., one excluding any relocations.
-    pub addrs: Vec<(Addr, usize)>,
-    /// Meta information about the normalized addresses.
+    pub outputs: Vec<(Addr, usize)>,
+    /// Meta information about the normalized outputs.
     pub meta: Vec<M>,
 }
 
@@ -94,10 +94,10 @@ impl Normalizer {
     /// [`Normalizer::normalize_user_addrs`] instead.
     ///
     /// Unknown addresses are not normalized. They are reported as
-    /// [`Unknown`][crate::normalize::Unknown] meta entries in the
-    /// returned [`NormalizedUserAddrs`] object. The cause of an address
-    /// to be unknown (and, hence, not normalized), could have a few
-    /// reasons, including, but not limited to:
+    /// [`Unknown`][crate::normalize::Unknown] meta entries in the returned
+    /// [`UserOutput`] object. The cause of an address to be unknown (and,
+    /// hence, not normalized), could be manifold, including, but not limited
+    /// to:
     /// - user error (if a bogus address was provided)
     /// - they belonged to an ELF object that has been unmapped since the
     ///   address was captured
@@ -107,11 +107,7 @@ impl Normalizer {
     /// Normalized addresses are reported in the exact same order in which the
     /// non-normalized ones were provided.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    pub fn normalize_user_addrs_sorted(
-        &self,
-        addrs: &[Addr],
-        pid: Pid,
-    ) -> Result<NormalizedUserAddrs> {
+    pub fn normalize_user_addrs_sorted(&self, addrs: &[Addr], pid: Pid) -> Result<UserOutput> {
         normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid, self.build_ids)
     }
 
@@ -125,10 +121,10 @@ impl Normalizer {
     /// [`Normalizer::normalize_user_addrs_sorted`] instead will result in
     /// slightly faster normalization.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    pub fn normalize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<NormalizedUserAddrs> {
+    pub fn normalize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<UserOutput> {
         util::with_ordered_elems(
             addrs,
-            |normalized: &mut NormalizedUserAddrs| normalized.addrs.as_mut_slice(),
+            |normalized: &mut UserOutput| normalized.outputs.as_mut_slice(),
             |sorted_addrs| normalize_user_addrs_sorted_impl(sorted_addrs, pid, self.build_ids),
         )
     }
@@ -153,7 +149,7 @@ mod tests {
     use crate::normalize::ApkElf;
     use crate::normalize::Elf;
     use crate::normalize::Unknown;
-    use crate::normalize::UserAddrMeta;
+    use crate::normalize::UserMeta;
     use crate::zip;
 
 
@@ -186,11 +182,11 @@ mod tests {
         let normalized = normalizer
             .normalize_user_addrs_sorted(addrs.as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(normalized.addrs.len(), 2);
+        assert_eq!(normalized.outputs.len(), 2);
         assert_eq!(normalized.meta.len(), 1);
         assert_eq!(normalized.meta[0], Unknown::default().into());
-        assert_eq!(normalized.addrs[0].1, 0);
-        assert_eq!(normalized.addrs[1].1, 0);
+        assert_eq!(normalized.outputs[0].1, 0);
+        assert_eq!(normalized.outputs[1].1, 0);
     }
 
     /// Check that we can normalize user addresses.
@@ -215,13 +211,13 @@ mod tests {
         let normalized = normalizer
             .normalize_user_addrs(addrs.as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(normalized.addrs.len(), 6);
+        assert_eq!(normalized.outputs.len(), 6);
 
-        let addrs = &normalized.addrs;
+        let outputs = &normalized.outputs;
         let meta = &normalized.meta;
         assert_eq!(meta.len(), 2);
 
-        let errno_meta_idx = addrs[errno_idx].1;
+        let errno_meta_idx = outputs[errno_idx].1;
         assert!(meta[errno_meta_idx]
             .elf()
             .unwrap()
@@ -264,12 +260,12 @@ mod tests {
         let normalized = normalizer
             .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(normalized.addrs.len(), 1);
+        assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
 
-        let norm_addr = normalized.addrs[0];
-        assert_eq!(norm_addr.0, sym.addr);
-        let meta = &normalized.meta[norm_addr.1];
+        let output = normalized.outputs[0];
+        assert_eq!(output.0, sym.addr);
+        let meta = &normalized.meta[output.1];
         let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("libtest-so.so");
@@ -278,7 +274,7 @@ mod tests {
             path: so_path,
             _non_exhaustive: (),
         };
-        assert_eq!(meta, &UserAddrMeta::Elf(expected_elf));
+        assert_eq!(meta, &UserMeta::Elf(expected_elf));
     }
 
     /// Check that we can normalize addresses in our own shared object inside a
@@ -328,12 +324,12 @@ mod tests {
             let normalized = normalizer
                 .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
                 .unwrap();
-            assert_eq!(normalized.addrs.len(), 1);
+            assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
 
-            let norm_addr = normalized.addrs[0];
-            assert_eq!(norm_addr.0, sym.addr);
-            let meta = &normalized.meta[norm_addr.1];
+            let output = normalized.outputs[0];
+            assert_eq!(output.0, sym.addr);
+            let meta = &normalized.meta[output.1];
             let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join(so_name);
@@ -343,7 +339,7 @@ mod tests {
                 elf_build_id: Some(read_elf_build_id(&so_path).unwrap().unwrap()),
                 _non_exhaustive: (),
             };
-            assert_eq!(meta, &UserAddrMeta::ApkElf(expected));
+            assert_eq!(meta, &UserMeta::ApkElf(expected));
         }
 
         test("libtest-so.so");
