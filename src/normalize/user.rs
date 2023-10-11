@@ -20,9 +20,8 @@ use crate::Result;
 use super::buildid::BuildIdFn;
 use super::buildid::BuildIdReader;
 use super::buildid::DefaultBuildIdReader;
-use super::buildid::ElfBuildIdFn;
 use super::buildid::NoBuildIdReader;
-use super::meta::ApkElf;
+use super::meta::Apk;
 use super::meta::Elf;
 use super::meta::Unknown;
 use super::meta::UserMeta;
@@ -82,20 +81,13 @@ fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<User
 }
 
 
-/// Make a [`UserMeta::ApkElf`] variant.
-fn make_apk_elf_meta(
-    entry: &PathMapsEntry,
-    elf_path: PathBuf,
-    elf_parser: &ElfParser,
-    get_build_id: &ElfBuildIdFn,
-) -> Result<UserMeta> {
-    let apk = ApkElf {
-        elf_build_id: get_build_id(elf_parser)?,
-        apk_path: entry.path.symbolic_path.to_path_buf(),
-        elf_path,
+/// Make a [`UserMeta::Apk`] variant.
+fn make_apk_meta(entry: &PathMapsEntry) -> Result<UserMeta> {
+    let apk = Apk {
+        path: entry.path.symbolic_path.to_path_buf(),
         _non_exhaustive: (),
     };
-    let meta = UserMeta::ApkElf(apk);
+    let meta = UserMeta::Apk(apk);
     Ok(meta)
 }
 
@@ -184,10 +176,10 @@ impl UserOutput {
         Some(unknown_idx)
     }
 
-    /// Add a normalized address to this object.
-    fn add_normalized_addr<F>(
+    /// Add a (normalized) file offset to this object.
+    fn add_normalized_offset<F>(
         &mut self,
-        norm_addr: Addr,
+        file_offset: Addr,
         key: &Path,
         meta_lookup: &mut HashMap<PathBuf, usize>,
         create_meta: F,
@@ -205,7 +197,7 @@ impl UserOutput {
             meta_idx
         };
 
-        let () = self.outputs.push((norm_addr, meta_idx));
+        let () = self.outputs.push((file_offset, meta_idx));
         Ok(())
     }
 }
@@ -248,48 +240,6 @@ impl<R> NormalizationHandler<R> {
     }
 }
 
-impl<R> NormalizationHandler<R>
-where
-    R: BuildIdReader,
-{
-    /// Normalize a virtual address belonging to an APK and create and add the
-    /// correct [`UserMeta`] meta information.
-    fn normalize_and_add_apk_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-        let file_off = virt_addr - entry.range.start + entry.offset;
-        let apk_path = &entry.path.symbolic_path;
-        let (norm_addr, elf_path, elf_parser) = normalize_apk_offset(file_off, apk_path)?
-            .ok_or_invalid_input(|| {
-                format!(
-                    "failed to find ELF entry in {} that contains file offset {:#x}",
-                    apk_path.display(),
-                    file_off
-                )
-            })?;
-        let key = create_apk_elf_path(apk_path, &elf_path)?;
-        let () =
-            self.normalized
-                .add_normalized_addr(norm_addr, &key, &mut self.meta_lookup, || {
-                    make_apk_elf_meta(entry, elf_path, &elf_parser, &R::read_build_id)
-                })?;
-
-        Ok(())
-    }
-
-    /// Normalize a virtual address belonging to an ELF file and create and add
-    /// the correct [`UserMeta`] meta information.
-    fn normalize_and_add_elf_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-        let norm_addr = normalize_elf_addr(virt_addr, entry)?;
-        let () = self.normalized.add_normalized_addr(
-            norm_addr,
-            &entry.path.symbolic_path,
-            &mut self.meta_lookup,
-            || make_elf_meta(entry, &R::read_build_id_from_elf),
-        )?;
-
-        Ok(())
-    }
-}
-
 impl<R> Handler for NormalizationHandler<R>
 where
     R: BuildIdReader,
@@ -301,14 +251,25 @@ where
     }
 
     fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+        let file_off = addr - entry.range.start + entry.offset;
         let ext = entry
             .path
             .symbolic_path
             .extension()
             .unwrap_or_else(|| OsStr::new(""));
         match ext.to_str() {
-            Some("apk") | Some("zip") => self.normalize_and_add_apk_addr(addr, entry),
-            _ => self.normalize_and_add_elf_addr(addr, entry),
+            Some("apk") | Some("zip") => self.normalized.add_normalized_offset(
+                file_off,
+                &entry.path.symbolic_path,
+                &mut self.meta_lookup,
+                || make_apk_meta(entry),
+            ),
+            _ => self.normalized.add_normalized_offset(
+                file_off,
+                &entry.path.symbolic_path,
+                &mut self.meta_lookup,
+                || make_elf_meta(entry, &R::read_build_id_from_elf),
+            ),
         }
     }
 }
@@ -379,8 +340,9 @@ where
     Ok(handler)
 }
 
-/// Normalize all `addrs` in a given process. The `addrs` array has to
-/// be sorted in ascending order or an error will be returned.
+/// Normalize all `addrs` in a given process to the corresponding file offsets,
+/// which are suitable for later symbolization. The `addrs` array has to be
+/// sorted in ascending order or an error will be returned.
 ///
 /// Unknown addresses are not normalized. They are reported as
 /// [`Unknown`] meta entries in the returned [`UserOutput`]
@@ -393,8 +355,8 @@ where
 ///
 /// The process' ID should be provided in `pid`.
 ///
-/// Normalized addresses are reported in the exact same order in which the
-/// non-normalized ones were provided.
+/// File offsets are reported in the exact same order in which the
+/// non-normalized addresses ones were provided.
 pub(super) fn normalize_user_addrs_sorted_impl<A>(
     addrs: A,
     pid: Pid,

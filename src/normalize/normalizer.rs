@@ -17,9 +17,14 @@ pub struct Output<M> {
     /// Outputs along with an index into `meta` for retrieval of the
     /// corresponding meta information.
     ///
-    /// A normalized address is one as it would appear in a binary or debug
-    /// symbol file, i.e., one excluding any relocations.
-    pub outputs: Vec<(Addr, usize)>,
+    /// The output is a file offset when normalization was successful and the
+    /// unnormalized input address otherwise. Normalization errors are indicated
+    /// by an index referencing a [`Unknown`][crate::normalize::Unknown] object.
+    ///
+    /// A file offset is one as it would appear in a binary or debug symbol
+    /// file, i.e., one excluding any relocations. The data reported here can be
+    /// used with the [`symbolize::Input::FileOffset`] variant.
+    pub outputs: Vec<(u64, usize)>,
     /// Meta information about the normalized outputs.
     pub meta: Vec<M>,
 }
@@ -137,7 +142,6 @@ mod tests {
 
     use std::mem::transmute;
     use std::path::Path;
-    use std::path::PathBuf;
 
     use test_log::test;
 
@@ -146,10 +150,12 @@ mod tests {
     use crate::inspect::SymType;
     use crate::mmap::Mmap;
     use crate::normalize::buildid::read_elf_build_id;
-    use crate::normalize::ApkElf;
+    use crate::normalize::Apk;
     use crate::normalize::Elf;
     use crate::normalize::Unknown;
     use crate::normalize::UserMeta;
+    use crate::symbolize;
+    use crate::symbolize::Symbolizer;
     use crate::zip;
 
 
@@ -280,7 +286,7 @@ mod tests {
     /// Check that we can normalize addresses in our own shared object inside a
     /// zip archive.
     #[test]
-    fn user_address_normalization_custom_so_in_zip() {
+    fn normalize_custom_so_in_zip() {
         fn test(so_name: &str) {
             let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
@@ -305,6 +311,7 @@ mod tests {
             let elf_parser = ElfParser::from_mmap(elf_mmap.clone());
             let opts = FindAddrOpts {
                 sym_type: SymType::Function,
+                offset_in_file: true,
                 ..Default::default()
             };
             let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
@@ -327,19 +334,35 @@ mod tests {
             assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
 
+            let expected_offset = so.data_offset + elf_parser.find_file_offset(sym.addr).unwrap();
             let output = normalized.outputs[0];
-            assert_eq!(output.0, sym.addr);
+            assert_eq!(output.0, expected_offset);
             let meta = &normalized.meta[output.1];
-            let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-                .join("data")
-                .join(so_name);
-            let expected = ApkElf {
-                apk_path: test_zip,
-                elf_path: PathBuf::from(so_name),
-                elf_build_id: Some(read_elf_build_id(&so_path).unwrap().unwrap()),
+            let expected = Apk {
+                path: test_zip.clone(),
                 _non_exhaustive: (),
             };
-            assert_eq!(meta, &UserMeta::ApkElf(expected));
+            assert_eq!(meta, &UserMeta::Apk(expected));
+
+            // Also symbolize the normalization output.
+            let apk = symbolize::Apk::new(test_zip);
+            let src = symbolize::Source::Apk(apk);
+            let symbolizer = Symbolizer::new();
+            let result = symbolizer
+                .symbolize_single(&src, symbolize::Input::FileOffset(output.0))
+                .unwrap()
+                .into_sym()
+                .unwrap();
+
+            assert_eq!(result.name, "the_answer");
+
+            let results = symbolizer
+                .symbolize(&src, symbolize::Input::FileOffset(&[output.0]))
+                .unwrap();
+            assert_eq!(results.len(), 1);
+
+            let sym = results[0].as_sym().unwrap();
+            assert_eq!(sym.name, "the_answer");
         }
 
         test("libtest-so.so");

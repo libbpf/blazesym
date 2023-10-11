@@ -35,9 +35,9 @@ typedef enum blaze_user_meta_kind {
    */
   BLAZE_USER_META_UNKNOWN,
   /**
-   * [`blaze_user_meta_variant::apk_elf`] is valid.
+   * [`blaze_user_meta_variant::apk`] is valid.
    */
-  BLAZE_USER_META_APK_ELF,
+  BLAZE_USER_META_APK,
   /**
    * [`blaze_user_meta_variant::elf`] is valid.
    */
@@ -118,27 +118,15 @@ typedef struct blaze_inspect_elf_src {
 } blaze_inspect_elf_src;
 
 /**
- * C compatible version of [`ApkElf`].
+ * C compatible version of [`Apk`].
  */
-typedef struct blaze_user_meta_apk_elf {
+typedef struct blaze_user_meta_apk {
   /**
    * The canonical absolute path to the APK, including its name.
    * This member is always present.
    */
-  char *apk_path;
-  /**
-   * The relative path to the ELF file inside the APK.
-   */
-  char *elf_path;
-  /**
-   * The length of the build ID, in bytes.
-   */
-  size_t elf_build_id_len;
-  /**
-   * The optional build ID of the ELF file, if found.
-   */
-  uint8_t *elf_build_id;
-} blaze_user_meta_apk_elf;
+  char *path;
+} blaze_user_meta_apk;
 
 /**
  * C compatible version of [`Elf`].
@@ -173,9 +161,9 @@ typedef struct blaze_user_meta_unknown {
  */
 typedef union blaze_user_meta_variant {
   /**
-   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK_ELF`].
+   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK`].
    */
-  struct blaze_user_meta_apk_elf apk_elf;
+  struct blaze_user_meta_apk apk;
   /**
    * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_ELF`].
    */
@@ -201,12 +189,13 @@ typedef struct blaze_user_meta {
 } blaze_user_meta;
 
 /**
- * A normalized address along with an index into the associated
- * [`blaze_user_meta`] array (such as [`blaze_normalized_user_output::metas`]).
+ * A file offset or non-normalized address along with an index into the
+ * associated [`blaze_user_meta`] array (such as
+ * [`blaze_normalized_user_output::metas`]).
  */
 typedef struct blaze_normalized_output {
   /**
-   * The normalized address.
+   * The file offset or non-normalized address.
    */
   uint64_t output;
   /**

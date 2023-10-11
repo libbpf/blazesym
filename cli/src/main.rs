@@ -51,28 +51,18 @@ fn normalize(normalize: args::Normalize) -> Result<()> {
 
                 let meta = &normalized.meta[*meta_idx];
                 match meta {
-                    normalize::UserMeta::ApkElf(normalize::ApkElf {
-                        apk_path,
-                        elf_path,
-                        elf_build_id,
-                        ..
-                    }) => {
-                        let build_id = format_build_id(elf_build_id.as_deref());
-                        println!(
-                            "{output:#x} @ {} in {}{build_id}",
-                            elf_path.display(),
-                            apk_path.display()
-                        )
+                    normalize::UserMeta::Apk(normalize::Apk { path, .. }) => {
+                        println!("file offset {output:#x} in {}", path.display())
                     }
                     normalize::UserMeta::Elf(normalize::Elf { path, build_id, .. }) => {
                         let build_id = format_build_id(build_id.as_deref());
-                        println!("{output:#x} @ {}{build_id}", path.display())
+                        println!("file offset {output:#x} in {}{build_id}", path.display())
                     }
                     normalize::UserMeta::Unknown(normalize::Unknown { .. }) => {
                         println!("<unknown>")
                     }
                     // This is a bug and should be reported as such.
-                    _ => panic!("encountered unsupported user address meta data: {meta:?}"),
+                    _ => panic!("encountered unsupported user meta data: {meta:?}"),
                 }
             }
         }
