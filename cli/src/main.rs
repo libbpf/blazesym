@@ -46,12 +46,12 @@ fn normalize(normalize: args::Normalize) -> Result<()> {
             let normalized = normalizer
                 .normalize_user_addrs(addrs.as_slice(), pid)
                 .context("failed to normalize addresses")?;
-            for (addr, (norm_addr, meta_idx)) in addrs.iter().zip(&normalized.addrs) {
+            for (addr, (output, meta_idx)) in addrs.iter().zip(&normalized.outputs) {
                 print!("{addr:#016x}: ");
 
                 let meta = &normalized.meta[*meta_idx];
                 match meta {
-                    normalize::UserAddrMeta::ApkElf(normalize::ApkElf {
+                    normalize::UserMeta::ApkElf(normalize::ApkElf {
                         apk_path,
                         elf_path,
                         elf_build_id,
@@ -59,16 +59,16 @@ fn normalize(normalize: args::Normalize) -> Result<()> {
                     }) => {
                         let build_id = format_build_id(elf_build_id.as_deref());
                         println!(
-                            "{norm_addr:#x} @ {} in {}{build_id}",
+                            "{output:#x} @ {} in {}{build_id}",
                             elf_path.display(),
                             apk_path.display()
                         )
                     }
-                    normalize::UserAddrMeta::Elf(normalize::Elf { path, build_id, .. }) => {
+                    normalize::UserMeta::Elf(normalize::Elf { path, build_id, .. }) => {
                         let build_id = format_build_id(build_id.as_deref());
-                        println!("{norm_addr:#x} @ {}{build_id}", path.display())
+                        println!("{output:#x} @ {}{build_id}", path.display())
                     }
-                    normalize::UserAddrMeta::Unknown(normalize::Unknown { .. }) => {
+                    normalize::UserMeta::Unknown(normalize::Unknown { .. }) => {
                         println!("<unknown>")
                     }
                     // This is a bug and should be reported as such.

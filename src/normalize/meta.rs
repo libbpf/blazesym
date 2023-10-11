@@ -21,7 +21,7 @@ type BuildId = Vec<u8>;
 /// let normalized = normalizer
 ///     .normalize_user_addrs_sorted([addr_in_elf_in_apk].as_slice(), Pid::Slf)
 ///     .unwrap();
-/// let (norm_addr, meta_idx) = normalized.addrs[0];
+/// let (output, meta_idx) = normalized.outputs[0];
 /// let meta = &normalized.meta[meta_idx];
 /// let apk_elf = meta.apk_elf().unwrap();
 ///
@@ -32,7 +32,7 @@ type BuildId = Vec<u8>;
 /// let src = symbolize::Source::from(symbolize::Elf::new(elf_path));
 /// let symbolizer = symbolize::Symbolizer::new();
 /// let sym = symbolizer
-///   .symbolize_single(&src, symbolize::Input::VirtOffset(norm_addr))
+///   .symbolize_single(&src, symbolize::Input::VirtOffset(output))
 ///   .unwrap()
 ///   .into_sym()
 ///   .unwrap();
@@ -74,7 +74,7 @@ pub struct Unknown {
     pub(crate) _non_exhaustive: (),
 }
 
-impl From<Unknown> for UserAddrMeta {
+impl From<Unknown> for UserMeta {
     fn from(unknown: Unknown) -> Self {
         Self::Unknown(unknown)
     }
@@ -84,7 +84,7 @@ impl From<Unknown> for UserAddrMeta {
 /// Meta information for an address.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub enum UserAddrMeta {
+pub enum UserMeta {
     /// The address belongs to an ELF file residing in an APK.
     ApkElf(ApkElf),
     /// The address belongs to an ELF file.
@@ -93,7 +93,7 @@ pub enum UserAddrMeta {
     Unknown(Unknown),
 }
 
-impl UserAddrMeta {
+impl UserMeta {
     /// Retrieve the [`ApkElf`] of this enum, if this variant is active.
     pub fn apk_elf(&self) -> Option<&ApkElf> {
         match self {
@@ -126,10 +126,10 @@ mod tests {
 
 
     /// Check that we can access individual variants of a
-    /// [`UserAddrMeta`] via the accessor functions.
+    /// [`UserMeta`] via the accessor functions.
     #[test]
     fn user_addr_meta_accessors() {
-        let meta = UserAddrMeta::ApkElf(ApkElf {
+        let meta = UserMeta::ApkElf(ApkElf {
             apk_path: PathBuf::from("/tmp/archive.apk"),
             elf_path: PathBuf::from("object.so"),
             elf_build_id: None,
@@ -139,7 +139,7 @@ mod tests {
         assert!(meta.elf().is_none());
         assert!(meta.unknown().is_none());
 
-        let meta = UserAddrMeta::Elf(Elf {
+        let meta = UserMeta::Elf(Elf {
             path: PathBuf::from("/tmp/executable.bin"),
             build_id: None,
             _non_exhaustive: (),
@@ -148,7 +148,7 @@ mod tests {
         assert!(meta.elf().is_some());
         assert!(meta.unknown().is_none());
 
-        let meta = UserAddrMeta::Unknown(Unknown {
+        let meta = UserMeta::Unknown(Unknown {
             _non_exhaustive: (),
         });
         assert!(meta.apk_elf().is_none());
