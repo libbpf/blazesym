@@ -3,6 +3,8 @@ use std::fmt::Debug;
 use std::path::Path;
 use std::rc::Rc;
 
+#[cfg(feature = "dwarf")]
+use crate::dwarf::DwarfResolver;
 use crate::elf::ElfBackend;
 use crate::elf::ElfCache;
 use crate::elf::ElfResolver;
@@ -15,7 +17,7 @@ use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::normalize;
 use crate::normalize::create_apk_elf_path;
-use crate::normalize::normalize_apk_addr;
+use crate::normalize::normalize_apk_offset;
 use crate::normalize::normalize_elf_addr;
 use crate::normalize::normalize_elf_offset_with_parser;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
@@ -25,6 +27,7 @@ use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
 use crate::IntSym;
+use crate::IntoError as _;
 use crate::Pid;
 use crate::Result;
 use crate::SrcLang;
@@ -288,11 +291,23 @@ impl Symbolizer {
 
         impl SymbolizeHandler<'_> {
             fn handle_apk_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-                let (norm_addr, elf_path, elf_parser) = normalize_apk_addr(addr, entry)?;
+                let file_off = addr - entry.range.start + entry.offset;
                 let apk_path = &entry.path.symbolic_path;
+                // TODO: We should probably symbolize the address to
+                //       `Symbolized::Unknown` instead of erroring out.
+                let (norm_addr, elf_path, elf_parser) = normalize_apk_offset(file_off, apk_path)?
+                    .ok_or_invalid_input(|| {
+                    format!(
+                        "failed to find ELF entry in {} that contains file offset {:#x}",
+                        apk_path.display(),
+                        file_off
+                    )
+                })?;
                 // Create an Android-style binary-in-APK path for
                 // reporting purposes.
                 let apk_elf_path = create_apk_elf_path(apk_path, &elf_path)?;
+                // TODO: Should support DWARF as well. In general this needs to
+                //       go through the "ELF cache".
                 let backend = ElfBackend::Elf(Rc::new(elf_parser));
 
                 let resolver = ElfResolver::with_backend(&apk_elf_path, backend)?;
@@ -455,10 +470,10 @@ impl Symbolizer {
     pub fn symbolize(&self, src: &Source, input: Input<&[u64]>) -> Result<Vec<Symbolized>> {
         match src {
             Source::Apk(Apk {
-                path: _,
+                path,
                 _non_exhaustive: (),
             }) => {
-                let addrs = match input {
+                match input {
                     Input::VirtOffset(..) => {
                         return Err(Error::with_unsupported(
                             "ELF symbolization does not support virtual offset inputs",
@@ -469,10 +484,32 @@ impl Symbolizer {
                             "ELF symbolization does not support absolute address inputs",
                         ))
                     }
-                    Input::FileOffset(offsets) => {
-                        todo!()
-                    }
-                };
+                    Input::FileOffset(offsets) => offsets
+                        .iter()
+                        .map(|offset| {
+                            match normalize_apk_offset(*offset, path)? {
+                                Some((elf_addr, _elf_path, elf_parser)) => {
+                                    let elf_parser = Rc::new(elf_parser);
+                                    // TODO: Duplicated with `ElfCache`. Needs to be unified.
+                                    #[cfg(feature = "dwarf")]
+                                    let backend =
+                                        ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
+                                            elf_parser,
+                                            self.elf_cache.code_info(),
+                                            self.elf_cache.debug_syms(),
+                                        )?));
+
+                                    #[cfg(not(feature = "dwarf"))]
+                                    let backend = ElfBackend::Elf(elf_parser);
+
+                                    let resolver = ElfResolver::with_backend(path, backend)?;
+                                    self.symbolize_with_resolver(elf_addr, &resolver)
+                                }
+                                None => Ok(Symbolized::Unknown),
+                            }
+                        })
+                        .collect(),
+                }
             }
             Source::Elf(Elf {
                 path,
@@ -600,7 +637,7 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let addr = match input {
+                match input {
                     Input::VirtOffset(..) => {
                         return Err(Error::with_unsupported(
                             "APK symbolization does not support virtual offset inputs",
@@ -611,10 +648,26 @@ impl Symbolizer {
                             "APK symbolization does not support absolute address inputs",
                         ))
                     }
-                    Input::FileOffset(offset) => {
-                        todo!()
-                    }
-                };
+                    Input::FileOffset(offset) => match normalize_apk_offset(offset, path)? {
+                        Some((elf_addr, _elf_path, elf_parser)) => {
+                            let elf_parser = Rc::new(elf_parser);
+                            // TODO: Duplicated with `ElfCache`. Needs to be unified.
+                            #[cfg(feature = "dwarf")]
+                            let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
+                                elf_parser,
+                                self.elf_cache.code_info(),
+                                self.elf_cache.debug_syms(),
+                            )?));
+
+                            #[cfg(not(feature = "dwarf"))]
+                            let backend = ElfBackend::Elf(elf_parser);
+
+                            let resolver = ElfResolver::with_backend(path, backend)?;
+                            self.symbolize_with_resolver(elf_addr, &resolver)
+                        }
+                        None => return Ok(Symbolized::Unknown),
+                    },
+                }
             }
             Source::Elf(Elf {
                 path,

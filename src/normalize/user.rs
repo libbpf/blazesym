@@ -118,15 +118,15 @@ pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Resu
 }
 
 
-/// Normalize a virtual address belonging to an APK represented by the provided
-/// [`PathMapsEntry`].
-pub(crate) fn normalize_apk_addr(
-    virt_addr: Addr,
-    entry: &PathMapsEntry,
-) -> Result<(Addr, PathBuf, ElfParser)> {
-    let file_off = virt_addr - entry.range.start + entry.offset;
+/// Normalize a file offset belonging to an APK residing at `path`.
+// TODO: This isn't really normalization anymore, it's just extraction. Move and
+//       rename.
+pub(crate) fn normalize_apk_offset(
+    file_off: u64,
+    path: &Path,
+) -> Result<Option<(Addr, PathBuf, ElfParser)>> {
     // An APK is nothing but a fancy zip archive.
-    let apk = zip::Archive::open(&entry.path.maps_file)?;
+    let apk = zip::Archive::open(path)?;
 
     // Find the APK entry covering the calculated file offset.
     for apk_entry in apk.entries() {
@@ -140,27 +140,19 @@ pub(crate) fn normalize_apk_addr(
                 .ok_or_invalid_input(|| {
                     format!(
                         "invalid APK entry data bounds ({bounds:?}) in {}",
-                        entry.path.symbolic_path.display()
+                        path.display()
                     )
                 })?;
             let parser = ElfParser::from_mmap(mmap);
             let elf_off = file_off - apk_entry.data_offset;
             if let Some(addr) = normalize_elf_offset_with_parser(elf_off, &parser)? {
-                return Ok((addr, apk_entry.path.to_path_buf(), parser))
+                return Ok(Some((addr, apk_entry.path.to_path_buf(), parser)))
             }
             break
         }
     }
 
-    Err(Error::new(
-        ErrorKind::InvalidInput,
-        format!(
-            "failed to find ELF entry in {} that contains file offset {:#x}",
-            entry.path.symbolic_path.display(),
-            file_off,
-        ),
-    )
-    .into())
+    Ok(None)
 }
 
 
@@ -263,8 +255,17 @@ where
     /// Normalize a virtual address belonging to an APK and create and add the
     /// correct [`UserMeta`] meta information.
     fn normalize_and_add_apk_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-        let (norm_addr, elf_path, elf_parser) = normalize_apk_addr(virt_addr, entry)?;
-        let key = create_apk_elf_path(&entry.path.symbolic_path, &elf_path)?;
+        let file_off = virt_addr - entry.range.start + entry.offset;
+        let apk_path = &entry.path.symbolic_path;
+        let (norm_addr, elf_path, elf_parser) = normalize_apk_offset(file_off, apk_path)?
+            .ok_or_invalid_input(|| {
+                format!(
+                    "failed to find ELF entry in {} that contains file offset {:#x}",
+                    apk_path.display(),
+                    file_off
+                )
+            })?;
+        let key = create_apk_elf_path(apk_path, &elf_path)?;
         let () =
             self.normalized
                 .add_normalized_addr(norm_addr, &key, &mut self.meta_lookup, || {

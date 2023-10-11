@@ -267,6 +267,11 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
+        let apk = Apk::new("/a-path/with/components.apk");
+        assert_eq!(format!("{apk:?}"), "Apk(\"/a-path/with/components.apk\")");
+        let src = Source::Apk(apk);
+        assert_eq!(format!("{src:?}"), "Apk(\"/a-path/with/components.apk\")");
+
         let elf = Elf::new("/a-path/with/components.elf");
         assert_eq!(format!("{elf:?}"), "Elf(\"/a-path/with/components.elf\")");
         let src = Source::Elf(elf);
