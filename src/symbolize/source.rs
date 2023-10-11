@@ -9,10 +9,48 @@ use crate::Pid;
 use super::Symbolizer;
 
 
+/// A single APK file.
+#[derive(Clone)]
+pub struct Apk {
+    /// The path to an APK file.
+    pub path: PathBuf,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub(crate) _non_exhaustive: (),
+}
+
+impl Apk {
+    /// Create a new [`Apk`] object, referencing the provided path.
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            _non_exhaustive: (),
+        }
+    }
+}
+
+impl From<Apk> for Source<'static> {
+    fn from(apk: Apk) -> Self {
+        Source::Apk(apk)
+    }
+}
+
+impl Debug for Apk {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Apk {
+            path,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(Apk)).field(path).finish()
+    }
+}
+
+
 /// A single ELF file.
 #[derive(Clone)]
 pub struct Elf {
-    /// The name of ELF file.
+    /// The path to an ELF file.
     ///
     /// It can be an executable or shared object.
     /// For example, passing `"/bin/sh"` will load symbols and debug information from `sh`.
@@ -196,7 +234,9 @@ impl From<GsymFile> for Source<'static> {
 #[derive(Clone)]
 #[non_exhaustive]
 pub enum Source<'dat> {
-    /// A single ELF file
+    /// A single APK file.
+    Apk(Apk),
+    /// A single ELF file.
     Elf(Elf),
     /// Information about the Linux kernel.
     Kernel(Kernel),
@@ -209,6 +249,7 @@ pub enum Source<'dat> {
 impl Debug for Source<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
+            Self::Apk(apk) => Debug::fmt(apk, f),
             Self::Elf(elf) => Debug::fmt(elf, f),
             Self::Kernel(kernel) => Debug::fmt(kernel, f),
             Self::Process(process) => Debug::fmt(process, f),
