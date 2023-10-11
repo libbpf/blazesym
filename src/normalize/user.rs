@@ -25,8 +25,8 @@ use super::buildid::NoBuildIdReader;
 use super::meta::ApkElf;
 use super::meta::Elf;
 use super::meta::Unknown;
-use super::meta::UserAddrMeta;
-use super::normalizer::NormalizedAddrs;
+use super::meta::UserMeta;
+use super::normalizer::Output;
 
 
 pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
@@ -70,32 +70,32 @@ pub(crate) fn normalize_elf_offset_with_parser(
 }
 
 
-/// Make a [`UserAddrMeta::Elf`] variant.
-fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<UserAddrMeta> {
+/// Make a [`UserMeta::Elf`] variant.
+fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<UserMeta> {
     let elf = Elf {
         path: entry.path.symbolic_path.to_path_buf(),
         build_id: get_build_id(&entry.path.maps_file)?,
         _non_exhaustive: (),
     };
-    let meta = UserAddrMeta::Elf(elf);
+    let meta = UserMeta::Elf(elf);
     Ok(meta)
 }
 
 
-/// Make a [`UserAddrMeta::ApkElf`] variant.
+/// Make a [`UserMeta::ApkElf`] variant.
 fn make_apk_elf_meta(
     entry: &PathMapsEntry,
     elf_path: PathBuf,
     elf_parser: &ElfParser,
     get_build_id: &ElfBuildIdFn,
-) -> Result<UserAddrMeta> {
+) -> Result<UserMeta> {
     let apk = ApkElf {
         elf_build_id: get_build_id(elf_parser)?,
         apk_path: entry.path.symbolic_path.to_path_buf(),
         elf_path,
         _non_exhaustive: (),
     };
-    let meta = UserAddrMeta::ApkElf(apk);
+    let meta = UserMeta::ApkElf(apk);
     Ok(meta)
 }
 
@@ -164,10 +164,10 @@ pub(crate) fn normalize_apk_addr(
 }
 
 
-/// A type representing normalized user addresses.
-pub type NormalizedUserAddrs = NormalizedAddrs<UserAddrMeta>;
+/// A type representing the output of user addresses normalization.
+pub type UserOutput = Output<UserMeta>;
 
-impl NormalizedUserAddrs {
+impl UserOutput {
     /// Add an unknown (non-normalizable) address to this object.
     ///
     /// This function accepts `unknown_idx` which, if not `None`, should
@@ -184,11 +184,11 @@ impl NormalizedUserAddrs {
         } else {
             let unknown_idx = self.meta.len();
             let unknown = Unknown::default();
-            let () = self.meta.push(UserAddrMeta::Unknown(unknown));
+            let () = self.meta.push(UserMeta::Unknown(unknown));
             unknown_idx
         };
 
-        let () = self.addrs.push((addr, unknown_idx));
+        let () = self.outputs.push((addr, unknown_idx));
         Some(unknown_idx)
     }
 
@@ -201,7 +201,7 @@ impl NormalizedUserAddrs {
         create_meta: F,
     ) -> Result<()>
     where
-        F: FnOnce() -> Result<UserAddrMeta>,
+        F: FnOnce() -> Result<UserMeta>,
     {
         let meta_idx = if let Some(meta_idx) = meta_lookup.get(key) {
             *meta_idx
@@ -213,7 +213,7 @@ impl NormalizedUserAddrs {
             meta_idx
         };
 
-        let () = self.addrs.push((norm_addr, meta_idx));
+        let () = self.outputs.push((norm_addr, meta_idx));
         Ok(())
     }
 }
@@ -229,10 +229,10 @@ pub(crate) trait Handler {
 
 
 struct NormalizationHandler<R> {
-    /// The normalized user addresses we are building up.
-    normalized: NormalizedUserAddrs,
+    /// The user output we are building up.
+    normalized: UserOutput,
     /// Lookup table from path (as used in each proc maps entry) to index into
-    /// `normalized.meta`.
+    /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
     /// The index of the `Unknown` entry in `meta_lookup`, used for all unknown
     /// addresses.
@@ -245,8 +245,8 @@ impl<R> NormalizationHandler<R> {
     /// Instantiate a new `NormalizationHandler` object.
     fn new(addr_cnt: usize) -> Self {
         Self {
-            normalized: NormalizedUserAddrs {
-                addrs: Vec::with_capacity(addr_cnt),
+            normalized: UserOutput {
+                outputs: Vec::with_capacity(addr_cnt),
                 meta: Vec::new(),
             },
             meta_lookup: HashMap::<PathBuf, usize>::new(),
@@ -261,7 +261,7 @@ where
     R: BuildIdReader,
 {
     /// Normalize a virtual address belonging to an APK and create and add the
-    /// correct [`UserAddrMeta`] meta information.
+    /// correct [`UserMeta`] meta information.
     fn normalize_and_add_apk_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
         let (norm_addr, elf_path, elf_parser) = normalize_apk_addr(virt_addr, entry)?;
         let key = create_apk_elf_path(&entry.path.symbolic_path, &elf_path)?;
@@ -275,7 +275,7 @@ where
     }
 
     /// Normalize a virtual address belonging to an ELF file and create and add
-    /// the correct [`UserAddrMeta`] meta information.
+    /// the correct [`UserMeta`] meta information.
     fn normalize_and_add_elf_addr(&mut self, virt_addr: Addr, entry: &PathMapsEntry) -> Result<()> {
         let norm_addr = normalize_elf_addr(virt_addr, entry)?;
         let () = self.normalized.add_normalized_addr(
@@ -382,7 +382,7 @@ where
 /// be sorted in ascending order or an error will be returned.
 ///
 /// Unknown addresses are not normalized. They are reported as
-/// [`Unknown`] meta entries in the returned [`NormalizedUserAddrs`]
+/// [`Unknown`] meta entries in the returned [`UserOutput`]
 /// object. The cause of an address to be unknown (and, hence, not
 /// normalized), could have a few reasons, including, but not limited
 /// to:
@@ -398,7 +398,7 @@ pub(super) fn normalize_user_addrs_sorted_impl<A>(
     addrs: A,
     pid: Pid,
     read_build_ids: bool,
-) -> Result<NormalizedUserAddrs>
+) -> Result<UserOutput>
 where
     A: ExactSizeIterator<Item = Addr> + Clone,
 {
@@ -408,12 +408,12 @@ where
     if read_build_ids {
         let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
         let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
-        debug_assert_eq!(handler.normalized.addrs.len(), addrs_cnt);
+        debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     } else {
         let handler = NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
         let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
-        debug_assert_eq!(handler.normalized.addrs.len(), addrs_cnt);
+        debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     }
 }
@@ -479,7 +479,7 @@ mod tests {
             )
             .unwrap()
             .normalized;
-            assert_eq!(normalized.addrs.len(), 1);
+            assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
             assert_eq!(normalized.meta[0], Unknown::default().into());
         }

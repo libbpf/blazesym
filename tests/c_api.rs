@@ -38,7 +38,7 @@ use blazesym::c_api::blaze_symbolizer_free;
 use blazesym::c_api::blaze_symbolizer_new;
 use blazesym::c_api::blaze_symbolizer_new_opts;
 use blazesym::c_api::blaze_symbolizer_opts;
-use blazesym::c_api::blaze_user_addrs_free;
+use blazesym::c_api::blaze_user_output_free;
 use blazesym::Addr;
 
 
@@ -340,9 +340,9 @@ fn normalize_user_addrs() {
 
     let user_addrs = unsafe { &*result };
     assert_eq!(user_addrs.meta_cnt, 2);
-    assert_eq!(user_addrs.addr_cnt, 5);
+    assert_eq!(user_addrs.output_cnt, 5);
 
-    let () = unsafe { blaze_user_addrs_free(result) };
+    let () = unsafe { blaze_user_output_free(result) };
     let () = unsafe { blaze_normalizer_free(normalizer) };
 }
 
@@ -369,9 +369,9 @@ fn normalize_user_addrs_sorted() {
 
     let user_addrs = unsafe { &*result };
     assert_eq!(user_addrs.meta_cnt, 2);
-    assert_eq!(user_addrs.addr_cnt, 5);
+    assert_eq!(user_addrs.output_cnt, 5);
 
-    let () = unsafe { blaze_user_addrs_free(result) };
+    let () = unsafe { blaze_user_output_free(result) };
     let () = unsafe { blaze_normalizer_free(normalizer) };
 }
 

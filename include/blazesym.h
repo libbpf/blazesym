@@ -27,22 +27,22 @@ typedef enum blaze_sym_type {
 } blaze_sym_type;
 
 /**
- * The valid variant kind in [`blaze_user_addr_meta`].
+ * The valid variant kind in [`blaze_user_meta`].
  */
-typedef enum blaze_user_addr_meta_kind {
+typedef enum blaze_user_meta_kind {
   /**
-   * [`blaze_user_addr_meta_variant::unknown`] is valid.
+   * [`blaze_user_meta_variant::unknown`] is valid.
    */
-  BLAZE_USER_ADDR_UNKNOWN,
+  BLAZE_USER_META_UNKNOWN,
   /**
-   * [`blaze_user_addr_meta_variant::apk_elf`] is valid.
+   * [`blaze_user_meta_variant::apk_elf`] is valid.
    */
-  BLAZE_USER_ADDR_APK_ELF,
+  BLAZE_USER_META_APK_ELF,
   /**
-   * [`blaze_user_addr_meta_variant::elf`] is valid.
+   * [`blaze_user_meta_variant::elf`] is valid.
    */
-  BLAZE_USER_ADDR_ELF,
-} blaze_user_addr_meta_kind;
+  BLAZE_USER_META_ELF,
+} blaze_user_meta_kind;
 
 /**
  * An inspector of various "sources".
@@ -120,7 +120,7 @@ typedef struct blaze_inspect_elf_src {
 /**
  * C compatible version of [`ApkElf`].
  */
-typedef struct blaze_user_addr_meta_apk_elf {
+typedef struct blaze_user_meta_apk_elf {
   /**
    * The canonical absolute path to the APK, including its name.
    * This member is always present.
@@ -138,12 +138,12 @@ typedef struct blaze_user_addr_meta_apk_elf {
    * The optional build ID of the ELF file, if found.
    */
   uint8_t *elf_build_id;
-} blaze_user_addr_meta_apk_elf;
+} blaze_user_meta_apk_elf;
 
 /**
  * C compatible version of [`Elf`].
  */
-typedef struct blaze_user_addr_meta_elf {
+typedef struct blaze_user_meta_elf {
   /**
    * The path to the ELF file. This member is always present.
    */
@@ -156,89 +156,88 @@ typedef struct blaze_user_addr_meta_elf {
    * The optional build ID of the ELF file, if found.
    */
   uint8_t *build_id;
-} blaze_user_addr_meta_elf;
+} blaze_user_meta_elf;
 
 /**
  * C compatible version of [`Unknown`].
  */
-typedef struct blaze_user_addr_meta_unknown {
+typedef struct blaze_user_meta_unknown {
   /**
    * This member is unused.
    */
   uint8_t _unused;
-} blaze_user_addr_meta_unknown;
+} blaze_user_meta_unknown;
 
 /**
- * The actual variant data in [`blaze_user_addr_meta`].
+ * The actual variant data in [`blaze_user_meta`].
  */
-typedef union blaze_user_addr_meta_variant {
+typedef union blaze_user_meta_variant {
   /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_APK_ELF`].
+   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK_ELF`].
    */
-  struct blaze_user_addr_meta_apk_elf apk_elf;
+  struct blaze_user_meta_apk_elf apk_elf;
   /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_ELF`].
+   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_ELF`].
    */
-  struct blaze_user_addr_meta_elf elf;
+  struct blaze_user_meta_elf elf;
   /**
-   * Valid on [`blaze_user_addr_meta_kind::BLAZE_USER_ADDR_UNKNOWN`].
+   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN`].
    */
-  struct blaze_user_addr_meta_unknown unknown;
-} blaze_user_addr_meta_variant;
+  struct blaze_user_meta_unknown unknown;
+} blaze_user_meta_variant;
 
 /**
- * C ABI compatible version of [`UserAddrMeta`].
+ * C ABI compatible version of [`UserMeta`].
  */
-typedef struct blaze_user_addr_meta {
+typedef struct blaze_user_meta {
   /**
    * The variant kind that is present.
    */
-  enum blaze_user_addr_meta_kind kind;
+  enum blaze_user_meta_kind kind;
   /**
    * The actual variant with its data.
    */
-  union blaze_user_addr_meta_variant variant;
-} blaze_user_addr_meta;
+  union blaze_user_meta_variant variant;
+} blaze_user_meta;
 
 /**
  * A normalized address along with an index into the associated
- * [`blaze_user_addr_meta`] array (such as
- * [`blaze_normalized_user_addrs::metas`]).
+ * [`blaze_user_meta`] array (such as [`blaze_normalized_user_output::metas`]).
  */
-typedef struct blaze_normalized_addr {
+typedef struct blaze_normalized_output {
   /**
    * The normalized address.
    */
-  uintptr_t addr;
+  uint64_t output;
   /**
-   * The index into the associated [`blaze_user_addr_meta`] array.
+   * The index into the associated [`blaze_user_meta`] array.
    */
   size_t meta_idx;
-} blaze_normalized_addr;
+} blaze_normalized_output;
 
 /**
  * An object representing normalized user addresses.
  *
- * C ABI compatible version of [`NormalizedUserAddrs`].
+ * C ABI compatible version of [`UserOutput`].
  */
-typedef struct blaze_normalized_user_addrs {
+typedef struct blaze_normalized_user_output {
   /**
-   * The number of [`blaze_user_addr_meta`] objects present in `metas`.
+   * The number of [`blaze_user_meta`] objects present in `metas`.
    */
   size_t meta_cnt;
   /**
    * An array of `meta_cnt` objects.
    */
-  struct blaze_user_addr_meta *metas;
+  struct blaze_user_meta *metas;
   /**
-   * The number of [`blaze_normalized_addr`] objects present in `addrs`.
+   * The number of [`blaze_normalized_output`] objects present in `outputs`.
    */
-  size_t addr_cnt;
+  size_t output_cnt;
   /**
-   * An array of `addr_cnt` objects.
+   * An array of `output_cnt` objects.
    */
-  struct blaze_normalized_addr *addrs;
-} blaze_normalized_user_addrs;
+  struct blaze_normalized_output *outputs;
+} blaze_normalized_user_output;
 
 /**
  * A placeholder symbolizer for C API.
@@ -557,16 +556,16 @@ void blaze_normalizer_free(struct blaze_normalizer *normalizer);
  *
  * C ABI compatible version of [`Normalizer::normalize_user_addrs`].
  * Returns `NULL` on error. The resulting object should be freed using
- * [`blaze_user_addrs_free`].
+ * [`blaze_user_output_free`].
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
  * `addr_cnt` addresses.
  */
-struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const struct blaze_normalizer *normalizer,
-                                                               const uintptr_t *addrs,
-                                                               size_t addr_cnt,
-                                                               uint32_t pid);
+struct blaze_normalized_user_output *blaze_normalize_user_addrs(const struct blaze_normalizer *normalizer,
+                                                                const uintptr_t *addrs,
+                                                                size_t addr_cnt,
+                                                                uint32_t pid);
 
 /**
  * Normalize a list of user space addresses.
@@ -581,27 +580,26 @@ struct blaze_normalized_user_addrs *blaze_normalize_user_addrs(const struct blaz
  *
  * C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
  * Returns `NULL` on error. The resulting object should be freed using
- * [`blaze_user_addrs_free`].
+ * [`blaze_user_output_free`].
  *
  * # Safety
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
  * `addr_cnt` addresses.
  */
-struct blaze_normalized_user_addrs *blaze_normalize_user_addrs_sorted(const struct blaze_normalizer *normalizer,
-                                                                      const uintptr_t *addrs,
-                                                                      size_t addr_cnt,
-                                                                      uint32_t pid);
+struct blaze_normalized_user_output *blaze_normalize_user_addrs_sorted(const struct blaze_normalizer *normalizer,
+                                                                       const uintptr_t *addrs,
+                                                                       size_t addr_cnt,
+                                                                       uint32_t pid);
 
 /**
- * Free an object as returned by [`blaze_normalized_user_addrs`] or
+ * Free an object as returned by [`blaze_normalize_user_addrs`] or
  * [`blaze_normalize_user_addrs_sorted`].
  *
  * # Safety
  * The provided object should have been created by
- * [`blaze_normalized_user_addrs`] or
- * [`blaze_normalize_user_addrs_sorted`].
+ * [`blaze_normalize_user_addrs`] or [`blaze_normalize_user_addrs_sorted`].
  */
-void blaze_user_addrs_free(struct blaze_normalized_user_addrs *addrs);
+void blaze_user_output_free(struct blaze_normalized_user_output *output);
 
 /**
  * Create an instance of a symbolizer.
