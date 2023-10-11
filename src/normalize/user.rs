@@ -469,16 +469,16 @@ mod tests {
             let addrs = [unknown_addr as Addr];
 
             let handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
-            let norm_addrs = normalize_sorted_user_addrs_with_entries(
+            let normalized = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
                 handler,
             )
             .unwrap()
             .normalized;
-            assert_eq!(norm_addrs.addrs.len(), 1);
-            assert_eq!(norm_addrs.meta.len(), 1);
-            assert_eq!(norm_addrs.meta[0], Unknown::default().into());
+            assert_eq!(normalized.addrs.len(), 1);
+            assert_eq!(normalized.meta.len(), 1);
+            assert_eq!(normalized.meta[0], Unknown::default().into());
         }
 
         test(0x0);

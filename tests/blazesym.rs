@@ -342,17 +342,17 @@ fn normalize_elf_addr() {
         assert!(!the_answer_addr.is_null());
 
         let normalizer = Normalizer::new();
-        let norm_addrs = normalizer
+        let normalized = normalizer
             .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(norm_addrs.addrs.len(), 1);
-        assert_eq!(norm_addrs.meta.len(), 1);
+        assert_eq!(normalized.addrs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
 
         let rc = unsafe { libc::dlclose(handle) };
         assert_eq!(rc, 0, "{}", Error::last_os_error());
 
-        let norm_addr = norm_addrs.addrs[0];
-        let meta = &norm_addrs.meta[norm_addr.1];
+        let norm_addr = normalized.addrs[0];
+        let meta = &normalized.meta[norm_addr.1];
         assert_eq!(meta.elf().unwrap().path, test_so);
 
         let elf = symbolize::Elf::new(test_so);
@@ -391,17 +391,17 @@ fn normalize_build_id_rading() {
         let normalizer = Normalizer::builder()
             .enable_build_ids(read_build_ids)
             .build();
-        let norm_addrs = normalizer
+        let normalized = normalizer
             .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(norm_addrs.addrs.len(), 1);
-        assert_eq!(norm_addrs.meta.len(), 1);
+        assert_eq!(normalized.addrs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
 
         let rc = unsafe { libc::dlclose(handle) };
         assert_eq!(rc, 0, "{}", Error::last_os_error());
 
-        let norm_addr = norm_addrs.addrs[0];
-        let meta = &norm_addrs.meta[norm_addr.1];
+        let norm_addr = normalized.addrs[0];
+        let meta = &normalized.meta[norm_addr.1];
         let elf = meta.elf().unwrap();
         assert_eq!(elf.path, test_so);
         if read_build_ids {

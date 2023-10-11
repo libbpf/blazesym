@@ -18,15 +18,15 @@
 //! let fopen_addr = libc::fopen as Addr;
 //! let addrs = [fopen_addr];
 //! let pid = Pid::Slf;
-//! let norm_addrs = normalizer.normalize_user_addrs(&addrs, pid).unwrap();
-//! assert_eq!(norm_addrs.addrs.len(), 1);
+//! let normalized = normalizer.normalize_user_addrs(&addrs, pid).unwrap();
+//! assert_eq!(normalized.addrs.len(), 1);
 //!
-//! let (addr, meta_idx) = norm_addrs.addrs[0];
+//! let (addr, meta_idx) = normalized.addrs[0];
 //! // fopen (0x7f5f8e23a790) corresponds to address 0x77790 within
 //! // Elf(Elf { path: "/usr/lib64/libc.so.6", build_id: Some([...]), ... })
 //! println!(
 //!   "fopen ({fopen_addr:#x}) corresponds to address {addr:#x} within {:?}",
-//!   norm_addrs.meta[meta_idx]
+//!   normalized.meta[meta_idx]
 //! );
 //! ```
 

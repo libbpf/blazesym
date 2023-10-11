@@ -18,11 +18,11 @@ type BuildId = Vec<u8>;
 /// # let capture_addr_in_elf_in_apk = || 0xdeadbeef;
 /// let addr_in_elf_in_apk = capture_addr_in_elf_in_apk();
 /// let normalizer = normalize::Normalizer::new();
-/// let norm_addrs = normalizer
+/// let normalized = normalizer
 ///     .normalize_user_addrs_sorted([addr_in_elf_in_apk].as_slice(), Pid::Slf)
 ///     .unwrap();
-/// let (norm_addr, meta_idx) = norm_addrs.addrs[0];
-/// let meta = &norm_addrs.meta[meta_idx];
+/// let (norm_addr, meta_idx) = normalized.addrs[0];
+/// let meta = &normalized.meta[meta_idx];
 /// let apk_elf = meta.apk_elf().unwrap();
 ///
 /// // Let's assume we have the ELF file lying around in a hypothetical
