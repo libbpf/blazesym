@@ -240,10 +240,10 @@ struct NormalizationHandler<R> {
 
 impl<R> NormalizationHandler<R> {
     /// Instantiate a new `NormalizationHandler` object.
-    fn new(addr_count: usize) -> Self {
+    fn new(addr_cnt: usize) -> Self {
         Self {
             normalized: NormalizedUserAddrs {
-                addrs: Vec::with_capacity(addr_count),
+                addrs: Vec::with_capacity(addr_cnt),
                 meta: Vec::new(),
             },
             meta_lookup: HashMap::<PathBuf, usize>::new(),
