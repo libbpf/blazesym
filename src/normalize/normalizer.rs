@@ -183,14 +183,14 @@ mod tests {
         let addrs = [0x500 as Addr, 0x600 as Addr];
 
         let normalizer = Normalizer::new();
-        let norm_addrs = normalizer
+        let normalized = normalizer
             .normalize_user_addrs_sorted(addrs.as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(norm_addrs.addrs.len(), 2);
-        assert_eq!(norm_addrs.meta.len(), 1);
-        assert_eq!(norm_addrs.meta[0], Unknown::default().into());
-        assert_eq!(norm_addrs.addrs[0].1, 0);
-        assert_eq!(norm_addrs.addrs[1].1, 0);
+        assert_eq!(normalized.addrs.len(), 2);
+        assert_eq!(normalized.meta.len(), 1);
+        assert_eq!(normalized.meta[0], Unknown::default().into());
+        assert_eq!(normalized.addrs[0].1, 0);
+        assert_eq!(normalized.addrs[1].1, 0);
     }
 
     /// Check that we can normalize user addresses.
@@ -212,13 +212,13 @@ mod tests {
             .unwrap();
 
         let normalizer = Normalizer::new();
-        let norm_addrs = normalizer
+        let normalized = normalizer
             .normalize_user_addrs(addrs.as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(norm_addrs.addrs.len(), 6);
+        assert_eq!(normalized.addrs.len(), 6);
 
-        let addrs = &norm_addrs.addrs;
-        let meta = &norm_addrs.meta;
+        let addrs = &normalized.addrs;
+        let meta = &normalized.meta;
         assert_eq!(meta.len(), 2);
 
         let errno_meta_idx = addrs[errno_idx].1;
@@ -261,15 +261,15 @@ mod tests {
         assert_eq!(answer, 42);
 
         let normalizer = Normalizer::new();
-        let norm_addrs = normalizer
+        let normalized = normalizer
             .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
             .unwrap();
-        assert_eq!(norm_addrs.addrs.len(), 1);
-        assert_eq!(norm_addrs.meta.len(), 1);
+        assert_eq!(normalized.addrs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
 
-        let norm_addr = norm_addrs.addrs[0];
+        let norm_addr = normalized.addrs[0];
         assert_eq!(norm_addr.0, sym.addr);
-        let meta = &norm_addrs.meta[norm_addr.1];
+        let meta = &normalized.meta[norm_addr.1];
         let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("libtest-so.so");
@@ -325,15 +325,15 @@ mod tests {
             assert_eq!(answer, 42);
 
             let normalizer = Normalizer::new();
-            let norm_addrs = normalizer
+            let normalized = normalizer
                 .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
                 .unwrap();
-            assert_eq!(norm_addrs.addrs.len(), 1);
-            assert_eq!(norm_addrs.meta.len(), 1);
+            assert_eq!(normalized.addrs.len(), 1);
+            assert_eq!(normalized.meta.len(), 1);
 
-            let norm_addr = norm_addrs.addrs[0];
+            let norm_addr = normalized.addrs[0];
             assert_eq!(norm_addr.0, sym.addr);
-            let meta = &norm_addrs.meta[norm_addr.1];
+            let meta = &normalized.meta[norm_addr.1];
             let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join(so_name);

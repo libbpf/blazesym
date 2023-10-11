@@ -22,10 +22,10 @@ fn normalize_process() {
     let () = addrs.sort();
 
     let normalizer = Normalizer::new();
-    let norm_addrs = normalizer
+    let normalized = normalizer
         .normalize_user_addrs_sorted(black_box(addrs.as_slice()), black_box(0.into()))
         .unwrap();
-    assert_eq!(norm_addrs.addrs.len(), 5);
+    assert_eq!(normalized.addrs.len(), 5);
 }
 
 pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)

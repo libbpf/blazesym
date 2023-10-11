@@ -43,13 +43,13 @@ fn normalize(normalize: args::Normalize) -> Result<()> {
     let normalizer = Normalizer::new();
     match normalize {
         args::Normalize::User(args::User { pid, addrs }) => {
-            let norm_addrs = normalizer
+            let normalized = normalizer
                 .normalize_user_addrs(addrs.as_slice(), pid)
                 .context("failed to normalize addresses")?;
-            for (addr, (norm_addr, meta_idx)) in addrs.iter().zip(&norm_addrs.addrs) {
+            for (addr, (norm_addr, meta_idx)) in addrs.iter().zip(&normalized.addrs) {
                 print!("{addr:#016x}: ");
 
-                let meta = &norm_addrs.meta[*meta_idx];
+                let meta = &normalized.meta[*meta_idx];
                 match meta {
                     normalize::UserAddrMeta::ApkElf(normalize::ApkElf {
                         apk_path,
