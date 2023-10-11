@@ -5,11 +5,12 @@ use std::path::PathBuf;
 type BuildId = Vec<u8>;
 
 
-/// Meta information about an ELF file inside an APK.
+/// Meta information about an APK.
 ///
-/// The corresponding normalized address is normalized to the ELF file,
-/// not the APK container. I.e., it is suitable for usage with ELF
-/// symbolization:
+/// The corresponding file offset is normalized only to the APK container, not
+/// any potential internal ELF files. Use the
+/// [`Apk`][crate::symbolize::Source::Apk] symbolization source in order to
+/// symbolize the offset:
 /// ```no_run
 /// # use std::path::Path;
 /// # use blazesym::Pid;
@@ -23,28 +24,22 @@ type BuildId = Vec<u8>;
 ///     .unwrap();
 /// let (output, meta_idx) = normalized.outputs[0];
 /// let meta = &normalized.meta[meta_idx];
-/// let apk_elf = meta.apk_elf().unwrap();
+/// let apk = meta.apk().unwrap();
 ///
-/// // Let's assume we have the ELF file lying around in a hypothetical
-/// // data/ directory.
-/// let elf_path = Path::new("data/").join(&apk_elf.elf_path);
-///
-/// let src = symbolize::Source::from(symbolize::Elf::new(elf_path));
+/// // We assume that we have the APK lying around at the same path as on the
+/// // "remote" system.
+/// let src = symbolize::Source::from(symbolize::Apk::new(&apk.path));
 /// let symbolizer = symbolize::Symbolizer::new();
 /// let sym = symbolizer
-///   .symbolize_single(&src, symbolize::Input::VirtOffset(output))
+///   .symbolize_single(&src, symbolize::Input::FileOffset(output))
 ///   .unwrap()
 ///   .into_sym()
 ///   .unwrap();
 /// ```
 #[derive(Clone, Debug, PartialEq)]
-pub struct ApkElf {
+pub struct Apk {
     /// The canonical absolute path to the APK, including its name.
-    pub apk_path: PathBuf,
-    /// The relative path to the ELF file inside the APK.
-    pub elf_path: PathBuf,
-    /// The ELF file's build ID, if available.
-    pub elf_build_id: Option<BuildId>,
+    pub path: PathBuf,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub(crate) _non_exhaustive: (),
@@ -85,8 +80,8 @@ impl From<Unknown> for UserMeta {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum UserMeta {
-    /// The address belongs to an ELF file residing in an APK.
-    ApkElf(ApkElf),
+    /// The address belongs to an APK file.
+    Apk(Apk),
     /// The address belongs to an ELF file.
     Elf(Elf),
     /// The address' origin is unknown.
@@ -94,10 +89,10 @@ pub enum UserMeta {
 }
 
 impl UserMeta {
-    /// Retrieve the [`ApkElf`] of this enum, if this variant is active.
-    pub fn apk_elf(&self) -> Option<&ApkElf> {
+    /// Retrieve the [`Apk`] of this enum, if this variant is active.
+    pub fn apk(&self) -> Option<&Apk> {
         match self {
-            Self::ApkElf(entry) => Some(entry),
+            Self::Apk(entry) => Some(entry),
             _ => None,
         }
     }
@@ -129,13 +124,11 @@ mod tests {
     /// [`UserMeta`] via the accessor functions.
     #[test]
     fn user_addr_meta_accessors() {
-        let meta = UserMeta::ApkElf(ApkElf {
-            apk_path: PathBuf::from("/tmp/archive.apk"),
-            elf_path: PathBuf::from("object.so"),
-            elf_build_id: None,
+        let meta = UserMeta::Apk(Apk {
+            path: PathBuf::from("/tmp/archive.apk"),
             _non_exhaustive: (),
         });
-        assert!(meta.apk_elf().is_some());
+        assert!(meta.apk().is_some());
         assert!(meta.elf().is_none());
         assert!(meta.unknown().is_none());
 
@@ -144,14 +137,14 @@ mod tests {
             build_id: None,
             _non_exhaustive: (),
         });
-        assert!(meta.apk_elf().is_none());
+        assert!(meta.apk().is_none());
         assert!(meta.elf().is_some());
         assert!(meta.unknown().is_none());
 
         let meta = UserMeta::Unknown(Unknown {
             _non_exhaustive: (),
         });
-        assert!(meta.apk_elf().is_none());
+        assert!(meta.apk().is_none());
         assert!(meta.elf().is_none());
         assert!(meta.unknown().is_some());
     }
