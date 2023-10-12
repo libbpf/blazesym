@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 #[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
+use crate::elf;
 use crate::elf::ElfBackend;
 use crate::elf::ElfCache;
 use crate::elf::ElfParser;
@@ -19,8 +20,6 @@ use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::normalize;
 use crate::normalize::create_apk_elf_path;
-use crate::normalize::normalize_elf_addr;
-use crate::normalize::normalize_elf_offset_with_parser;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::util;
 use crate::util::uname_release;
@@ -80,6 +79,21 @@ fn maybe_demangle(name: &str, _language: SrcLang) -> String {
 }
 
 
+fn elf_offset_to_address(offset: u64, parser: &ElfParser) -> Result<Option<Addr>> {
+    let phdrs = parser.program_headers()?;
+    let addr = phdrs.iter().find_map(|phdr| {
+        if phdr.p_type == elf::types::PT_LOAD {
+            if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&offset) {
+                return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
+            }
+        }
+        None
+    });
+
+    Ok(addr)
+}
+
+
 /// Look up the ELF virtual offset (and a few other things) for the provided
 /// file offset in an APK.
 fn find_apk_elf_addr(file_off: u64, path: &Path) -> Result<Option<(Addr, PathBuf, ElfParser)>> {
@@ -103,7 +117,7 @@ fn find_apk_elf_addr(file_off: u64, path: &Path) -> Result<Option<(Addr, PathBuf
                 })?;
             let parser = ElfParser::from_mmap(mmap);
             let elf_off = file_off - apk_entry.data_offset;
-            if let Some(addr) = normalize_elf_offset_with_parser(elf_off, &parser)? {
+            if let Some(addr) = elf_offset_to_address(elf_off, &parser)? {
                 return Ok(Some((addr, apk_entry.path.to_path_buf(), parser)))
             }
             break
@@ -356,7 +370,18 @@ impl Symbolizer {
 
             fn handle_elf_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let path = &entry.path.maps_file;
-                let norm_addr = normalize_elf_addr(addr, entry)?;
+                let file_off = addr - entry.range.start + entry.offset;
+                let parser = ElfParser::open(&entry.path.maps_file).with_context(|| {
+                    format!("failed to open map file {}", entry.path.maps_file.display())
+                })?;
+                let norm_addr =
+                    elf_offset_to_address(file_off, &parser)?.ok_or_invalid_input(|| {
+                        format!(
+                            "failed to find ELF segment in {} that contains file offset {:#x}",
+                            entry.path.symbolic_path.display(),
+                            entry.offset,
+                        )
+                    })?;
                 let symbol = self
                     .symbolizer
                     .resolve_addr_in_elf(norm_addr, path)
@@ -566,12 +591,12 @@ impl Symbolizer {
                     }
                     Input::FileOffset(offsets) => offsets
                         .iter()
-                        .map(|offset| {
-                            match normalize_elf_offset_with_parser(*offset, resolver.parser())? {
+                        .map(
+                            |offset| match elf_offset_to_address(*offset, resolver.parser())? {
                                 Some(addr) => self.symbolize_with_resolver(addr, &resolver),
                                 None => Ok(Symbolized::Unknown),
-                            }
-                        })
+                            },
+                        )
                         .collect(),
                 }
             }
@@ -719,7 +744,7 @@ impl Symbolizer {
                         ))
                     }
                     Input::FileOffset(offset) => {
-                        match normalize_elf_offset_with_parser(offset, backend.parser())? {
+                        match elf_offset_to_address(offset, backend.parser())? {
                             Some(addr) => addr,
                             None => return Ok(Symbolized::Unknown),
                         }
