@@ -14,7 +14,6 @@ use crate::SrcLang;
 use crate::SymResolver;
 
 use super::cache::ElfBackend;
-use super::types::PT_LOAD;
 use super::types::STT_FUNC;
 use super::ElfParser;
 
@@ -116,17 +115,7 @@ impl SymResolver for ElfResolver {
     //       the ELF symbol index (and potentially an offset from it) [this will
     //       require a bit of a larger rework, including on call sites].
     fn addr_file_off(&self, addr: Addr) -> Option<u64> {
-        let parser = self.parser();
-        let phdrs = parser.program_headers().ok()?;
-        let offset = phdrs.iter().find_map(|phdr| {
-            if phdr.p_type == PT_LOAD {
-                if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
-                    return Some(addr - phdr.p_vaddr + phdr.p_offset)
-                }
-            }
-            None
-        })?;
-        Some(offset)
+        self.parser().find_file_offset(addr)
     }
 }
 

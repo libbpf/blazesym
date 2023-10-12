@@ -23,6 +23,7 @@ use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
+use super::types::PT_LOAD;
 use super::types::SHN_UNDEF;
 #[cfg(test)]
 use super::types::STT_FUNC;
@@ -455,6 +456,23 @@ impl ElfParser {
             }
             None => Ok(vec![]),
         }
+    }
+
+    /// Find the file offset of the symbol at address `addr`.
+    // TODO: See if we could make this a constant time calculation by supplying
+    //       the ELF symbol index (and potentially an offset from it) [this will
+    //       require a bit of a larger rework, including on call sites].
+    pub(crate) fn find_file_offset(&self, addr: Addr) -> Option<u64> {
+        let phdrs = self.program_headers().ok()?;
+        let offset = phdrs.iter().find_map(|phdr| {
+            if phdr.p_type == PT_LOAD {
+                if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
+                    return Some(addr - phdr.p_vaddr + phdr.p_offset)
+                }
+            }
+            None
+        })?;
+        Some(offset)
     }
 
     #[cfg(test)]
