@@ -6,13 +6,9 @@ use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::elf;
-use crate::elf::ElfParser;
-use crate::error::IntoError as _;
 use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::Addr;
-use crate::ErrorExt as _;
 use crate::Pid;
 use crate::Result;
 
@@ -50,24 +46,6 @@ pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
 }
 
 
-pub(crate) fn normalize_elf_offset_with_parser(
-    offset: u64,
-    parser: &ElfParser,
-) -> Result<Option<Addr>> {
-    let phdrs = parser.program_headers()?;
-    let addr = phdrs.iter().find_map(|phdr| {
-        if phdr.p_type == elf::types::PT_LOAD {
-            if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&offset) {
-                return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
-            }
-        }
-        None
-    });
-
-    Ok(addr)
-}
-
-
 /// Make a [`UserMeta::Elf`] variant.
 fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<UserMeta> {
     let elf = Elf {
@@ -88,24 +66,6 @@ fn make_apk_meta(entry: &PathMapsEntry) -> Result<UserMeta> {
     };
     let meta = UserMeta::Apk(apk);
     Ok(meta)
-}
-
-
-/// Normalize a virtual address belonging to an ELF file represented by the
-/// provided [`PathMapsEntry`].
-pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Result<Addr> {
-    let file_off = virt_addr - entry.range.start + entry.offset;
-    let parser = ElfParser::open(&entry.path.maps_file)
-        .with_context(|| format!("failed to open map file {}", entry.path.maps_file.display()))?;
-    let addr = normalize_elf_offset_with_parser(file_off, &parser)?.ok_or_invalid_input(|| {
-        format!(
-            "failed to find ELF segment in {} that contains file offset {:#x}",
-            entry.path.symbolic_path.display(),
-            entry.offset,
-        )
-    })?;
-
-    Ok(addr)
 }
 
 
