@@ -44,7 +44,6 @@ pub use normalizer::Normalizer;
 pub use user::UserOutput;
 
 pub(crate) use user::create_apk_elf_path;
-pub(crate) use user::normalize_apk_offset;
 pub(crate) use user::normalize_elf_addr;
 pub(crate) use user::normalize_elf_offset_with_parser;
 pub(crate) use user::normalize_sorted_user_addrs_with_entries;
