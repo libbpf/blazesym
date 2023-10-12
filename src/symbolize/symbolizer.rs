@@ -1,12 +1,14 @@
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 #[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
 use crate::elf::ElfBackend;
 use crate::elf::ElfCache;
+use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::gsym::GsymResolver;
 use crate::kernel::KernelResolver;
@@ -17,12 +19,12 @@ use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::normalize;
 use crate::normalize::create_apk_elf_path;
-use crate::normalize::normalize_apk_offset;
 use crate::normalize::normalize_elf_addr;
 use crate::normalize::normalize_elf_offset_with_parser;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::util;
 use crate::util::uname_release;
+use crate::zip;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
@@ -75,6 +77,40 @@ fn maybe_demangle(name: &str, language: SrcLang) -> String {
 fn maybe_demangle(name: &str, _language: SrcLang) -> String {
     // Demangling is disabled.
     name.to_string()
+}
+
+
+/// Look up the ELF virtual offset (and a few other things) for the provided
+/// file offset in an APK.
+fn find_apk_elf_addr(file_off: u64, path: &Path) -> Result<Option<(Addr, PathBuf, ElfParser)>> {
+    // An APK is nothing but a fancy zip archive.
+    let apk = zip::Archive::open(path)?;
+
+    // Find the APK entry covering the calculated file offset.
+    for apk_entry in apk.entries() {
+        let apk_entry = apk_entry?;
+        let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
+
+        if bounds.contains(&file_off) {
+            let mmap = apk
+                .mmap()
+                .constrain(bounds.clone())
+                .ok_or_invalid_input(|| {
+                    format!(
+                        "invalid APK entry data bounds ({bounds:?}) in {}",
+                        path.display()
+                    )
+                })?;
+            let parser = ElfParser::from_mmap(mmap);
+            let elf_off = file_off - apk_entry.data_offset;
+            if let Some(addr) = normalize_elf_offset_with_parser(elf_off, &parser)? {
+                return Ok(Some((addr, apk_entry.path.to_path_buf(), parser)))
+            }
+            break
+        }
+    }
+
+    Ok(None)
 }
 
 
@@ -295,14 +331,14 @@ impl Symbolizer {
                 let apk_path = &entry.path.symbolic_path;
                 // TODO: We should probably symbolize the address to
                 //       `Symbolized::Unknown` instead of erroring out.
-                let (norm_addr, elf_path, elf_parser) = normalize_apk_offset(file_off, apk_path)?
+                let (norm_addr, elf_path, elf_parser) = find_apk_elf_addr(file_off, apk_path)?
                     .ok_or_invalid_input(|| {
-                    format!(
-                        "failed to find ELF entry in {} that contains file offset {:#x}",
-                        apk_path.display(),
-                        file_off
-                    )
-                })?;
+                        format!(
+                            "failed to find ELF entry in {} that contains file offset {:#x}",
+                            apk_path.display(),
+                            file_off
+                        )
+                    })?;
                 // Create an Android-style binary-in-APK path for
                 // reporting purposes.
                 let apk_elf_path = create_apk_elf_path(apk_path, &elf_path)?;
@@ -487,7 +523,7 @@ impl Symbolizer {
                     Input::FileOffset(offsets) => offsets
                         .iter()
                         .map(|offset| {
-                            match normalize_apk_offset(*offset, path)? {
+                            match find_apk_elf_addr(*offset, path)? {
                                 Some((elf_addr, _elf_path, elf_parser)) => {
                                     let elf_parser = Rc::new(elf_parser);
                                     // TODO: Duplicated with `ElfCache`. Needs to be unified.
@@ -648,7 +684,7 @@ impl Symbolizer {
                             "APK symbolization does not support absolute address inputs",
                         ))
                     }
-                    Input::FileOffset(offset) => match normalize_apk_offset(offset, path)? {
+                    Input::FileOffset(offset) => match find_apk_elf_addr(offset, path)? {
                         Some((elf_addr, _elf_path, elf_parser)) => {
                             let elf_parser = Rc::new(elf_parser);
                             // TODO: Duplicated with `ElfCache`. Needs to be unified.

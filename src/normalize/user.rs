@@ -11,7 +11,6 @@ use crate::elf::ElfParser;
 use crate::error::IntoError as _;
 use crate::maps;
 use crate::maps::PathMapsEntry;
-use crate::zip;
 use crate::Addr;
 use crate::ErrorExt as _;
 use crate::Pid;
@@ -107,44 +106,6 @@ pub(crate) fn normalize_elf_addr(virt_addr: Addr, entry: &PathMapsEntry) -> Resu
     })?;
 
     Ok(addr)
-}
-
-
-/// Normalize a file offset belonging to an APK residing at `path`.
-// TODO: This isn't really normalization anymore, it's just extraction. Move and
-//       rename.
-pub(crate) fn normalize_apk_offset(
-    file_off: u64,
-    path: &Path,
-) -> Result<Option<(Addr, PathBuf, ElfParser)>> {
-    // An APK is nothing but a fancy zip archive.
-    let apk = zip::Archive::open(path)?;
-
-    // Find the APK entry covering the calculated file offset.
-    for apk_entry in apk.entries() {
-        let apk_entry = apk_entry?;
-        let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
-
-        if bounds.contains(&file_off) {
-            let mmap = apk
-                .mmap()
-                .constrain(bounds.clone())
-                .ok_or_invalid_input(|| {
-                    format!(
-                        "invalid APK entry data bounds ({bounds:?}) in {}",
-                        path.display()
-                    )
-                })?;
-            let parser = ElfParser::from_mmap(mmap);
-            let elf_off = file_off - apk_entry.data_offset;
-            if let Some(addr) = normalize_elf_offset_with_parser(elf_off, &parser)? {
-                return Ok(Some((addr, apk_entry.path.to_path_buf(), parser)))
-            }
-            break
-        }
-    }
-
-    Ok(None)
 }
 
 
