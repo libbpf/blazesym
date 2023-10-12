@@ -21,6 +21,7 @@ use crate::maps::PathMapsEntry;
 use crate::normalize;
 use crate::normalize::create_apk_elf_path;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
+use crate::normalize::Handler as _;
 use crate::util;
 use crate::util::uname_release;
 use crate::zip;
@@ -343,29 +344,24 @@ impl Symbolizer {
             fn handle_apk_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let file_off = addr - entry.range.start + entry.offset;
                 let apk_path = &entry.path.symbolic_path;
-                // TODO: We should probably symbolize the address to
-                //       `Symbolized::Unknown` instead of erroring out.
-                let (norm_addr, elf_path, elf_parser) = find_apk_elf_addr(file_off, apk_path)?
-                    .ok_or_invalid_input(|| {
-                        format!(
-                            "failed to find ELF entry in {} that contains file offset {:#x}",
-                            apk_path.display(),
-                            file_off
-                        )
-                    })?;
-                // Create an Android-style binary-in-APK path for
-                // reporting purposes.
-                let apk_elf_path = create_apk_elf_path(apk_path, &elf_path)?;
-                // TODO: Should support DWARF as well. In general this needs to
-                //       go through the "ELF cache".
-                let backend = ElfBackend::Elf(Rc::new(elf_parser));
+                match find_apk_elf_addr(file_off, apk_path)? {
+                    Some((norm_addr, elf_path, elf_parser)) => {
+                        // Create an Android-style binary-in-APK path for
+                        // reporting purposes.
+                        let apk_elf_path = create_apk_elf_path(apk_path, &elf_path)?;
+                        // TODO: Should support DWARF as well. In general this needs to
+                        //       go through the "ELF cache".
+                        let backend = ElfBackend::Elf(Rc::new(elf_parser));
 
-                let resolver = ElfResolver::with_backend(&apk_elf_path, backend)?;
-                let symbol = self
-                    .symbolizer
-                    .symbolize_with_resolver(norm_addr, &resolver)?;
-                let () = self.all_symbols.push(symbol);
-                Ok(())
+                        let resolver = ElfResolver::with_backend(&apk_elf_path, backend)?;
+                        let symbol = self
+                            .symbolizer
+                            .symbolize_with_resolver(norm_addr, &resolver)?;
+                        let () = self.all_symbols.push(symbol);
+                        Ok(())
+                    }
+                    None => self.handle_unknown_addr(addr),
+                }
             }
 
             fn handle_elf_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
@@ -374,25 +370,23 @@ impl Symbolizer {
                 let parser = ElfParser::open(&entry.path.maps_file).with_context(|| {
                     format!("failed to open map file {}", entry.path.maps_file.display())
                 })?;
-                let norm_addr =
-                    elf_offset_to_address(file_off, &parser)?.ok_or_invalid_input(|| {
-                        format!(
-                            "failed to find ELF segment in {} that contains file offset {:#x}",
-                            entry.path.symbolic_path.display(),
-                            entry.offset,
-                        )
-                    })?;
-                let symbol = self
-                    .symbolizer
-                    .resolve_addr_in_elf(norm_addr, path)
-                    .with_context(|| {
-                        format!(
-                            "failed to symbolize normalized address {norm_addr:#x} in ELF file {}",
-                            path.display()
-                        )
-                    })?;
-                let () = self.all_symbols.push(symbol);
-                Ok(())
+
+                match elf_offset_to_address(file_off, &parser)? {
+                    Some(norm_addr) => {
+                        let symbol = self
+                            .symbolizer
+                            .resolve_addr_in_elf(norm_addr, path)
+                            .with_context(|| {
+                                format!(
+                                    "failed to symbolize normalized address {norm_addr:#x} in ELF file {}",
+                                    path.display()
+                                )
+                            })?;
+                        let () = self.all_symbols.push(symbol);
+                        Ok(())
+                    }
+                    None => self.handle_unknown_addr(addr),
+                }
             }
         }
 
