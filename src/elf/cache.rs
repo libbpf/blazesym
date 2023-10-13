@@ -31,9 +31,9 @@ pub(crate) enum ElfBackend {
 #[cfg(test)]
 #[cfg(feature = "dwarf")]
 impl ElfBackend {
-    pub fn to_dwarf(&self) -> Option<Rc<DwarfResolver>> {
+    pub fn to_dwarf(&self) -> Option<&DwarfResolver> {
         if let Self::Dwarf(dwarf) = self {
-            Some(Rc::clone(dwarf))
+            Some(dwarf)
         } else {
             None
         }
