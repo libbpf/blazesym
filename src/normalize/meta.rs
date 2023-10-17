@@ -7,6 +7,8 @@ type BuildId = Vec<u8>;
 
 /// Meta information about an APK.
 ///
+/// This type is used in the [`UserMeta::Apk`] variant.
+///
 /// The corresponding file offset is normalized only to the APK container, not
 /// any potential internal ELF files. Use the
 /// [`Apk`][crate::symbolize::Source::Apk] symbolization source in order to
@@ -47,6 +49,8 @@ pub struct Apk {
 
 
 /// Meta information about an ELF file (executable, shared object, ...).
+///
+/// This type is used in the [`UserMeta::Elf`] variant.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Elf {
     /// The canonical absolute path to the ELF file, including its name.
@@ -60,8 +64,12 @@ pub struct Elf {
 
 
 /// Meta information about an address that could not be determined to be
-/// belonging to a specific component. Such an address will be reported
-/// in non-normalized form (as provided by the user).
+/// belonging to a specific component.
+///
+/// This type is used in the [`UserMeta::Unknown`] variant.
+///
+/// An unknown address will be reported in non-normalized form (i.e., as
+/// provided as input by the user).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Unknown {
     /// The struct is non-exhaustive and open to extension.
