@@ -10,6 +10,8 @@ use super::Symbolizer;
 
 
 /// A single APK file.
+///
+/// This type is used in the [`Source::Apk`] variant.
 #[derive(Clone)]
 pub struct Apk {
     /// The path to an APK file.
@@ -48,6 +50,8 @@ impl Debug for Apk {
 
 
 /// A single ELF file.
+///
+/// This type is used in the [`Source::Elf`] variant.
 #[derive(Clone)]
 pub struct Elf {
     /// The path to an ELF file.
@@ -89,7 +93,9 @@ impl Debug for Elf {
 }
 
 
-/// Linux Kernel's binary image and a copy of /proc/kallsyms
+/// Linux Kernel's binary image and a copy of `/proc/kallsyms`.
+///
+/// This type is used in the [`Source::Kernel`] variant.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Kernel {
     /// The path of a kallsyms copy.
@@ -121,9 +127,12 @@ impl From<Kernel> for Source<'static> {
 
 /// Configuration for process based address symbolization.
 ///
+/// This type is used in the [`Source::Process`] variant.
+///
 /// The corresponding addresses supplied to [`Symbolizer::symbolize`] are
-/// expected to be absolute addresses as valid within the process identified
-/// by the [`pid`][Process::pid] member.
+/// expected to be absolute addresses
+/// ([`Input::AbsAddr`][crate::symbolize::Input::AbsAddr]) as valid within the
+/// process identified by the [`pid`][Process::pid] member.
 #[derive(Clone)]
 pub struct Process {
     /// The referenced process' ID.
@@ -165,6 +174,8 @@ impl From<Process> for Source<'static> {
 
 
 /// Enumeration of supported Gsym sources.
+///
+/// This type is used in the [`Source::Gsym`] variant.
 #[derive(Clone, Debug)]
 pub enum Gsym<'dat> {
     /// "Raw" Gsym data.

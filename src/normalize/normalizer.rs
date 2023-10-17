@@ -23,7 +23,8 @@ pub struct Output<M> {
     ///
     /// A file offset is one as it would appear in a binary or debug symbol
     /// file, i.e., one excluding any relocations. The data reported here can be
-    /// used with the [`symbolize::Input::FileOffset`] variant.
+    /// used with the [`symbolize::Input::FileOffset`][crate::symbolize::Input::FileOffset]
+    /// variant.
     pub outputs: Vec<(u64, usize)>,
     /// Meta information about the normalized outputs.
     pub meta: Vec<M>,
@@ -89,7 +90,7 @@ impl Normalizer {
         Builder::default()
     }
 
-    /// Normalize `addresses` belonging to a process.
+    /// Normalize addresses belonging to a process.
     ///
     /// Normalize all `addrs` in a given process. The `addrs` array has
     /// to be sorted in ascending order or an error will be returned. By
@@ -117,7 +118,7 @@ impl Normalizer {
     }
 
 
-    /// Normalize `addresses` belonging to a process.
+    /// Normalize addresses belonging to a process.
     ///
     /// Normalize all `addrs` in a given process. Contrary to
     /// [`Normalizer::normalize_user_addrs_sorted`], the provided `addrs` array
