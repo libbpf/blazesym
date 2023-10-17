@@ -69,7 +69,7 @@ Here is rough roadmap of currently planned features (in no particular order):
 - [x] Support symbolization of addresses in APKs (relevant for Android) (https://github.com/libbpf/blazesym/pull/222 & https://github.com/libbpf/blazesym/pull/227)
 - [ ] Support ELF32 binaries (https://github.com/libbpf/blazesym/issues/53)
 - [x] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)
-- [ ] Support remote symbolization (https://github.com/libbpf/blazesym/issues/61)
+- [x] Support remote symbolization (https://github.com/libbpf/blazesym/issues/61)
   - [x] Add APIs for address normalization (https://github.com/libbpf/blazesym/pull/114, https://github.com/libbpf/blazesym/pull/128, ...)
 - [ ] Support advanced symbolization use cases involving [`debuginfod`](https://sourceware.org/elfutils/Debuginfod.html) (https://github.com/libbpf/blazesym/issues/203)
 
