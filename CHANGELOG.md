@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Fixed build failure when `dwarf` feature is not enabled
 - Changed `Addr` to map to 64 bit integer
+- Reworked normalization APIs to produce file offsets instead of virtual offsets
 - Introduced `symbolize::Input` enum and made it part of symbolization APIs to
   distinguish between and support different input types
   - Added support for ELF symbolization using file offsets instead of addresses
