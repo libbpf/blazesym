@@ -60,7 +60,6 @@ Here is rough roadmap of currently planned features (in no particular order):
 
 - [ ] Fully support handling of kernel addresses
   - currently normalization APIs, for example, only support user space addresses
-- [ ] Optimize normalization logic with more aggressive caching
 - [x] Switch to using [`gimli`](https://crates.io/crates/gimli) for DWARF parsing
   - doing so will allow us to:
     - [x] Support more versions of the DWARF standard (https://github.com/libbpf/blazesym/issues/42 & https://github.com/libbpf/blazesym/issues/57)
