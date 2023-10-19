@@ -1,4 +1,3 @@
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
@@ -48,6 +47,7 @@ impl ElfBackend {
         matches!(self, Self::Dwarf(_))
     }
 }
+
 
 #[derive(Debug)]
 struct ElfCacheEntry {
@@ -99,14 +99,14 @@ impl ElfCacheEntry {
 
 
 #[derive(Debug)]
-struct _ElfCache {
+pub(crate) struct ElfCache {
     cache: HashMap<PathBuf, ElfCacheEntry>,
     line_number_info: bool,
     debug_info_symbols: bool,
 }
 
-impl _ElfCache {
-    fn new(line_number_info: bool, debug_info_symbols: bool) -> Self {
+impl ElfCache {
+    pub fn new(line_number_info: bool, debug_info_symbols: bool) -> Self {
         Self {
             cache: HashMap::new(),
             line_number_info,
@@ -134,35 +134,18 @@ impl _ElfCache {
             .with_context(|| format!("failed to open ELF file {}", path.display()))?;
         self.find_or_create_backend(path, file)
     }
-}
-
-#[derive(Debug)]
-pub(crate) struct ElfCache {
-    cache: RefCell<_ElfCache>,
-}
-
-impl ElfCache {
-    pub fn new(line_number_info: bool, debug_info_symbols: bool) -> Self {
-        Self {
-            cache: RefCell::new(_ElfCache::new(line_number_info, debug_info_symbols)),
-        }
-    }
-
-    pub fn find(&self, path: &Path) -> Result<ElfBackend> {
-        let mut cache = self.cache.borrow_mut();
-        cache.find(path)
-    }
 
     #[inline]
     pub fn debug_syms(&self) -> bool {
-        self.cache.borrow().debug_info_symbols
+        self.debug_info_symbols
     }
 
     #[inline]
     pub fn code_info(&self) -> bool {
-        self.cache.borrow().line_number_info
+        self.line_number_info
     }
 }
+
 
 #[cfg(test)]
 #[cfg(feature = "dwarf")]
@@ -182,7 +165,7 @@ mod tests {
 
         let code_info = true;
         let debug_syms = false;
-        let cache = ElfCache::new(code_info, debug_syms);
+        let mut cache = ElfCache::new(code_info, debug_syms);
         let backend_first = cache.find(Path::new(&bin_name));
         let backend_second = cache.find(Path::new(&bin_name));
         assert!(backend_first.is_ok());
