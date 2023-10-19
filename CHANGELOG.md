@@ -7,6 +7,8 @@ Unreleased
   distinguish between and support different input types
   - Added support for ELF symbolization using file offsets instead of addresses
 - Added `symbolize::Source::Apk` variant
+- Made symbolization source caching unconditional and removed
+  least-recently-used semantics in favor of full user control
 
 
 0.2.0-alpha.7
