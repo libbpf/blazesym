@@ -34,7 +34,7 @@
     rustdoc::broken_intra_doc_links
 )]
 #![cfg_attr(feature = "nightly", feature(test))]
-#![cfg_attr(not(feature = "lru"), allow(dead_code))]
+#![cfg_attr(not(feature = "dwarf"), allow(dead_code))]
 
 
 #[cfg(feature = "nightly")]

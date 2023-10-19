@@ -217,6 +217,16 @@ impl Default for Builder {
 
 
 /// Symbolizer provides an interface to symbolize addresses.
+///
+/// An instance of this type is the unit at which symbolization inputs are
+/// cached. That is to say, source files (DWARF, ELF, ...) and the parsed data
+/// structures may be kept around in memory for the lifetime of this object to
+/// speed up future symbolization requests. If you are working with large input
+/// sources and/or do not intend to perform multiple symbolization requests
+/// (i.e., [`symbolize`][Symbolizer::symbolize] or
+/// [`symbolize_single`][Symbolizer::symbolize_single] calls) for the same
+/// symbolization source, you may want to consider creating a new `Symbolizer`
+/// instance regularly.
 #[derive(Debug)]
 pub struct Symbolizer {
     ksym_cache: KSymCache,

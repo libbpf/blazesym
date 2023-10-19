@@ -1,14 +1,10 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs::File;
-use std::num::NonZeroUsize;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
-#[cfg(feature = "lru")]
 use std::path::PathBuf;
 use std::rc::Rc;
-
-#[cfg(feature = "lru")]
-use lru::LruCache;
 
 #[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
@@ -18,8 +14,6 @@ use crate::Result;
 
 use super::ElfParser;
 
-// SAFETY: The provided value is non-zero.
-const DFL_CACHE_MAX: NonZeroUsize = unsafe { NonZeroUsize::new_unchecked(1024) };
 
 #[derive(Clone, Debug)]
 pub(crate) enum ElfBackend {
@@ -106,8 +100,7 @@ impl ElfCacheEntry {
 
 #[derive(Debug)]
 struct _ElfCache {
-    #[cfg(feature = "lru")]
-    cache: LruCache<PathBuf, ElfCacheEntry>,
+    cache: HashMap<PathBuf, ElfCacheEntry>,
     line_number_info: bool,
     debug_info_symbols: bool,
 }
@@ -115,14 +108,12 @@ struct _ElfCache {
 impl _ElfCache {
     fn new(line_number_info: bool, debug_info_symbols: bool) -> Self {
         Self {
-            #[cfg(feature = "lru")]
-            cache: LruCache::new(DFL_CACHE_MAX),
+            cache: HashMap::new(),
             line_number_info,
             debug_info_symbols,
         }
     }
 
-    #[cfg(feature = "lru")]
     fn find_or_create_backend(&mut self, file_name: &Path, file: File) -> Result<ElfBackend> {
         if let Some(entry) = self.cache.get(file_name) {
             let stat = fstat(file.as_raw_fd())?;
@@ -134,14 +125,7 @@ impl _ElfCache {
 
         let entry = ElfCacheEntry::new(file, self.line_number_info, self.debug_info_symbols)?;
         let backend = entry.get_backend();
-        let _previous = self.cache.put(file_name.to_path_buf(), entry);
-        Ok(backend)
-    }
-
-    #[cfg(not(feature = "lru"))]
-    fn find_or_create_backend(&mut self, _file_name: &Path, file: File) -> Result<ElfBackend> {
-        let entry = ElfCacheEntry::new(file, self.line_number_info, self.debug_info_symbols)?;
-        let backend = entry.get_backend();
+        let _previous = self.cache.insert(file_name.to_path_buf(), entry);
         Ok(backend)
     }
 
