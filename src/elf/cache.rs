@@ -66,11 +66,7 @@ struct ElfCacheEntry {
 }
 
 impl ElfCacheEntry {
-    pub fn new(
-        file: File,
-        line_number_info: bool,
-        debug_info_symbols: bool,
-    ) -> Result<ElfCacheEntry> {
+    pub fn new(file: File, line_number_info: bool, debug_info_symbols: bool) -> Result<Self> {
         let stat = fstat(file.as_raw_fd())?;
         let parser = Rc::new(ElfParser::open_file(file)?);
 
@@ -84,7 +80,7 @@ impl ElfCacheEntry {
         #[cfg(not(feature = "dwarf"))]
         let backend = ElfBackend::Elf(parser);
 
-        Ok(ElfCacheEntry {
+        Ok(Self {
             dev: stat.st_dev,
             inode: stat.st_ino,
             size: stat.st_size,
@@ -117,8 +113,8 @@ struct _ElfCache {
 }
 
 impl _ElfCache {
-    fn new(line_number_info: bool, debug_info_symbols: bool) -> _ElfCache {
-        _ElfCache {
+    fn new(line_number_info: bool, debug_info_symbols: bool) -> Self {
+        Self {
             #[cfg(feature = "lru")]
             cache: LruCache::new(DFL_CACHE_MAX),
             line_number_info,
@@ -162,8 +158,8 @@ pub(crate) struct ElfCache {
 }
 
 impl ElfCache {
-    pub fn new(line_number_info: bool, debug_info_symbols: bool) -> ElfCache {
-        ElfCache {
+    pub fn new(line_number_info: bool, debug_info_symbols: bool) -> Self {
+        Self {
             cache: RefCell::new(_ElfCache::new(line_number_info, debug_info_symbols)),
         }
     }
