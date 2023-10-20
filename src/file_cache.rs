@@ -80,3 +80,78 @@ impl<T> FileCache<T> {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::io::Read as _;
+    use std::io::Write as _;
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    use tempfile::NamedTempFile;
+
+
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let mut cache = FileCache::<()>::new();
+        assert_ne!(format!("{cache:?}"), "");
+
+        let tmpfile = NamedTempFile::new().unwrap();
+        let (_file, _entry) = cache.entry(tmpfile.path()).unwrap();
+        let entry = cache.cache.get(tmpfile.path()).unwrap();
+        assert_ne!(format!("{entry:?}"), "");
+    }
+
+    /// Check that we can associate data with a file.
+    #[test]
+    fn lookup() {
+        let mut cache = FileCache::<usize>::new();
+        let tmpfile = NamedTempFile::new().unwrap();
+        {
+            let (_file, entry) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(*entry, None);
+
+            *entry = Some(42);
+        }
+
+        {
+            let (_file, entry) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(*entry, Some(42));
+        }
+    }
+
+    /// Make sure that a changed file purges the cache entry.
+    #[test]
+    fn outdated() {
+        let mut cache = FileCache::<usize>::new();
+        let tmpfile = NamedTempFile::new().unwrap();
+        let modified = {
+            let (file, entry) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(*entry, None);
+
+            *entry = Some(42);
+            file.metadata().unwrap().modified().unwrap()
+        };
+
+        // Sleep briefly to make sure that file times will end up being
+        // different.
+        let () = sleep(Duration::from_millis(10));
+
+        let mut file = File::create(tmpfile.path()).unwrap();
+        let () = file.write_all(b"foobar").unwrap();
+
+        {
+            let (mut file, entry) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(*entry, None);
+            assert_ne!(file.metadata().unwrap().modified().unwrap(), modified);
+
+            let mut content = Vec::new();
+            let _count = file.read_to_end(&mut content);
+            assert_eq!(content, b"foobar");
+        }
+    }
+}
