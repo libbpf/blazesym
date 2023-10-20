@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fmt::Debug;
+use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -193,11 +194,12 @@ impl Builder {
             demangle,
         } = self;
         let ksym_cache = KSymCache::new();
-        let elf_cache = RefCell::new(ElfCache::new(code_info, debug_syms));
+        let elf_cache = RefCell::new(ElfCache::new());
 
         Symbolizer {
             ksym_cache,
             elf_cache,
+            debug_syms,
             code_info,
             inlined_fns,
             demangle,
@@ -232,6 +234,7 @@ impl Default for Builder {
 pub struct Symbolizer {
     ksym_cache: KSymCache,
     elf_cache: RefCell<ElfCache>,
+    debug_syms: bool,
     code_info: bool,
     inlined_fns: bool,
     demangle: bool,
@@ -334,8 +337,32 @@ impl Symbolizer {
             .collect()
     }
 
+    fn create_backend(&self, file: &File) -> Result<ElfBackend> {
+        let parser = Rc::new(ElfParser::open_file(file)?);
+        #[cfg(feature = "dwarf")]
+        let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
+            Rc::clone(&parser),
+            self.code_info,
+            self.debug_syms,
+        )?));
+
+        #[cfg(not(feature = "dwarf"))]
+        let backend = ElfBackend::Elf(parser);
+        Ok(backend)
+    }
+
+    fn elf_backend(&self, path: &Path) -> Result<ElfBackend> {
+        let mut cache = self.elf_cache.borrow_mut();
+        let (file, backend) = cache.entry(path)?;
+        if backend.is_none() {
+            *backend = Some(self.create_backend(file)?);
+        }
+        // SANITY: A backend is always present at this point.
+        Ok(backend.as_ref().unwrap().clone())
+    }
+
     fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Symbolized> {
-        let backend = self.elf_cache.borrow_mut().find(path)?.value.clone();
+        let backend = self.elf_backend(path)?;
         let resolver = ElfResolver::with_backend(path, backend)?;
         let symbolized = self.symbolize_with_resolver(addr, &resolver)?;
         Ok(symbolized)
@@ -461,7 +488,7 @@ impl Symbolizer {
         };
 
         let elf_resolver = if let Some(image) = kernel_image {
-            let backend = self.elf_cache.borrow_mut().find(image)?.value.clone();
+            let backend = self.elf_backend(image)?;
             let elf_resolver = ElfResolver::with_backend(image, backend)?;
             Some(elf_resolver)
         } else {
@@ -474,11 +501,10 @@ impl Symbolizer {
             });
 
             if let Some(image) = kernel_image {
-                let mut cache = self.elf_cache.borrow_mut();
-                let result = cache.find(&image);
+                let result = self.elf_backend(&image);
                 match result {
-                    Ok(entry) => {
-                        let result = ElfResolver::with_backend(&image, entry.value.clone());
+                    Ok(backend) => {
+                        let result = ElfResolver::with_backend(&image, backend);
                         match result {
                             Ok(resolver) => Some(resolver),
                             Err(err) => {
@@ -562,8 +588,8 @@ impl Symbolizer {
                                     let backend =
                                         ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
                                             elf_parser,
-                                            self.elf_cache.borrow().code_info(),
-                                            self.elf_cache.borrow().debug_syms(),
+                                            self.code_info,
+                                            self.debug_syms,
                                         )?));
 
                                     #[cfg(not(feature = "dwarf"))]
@@ -582,7 +608,7 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let backend = self.elf_cache.borrow_mut().find(path)?.value.clone();
+                let backend = self.elf_backend(path)?;
                 let resolver = ElfResolver::with_backend(path, backend)?;
 
                 match input {
@@ -722,8 +748,8 @@ impl Symbolizer {
                             #[cfg(feature = "dwarf")]
                             let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
                                 elf_parser,
-                                self.elf_cache.borrow().code_info(),
-                                self.elf_cache.borrow().debug_syms(),
+                                self.code_info,
+                                self.debug_syms,
                             )?));
 
                             #[cfg(not(feature = "dwarf"))]
@@ -740,8 +766,7 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let backend = self.elf_cache.borrow_mut().find(path)?.value.clone();
-
+                let backend = self.elf_backend(path)?;
                 let addr = match input {
                     Input::VirtOffset(addr) => addr,
                     Input::AbsAddr(..) => {
