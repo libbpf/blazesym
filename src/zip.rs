@@ -262,6 +262,7 @@ pub(crate) struct Archive {
 
 impl Archive {
     /// Open a zip archive at the provided `path`.
+    #[cfg(test)]
     pub fn open<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
