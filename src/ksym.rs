@@ -168,6 +168,23 @@ mod tests {
     use crate::ErrorKind;
 
 
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let resolver = KSymResolver {
+            syms: Vec::new(),
+            sym_to_addr: RefCell::default(),
+            file_name: PathBuf::new(),
+        };
+        assert_ne!(format!("{resolver:?}"), "");
+
+        let ksym = Ksym {
+            addr: 0x1337,
+            name: "3l33t".to_string(),
+        };
+        assert_ne!(format!("{ksym:?}"), "");
+    }
+
     /// Check that we can use a `KSymResolver` to find symbols.
     #[test]
     fn ksym_resolver_load_find() {
