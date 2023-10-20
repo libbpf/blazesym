@@ -10,9 +10,9 @@ use std::rc::Rc;
 use crate::dwarf::DwarfResolver;
 use crate::elf;
 use crate::elf::ElfBackend;
-use crate::elf::ElfCache;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
+use crate::file_cache::FileCache;
 use crate::gsym::GsymResolver;
 use crate::kernel::KernelResolver;
 use crate::ksym::KSymCache;
@@ -194,7 +194,7 @@ impl Builder {
             demangle,
         } = self;
         let ksym_cache = KSymCache::new();
-        let elf_cache = RefCell::new(ElfCache::new());
+        let elf_cache = RefCell::new(FileCache::new());
 
         Symbolizer {
             ksym_cache,
@@ -233,7 +233,7 @@ impl Default for Builder {
 #[derive(Debug)]
 pub struct Symbolizer {
     ksym_cache: KSymCache,
-    elf_cache: RefCell<ElfCache<ElfBackend>>,
+    elf_cache: RefCell<FileCache<ElfBackend>>,
     debug_syms: bool,
     code_info: bool,
     inlined_fns: bool,
@@ -583,7 +583,7 @@ impl Symbolizer {
                             match find_apk_elf_addr(*offset, path)? {
                                 Some((elf_addr, _elf_path, elf_parser)) => {
                                     let elf_parser = Rc::new(elf_parser);
-                                    // TODO: Duplicated with `ElfCache`. Needs to be unified.
+                                    // TODO: Duplicated with `FileCache`. Needs to be unified.
                                     #[cfg(feature = "dwarf")]
                                     let backend =
                                         ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
@@ -744,7 +744,7 @@ impl Symbolizer {
                     Input::FileOffset(offset) => match find_apk_elf_addr(offset, path)? {
                         Some((elf_addr, _elf_path, elf_parser)) => {
                             let elf_parser = Rc::new(elf_parser);
-                            // TODO: Duplicated with `ElfCache`. Needs to be unified.
+                            // TODO: Duplicated with `FileCache`. Needs to be unified.
                             #[cfg(feature = "dwarf")]
                             let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
                                 elf_parser,
