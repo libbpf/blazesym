@@ -1,10 +1,12 @@
 use std::cell::RefCell;
+use std::collections::hash_map;
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::File;
 use std::ops::Deref as _;
+use std::ops::Range;
 use std::path::Path;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 #[cfg(feature = "dwarf")]
@@ -21,6 +23,7 @@ use crate::ksym::KALLSYMS;
 use crate::log;
 use crate::maps;
 use crate::maps::PathMapsEntry;
+use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::create_apk_elf_path;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
@@ -98,40 +101,6 @@ fn elf_offset_to_address(offset: u64, parser: &ElfParser) -> Result<Option<Addr>
 }
 
 
-/// Look up the ELF virtual offset (and a few other things) for the provided
-/// file offset in an APK.
-fn find_apk_elf_addr(file_off: u64, path: &Path) -> Result<Option<(Addr, PathBuf, ElfParser)>> {
-    // An APK is nothing but a fancy zip archive.
-    let apk = zip::Archive::open(path)?;
-
-    // Find the APK entry covering the calculated file offset.
-    for apk_entry in apk.entries() {
-        let apk_entry = apk_entry?;
-        let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
-
-        if bounds.contains(&file_off) {
-            let mmap = apk
-                .mmap()
-                .constrain(bounds.clone())
-                .ok_or_invalid_input(|| {
-                    format!(
-                        "invalid APK entry data bounds ({bounds:?}) in {}",
-                        path.display()
-                    )
-                })?;
-            let parser = ElfParser::from_mmap(mmap);
-            let elf_off = file_off - apk_entry.data_offset;
-            if let Some(addr) = elf_offset_to_address(elf_off, &parser)? {
-                return Ok(Some((addr, apk_entry.path.to_path_buf(), parser)))
-            }
-            break
-        }
-    }
-
-    Ok(None)
-}
-
-
 /// A builder for configurable construction of [`Symbolizer`] objects.
 ///
 /// By default all features are enabled.
@@ -194,12 +163,14 @@ impl Builder {
             inlined_fns,
             demangle,
         } = self;
-        let ksym_cache = RefCell::new(FileCache::new());
+        let apk_cache = RefCell::new(FileCache::new());
         let elf_cache = RefCell::new(FileCache::new());
+        let ksym_cache = RefCell::new(FileCache::new());
 
         Symbolizer {
-            ksym_cache,
+            apk_cache,
             elf_cache,
+            ksym_cache,
             debug_syms,
             code_info,
             inlined_fns,
@@ -233,8 +204,10 @@ impl Default for Builder {
 /// instance regularly.
 #[derive(Debug)]
 pub struct Symbolizer {
-    ksym_cache: RefCell<FileCache<Rc<KSymResolver>>>,
+    #[allow(clippy::type_complexity)]
+    apk_cache: RefCell<FileCache<(zip::Archive, HashMap<Range<u64>, Rc<ElfResolver>>)>>,
     elf_cache: RefCell<FileCache<Rc<ElfResolver>>>,
+    ksym_cache: RefCell<FileCache<Rc<KSymResolver>>>,
     debug_syms: bool,
     code_info: bool,
     inlined_fns: bool,
@@ -338,11 +311,14 @@ impl Symbolizer {
             .collect()
     }
 
-    fn create_elf_resolver(&self, path: &Path, file: &File) -> Result<Rc<ElfResolver>> {
-        let parser = Rc::new(ElfParser::open_file(file)?);
+    fn elf_resolver_from_parser(
+        &self,
+        path: &Path,
+        parser: Rc<ElfParser>,
+    ) -> Result<Rc<ElfResolver>> {
         #[cfg(feature = "dwarf")]
         let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
-            Rc::clone(&parser),
+            parser,
             self.code_info,
             self.debug_syms,
         )?));
@@ -353,6 +329,11 @@ impl Symbolizer {
         Ok(resolver)
     }
 
+    fn create_elf_resolver(&self, path: &Path, file: &File) -> Result<Rc<ElfResolver>> {
+        let parser = Rc::new(ElfParser::open_file(file)?);
+        self.elf_resolver_from_parser(path, parser)
+    }
+
     fn elf_resolver(&self, path: &Path) -> Result<Rc<ElfResolver>> {
         let mut cache = self.elf_cache.borrow_mut();
         let (file, resolver) = cache.entry(path)?;
@@ -361,6 +342,66 @@ impl Symbolizer {
         }
         // SANITY: A resolver is always present at this point.
         Ok(resolver.as_ref().unwrap().clone())
+    }
+
+    fn create_apk_resolver(
+        &self,
+        apk: &zip::Archive,
+        apk_path: &Path,
+        file_off: u64,
+        resolver_map: &mut HashMap<Range<u64>, Rc<ElfResolver>>,
+    ) -> Result<Option<(Rc<ElfResolver>, Addr)>> {
+        // Find the APK entry covering the calculated file offset.
+        for apk_entry in apk.entries() {
+            let apk_entry = apk_entry?;
+            let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
+
+            if bounds.contains(&file_off) {
+                let resolver = match resolver_map.entry(bounds.clone()) {
+                    hash_map::Entry::Occupied(occupied) => occupied.into_mut(),
+                    hash_map::Entry::Vacant(vacancy) => {
+                        let mmap =
+                            apk.mmap()
+                                .constrain(bounds.clone())
+                                .ok_or_invalid_input(|| {
+                                    format!(
+                                        "invalid APK entry data bounds ({bounds:?}) in {}",
+                                        apk_path.display()
+                                    )
+                                })?;
+                        // Create an Android-style binary-in-APK path for
+                        // reporting purposes.
+                        let apk_elf_path = create_apk_elf_path(apk_path, apk_entry.path)?;
+                        let parser = Rc::new(ElfParser::from_mmap(mmap));
+                        let resolver = self.elf_resolver_from_parser(&apk_elf_path, parser)?;
+                        vacancy.insert(resolver)
+                    }
+                };
+
+                let elf_off = file_off - apk_entry.data_offset;
+                if let Some(addr) = elf_offset_to_address(elf_off, resolver.parser())? {
+                    return Ok(Some((resolver.clone(), addr)))
+                }
+                break
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn apk_resolver(&self, path: &Path, file_off: u64) -> Result<Option<(Rc<ElfResolver>, Addr)>> {
+        let mut cache = self.apk_cache.borrow_mut();
+        let (file, data) = cache.entry(path)?;
+        if data.is_none() {
+            let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
+            let resolvers = HashMap::new();
+            *data = Some((apk, resolvers))
+        }
+
+        // SANITY: A resolver is always present at this point.
+        let (apk, ref mut resolvers) = data.as_mut().unwrap();
+        let result = self.create_apk_resolver(apk, path, file_off, resolvers);
+        result
     }
 
     fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Symbolized> {
@@ -383,19 +424,11 @@ impl Symbolizer {
             fn handle_apk_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let file_off = addr - entry.range.start + entry.offset;
                 let apk_path = &entry.path.symbolic_path;
-                match find_apk_elf_addr(file_off, apk_path)? {
-                    Some((norm_addr, elf_path, elf_parser)) => {
-                        // Create an Android-style binary-in-APK path for
-                        // reporting purposes.
-                        let apk_elf_path = create_apk_elf_path(apk_path, &elf_path)?;
-                        // TODO: Should support DWARF as well. In general this needs to
-                        //       go through the "ELF cache".
-                        let backend = ElfBackend::Elf(Rc::new(elf_parser));
-
-                        let resolver = ElfResolver::with_backend(&apk_elf_path, backend)?;
+                match self.symbolizer.apk_resolver(apk_path, file_off)? {
+                    Some((elf_resolver, elf_addr)) => {
                         let symbol = self
                             .symbolizer
-                            .symbolize_with_resolver(norm_addr, &resolver)?;
+                            .symbolize_with_resolver(elf_addr, elf_resolver.deref())?;
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
@@ -570,45 +603,27 @@ impl Symbolizer {
             Source::Apk(Apk {
                 path,
                 _non_exhaustive: (),
-            }) => {
-                match input {
-                    Input::VirtOffset(..) => {
-                        return Err(Error::with_unsupported(
-                            "ELF symbolization does not support virtual offset inputs",
-                        ))
-                    }
-                    Input::AbsAddr(..) => {
-                        return Err(Error::with_unsupported(
-                            "ELF symbolization does not support absolute address inputs",
-                        ))
-                    }
-                    Input::FileOffset(offsets) => offsets
-                        .iter()
-                        .map(|offset| {
-                            match find_apk_elf_addr(*offset, path)? {
-                                Some((elf_addr, _elf_path, elf_parser)) => {
-                                    let elf_parser = Rc::new(elf_parser);
-                                    // TODO: Duplicated with `FileCache`. Needs to be unified.
-                                    #[cfg(feature = "dwarf")]
-                                    let backend =
-                                        ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
-                                            elf_parser,
-                                            self.code_info,
-                                            self.debug_syms,
-                                        )?));
-
-                                    #[cfg(not(feature = "dwarf"))]
-                                    let backend = ElfBackend::Elf(elf_parser);
-
-                                    let resolver = ElfResolver::with_backend(path, backend)?;
-                                    self.symbolize_with_resolver(elf_addr, &resolver)
-                                }
-                                None => Ok(Symbolized::Unknown),
-                            }
-                        })
-                        .collect(),
+            }) => match input {
+                Input::VirtOffset(..) => {
+                    return Err(Error::with_unsupported(
+                        "ELF symbolization does not support virtual offset inputs",
+                    ))
                 }
-            }
+                Input::AbsAddr(..) => {
+                    return Err(Error::with_unsupported(
+                        "ELF symbolization does not support absolute address inputs",
+                    ))
+                }
+                Input::FileOffset(offsets) => offsets
+                    .iter()
+                    .map(|offset| match self.apk_resolver(path, *offset)? {
+                        Some((elf_resolver, elf_addr)) => {
+                            self.symbolize_with_resolver(elf_addr, elf_resolver.deref())
+                        }
+                        None => Ok(Symbolized::Unknown),
+                    })
+                    .collect(),
+            },
             Source::Elf(Elf {
                 path,
                 _non_exhaustive: (),
@@ -732,39 +747,24 @@ impl Symbolizer {
             Source::Apk(Apk {
                 path,
                 _non_exhaustive: (),
-            }) => {
-                match input {
-                    Input::VirtOffset(..) => {
-                        return Err(Error::with_unsupported(
-                            "APK symbolization does not support virtual offset inputs",
-                        ))
-                    }
-                    Input::AbsAddr(..) => {
-                        return Err(Error::with_unsupported(
-                            "APK symbolization does not support absolute address inputs",
-                        ))
-                    }
-                    Input::FileOffset(offset) => match find_apk_elf_addr(offset, path)? {
-                        Some((elf_addr, _elf_path, elf_parser)) => {
-                            let elf_parser = Rc::new(elf_parser);
-                            // TODO: Duplicated with `FileCache`. Needs to be unified.
-                            #[cfg(feature = "dwarf")]
-                            let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
-                                elf_parser,
-                                self.code_info,
-                                self.debug_syms,
-                            )?));
-
-                            #[cfg(not(feature = "dwarf"))]
-                            let backend = ElfBackend::Elf(elf_parser);
-
-                            let resolver = ElfResolver::with_backend(path, backend)?;
-                            self.symbolize_with_resolver(elf_addr, &resolver)
-                        }
-                        None => return Ok(Symbolized::Unknown),
-                    },
+            }) => match input {
+                Input::VirtOffset(..) => {
+                    return Err(Error::with_unsupported(
+                        "APK symbolization does not support virtual offset inputs",
+                    ))
                 }
-            }
+                Input::AbsAddr(..) => {
+                    return Err(Error::with_unsupported(
+                        "APK symbolization does not support absolute address inputs",
+                    ))
+                }
+                Input::FileOffset(offset) => match self.apk_resolver(path, offset)? {
+                    Some((elf_resolver, elf_addr)) => {
+                        self.symbolize_with_resolver(elf_addr, elf_resolver.deref())
+                    }
+                    None => return Ok(Symbolized::Unknown),
+                },
+            },
             Source::Elf(Elf {
                 path,
                 _non_exhaustive: (),

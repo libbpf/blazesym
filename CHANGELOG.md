@@ -9,6 +9,7 @@ Unreleased
 - Added `symbolize::Source::Apk` variant
 - Made symbolization source caching unconditional and removed
   least-recently-used semantics in favor of full user control
+- Added caching for APK related symbolization data structures
 
 
 0.2.0-alpha.7
