@@ -104,7 +104,7 @@ impl ElfCache {
         line_number_info: bool,
         debug_info_symbols: bool,
     ) -> Result<ElfCacheEntry<ElfBackend>> {
-        let parser = Rc::new(ElfParser::open_file(file)?);
+        let parser = Rc::new(ElfParser::open_file(&file)?);
         #[cfg(feature = "dwarf")]
         let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
             Rc::clone(&parser),
