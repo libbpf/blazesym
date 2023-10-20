@@ -359,8 +359,8 @@ pub(crate) struct ElfParser {
 
 impl ElfParser {
     /// Create an `ElfParser` from an open file.
-    pub fn open_file(file: File) -> Result<ElfParser> {
-        Mmap::map(&file).map(Self::from_mmap)
+    pub fn open_file(file: &File) -> Result<ElfParser> {
+        Mmap::map(file).map(Self::from_mmap)
     }
 
     /// Create an `ElfParser` from mmap'ed data.
@@ -381,7 +381,7 @@ impl ElfParser {
     /// Create an `ElfParser` for a path.
     pub fn open(filename: &Path) -> Result<ElfParser> {
         let file = File::open(filename)?;
-        let parser = Self::open_file(file);
+        let parser = Self::open_file(&file);
         if let Ok(parser) = parser {
             Ok(parser)
         } else {

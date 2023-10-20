@@ -456,7 +456,7 @@ mod tests {
         let mut file = tempfile().unwrap();
         let () = file.write_all(entry.data).unwrap();
 
-        let elf = ElfParser::open_file(file).unwrap();
+        let elf = ElfParser::open_file(&file).unwrap();
         assert!(elf.find_section(".text").is_ok());
     }
 

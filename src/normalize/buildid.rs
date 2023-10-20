@@ -1,4 +1,3 @@
-use std::fs::File;
 use std::path::Path;
 
 use crate::elf;
@@ -109,8 +108,7 @@ impl BuildIdReader for DefaultBuildIdReader {
     /// Attempt to read an ELF binary's build ID from a file.
     #[cfg_attr(feature = "tracing", crate::log::instrument)]
     fn read_build_id_from_elf(path: &Path) -> Result<Option<Vec<u8>>> {
-        let file = File::open(path)?;
-        let parser = ElfParser::open_file(file)?;
+        let parser = ElfParser::open(path)?;
         Self::read_build_id(&parser)
     }
 }
@@ -188,8 +186,7 @@ mod tests {
                 .join("data")
                 .join("libtest-so.so");
 
-            let file = File::open(elf).unwrap();
-            let parser = ElfParser::open_file(file).unwrap();
+            let parser = ElfParser::open(&elf).unwrap();
             let build_id = f(&parser).unwrap().unwrap();
             // The file contains a sha1 build ID, which is always 40 hex digits.
             assert_eq!(build_id.len(), 20, "'{build_id:?}'");
