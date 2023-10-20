@@ -306,7 +306,7 @@ fn symbolize_dwarf_demangle() {
 #[test]
 fn symbolize_process() {
     let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
-    let addrs = [symbolize_process as Addr, Symbolizer::new as Addr];
+    let addrs = [symbolize_process as Addr, Symbolizer::symbolize as Addr];
     let symbolizer = Symbolizer::new();
     let results = symbolizer
         .symbolize(&src, symbolize::Input::AbsAddr(&addrs))
@@ -322,8 +322,8 @@ fn symbolize_process() {
     // It's not entirely clear why we have seen two different demangled
     // symbols, but they both seem legit.
     assert!(
-        result.name == "blazesym::symbolize::symbolizer::Symbolizer::new"
-            || result.name == "<blazesym::symbolize::symbolizer::Symbolizer>::new",
+        result.name == "blazesym::symbolize::symbolizer::Symbolizer::symbolize"
+            || result.name == "<blazesym::symbolize::symbolizer::Symbolizer>::symbolize",
         "{}",
         result.name
     );
