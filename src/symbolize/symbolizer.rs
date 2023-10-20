@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::File;
+use std::ops::Deref as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -233,7 +234,7 @@ impl Default for Builder {
 #[derive(Debug)]
 pub struct Symbolizer {
     ksym_cache: KSymCache,
-    elf_cache: RefCell<FileCache<ElfBackend>>,
+    elf_cache: RefCell<FileCache<Rc<ElfResolver>>>,
     debug_syms: bool,
     code_info: bool,
     inlined_fns: bool,
@@ -337,7 +338,7 @@ impl Symbolizer {
             .collect()
     }
 
-    fn create_backend(&self, file: &File) -> Result<ElfBackend> {
+    fn create_resolver(&self, path: &Path, file: &File) -> Result<Rc<ElfResolver>> {
         let parser = Rc::new(ElfParser::open_file(file)?);
         #[cfg(feature = "dwarf")]
         let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
@@ -348,23 +349,23 @@ impl Symbolizer {
 
         #[cfg(not(feature = "dwarf"))]
         let backend = ElfBackend::Elf(parser);
-        Ok(backend)
+        let resolver = Rc::new(ElfResolver::with_backend(path, backend)?);
+        Ok(resolver)
     }
 
-    fn elf_backend(&self, path: &Path) -> Result<ElfBackend> {
+    fn elf_resolver(&self, path: &Path) -> Result<Rc<ElfResolver>> {
         let mut cache = self.elf_cache.borrow_mut();
-        let (file, backend) = cache.entry(path)?;
-        if backend.is_none() {
-            *backend = Some(self.create_backend(file)?);
+        let (file, resolver) = cache.entry(path)?;
+        if resolver.is_none() {
+            *resolver = Some(self.create_resolver(path, file)?);
         }
-        // SANITY: A backend is always present at this point.
-        Ok(backend.as_ref().unwrap().clone())
+        // SANITY: A resolver is always present at this point.
+        Ok(resolver.as_ref().unwrap().clone())
     }
 
     fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Symbolized> {
-        let backend = self.elf_backend(path)?;
-        let resolver = ElfResolver::with_backend(path, backend)?;
-        let symbolized = self.symbolize_with_resolver(addr, &resolver)?;
+        let resolver = self.elf_resolver(path)?;
+        let symbolized = self.symbolize_with_resolver(addr, resolver.deref())?;
         Ok(symbolized)
     }
 
@@ -488,9 +489,8 @@ impl Symbolizer {
         };
 
         let elf_resolver = if let Some(image) = kernel_image {
-            let backend = self.elf_backend(image)?;
-            let elf_resolver = ElfResolver::with_backend(image, backend)?;
-            Some(elf_resolver)
+            let resolver = self.elf_resolver(image)?;
+            Some(resolver)
         } else {
             let release = uname_release()?.to_str().unwrap().to_string();
             let basename = "vmlinux-";
@@ -501,21 +501,9 @@ impl Symbolizer {
             });
 
             if let Some(image) = kernel_image {
-                let result = self.elf_backend(&image);
+                let result = self.elf_resolver(&image);
                 match result {
-                    Ok(backend) => {
-                        let result = ElfResolver::with_backend(&image, backend);
-                        match result {
-                            Ok(resolver) => Some(resolver),
-                            Err(err) => {
-                                log::warn!(
-                                    "failed to create ELF resolver for kernel image {}: {err}; ignoring...",
-                                    image.display()
-                                );
-                                None
-                            }
-                        }
-                    }
+                    Ok(resolver) => Some(resolver),
                     Err(err) => {
                         log::warn!(
                             "failed to load kernel image {}: {err}; ignoring...",
@@ -608,13 +596,11 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let backend = self.elf_backend(path)?;
-                let resolver = ElfResolver::with_backend(path, backend)?;
-
+                let resolver = self.elf_resolver(path)?;
                 match input {
                     Input::VirtOffset(addrs) => addrs
                         .iter()
-                        .map(|addr| self.symbolize_with_resolver(*addr, &resolver))
+                        .map(|addr| self.symbolize_with_resolver(*addr, resolver.deref()))
                         .collect(),
                     Input::AbsAddr(..) => {
                         return Err(Error::with_unsupported(
@@ -625,7 +611,7 @@ impl Symbolizer {
                         .iter()
                         .map(
                             |offset| match elf_offset_to_address(*offset, resolver.parser())? {
-                                Some(addr) => self.symbolize_with_resolver(addr, &resolver),
+                                Some(addr) => self.symbolize_with_resolver(addr, resolver.deref()),
                                 None => Ok(Symbolized::Unknown),
                             },
                         )
@@ -766,7 +752,7 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let backend = self.elf_backend(path)?;
+                let resolver = self.elf_resolver(path)?;
                 let addr = match input {
                     Input::VirtOffset(addr) => addr,
                     Input::AbsAddr(..) => {
@@ -775,15 +761,14 @@ impl Symbolizer {
                         ))
                     }
                     Input::FileOffset(offset) => {
-                        match elf_offset_to_address(offset, backend.parser())? {
+                        match elf_offset_to_address(offset, resolver.parser())? {
                             Some(addr) => addr,
                             None => return Ok(Symbolized::Unknown),
                         }
                     }
                 };
 
-                let resolver = ElfResolver::with_backend(path, backend)?;
-                self.symbolize_with_resolver(addr, &resolver)
+                self.symbolize_with_resolver(addr, resolver.deref())
             }
             Source::Kernel(kernel) => {
                 let addr = match input {

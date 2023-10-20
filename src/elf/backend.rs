@@ -12,14 +12,3 @@ pub(crate) enum ElfBackend {
     Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
     Elf(Rc<ElfParser>), // ELF w/o DWARF
 }
-
-impl ElfBackend {
-    /// Retrieve the underlying [`ElfParser`].
-    pub(crate) fn parser(&self) -> &ElfParser {
-        match self {
-            #[cfg(feature = "dwarf")]
-            Self::Dwarf(resolver) => resolver.parser(),
-            Self::Elf(parser) => parser,
-        }
-    }
-}
