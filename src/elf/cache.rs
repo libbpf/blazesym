@@ -4,34 +4,10 @@ use std::fs::File;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::path::PathBuf;
-use std::rc::Rc;
 
-#[cfg(feature = "dwarf")]
-use crate::dwarf::DwarfResolver;
 use crate::util::fstat;
 use crate::ErrorExt as _;
 use crate::Result;
-
-use super::ElfParser;
-
-
-#[derive(Clone, Debug)]
-pub(crate) enum ElfBackend {
-    #[cfg(feature = "dwarf")]
-    Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
-    Elf(Rc<ElfParser>), // ELF w/o DWARF
-}
-
-impl ElfBackend {
-    /// Retrieve the underlying [`ElfParser`].
-    pub(crate) fn parser(&self) -> &ElfParser {
-        match self {
-            #[cfg(feature = "dwarf")]
-            Self::Dwarf(resolver) => resolver.parser(),
-            Self::Elf(parser) => parser,
-        }
-    }
-}
 
 
 #[derive(Debug)]

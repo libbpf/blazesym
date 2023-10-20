@@ -13,8 +13,8 @@ use crate::Result;
 use crate::SrcLang;
 use crate::SymResolver;
 
-use super::cache::ElfBackend;
 use super::types::STT_FUNC;
+use super::ElfBackend;
 use super::ElfParser;
 
 /// The symbol resolver for a single ELF file.
