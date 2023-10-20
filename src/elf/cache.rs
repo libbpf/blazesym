@@ -33,42 +33,28 @@ impl ElfBackend {
     }
 }
 
-#[cfg(test)]
-#[cfg(feature = "dwarf")]
-impl ElfBackend {
-    pub fn to_dwarf(&self) -> Option<&DwarfResolver> {
-        if let Self::Dwarf(dwarf) = self {
-            Some(dwarf)
-        } else {
-            None
-        }
-    }
-
-    pub fn is_dwarf(&self) -> bool {
-        matches!(self, Self::Dwarf(_))
-    }
-}
-
 
 #[derive(Debug)]
-pub(crate) struct ElfCacheEntry<T> {
+struct ElfCacheEntry<T> {
     dev: libc::dev_t,
     inode: libc::ino_t,
     size: libc::off_t,
     mtime_sec: libc::time_t,
     mtime_nsec: i64,
-    pub value: T,
+    file: File,
+    value: Option<T>,
 }
 
 impl<T> ElfCacheEntry<T> {
-    fn new(stat: &libc::stat, value: T) -> Self {
+    fn new(stat: &libc::stat, file: File) -> Self {
         Self {
             dev: stat.st_dev,
             inode: stat.st_ino,
             size: stat.st_size,
             mtime_sec: stat.st_mtime,
             mtime_nsec: stat.st_mtime_nsec,
-            value,
+            file,
+            value: None,
         }
     }
 
@@ -85,40 +71,16 @@ impl<T> ElfCacheEntry<T> {
 #[derive(Debug)]
 pub(crate) struct ElfCache {
     cache: HashMap<PathBuf, ElfCacheEntry<ElfBackend>>,
-    line_number_info: bool,
-    debug_info_symbols: bool,
 }
 
 impl ElfCache {
-    pub fn new(line_number_info: bool, debug_info_symbols: bool) -> Self {
+    pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
-            line_number_info,
-            debug_info_symbols,
         }
     }
 
-    fn create_entry(
-        stat: &libc::stat,
-        file: File,
-        line_number_info: bool,
-        debug_info_symbols: bool,
-    ) -> Result<ElfCacheEntry<ElfBackend>> {
-        let parser = Rc::new(ElfParser::open_file(&file)?);
-        #[cfg(feature = "dwarf")]
-        let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
-            Rc::clone(&parser),
-            line_number_info,
-            debug_info_symbols,
-        )?));
-
-        #[cfg(not(feature = "dwarf"))]
-        let backend = ElfBackend::Elf(parser);
-        let entry = ElfCacheEntry::new(stat, backend);
-        Ok(entry)
-    }
-
-    pub fn find(&mut self, path: &Path) -> Result<&ElfCacheEntry<ElfBackend>> {
+    pub fn entry(&mut self, path: &Path) -> Result<(&File, &mut Option<ElfBackend>)> {
         let file =
             File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
         let stat = fstat(file.as_raw_fd())?;
@@ -126,68 +88,19 @@ impl ElfCache {
         match self.cache.entry(path.to_path_buf()) {
             hash_map::Entry::Occupied(mut occupied) => {
                 if occupied.get().is_current(&stat) {
-                    return Ok(occupied.into_mut())
+                    let entry = occupied.into_mut();
+                    return Ok((&entry.file, &mut entry.value))
                 }
-                let entry = Self::create_entry(
-                    &stat,
-                    file,
-                    self.line_number_info,
-                    self.debug_info_symbols,
-                )?;
+                let entry = ElfCacheEntry::new(&stat, file);
                 let _old = occupied.insert(entry);
-                Ok(occupied.into_mut())
+                let entry = occupied.into_mut();
+                Ok((&entry.file, &mut entry.value))
             }
             hash_map::Entry::Vacant(vacancy) => {
-                let entry = Self::create_entry(
-                    &stat,
-                    file,
-                    self.line_number_info,
-                    self.debug_info_symbols,
-                )?;
+                let entry = ElfCacheEntry::new(&stat, file);
                 let entry = vacancy.insert(entry);
-                Ok(entry)
+                Ok((&entry.file, &mut entry.value))
             }
         }
-    }
-
-    #[inline]
-    pub fn debug_syms(&self) -> bool {
-        self.debug_info_symbols
-    }
-
-    #[inline]
-    pub fn code_info(&self) -> bool {
-        self.line_number_info
-    }
-}
-
-
-#[cfg(test)]
-#[cfg(feature = "dwarf")]
-mod tests {
-    use super::*;
-
-    use std::env;
-    use std::ptr;
-
-    use test_log::test;
-
-    #[test]
-    fn test_cache() {
-        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-no-debug.bin");
-
-        let code_info = true;
-        let debug_syms = false;
-        let mut cache = ElfCache::new(code_info, debug_syms);
-        let backend_first = cache.find(Path::new(&bin_name)).unwrap().value.clone();
-        let backend_second = cache.find(Path::new(&bin_name)).unwrap().value.clone();
-        assert!(backend_first.is_dwarf());
-        assert!(backend_second.is_dwarf());
-        assert_eq!(
-            ptr::addr_of!(*backend_first.to_dwarf().unwrap().parser()),
-            ptr::addr_of!(*backend_second.to_dwarf().unwrap().parser())
-        );
     }
 }
