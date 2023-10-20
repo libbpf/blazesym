@@ -11,7 +11,7 @@ use crate::Result;
 
 
 #[derive(Debug)]
-struct ElfCacheEntry<T> {
+struct Entry<T> {
     dev: libc::dev_t,
     inode: libc::ino_t,
     size: libc::off_t,
@@ -21,7 +21,7 @@ struct ElfCacheEntry<T> {
     value: Option<T>,
 }
 
-impl<T> ElfCacheEntry<T> {
+impl<T> Entry<T> {
     fn new(stat: &libc::stat, file: File) -> Self {
         Self {
             dev: stat.st_dev,
@@ -45,11 +45,11 @@ impl<T> ElfCacheEntry<T> {
 
 
 #[derive(Debug)]
-pub(crate) struct ElfCache<T> {
-    cache: HashMap<PathBuf, ElfCacheEntry<T>>,
+pub(crate) struct FileCache<T> {
+    cache: HashMap<PathBuf, Entry<T>>,
 }
 
-impl<T> ElfCache<T> {
+impl<T> FileCache<T> {
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
@@ -67,13 +67,13 @@ impl<T> ElfCache<T> {
                     let entry = occupied.into_mut();
                     return Ok((&entry.file, &mut entry.value))
                 }
-                let entry = ElfCacheEntry::new(&stat, file);
+                let entry = Entry::new(&stat, file);
                 let _old = occupied.insert(entry);
                 let entry = occupied.into_mut();
                 Ok((&entry.file, &mut entry.value))
             }
             hash_map::Entry::Vacant(vacancy) => {
-                let entry = ElfCacheEntry::new(&stat, file);
+                let entry = Entry::new(&stat, file);
                 let entry = vacancy.insert(entry);
                 Ok((&entry.file, &mut entry.value))
             }

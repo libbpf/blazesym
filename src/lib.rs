@@ -45,6 +45,7 @@ pub mod c_api;
 mod dwarf;
 mod elf;
 mod error;
+mod file_cache;
 mod gsym;
 pub mod inspect;
 mod kernel;
