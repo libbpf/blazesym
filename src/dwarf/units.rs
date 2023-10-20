@@ -520,7 +520,7 @@ mod tests {
     /// Benchmark the parsing of all functions, end-to-end.
     #[cfg(feature = "nightly")]
     #[bench]
-    fn bench_function_parsing(b: &mut Bencher) {
+    fn bench_function_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
@@ -551,7 +551,7 @@ mod tests {
     /// Benchmark the parsing of inlined function information, end-to-end.
     #[cfg(feature = "nightly")]
     #[bench]
-    fn bench_inlined_function_parsing(b: &mut Bencher) {
+    fn bench_inlined_function_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
@@ -582,7 +582,7 @@ mod tests {
     /// Benchmark the parsing of source location information, end-to-end.
     #[cfg(feature = "nightly")]
     #[bench]
-    fn bench_line_parsing(b: &mut Bencher) {
+    fn bench_line_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
