@@ -18,13 +18,13 @@ use crate::SymResolver;
 
 pub(crate) struct KernelResolver {
     pub ksym_resolver: Option<Rc<KSymResolver>>,
-    pub elf_resolver: Option<ElfResolver>,
+    pub elf_resolver: Option<Rc<ElfResolver>>,
 }
 
 impl KernelResolver {
     pub fn new(
         ksym_resolver: Option<Rc<KSymResolver>>,
-        elf_resolver: Option<ElfResolver>,
+        elf_resolver: Option<Rc<ElfResolver>>,
     ) -> Result<KernelResolver> {
         if ksym_resolver.is_none() && elf_resolver.is_none() {
             return Err(Error::with_not_found(
