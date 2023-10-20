@@ -8,7 +8,6 @@ use std::io::BufRead;
 use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
-use std::rc::Rc;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
@@ -160,35 +159,6 @@ impl Debug for KSymResolver {
 }
 
 
-/// Cache of KSymResolver.
-///
-/// It returns the same instance if path is the same.
-#[derive(Debug)]
-pub struct KSymCache {
-    resolvers: RefCell<HashMap<PathBuf, Rc<KSymResolver>>>,
-}
-
-impl KSymCache {
-    pub fn new() -> KSymCache {
-        KSymCache {
-            resolvers: RefCell::new(HashMap::new()),
-        }
-    }
-
-    /// Find an instance of KSymResolver from the cache or create a new one.
-    pub fn get_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>> {
-        let mut resolvers = self.resolvers.borrow_mut();
-        if let Some(resolver) = resolvers.get(path) {
-            return Ok(resolver.clone())
-        }
-
-        let resolver = KSymResolver::load_file_name(path.to_path_buf())?;
-        let resolver = Rc::new(resolver);
-        resolvers.insert(path.to_path_buf(), resolver.clone());
-        Ok(resolver)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -248,18 +218,6 @@ mod tests {
         };
         let found = resolver.find_addr(&name, &opts).unwrap();
         assert!(found.iter().any(|x| x.addr == addr));
-    }
-
-    #[test]
-    fn ksym_cache() {
-        let kallsyms = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("kallsyms");
-        let cache = KSymCache::new();
-        let resolver = cache.get_resolver(&kallsyms);
-        let resolver1 = cache.get_resolver(&kallsyms);
-        assert!(resolver.is_ok());
-        assert!(resolver1.is_ok());
     }
 
     #[test]

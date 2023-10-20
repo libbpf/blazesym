@@ -16,7 +16,7 @@ use crate::elf::ElfResolver;
 use crate::file_cache::FileCache;
 use crate::gsym::GsymResolver;
 use crate::kernel::KernelResolver;
-use crate::ksym::KSymCache;
+use crate::ksym::KSymResolver;
 use crate::ksym::KALLSYMS;
 use crate::log;
 use crate::maps;
@@ -194,7 +194,7 @@ impl Builder {
             inlined_fns,
             demangle,
         } = self;
-        let ksym_cache = KSymCache::new();
+        let ksym_cache = RefCell::new(FileCache::new());
         let elf_cache = RefCell::new(FileCache::new());
 
         Symbolizer {
@@ -233,7 +233,7 @@ impl Default for Builder {
 /// instance regularly.
 #[derive(Debug)]
 pub struct Symbolizer {
-    ksym_cache: KSymCache,
+    ksym_cache: RefCell<FileCache<Rc<KSymResolver>>>,
     elf_cache: RefCell<FileCache<Rc<ElfResolver>>>,
     debug_syms: bool,
     code_info: bool,
@@ -338,7 +338,7 @@ impl Symbolizer {
             .collect()
     }
 
-    fn create_resolver(&self, path: &Path, file: &File) -> Result<Rc<ElfResolver>> {
+    fn create_elf_resolver(&self, path: &Path, file: &File) -> Result<Rc<ElfResolver>> {
         let parser = Rc::new(ElfParser::open_file(file)?);
         #[cfg(feature = "dwarf")]
         let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
@@ -357,7 +357,7 @@ impl Symbolizer {
         let mut cache = self.elf_cache.borrow_mut();
         let (file, resolver) = cache.entry(path)?;
         if resolver.is_none() {
-            *resolver = Some(self.create_resolver(path, file)?);
+            *resolver = Some(self.create_elf_resolver(path, file)?);
         }
         // SANITY: A resolver is always present at this point.
         Ok(resolver.as_ref().unwrap().clone())
@@ -463,6 +463,23 @@ impl Symbolizer {
         Ok(handler.all_symbols)
     }
 
+    fn create_ksym_resolver(&self, path: &Path, _file: &File) -> Result<Rc<KSymResolver>> {
+        // TODO: Should really use `file` and not `path` for the instantiation.
+        let resolver = KSymResolver::load_file_name(path.to_path_buf())?;
+        let resolver = Rc::new(resolver);
+        Ok(resolver)
+    }
+
+    fn ksym_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>> {
+        let mut cache = self.ksym_cache.borrow_mut();
+        let (file, resolver) = cache.entry(path)?;
+        if resolver.is_none() {
+            *resolver = Some(self.create_ksym_resolver(path, file)?);
+        }
+        // SANITY: A resolver is always present at this point.
+        Ok(resolver.as_ref().unwrap().clone())
+    }
+
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
         let Kernel {
             kallsyms,
@@ -471,11 +488,11 @@ impl Symbolizer {
         } = src;
 
         let ksym_resolver = if let Some(kallsyms) = kallsyms {
-            let ksym_resolver = self.ksym_cache.get_resolver(kallsyms)?;
+            let ksym_resolver = self.ksym_resolver(kallsyms)?;
             Some(ksym_resolver)
         } else {
             let kallsyms = Path::new(KALLSYMS);
-            let result = self.ksym_cache.get_resolver(kallsyms);
+            let result = self.ksym_resolver(kallsyms);
             match result {
                 Ok(resolver) => Some(resolver),
                 Err(err) => {
