@@ -233,7 +233,7 @@ impl Default for Builder {
 #[derive(Debug)]
 pub struct Symbolizer {
     ksym_cache: KSymCache,
-    elf_cache: RefCell<ElfCache>,
+    elf_cache: RefCell<ElfCache<ElfBackend>>,
     debug_syms: bool,
     code_info: bool,
     inlined_fns: bool,
