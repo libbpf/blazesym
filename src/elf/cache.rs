@@ -1,3 +1,4 @@
+use std::collections::hash_map;
 use std::collections::HashMap;
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
@@ -50,57 +51,40 @@ impl ElfBackend {
 
 
 #[derive(Debug)]
-struct ElfCacheEntry {
+pub(crate) struct ElfCacheEntry<T> {
     dev: libc::dev_t,
     inode: libc::ino_t,
     size: libc::off_t,
     mtime_sec: libc::time_t,
     mtime_nsec: i64,
-    backend: ElfBackend,
+    pub value: T,
 }
 
-impl ElfCacheEntry {
-    pub fn new(file: File, line_number_info: bool, debug_info_symbols: bool) -> Result<Self> {
-        let stat = fstat(file.as_raw_fd())?;
-        let parser = Rc::new(ElfParser::open_file(file)?);
-
-        #[cfg(feature = "dwarf")]
-        let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
-            Rc::clone(&parser),
-            line_number_info,
-            debug_info_symbols,
-        )?));
-
-        #[cfg(not(feature = "dwarf"))]
-        let backend = ElfBackend::Elf(parser);
-
-        Ok(Self {
+impl<T> ElfCacheEntry<T> {
+    fn new(stat: &libc::stat, value: T) -> Self {
+        Self {
             dev: stat.st_dev,
             inode: stat.st_ino,
             size: stat.st_size,
             mtime_sec: stat.st_mtime,
             mtime_nsec: stat.st_mtime_nsec,
-            backend,
-        })
+            value,
+        }
     }
 
-    fn is_valid(&self, stat: &libc::stat) -> bool {
+    fn is_current(&self, stat: &libc::stat) -> bool {
         stat.st_dev == self.dev
             && stat.st_ino == self.inode
             && stat.st_size == self.size
             && stat.st_mtime == self.mtime_sec
             && stat.st_mtime_nsec == self.mtime_nsec
     }
-
-    fn get_backend(&self) -> ElfBackend {
-        self.backend.clone()
-    }
 }
 
 
 #[derive(Debug)]
 pub(crate) struct ElfCache {
-    cache: HashMap<PathBuf, ElfCacheEntry>,
+    cache: HashMap<PathBuf, ElfCacheEntry<ElfBackend>>,
     line_number_info: bool,
     debug_info_symbols: bool,
 }
@@ -114,25 +98,56 @@ impl ElfCache {
         }
     }
 
-    fn find_or_create_backend(&mut self, file_name: &Path, file: File) -> Result<ElfBackend> {
-        if let Some(entry) = self.cache.get(file_name) {
-            let stat = fstat(file.as_raw_fd())?;
+    fn create_entry(
+        stat: &libc::stat,
+        file: File,
+        line_number_info: bool,
+        debug_info_symbols: bool,
+    ) -> Result<ElfCacheEntry<ElfBackend>> {
+        let parser = Rc::new(ElfParser::open_file(file)?);
+        #[cfg(feature = "dwarf")]
+        let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
+            Rc::clone(&parser),
+            line_number_info,
+            debug_info_symbols,
+        )?));
 
-            if entry.is_valid(&stat) {
-                return Ok(entry.get_backend())
-            }
-        }
-
-        let entry = ElfCacheEntry::new(file, self.line_number_info, self.debug_info_symbols)?;
-        let backend = entry.get_backend();
-        let _previous = self.cache.insert(file_name.to_path_buf(), entry);
-        Ok(backend)
+        #[cfg(not(feature = "dwarf"))]
+        let backend = ElfBackend::Elf(parser);
+        let entry = ElfCacheEntry::new(stat, backend);
+        Ok(entry)
     }
 
-    pub fn find(&mut self, path: &Path) -> Result<ElfBackend> {
-        let file = File::open(path)
-            .with_context(|| format!("failed to open ELF file {}", path.display()))?;
-        self.find_or_create_backend(path, file)
+    pub fn find(&mut self, path: &Path) -> Result<&ElfCacheEntry<ElfBackend>> {
+        let file =
+            File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
+        let stat = fstat(file.as_raw_fd())?;
+
+        match self.cache.entry(path.to_path_buf()) {
+            hash_map::Entry::Occupied(mut occupied) => {
+                if occupied.get().is_current(&stat) {
+                    return Ok(occupied.into_mut())
+                }
+                let entry = Self::create_entry(
+                    &stat,
+                    file,
+                    self.line_number_info,
+                    self.debug_info_symbols,
+                )?;
+                let _old = occupied.insert(entry);
+                Ok(occupied.into_mut())
+            }
+            hash_map::Entry::Vacant(vacancy) => {
+                let entry = Self::create_entry(
+                    &stat,
+                    file,
+                    self.line_number_info,
+                    self.debug_info_symbols,
+                )?;
+                let entry = vacancy.insert(entry);
+                Ok(entry)
+            }
+        }
     }
 
     #[inline]
@@ -166,12 +181,8 @@ mod tests {
         let code_info = true;
         let debug_syms = false;
         let mut cache = ElfCache::new(code_info, debug_syms);
-        let backend_first = cache.find(Path::new(&bin_name));
-        let backend_second = cache.find(Path::new(&bin_name));
-        assert!(backend_first.is_ok());
-        assert!(backend_second.is_ok());
-        let backend_first = backend_first.unwrap();
-        let backend_second = backend_second.unwrap();
+        let backend_first = cache.find(Path::new(&bin_name)).unwrap().value.clone();
+        let backend_second = cache.find(Path::new(&bin_name)).unwrap().value.clone();
         assert!(backend_first.is_dwarf());
         assert!(backend_second.is_dwarf());
         assert_eq!(
