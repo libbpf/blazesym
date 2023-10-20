@@ -335,7 +335,7 @@ impl Symbolizer {
     }
 
     fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Symbolized> {
-        let backend = self.elf_cache.borrow_mut().find(path)?;
+        let backend = self.elf_cache.borrow_mut().find(path)?.value.clone();
         let resolver = ElfResolver::with_backend(path, backend)?;
         let symbolized = self.symbolize_with_resolver(addr, &resolver)?;
         Ok(symbolized)
@@ -461,7 +461,7 @@ impl Symbolizer {
         };
 
         let elf_resolver = if let Some(image) = kernel_image {
-            let backend = self.elf_cache.borrow_mut().find(image)?;
+            let backend = self.elf_cache.borrow_mut().find(image)?.value.clone();
             let elf_resolver = ElfResolver::with_backend(image, backend)?;
             Some(elf_resolver)
         } else {
@@ -474,10 +474,11 @@ impl Symbolizer {
             });
 
             if let Some(image) = kernel_image {
-                let result = self.elf_cache.borrow_mut().find(&image);
+                let mut cache = self.elf_cache.borrow_mut();
+                let result = cache.find(&image);
                 match result {
-                    Ok(backend) => {
-                        let result = ElfResolver::with_backend(&image, backend);
+                    Ok(entry) => {
+                        let result = ElfResolver::with_backend(&image, entry.value.clone());
                         match result {
                             Ok(resolver) => Some(resolver),
                             Err(err) => {
@@ -581,7 +582,7 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let backend = self.elf_cache.borrow_mut().find(path)?;
+                let backend = self.elf_cache.borrow_mut().find(path)?.value.clone();
                 let resolver = ElfResolver::with_backend(path, backend)?;
 
                 match input {
@@ -739,7 +740,7 @@ impl Symbolizer {
                 path,
                 _non_exhaustive: (),
             }) => {
-                let backend = self.elf_cache.borrow_mut().find(path)?;
+                let backend = self.elf_cache.borrow_mut().find(path)?.value.clone();
 
                 let addr = match input {
                     Input::VirtOffset(addr) => addr,
