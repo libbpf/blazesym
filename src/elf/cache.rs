@@ -69,18 +69,18 @@ impl<T> ElfCacheEntry<T> {
 
 
 #[derive(Debug)]
-pub(crate) struct ElfCache {
-    cache: HashMap<PathBuf, ElfCacheEntry<ElfBackend>>,
+pub(crate) struct ElfCache<T> {
+    cache: HashMap<PathBuf, ElfCacheEntry<T>>,
 }
 
-impl ElfCache {
+impl<T> ElfCache<T> {
     pub fn new() -> Self {
         Self {
             cache: HashMap::new(),
         }
     }
 
-    pub fn entry(&mut self, path: &Path) -> Result<(&File, &mut Option<ElfBackend>)> {
+    pub fn entry(&mut self, path: &Path) -> Result<(&File, &mut Option<T>)> {
         let file =
             File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
         let stat = fstat(file.as_raw_fd())?;
