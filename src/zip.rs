@@ -381,9 +381,15 @@ mod tests {
     use crate::ErrorKind;
 
 
-    /// Check that the `Debug` representation of [`Entry`] is as expected.
+    /// Exercise the `Debug` representation of various types.
     #[test]
-    fn zip_entry_debug() {
+    fn debug_repr() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(zip).unwrap();
+        assert_ne!(format!("{archive:?}"), "");
+
         let entry = Entry {
             compression: 42,
             path: Path::new("some-entry-path.so"),
