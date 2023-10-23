@@ -583,20 +583,20 @@ impl Symbolizer {
     /// is not supported, the corresponding data in the [`Sym`] result will not
     /// be populated.
     ///
-    /// | Format        | Feature                          | Supported by format?     | Supported by blazesym?   |
-    /// |---------------|----------------------------------|:------------------------:|:------------------------:|
-    /// | ELF           | symbol size                      | yes                      | yes                      |
-    /// |               | source code location information | no                       | N/A                      |
-    /// |               | inlined function information     | no                       | N/A                      |
-    /// | DWARF         | symbol size                      | yes                      | yes                      |
-    /// |               | source code location information | yes                      | yes                      |
-    /// |               | inlined function information     | yes                      | yes                      |
-    /// | Gsym          | symbol size                      | yes                      | yes                      |
-    /// |               | source code location information | yes                      | yes                      |
-    /// |               | inlined function information     | yes                      | yes                      |
-    /// | Ksym          | symbol size                      | no                       | N/A                      |
-    /// |               | source code location information | no                       | N/A                      |
-    /// |               | inlined function information     | no                       | N/A                      |
+    /// | Format | Feature                          | Supported by format? | Supported by blazesym? |
+    /// |--------|----------------------------------|:--------------------:|:----------------------:|
+    /// | ELF    | symbol size                      | yes                  | yes                    |
+    /// |        | source code location information | no                   | N/A                    |
+    /// |        | inlined function information     | no                   | N/A                    |
+    /// | DWARF  | symbol size                      | yes                  | yes                    |
+    /// |        | source code location information | yes                  | yes                    |
+    /// |        | inlined function information     | yes                  | yes                    |
+    /// | Gsym   | symbol size                      | yes                  | yes                    |
+    /// |        | source code location information | yes                  | yes                    |
+    /// |        | inlined function information     | yes                  | yes                    |
+    /// | Ksym   | symbol size                      | no                   | N/A                    |
+    /// |        | source code location information | no                   | N/A                    |
+    /// |        | inlined function information     | no                   | N/A                    |
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{input:#x?}"))))]
     pub fn symbolize(&self, src: &Source, input: Input<&[u64]>) -> Result<Vec<Symbolized>> {
         match src {
