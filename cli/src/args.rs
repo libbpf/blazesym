@@ -79,12 +79,27 @@ pub struct User {
 #[derive(Debug, Subcommand)]
 pub enum Symbolize {
     Elf(Elf),
+    Gsym(Gsym),
     Process(Process),
 }
 
 #[derive(Debug, Arguments)]
 pub struct Elf {
     /// The path to the ELF file.
+    #[clap(short, long)]
+    pub path: PathBuf,
+    /// The addresses to symbolize.
+    ///
+    /// Addresses are assumed to already be normalized to the file
+    /// itself (i.e., with relocation and address randomization effects
+    /// removed).
+    #[arg(value_parser = parse_addr)]
+    pub addrs: Vec<Addr>,
+}
+
+#[derive(Debug, Arguments)]
+pub struct Gsym {
+    /// The path to the Gsym file.
     #[clap(short, long)]
     pub path: PathBuf,
     /// The addresses to symbolize.

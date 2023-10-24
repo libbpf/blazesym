@@ -115,6 +115,10 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
             let src = symbolize::Source::from(symbolize::Elf::new(path));
             (src, addrs)
         }
+        args::Symbolize::Gsym(args::Gsym { path, addrs }) => {
+            let src = symbolize::Source::from(symbolize::GsymFile::new(path));
+            (src, addrs)
+        }
         args::Symbolize::Process(args::Process { pid, addrs }) => {
             let src = symbolize::Source::from(symbolize::Process::new(pid));
             (src, addrs)
