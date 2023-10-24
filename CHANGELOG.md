@@ -10,6 +10,7 @@ Unreleased
 - Made symbolization source caching unconditional and removed
   least-recently-used semantics in favor of full user control
 - Added caching for APK related symbolization data structures
+- Added support for symbolizing Gsym addresses to `blazecli`
 
 
 0.2.0-alpha.7
