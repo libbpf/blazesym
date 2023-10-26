@@ -121,7 +121,7 @@ impl<'dat> GsymResolver<'dat> {
                 Some(RunResult::Ok) => {}
                 Some(RunResult::NewRow) => {
                     row_cnt += 1;
-                    if addr < lntab_row.address {
+                    if addr < lntab_row.addr {
                         if row_cnt == 1 {
                             // The address is lower than the first row.
                             return Ok(None)
