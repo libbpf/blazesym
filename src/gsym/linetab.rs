@@ -139,10 +139,6 @@ pub fn run_op(
             let addr_delta = adjusted / range;
 
             let file_line = row.file_line as i32 + line_delta as i32;
-            if file_line < 1 {
-                return None
-            }
-
             row.file_line = file_line as u32;
             row.addr += addr_delta as Addr;
             Some(RunResult::NewRow)
