@@ -63,7 +63,7 @@ impl LineTableHeader {
 
 #[derive(Clone, Debug)]
 pub struct LineTableRow {
-    pub address: Addr,
+    pub addr: Addr,
     pub file_idx: u32,
     pub file_line: u32,
 }
@@ -80,7 +80,7 @@ impl LineTableRow {
     /// * `symaddr` - the address of the symbol that `header` belongs to.
     pub fn from_header(header: &LineTableHeader, symaddr: Addr) -> Self {
         Self {
-            address: symaddr,
+            addr: symaddr,
             file_idx: 1,
             file_line: header.first_line,
         }
@@ -113,7 +113,7 @@ pub fn run_op(
         }
         ADVANCE_PC => {
             let (adv, _bytes) = ops.read_u64_leb128()?;
-            ctx.address += adv as Addr;
+            ctx.addr += adv as Addr;
             Some(RunResult::NewRow)
         }
         ADVANCE_LINE => {
@@ -144,7 +144,7 @@ pub fn run_op(
             }
 
             ctx.file_line = file_line as u32;
-            ctx.address += addr_delta as Addr;
+            ctx.addr += addr_delta as Addr;
             Some(RunResult::NewRow)
         }
     }
