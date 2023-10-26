@@ -92,14 +92,14 @@ impl LineTableRow {
 ///
 /// # Arguments
 ///
-/// * `ctx` - a line table row to present the current states of the virtual
+/// * `row` - a line table row to present the current states of the virtual
 ///           machine. [`LineTableRow::from_header`] can create a `LineTableRow`
 ///           to keep the states of a virtual machine.
 /// * `header` - is a `LineTableHeader`.
 /// * `ops` - is the buffer of the operators following the `LineTableHeader` in
 ///           a GSYM file.
 pub fn run_op(
-    ctx: &mut LineTableRow,
+    row: &mut LineTableRow,
     header: &LineTableHeader,
     ops: &mut &[u8],
 ) -> Option<RunResult> {
@@ -108,17 +108,17 @@ pub fn run_op(
         END_SEQUENCE => Some(RunResult::End),
         SET_FILE => {
             let (f, _bytes) = ops.read_u64_leb128()?;
-            ctx.file_idx = f as u32;
+            row.file_idx = f as u32;
             Some(RunResult::Ok)
         }
         ADVANCE_PC => {
             let (adv, _bytes) = ops.read_u64_leb128()?;
-            ctx.addr += adv as Addr;
+            row.addr += adv as Addr;
             Some(RunResult::NewRow)
         }
         ADVANCE_LINE => {
             let (adv, _bytes) = ops.read_i64_leb128()?;
-            ctx.file_line = (ctx.file_line as i64 + adv) as u32;
+            row.file_line = (row.file_line as i64 + adv) as u32;
             Some(RunResult::Ok)
         }
         // Special operators.
@@ -138,13 +138,13 @@ pub fn run_op(
             let line_delta = header.min_delta + (adjusted % range);
             let addr_delta = adjusted / range;
 
-            let file_line = ctx.file_line as i32 + line_delta as i32;
+            let file_line = row.file_line as i32 + line_delta as i32;
             if file_line < 1 {
                 return None
             }
 
-            ctx.file_line = file_line as u32;
-            ctx.addr += addr_delta as Addr;
+            row.file_line = file_line as u32;
+            row.addr += addr_delta as Addr;
             Some(RunResult::NewRow)
         }
     }
