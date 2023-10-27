@@ -438,7 +438,7 @@ fn inspect() {
 
         let result = &results[0];
         assert_eq!(result.addr, 0x2000100);
-        assert_ne!(result.file_offset, 0);
+        assert_ne!(result.file_offset, None);
         assert_eq!(
             result.obj_file_name.as_deref().unwrap(),
             src.path().unwrap()
@@ -490,7 +490,7 @@ fn inspect_file_offset_elf() {
     assert_eq!(results.len(), 1);
 
     let result = &results[0];
-    assert_ne!(result.file_offset, 0);
-    let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset);
+    assert_ne!(result.file_offset, None);
+    let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset.unwrap());
     assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);
 }

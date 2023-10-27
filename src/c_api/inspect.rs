@@ -197,7 +197,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                         SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
                         SymType::Unknown => blaze_sym_type::BLAZE_SYM_UNKNOWN,
                     },
-                    file_offset,
+                    file_offset: file_offset.unwrap_or(0),
                     obj_file_name,
                 }
             };
@@ -368,7 +368,7 @@ mod tests {
                     assert_eq!(c_sym.addr, sym.addr);
                     assert_eq!(c_sym.size, sym.size);
                     assert_eq!(c_sym.sym_type, blaze_sym_type::from(sym.sym_type));
-                    assert_eq!(c_sym.file_offset, sym.file_offset);
+                    assert_eq!(Some(c_sym.file_offset), sym.file_offset);
                     assert_eq!(
                         unsafe { CStr::from_ptr(c_sym.obj_file_name) }.to_bytes(),
                         CString::new(
@@ -398,7 +398,7 @@ mod tests {
             addr: 0xdeadbeef,
             size: 42,
             sym_type: SymType::Function,
-            file_offset: 1337,
+            file_offset: Some(1337),
             obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
         }]];
         test(syms);
@@ -410,7 +410,7 @@ mod tests {
                 addr: 0xdeadbeef,
                 size: 42,
                 sym_type: SymType::Function,
-                file_offset: 1337,
+                file_offset: Some(1337),
                 obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
             },
             SymInfo {
@@ -418,7 +418,7 @@ mod tests {
                 addr: 0xdeadbeef + 52,
                 size: 45,
                 sym_type: SymType::Unknown,
-                file_offset: 1338,
+                file_offset: Some(1338),
                 obj_file_name: Some(PathBuf::from("other.so")),
             },
         ]];
@@ -431,7 +431,7 @@ mod tests {
                 addr: 0xdeadbeef,
                 size: 42,
                 sym_type: SymType::Function,
-                file_offset: 1337,
+                file_offset: Some(1337),
                 obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
             }],
             vec![SymInfo {
@@ -439,7 +439,7 @@ mod tests {
                 addr: 0xdeadbeef + 52,
                 size: 45,
                 sym_type: SymType::Unknown,
-                file_offset: 1338,
+                file_offset: Some(1338),
                 obj_file_name: Some(PathBuf::from("other.so")),
             }],
         ];
@@ -451,7 +451,7 @@ mod tests {
             addr: 0xdeadbeef,
             size: 42,
             sym_type: SymType::Function,
-            file_offset: 1337,
+            file_offset: Some(1337),
             obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
         };
         let syms = vec![(0..200).map(|_| sym.clone()).collect()];

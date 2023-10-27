@@ -114,9 +114,7 @@ impl SymResolver for ElfResolver {
         let mut syms = find_addr_impl(self, name, opts)?;
         let () = syms.iter_mut().for_each(|sym| {
             if opts.offset_in_file {
-                if let Some(off) = self.addr_file_off(sym.addr) {
-                    sym.file_offset = off;
-                }
+                sym.file_offset = self.addr_file_off(sym.addr);
             }
             sym.obj_file_name = Some(self.file_name.clone())
         });

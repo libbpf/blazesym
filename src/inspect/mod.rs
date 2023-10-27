@@ -52,7 +52,7 @@ pub struct SymInfo {
     /// A function or a variable.
     pub sym_type: SymType,
     /// The offset in the object file.
-    pub file_offset: u64,
+    pub file_offset: Option<u64>,
     /// The file name of the shared object.
     pub obj_file_name: Option<PathBuf>,
 }
