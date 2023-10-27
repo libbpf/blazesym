@@ -55,7 +55,6 @@ pub(crate) struct DwarfResolver {
     units: Units<'static>,
     parser: Rc<ElfParser>,
     line_number_info: bool,
-    enable_debug_info_syms: bool,
 }
 
 impl DwarfResolver {
@@ -64,11 +63,7 @@ impl DwarfResolver {
         &self.parser
     }
 
-    pub fn from_parser(
-        parser: Rc<ElfParser>,
-        line_number_info: bool,
-        debug_info_symbols: bool,
-    ) -> Result<Self, Error> {
+    pub fn from_parser(parser: Rc<ElfParser>, line_number_info: bool) -> Result<Self, Error> {
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
         //         is fine to conjure a 'static lifetime here.
@@ -81,7 +76,6 @@ impl DwarfResolver {
             units,
             parser,
             line_number_info,
-            enable_debug_info_syms: debug_info_symbols,
         };
         Ok(slf)
     }
@@ -91,9 +85,9 @@ impl DwarfResolver {
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
     #[cfg(test)]
-    pub fn open(filename: &Path, debug_line_info: bool, debug_info_symbols: bool) -> Result<Self> {
+    pub fn open(filename: &Path, debug_line_info: bool) -> Result<Self> {
         let parser = ElfParser::open(filename)?;
-        Self::from_parser(Rc::new(parser), debug_line_info, debug_info_symbols)
+        Self::from_parser(Rc::new(parser), debug_line_info)
     }
 
     /// Find source code information of an address.
@@ -180,15 +174,6 @@ impl DwarfResolver {
 
     /// Lookup the symbol at an address.
     pub(crate) fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>, Error> {
-        // TODO: This conditional logic is weird and potentially
-        //       unnecessary. Consider removing it or moving it higher
-        //       in the call chain.
-        if !self.enable_debug_info_syms {
-            return Err(Error::with_unsupported(
-                "debug info symbol information has been disabled",
-            ))
-        }
-
         let result = self.units.find_function(addr)?;
         if let Some((function, language)) = result {
             let name = function
@@ -219,15 +204,6 @@ impl DwarfResolver {
     /// * `name` - is the symbol name to find.
     /// * `opts` - is the context giving additional parameters.
     pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
-        // TODO: This conditional logic is weird and potentially
-        //       unnecessary. Consider removing it or moving it higher
-        //       in the call chain.
-        if !self.enable_debug_info_syms {
-            return Err(Error::with_unsupported(
-                "debug info symbol information has been disabled",
-            ))
-        }
-
         if let SymType::Variable = opts.sym_type {
             return Err(Error::with_unsupported("not implemented"))
         }
@@ -294,7 +270,7 @@ mod tests {
     #[test]
     fn debug_repr() {
         let bin_name = current_exe().unwrap();
-        let resolver = DwarfResolver::open(&bin_name, true, true).unwrap();
+        let resolver = DwarfResolver::open(&bin_name, true).unwrap();
         assert_ne!(format!("{resolver:?}"), "");
     }
 
@@ -304,9 +280,9 @@ mod tests {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.bin");
-        let resolver = DwarfResolver::open(bin_name.as_ref(), true, false).unwrap();
+        let resolver = DwarfResolver::open(bin_name.as_ref(), true).unwrap();
 
-        let info = resolver.find_code_info(0x2000100, false).unwrap().unwrap();
+        let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
         assert_ne!(info.direct.1.dir, PathBuf::new());
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
         assert_eq!(info.direct.1.line, Some(8));
@@ -324,7 +300,7 @@ mod tests {
             obj_file_name: false,
             sym_type: SymType::Function,
         };
-        let resolver = DwarfResolver::open(test_dwarf.as_ref(), true, true).unwrap();
+        let resolver = DwarfResolver::open(test_dwarf.as_ref(), true).unwrap();
 
         let symbols = resolver.find_addr("factorial", &opts).unwrap();
         assert_eq!(symbols.len(), 1);
@@ -345,7 +321,7 @@ mod tests {
             obj_file_name: false,
             sym_type: SymType::Variable,
         };
-        let resolver = DwarfResolver::open(test_dwarf.as_ref(), true, true).unwrap();
+        let resolver = DwarfResolver::open(test_dwarf.as_ref(), true).unwrap();
 
         let err = resolver.find_addr("factorial", &opts).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
