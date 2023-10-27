@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 #[cfg(test)]
 use std::env;
 use std::fmt::Debug;
@@ -203,7 +204,11 @@ impl DwarfResolver {
     ///
     /// * `name` - is the symbol name to find.
     /// * `opts` - is the context giving additional parameters.
-    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
+    pub(crate) fn find_addr<'slf>(
+        &'slf self,
+        name: &str,
+        opts: &FindAddrOpts,
+    ) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::with_unsupported("not implemented"))
         }
@@ -216,7 +221,7 @@ impl DwarfResolver {
                     Ok(function) => {
                         // SANITY: We found the function by name, so it must have the
                         //         name attribute set.
-                        let name = function.name.unwrap().to_string().unwrap().to_string();
+                        let name = function.name.unwrap().to_string().unwrap();
                         let addr = function
                             .range
                             .as_ref()
@@ -229,7 +234,7 @@ impl DwarfResolver {
                             .map(|size| usize::try_from(size).unwrap_or(usize::MAX))
                             .unwrap_or(0);
                         let info = SymInfo {
-                            name,
+                            name: Cow::Borrowed(name),
                             addr,
                             size,
                             sym_type: SymType::Function,

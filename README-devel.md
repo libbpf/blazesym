@@ -28,7 +28,7 @@ it will print the performance difference.
 To get a CPU profile in the form of a flamegraph, you can use
 [`cargo-flamegraph`][flamegraph] (can be installed via `cargo install
 flamegraph`). The following command will create a profile for the
-`bench_function_parsing` benchmark, for example:
+`bench_function_parsing_blazesym` benchmark, for example:
 ```sh
 $ cargo flamegraph --package=blazesym --unit-bench --root --features=nightly -- bench_function_parsing_blazesym
 ```

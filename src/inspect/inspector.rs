@@ -89,7 +89,11 @@ impl Inspector {
 
     /// Look up information (address etc.) about a list of symbols,
     /// given their names.
-    pub fn lookup(&self, names: &[&str], src: &Source) -> Result<Vec<Vec<SymInfo>>> {
+    pub fn lookup<'slf>(
+        &'slf self,
+        names: &[&str],
+        src: &Source,
+    ) -> Result<Vec<Vec<SymInfo<'slf>>>> {
         let opts = FindAddrOpts {
             offset_in_file: true,
             sym_type: SymType::Unknown,
@@ -104,7 +108,15 @@ impl Inspector {
                 let resolver = self.elf_resolver(path, *debug_info)?;
                 let syms = names
                     .iter()
-                    .map(|name| resolver.find_addr(name, &opts))
+                    .map(|name| {
+                        resolver.find_addr(name, &opts).map(|syms| {
+                            // This dance including reallocation of the vector
+                            // is very unfortunate, but it's unclear how else to
+                            // make the borrow checker accept this code (modulo
+                            // `transmute`).
+                            syms.into_iter().map(|sym| sym.to_owned()).collect()
+                        })
+                    })
                     .collect::<Result<Vec<_>>>()?;
 
                 Ok(syms)
