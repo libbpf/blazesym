@@ -6,6 +6,7 @@ use std::fmt::Result as FmtResult;
 use std::mem;
 use std::mem::swap;
 use std::ops::Deref as _;
+#[cfg(test)]
 use std::path::Path;
 use std::rc::Rc;
 
@@ -89,6 +90,7 @@ impl DwarfResolver {
     ///
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
+    #[cfg(test)]
     pub fn open(filename: &Path, debug_line_info: bool, debug_info_symbols: bool) -> Result<Self> {
         let parser = ElfParser::open(filename)?;
         Self::from_parser(Rc::new(parser), debug_line_info, debug_info_symbols)

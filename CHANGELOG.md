@@ -10,6 +10,7 @@ Unreleased
 - Made symbolization source caching unconditional and removed
   least-recently-used semantics in favor of full user control
 - Added caching for APK related symbolization data structures
+- Added caching logic to `inspect::Inspector`
 - Added support for symbolizing Gsym addresses to `blazecli`
 - Fixed bogus inlined function reporting for Gsym
 
