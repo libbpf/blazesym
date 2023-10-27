@@ -233,7 +233,7 @@ impl DwarfResolver {
                             addr,
                             size,
                             sym_type: SymType::Function,
-                            file_offset: 0,
+                            file_offset: None,
                             obj_file_name: None,
                         };
                         Ok(info)

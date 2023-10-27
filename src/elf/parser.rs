@@ -447,7 +447,7 @@ impl ElfParser {
                             addr: sym_ref.st_value as Addr,
                             size: sym_ref.st_size as usize,
                             sym_type: SymType::Function,
-                            file_offset: 0,
+                            file_offset: None,
                             obj_file_name: None,
                         });
                     }

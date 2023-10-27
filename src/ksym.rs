@@ -135,7 +135,7 @@ impl SymResolver for KSymResolver {
                 addr: *addr,
                 size: 0,
                 sym_type: SymType::Function,
-                file_offset: 0,
+                file_offset: None,
                 obj_file_name: None,
             }])
         } else {
