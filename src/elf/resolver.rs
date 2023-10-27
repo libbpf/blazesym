@@ -52,6 +52,15 @@ impl ElfResolver {
     pub(crate) fn file_name(&self) -> &Path {
         &self.file_name
     }
+
+    #[inline]
+    pub(crate) fn uses_dwarf(&self) -> bool {
+        match &self.backend {
+            #[cfg(feature = "dwarf")]
+            ElfBackend::Dwarf(_) => true,
+            ElfBackend::Elf(_) => false,
+        }
+    }
 }
 
 impl SymResolver for ElfResolver {

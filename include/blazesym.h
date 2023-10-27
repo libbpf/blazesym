@@ -50,6 +50,14 @@ typedef enum blaze_user_meta_kind {
  * Object of this type can be used to perform inspections of supported sources.
  * E.g., using an ELF file as a source, information about a symbol can be
  * inquired based on its name.
+ *
+ * An instance of this type is the unit at which inspection inputs are cached.
+ * That is to say, source files (such as ELF) and the parsed data structures
+ * may be kept around in memory for the lifetime of this object to speed up
+ * future inspection requests.
+ * If you are working with large input sources and/or do not intend to perform
+ * multiple inspection requests for the same symbolization source, you may want
+ * to consider creating a new `Inspector` instance regularly.
  */
 typedef struct blaze_inspector blaze_inspector;
 
