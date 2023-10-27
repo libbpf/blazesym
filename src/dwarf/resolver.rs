@@ -297,7 +297,6 @@ mod tests {
             .join("test-stable-addresses-dwarf-only.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
-            obj_file_name: false,
             sym_type: SymType::Function,
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref(), true).unwrap();
@@ -318,7 +317,6 @@ mod tests {
             .join("test-stable-addresses-dwarf-only.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
-            obj_file_name: false,
             sym_type: SymType::Variable,
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref(), true).unwrap();
