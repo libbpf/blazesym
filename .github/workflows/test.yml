@@ -186,7 +186,7 @@ jobs:
           profile: minimal
           components: clippy
           override: true
-      - run: cargo clippy --workspace --no-deps --all-targets --features=dont-generate-unit-test-files -- -A unknown_lints
+      - run: cargo clippy --workspace --no-deps --all-targets --features=dont-generate-unit-test-files -- -A unknown_lints -D clippy::todo
   rustfmt:
     name: Check code formatting
     runs-on: ubuntu-latest
