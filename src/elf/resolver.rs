@@ -91,19 +91,38 @@ impl SymResolver for ElfResolver {
     }
 
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
-        let parser = self.parser();
-        let syms = parser.find_addr(name, opts)?;
-        if !syms.is_empty() {
-            // We found symbols in ELF and DWARF wouldn't add information on
-            // top. So just roll with that.
-            return Ok(syms)
+        fn find_addr_impl(
+            slf: &ElfResolver,
+            name: &str,
+            opts: &FindAddrOpts,
+        ) -> Result<Vec<SymInfo>> {
+            let parser = slf.parser();
+            let syms = parser.find_addr(name, opts)?;
+            if !syms.is_empty() {
+                // We found symbols in ELF and DWARF wouldn't add information on
+                // top. So just roll with that.
+                return Ok(syms)
+            }
+
+            match &slf.backend {
+                #[cfg(feature = "dwarf")]
+                ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
+                ElfBackend::Elf(_) => Ok(Vec::new()),
+            }
         }
 
-        match &self.backend {
-            #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
-            ElfBackend::Elf(_) => Ok(Vec::new()),
-        }
+        let mut syms = find_addr_impl(self, name, opts)?;
+        let () = syms.iter_mut().for_each(|sym| {
+            if opts.offset_in_file {
+                if let Some(off) = self.addr_file_off(sym.addr) {
+                    sym.file_offset = off;
+                }
+            }
+            if opts.obj_file_name {
+                sym.obj_file_name = Some(self.file_name.clone())
+            }
+        });
+        Ok(syms)
     }
 
     #[cfg(feature = "dwarf")]

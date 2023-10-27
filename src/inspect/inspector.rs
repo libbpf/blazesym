@@ -105,22 +105,8 @@ impl Inspector {
                 let resolver = self.elf_resolver(path, *debug_info)?;
                 let syms = names
                     .iter()
-                    .map(|name| {
-                        let mut syms = resolver.find_addr(name, &opts).unwrap_or_default();
-                        let () = syms.iter_mut().for_each(|sym| {
-                            if opts.offset_in_file {
-                                if let Some(off) = resolver.addr_file_off(sym.addr) {
-                                    sym.file_offset = off;
-                                }
-                            }
-                            if opts.obj_file_name {
-                                sym.obj_file_name = Some(path.to_path_buf())
-                            }
-                        });
-
-                        syms
-                    })
-                    .collect();
+                    .map(|name| resolver.find_addr(name, &opts))
+                    .collect::<Result<Vec<_>>>()?;
 
                 Ok(syms)
             }
