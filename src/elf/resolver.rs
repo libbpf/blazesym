@@ -3,6 +3,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::path::Path;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
@@ -39,7 +40,7 @@ impl ElfResolver {
         })
     }
 
-    pub(crate) fn parser(&self) -> &ElfParser {
+    pub(crate) fn parser(&self) -> &Rc<ElfParser> {
         match &self.backend {
             #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(dwarf) => dwarf.parser(),
