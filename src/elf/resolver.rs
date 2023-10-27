@@ -118,9 +118,7 @@ impl SymResolver for ElfResolver {
                     sym.file_offset = off;
                 }
             }
-            if opts.obj_file_name {
-                sym.obj_file_name = Some(self.file_name.clone())
-            }
+            sym.obj_file_name = Some(self.file_name.clone())
         });
         Ok(syms)
     }

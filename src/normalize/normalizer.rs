@@ -313,7 +313,6 @@ mod tests {
             let opts = FindAddrOpts {
                 sym_type: SymType::Function,
                 offset_in_file: true,
-                ..Default::default()
             };
             let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
             // There is only one symbol with this address in there.

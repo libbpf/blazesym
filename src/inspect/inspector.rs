@@ -92,7 +92,6 @@ impl Inspector {
     pub fn lookup(&self, names: &[&str], src: &Source) -> Result<Vec<Vec<SymInfo>>> {
         let opts = FindAddrOpts {
             offset_in_file: true,
-            obj_file_name: true,
             sym_type: SymType::Unknown,
         };
 

@@ -230,7 +230,6 @@ mod tests {
         let name = sym.name.clone();
         let opts = FindAddrOpts {
             offset_in_file: false,
-            obj_file_name: false,
             sym_type: SymType::Function,
         };
         let found = resolver.find_addr(&name, &opts).unwrap();
