@@ -47,10 +47,10 @@ impl From<Option<gimli::DwLang>> for SrcLang {
 /// DwarfResolver provides abilities to query DWARF information of binaries.
 pub(crate) struct DwarfResolver {
     /// The lazily parsed compilation units of the DWARF file.
-    /// SAFETY: We must not hand out references with a 'static lifetime to
-    ///         this member. Rather, they should never outlive `self`.
-    ///         Furthermore, this member has to be listed before `parser`
-    ///         to make sure we never end up with a dangling reference.
+    // SAFETY: We must not hand out references with a 'static lifetime to
+    //         this member. Rather, they should never outlive `self`.
+    //         Furthermore, this member has to be listed before `parser`
+    //         to make sure we never end up with a dangling reference.
     units: Units<'static>,
     parser: Rc<ElfParser>,
     line_number_info: bool,
