@@ -55,8 +55,7 @@ impl Inspector {
         #[cfg(feature = "dwarf")]
         let backend = if debug_info {
             let debug_line_info = true;
-            let debug_info_symbols = true;
-            let dwarf = DwarfResolver::from_parser(parser, debug_line_info, debug_info_symbols)?;
+            let dwarf = DwarfResolver::from_parser(parser, debug_line_info)?;
             let backend = ElfBackend::Dwarf(Rc::new(dwarf));
             backend
         } else {

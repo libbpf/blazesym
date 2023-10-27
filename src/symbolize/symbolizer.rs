@@ -317,11 +317,11 @@ impl Symbolizer {
         parser: Rc<ElfParser>,
     ) -> Result<Rc<ElfResolver>> {
         #[cfg(feature = "dwarf")]
-        let backend = ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(
-            parser,
-            self.code_info,
-            self.debug_syms,
-        )?));
+        let backend = if self.debug_syms {
+            ElfBackend::Dwarf(Rc::new(DwarfResolver::from_parser(parser, self.code_info)?))
+        } else {
+            ElfBackend::Elf(parser)
+        };
 
         #[cfg(not(feature = "dwarf"))]
         let backend = ElfBackend::Elf(parser);
