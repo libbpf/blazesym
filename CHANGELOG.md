@@ -11,6 +11,8 @@ Unreleased
   least-recently-used semantics in favor of full user control
 - Added caching for APK related symbolization data structures
 - Added caching logic to `inspect::Inspector`
+- Adjusted `inspect::SymInfo` type to optionally just reference cached
+  data as opposed to having to heap-allocate copies of it
 - Made `inspect::SymInfo::file_offset` member optional
 - Added ability to contain backtraces in `Error` objects
 - Added support for symbolizing Gsym addresses to `blazecli`

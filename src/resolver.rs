@@ -18,8 +18,8 @@ where
 {
     /// Find the symbol corresponding to the given address.
     fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>>;
-    /// Find the address and size of a symbol name.
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>>;
+    /// Find information about a symbol given its name.
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'_>>>;
     /// Finds the source code location for a given address.
     ///
     /// This function tries to find source code information for the given

@@ -180,7 +180,11 @@ impl SymResolver for GsymResolver<'_> {
         }
     }
 
-    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
+    fn find_addr<'slf>(
+        &'slf self,
+        _name: &str,
+        _opts: &FindAddrOpts,
+    ) -> Result<Vec<SymInfo<'slf>>> {
         // It is inefficient to find the address of a symbol with
         // GSYM.  We may support it in the future if needed.
         Ok(Vec::new())

@@ -18,7 +18,8 @@
 mod inspector;
 mod source;
 
-use std::path::PathBuf;
+use std::borrow::Cow;
+use std::path::Path;
 
 use crate::Addr;
 
@@ -42,9 +43,9 @@ pub enum SymType {
 
 /// Information about a symbol.
 #[derive(Clone, Debug)]
-pub struct SymInfo {
+pub struct SymInfo<'src> {
     /// The name of the symbol; for example, a function name.
-    pub name: String,
+    pub name: Cow<'src, str>,
     /// Start address (the first byte) of the symbol.
     pub addr: Addr,
     /// The size of the symbol. The size of a function for example.
@@ -54,7 +55,26 @@ pub struct SymInfo {
     /// The offset in the object file.
     pub file_offset: Option<u64>,
     /// The file name of the shared object.
-    pub obj_file_name: Option<PathBuf>,
+    pub obj_file_name: Option<Cow<'src, Path>>,
+}
+
+impl SymInfo<'_> {
+    /// Clone the object ensuring that references are converted to owned
+    /// objects.
+    #[inline]
+    pub fn to_owned(&self) -> SymInfo<'static> {
+        SymInfo {
+            name: Cow::Owned(self.name.to_string()),
+            addr: self.addr,
+            size: self.size,
+            sym_type: self.sym_type,
+            file_offset: self.file_offset,
+            obj_file_name: self
+                .obj_file_name
+                .as_deref()
+                .map(|path| Cow::Owned(path.to_path_buf())),
+        }
+    }
 }
 
 

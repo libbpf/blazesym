@@ -7,6 +7,7 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::mem;
+use std::ops::Deref as _;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::ffi::OsStringExt as _;
@@ -139,7 +140,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
         for sym in syms {
             str_buf_sz += sym.name.len() + 1;
             if let Some(fname) = sym.obj_file_name.as_ref() {
-                str_buf_sz += AsRef::<OsStr>::as_ref(fname).as_bytes().len() + 1;
+                str_buf_sz += AsRef::<OsStr>::as_ref(fname.deref()).as_bytes().len() + 1;
             }
         }
     }
@@ -176,7 +177,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
             unsafe { *str_ptr = 0 };
             str_ptr = unsafe { str_ptr.add(1) };
             let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
-                let fname = AsRef::<OsStr>::as_ref(fname).as_bytes();
+                let fname = AsRef::<OsStr>::as_ref(fname.deref()).as_bytes();
                 let obj_fname_ptr = str_ptr;
                 unsafe { ptr::copy_nonoverlapping(fname.as_ptr().cast(), str_ptr, fname.len()) };
                 str_ptr = unsafe { str_ptr.add(fname.len()) };
@@ -363,7 +364,7 @@ mod tests {
                     let c_sym = unsafe { &(*(*ptr.add(i)).add(j)) };
                     assert_eq!(
                         unsafe { CStr::from_ptr(c_sym.name) }.to_bytes(),
-                        CString::new(sym.name).unwrap().to_bytes()
+                        CString::new(sym.name.deref()).unwrap().to_bytes()
                     );
                     assert_eq!(c_sym.addr, sym.addr);
                     assert_eq!(c_sym.size, sym.size);
@@ -394,32 +395,32 @@ mod tests {
 
         // Test conversion with a single symbol.
         let syms = vec![vec![SymInfo {
-            name: "sym1".to_string(),
+            name: "sym1".into(),
             addr: 0xdeadbeef,
             size: 42,
             sym_type: SymType::Function,
             file_offset: Some(1337),
-            obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+            obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
         }]];
         test(syms);
 
         // Test conversion of two symbols in one result.
         let syms = vec![vec![
             SymInfo {
-                name: "sym1".to_string(),
+                name: "sym1".into(),
                 addr: 0xdeadbeef,
                 size: 42,
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
-                obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+                obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
             },
             SymInfo {
-                name: "sym2".to_string(),
+                name: "sym2".into(),
                 addr: 0xdeadbeef + 52,
                 size: 45,
                 sym_type: SymType::Unknown,
                 file_offset: Some(1338),
-                obj_file_name: Some(PathBuf::from("other.so")),
+                obj_file_name: Some(Path::new("other.so").into()),
             },
         ]];
         test(syms);
@@ -427,32 +428,32 @@ mod tests {
         // Test conversion of two symbols spread over two results.
         let syms = vec![
             vec![SymInfo {
-                name: "sym1".to_string(),
+                name: "sym1".into(),
                 addr: 0xdeadbeef,
                 size: 42,
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
-                obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+                obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
             }],
             vec![SymInfo {
-                name: "sym2".to_string(),
+                name: "sym2".into(),
                 addr: 0xdeadbeef + 52,
                 size: 45,
                 sym_type: SymType::Unknown,
                 file_offset: Some(1338),
-                obj_file_name: Some(PathBuf::from("other.so")),
+                obj_file_name: Some(Path::new("other.so").into()),
             }],
         ];
         test(syms);
 
         // Test conversion of a `SymInfo` vector with many elements.
         let sym = SymInfo {
-            name: "sym1".to_string(),
+            name: "sym1".into(),
             addr: 0xdeadbeef,
             size: 42,
             sym_type: SymType::Function,
             file_offset: Some(1337),
-            obj_file_name: Some(PathBuf::from("/tmp/foobar.so")),
+            obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
         };
         let syms = vec![(0..200).map(|_| sym.clone()).collect()];
         test(syms);

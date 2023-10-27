@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -471,7 +472,11 @@ impl ElfParser {
         find_sym(symtab, strtab, addr, st_type)
     }
 
-    pub(crate) fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
+    pub(crate) fn find_addr<'slf>(
+        &'slf self,
+        name: &str,
+        opts: &FindAddrOpts,
+    ) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::with_unsupported("Not implemented"))
         }
@@ -499,7 +504,7 @@ impl ElfParser {
                     })?;
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymInfo {
-                            name: name.to_string(),
+                            name: Cow::Borrowed(name_visit),
                             addr: sym_ref.st_value as Addr,
                             size: sym_ref.st_size as usize,
                             sym_type: SymType::Function,

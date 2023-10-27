@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -90,12 +91,12 @@ impl SymResolver for ElfResolver {
         }
     }
 
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
-        fn find_addr_impl(
-            slf: &ElfResolver,
+    fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
+        fn find_addr_impl<'slf>(
+            slf: &'slf ElfResolver,
             name: &str,
             opts: &FindAddrOpts,
-        ) -> Result<Vec<SymInfo>> {
+        ) -> Result<Vec<SymInfo<'slf>>> {
             let parser = slf.parser();
             let syms = parser.find_addr(name, opts)?;
             if !syms.is_empty() {
@@ -116,7 +117,7 @@ impl SymResolver for ElfResolver {
             if opts.offset_in_file {
                 sym.file_offset = self.addr_file_off(sym.addr);
             }
-            sym.obj_file_name = Some(self.file_name.clone())
+            sym.obj_file_name = Some(Cow::Borrowed(&self.file_name))
         });
         Ok(syms)
     }

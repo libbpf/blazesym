@@ -48,7 +48,11 @@ impl SymResolver for KernelResolver {
         }
     }
 
-    fn find_addr(&self, _name: &str, _opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
+    fn find_addr<'slf>(
+        &'slf self,
+        _name: &str,
+        _opts: &FindAddrOpts,
+    ) -> Result<Vec<SymInfo<'slf>>> {
         Ok(Vec::new())
     }
 

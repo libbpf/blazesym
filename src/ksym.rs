@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -122,16 +123,16 @@ impl SymResolver for KSymResolver {
         Ok(sym)
     }
 
-    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo>> {
+    fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Ok(Vec::new())
         }
         let () = self.ensure_sym_to_addr();
 
         let sym_to_addr = self.sym_to_addr.borrow();
-        if let Some(addr) = sym_to_addr.get(name) {
+        if let Some((name, addr)) = sym_to_addr.get_key_value(name) {
             Ok(vec![SymInfo {
-                name: name.to_string(),
+                name: Cow::Borrowed(name),
                 addr: *addr,
                 size: 0,
                 sym_type: SymType::Function,
