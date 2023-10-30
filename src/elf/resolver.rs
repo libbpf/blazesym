@@ -113,12 +113,9 @@ impl SymResolver for ElfResolver {
         }
 
         let mut syms = find_addr_impl(self, name, opts)?;
-        let () = syms.iter_mut().for_each(|sym| {
-            if opts.offset_in_file {
-                sym.file_offset = self.addr_file_off(sym.addr);
-            }
-            sym.obj_file_name = Some(Cow::Borrowed(&self.file_name))
-        });
+        let () = syms
+            .iter_mut()
+            .for_each(|sym| sym.obj_file_name = Some(Cow::Borrowed(&self.file_name)));
         Ok(syms)
     }
 
