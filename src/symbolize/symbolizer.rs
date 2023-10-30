@@ -900,6 +900,16 @@ mod tests {
     use test_log::test;
 
 
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let builder = Symbolizer::builder();
+        assert_ne!(format!("{builder:?}"), "");
+
+        let symbolizer = builder.build();
+        assert_ne!(format!("{symbolizer:?}"), "");
+    }
+
     /// Check that we can correctly construct the source code path to a symbol.
     #[test]
     fn symbol_source_code_path() {
