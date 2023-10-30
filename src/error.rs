@@ -1,3 +1,5 @@
+use std::backtrace::Backtrace;
+use std::backtrace::BacktraceStatus;
 use std::borrow::Borrow;
 use std::borrow::Cow;
 use std::error;
@@ -91,16 +93,17 @@ impl IntoCowStr for String {
     }
 }
 
-
-// TODO: We may want to support optionally storing a backtrace in
-//       terminal variants.
 enum ErrorImpl {
     #[cfg(feature = "dwarf")]
     Dwarf {
         error: gimli::Error,
+        #[cfg(feature = "backtrace")]
+        backtrace: Backtrace,
     },
     Io {
         error: io::Error,
+        #[cfg(feature = "backtrace")]
+        backtrace: Backtrace,
     },
     // Unfortunately, if we just had a single `Context` variant that
     // contains a `Cow`, this inner `Cow` would cause an overall enum
@@ -123,7 +126,7 @@ impl ErrorImpl {
         match self {
             #[cfg(feature = "dwarf")]
             Self::Dwarf { .. } => ErrorKind::InvalidDwarf,
-            Self::Io { error } => match error.kind() {
+            Self::Io { error, .. } => match error.kind() {
                 io::ErrorKind::NotFound => ErrorKind::NotFound,
                 io::ErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
                 io::ErrorKind::AlreadyExists => ErrorKind::AlreadyExists,
@@ -141,6 +144,24 @@ impl ErrorImpl {
                 source.deref().kind()
             }
         }
+    }
+
+    /// Retrieve the object's associated backtrace, if any.
+    #[cfg(feature = "backtrace")]
+    fn backtrace(&self) -> Option<&Backtrace> {
+        match self {
+            #[cfg(feature = "dwarf")]
+            Self::Dwarf { backtrace, .. } => Some(backtrace),
+            Self::Io { backtrace, .. } => Some(backtrace),
+            Self::ContextOwned { .. } => None,
+            Self::ContextStatic { .. } => None,
+        }
+    }
+
+    /// Stub for retrieving no backtrace, as support is compiled out.
+    #[cfg(not(feature = "backtrace"))]
+    fn backtrace(&self) -> Option<&Backtrace> {
+        None
     }
 
     #[cfg(test)]
@@ -162,11 +183,11 @@ impl Debug for ErrorImpl {
 
             match self {
                 #[cfg(feature = "dwarf")]
-                Self::Dwarf { error } => {
+                Self::Dwarf { error, .. } => {
                     dbg = f.debug_tuple(stringify!(Dwarf));
                     dbg.field(error)
                 }
-                Self::Io { error } => {
+                Self::Io { error, .. } => {
                     dbg = f.debug_tuple(stringify!(Io));
                     dbg.field(error)
                 }
@@ -183,8 +204,8 @@ impl Debug for ErrorImpl {
         } else {
             let () = match self {
                 #[cfg(feature = "dwarf")]
-                Self::Dwarf { error } => write!(f, "Error: {error}")?,
-                Self::Io { error } => write!(f, "Error: {error}")?,
+                Self::Dwarf { error, .. } => write!(f, "Error: {error}")?,
+                Self::Io { error, .. } => write!(f, "Error: {error}")?,
                 Self::ContextOwned { context, .. } => write!(f, "Error: {context}")?,
                 Self::ContextStatic { context, .. } => write!(f, "Error: {context}")?,
             };
@@ -198,6 +219,13 @@ impl Debug for ErrorImpl {
                     error = err.source();
                 }
             }
+
+            match self.backtrace() {
+                Some(backtrace) if backtrace.status() == BacktraceStatus::Captured => {
+                    let () = write!(f, "\n\nStack backtrace:\n{backtrace}")?;
+                }
+                _ => (),
+            }
             Ok(())
         }
     }
@@ -207,8 +235,8 @@ impl Display for ErrorImpl {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let () = match self {
             #[cfg(feature = "dwarf")]
-            Self::Dwarf { error } => Display::fmt(error, f)?,
-            Self::Io { error } => Display::fmt(error, f)?,
+            Self::Dwarf { error, .. } => Display::fmt(error, f)?,
+            Self::Io { error, .. } => Display::fmt(error, f)?,
             Self::ContextOwned { context, .. } => Display::fmt(context, f)?,
             Self::ContextStatic { context, .. } => Display::fmt(context, f)?,
         };
@@ -228,8 +256,8 @@ impl error::Error for ErrorImpl {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             #[cfg(feature = "dwarf")]
-            Self::Dwarf { error } => error.source(),
-            Self::Io { error } => error.source(),
+            Self::Dwarf { error, .. } => error.source(),
+            Self::Io { error, .. } => error.source(),
             Self::ContextOwned { source, .. } | Self::ContextStatic { source, .. } => Some(source),
         }
     }
@@ -333,6 +361,19 @@ pub enum ErrorKind {
 /// // >     No such file or directory (os error 2)
 /// println!("{err:?}");
 /// ```
+///
+/// On top of that, if the `backtrace` feature is enabled, errors may also
+/// contain an optional backtrace. Backtrace capturing behavior follows the
+/// exact rules set forth by the [`std::backtrace`] module. That is, it is
+/// controlled by the `RUST_BACKTRACE` and `RUST_LIB_BACKTRACE` environment
+/// variables. Please refer to this module's documentation for precise
+/// semantics, but in short:
+/// - If you want panics and errors to both have backtraces, set
+///   `RUST_BACKTRACE=1`
+/// - If you want only errors to have backtraces, set
+///   `RUST_LIB_BACKTRACE=1`
+/// - If you want only panics to have backtraces, set `RUST_BACKTRACE=1`
+///   and `RUST_LIB_BACKTRACE=0`
 // Representation is optimized for fast copying (a single machine word),
 // not so much for fast creation (as it is heap allocated). We generally
 // expect errors to be exceptional, though a lot of functionality is
@@ -429,7 +470,11 @@ impl error::Error for Error {
 impl From<gimli::Error> for Error {
     fn from(other: gimli::Error) -> Self {
         Self {
-            error: Box::new(ErrorImpl::Dwarf { error: other }),
+            error: Box::new(ErrorImpl::Dwarf {
+                error: other,
+                #[cfg(feature = "backtrace")]
+                backtrace: Backtrace::capture(),
+            }),
         }
     }
 }
@@ -437,7 +482,11 @@ impl From<gimli::Error> for Error {
 impl From<io::Error> for Error {
     fn from(other: io::Error) -> Self {
         Self {
-            error: Box::new(ErrorImpl::Io { error: other }),
+            error: Box::new(ErrorImpl::Io {
+                error: other,
+                #[cfg(feature = "backtrace")]
+                backtrace: Backtrace::capture(),
+            }),
         }
     }
 }
@@ -633,7 +682,6 @@ mod tests {
     #[test]
     fn error_size() {
         assert_eq!(size_of::<Error>(), size_of::<usize>());
-        assert_eq!(size_of::<ErrorImpl>(), 4 * size_of::<usize>());
     }
 
     /// Check that we can format errors as expected.
@@ -648,7 +696,7 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::InvalidData);
         assert_eq!(format!("{err}"), "some invalid data");
         assert_eq!(format!("{err:#}"), "some invalid data");
-        assert_eq!(format!("{err:?}"), "Error: some invalid data");
+        assert!(format!("{err:?}").starts_with("Error: some invalid data"));
         // TODO: The inner format may not actually be all that stable.
         let expected = r#"Io(
     Custom {

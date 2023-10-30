@@ -38,7 +38,11 @@ name = "blazesym"
 crate-type = ["lib", "cdylib", "staticlib"]
 
 [features]
-default = ["demangle", "dwarf"]
+default = ["backtrace", "demangle", "dwarf"]
+# Enable this feature to compile in support for capturing backtraces in errors.
+# Note that by default backtraces will not be collected unless opted in with
+# environment variables.
+backtrace = []
 # Enable this feature to enable DWARF support.
 dwarf = ["gimli"]
 # Enable this feature to get transparent symbol demangling.
