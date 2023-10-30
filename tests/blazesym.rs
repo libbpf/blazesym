@@ -4,6 +4,7 @@
     clippy::let_unit_value
 )]
 
+use std::collections::HashSet;
 use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fs::read as read_file;
@@ -493,4 +494,28 @@ fn inspect_file_offset_elf() {
     assert_ne!(result.file_offset, None);
     let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset.unwrap());
     assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);
+}
+
+
+/// Check that we can iterate over all symbols in an ELF file.
+#[test]
+fn inspect_all_symbols() {
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-no-dwarf.bin");
+    let elf = inspect::Elf::new(test_elf);
+    let src = inspect::Source::Elf(elf);
+
+    let inspector = Inspector::new();
+    let syms = inspector
+        .for_each(&src, HashSet::<String>::new(), |mut syms, sym| {
+            let _inserted = syms.insert(sym.name.to_string());
+            syms
+        })
+        .unwrap();
+
+    assert!(syms.contains("main"));
+    assert!(syms.contains("factorial"));
+    assert!(syms.contains("factorial_wrapper"));
+    assert!(syms.contains("factorial_inline_test"));
 }

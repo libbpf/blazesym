@@ -89,6 +89,9 @@ impl Inspector {
 
     /// Look up information (address etc.) about a list of symbols,
     /// given their names.
+    ///
+    /// # Notes
+    /// - no symbol name demangling is performed currently
     pub fn lookup<'slf>(
         &'slf self,
         names: &[&str],
@@ -120,6 +123,41 @@ impl Inspector {
                     .collect::<Result<Vec<_>>>()?;
 
                 Ok(syms)
+            }
+        }
+    }
+
+    /// Perform an operation on each symbol in the source.
+    ///
+    /// Symbols are reported in implementation defined order that should
+    /// not be relied on.
+    ///
+    /// # Notes
+    /// - no symbol name demangling is performed currently
+    /// - currently only function symbols (as opposed to variables) are
+    ///   reported
+    /// - undefined symbols (such as ones referencing a different shared
+    ///   object) are not reported
+    /// - for the [`Elf`](Source::Elf) source, at present DWARF symbols are
+    ///   ignored (irrespective of the [`debug_info`][Elf::debug_info]
+    ///   configuration)
+    pub fn for_each<F, R>(&self, src: &Source, r: R, f: F) -> Result<R>
+    where
+        F: FnMut(R, &SymInfo<'_>) -> R,
+    {
+        match src {
+            Source::Elf(Elf {
+                path,
+                debug_info,
+                _non_exhaustive: (),
+            }) => {
+                let opts = FindAddrOpts {
+                    offset_in_file: true,
+                    sym_type: SymType::Unknown,
+                };
+                let resolver = self.elf_resolver(path, *debug_info)?;
+                let parser = resolver.parser();
+                parser.for_each_sym(&opts, r, f)
             }
         }
     }
