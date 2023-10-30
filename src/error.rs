@@ -96,8 +96,12 @@ impl IntoCowStr for String {
 //       terminal variants.
 enum ErrorImpl {
     #[cfg(feature = "dwarf")]
-    Dwarf(gimli::Error),
-    Io(io::Error),
+    Dwarf {
+        error: gimli::Error,
+    },
+    Io {
+        error: io::Error,
+    },
     // Unfortunately, if we just had a single `Context` variant that
     // contains a `Cow`, this inner `Cow` would cause an overall enum
     // size increase by a machine word, because currently `rustc`
@@ -118,8 +122,8 @@ impl ErrorImpl {
     fn kind(&self) -> ErrorKind {
         match self {
             #[cfg(feature = "dwarf")]
-            Self::Dwarf(..) => ErrorKind::InvalidDwarf,
-            Self::Io(error) => match error.kind() {
+            Self::Dwarf { .. } => ErrorKind::InvalidDwarf,
+            Self::Io { error } => match error.kind() {
                 io::ErrorKind::NotFound => ErrorKind::NotFound,
                 io::ErrorKind::PermissionDenied => ErrorKind::PermissionDenied,
                 io::ErrorKind::AlreadyExists => ErrorKind::AlreadyExists,
@@ -158,13 +162,13 @@ impl Debug for ErrorImpl {
 
             match self {
                 #[cfg(feature = "dwarf")]
-                Self::Dwarf(dwarf) => {
+                Self::Dwarf { error } => {
                     dbg = f.debug_tuple(stringify!(Dwarf));
-                    dbg.field(dwarf)
+                    dbg.field(error)
                 }
-                Self::Io(io) => {
+                Self::Io { error } => {
                     dbg = f.debug_tuple(stringify!(Io));
-                    dbg.field(io)
+                    dbg.field(error)
                 }
                 Self::ContextOwned { context, .. } => {
                     dbg = f.debug_tuple(stringify!(ContextOwned));
@@ -179,8 +183,8 @@ impl Debug for ErrorImpl {
         } else {
             let () = match self {
                 #[cfg(feature = "dwarf")]
-                Self::Dwarf(error) => write!(f, "Error: {error}")?,
-                Self::Io(error) => write!(f, "Error: {error}")?,
+                Self::Dwarf { error } => write!(f, "Error: {error}")?,
+                Self::Io { error } => write!(f, "Error: {error}")?,
                 Self::ContextOwned { context, .. } => write!(f, "Error: {context}")?,
                 Self::ContextStatic { context, .. } => write!(f, "Error: {context}")?,
             };
@@ -203,8 +207,8 @@ impl Display for ErrorImpl {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let () = match self {
             #[cfg(feature = "dwarf")]
-            Self::Dwarf(error) => Display::fmt(error, f)?,
-            Self::Io(error) => Display::fmt(error, f)?,
+            Self::Dwarf { error } => Display::fmt(error, f)?,
+            Self::Io { error } => Display::fmt(error, f)?,
             Self::ContextOwned { context, .. } => Display::fmt(context, f)?,
             Self::ContextStatic { context, .. } => Display::fmt(context, f)?,
         };
@@ -224,8 +228,8 @@ impl error::Error for ErrorImpl {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match self {
             #[cfg(feature = "dwarf")]
-            Self::Dwarf(error) => error.source(),
-            Self::Io(error) => error.source(),
+            Self::Dwarf { error } => error.source(),
+            Self::Io { error } => error.source(),
             Self::ContextOwned { source, .. } | Self::ContextStatic { source, .. } => Some(source),
         }
     }
@@ -425,7 +429,7 @@ impl error::Error for Error {
 impl From<gimli::Error> for Error {
     fn from(other: gimli::Error) -> Self {
         Self {
-            error: Box::new(ErrorImpl::Dwarf(other)),
+            error: Box::new(ErrorImpl::Dwarf { error: other }),
         }
     }
 }
@@ -433,7 +437,7 @@ impl From<gimli::Error> for Error {
 impl From<io::Error> for Error {
     fn from(other: io::Error) -> Self {
         Self {
-            error: Box::new(ErrorImpl::Io(other)),
+            error: Box::new(ErrorImpl::Io { error: other }),
         }
     }
 }
