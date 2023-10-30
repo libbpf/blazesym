@@ -9,6 +9,7 @@ type Elf64_Xword = u64;
 pub(crate) const ET_EXEC: u16 = 2;
 pub(crate) const ET_DYN: u16 = 3;
 
+#[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Ehdr {
     pub e_ident: [u8; EI_NIDENT], /* ELF "magic number" */
@@ -32,6 +33,7 @@ unsafe impl crate::util::Pod for Elf64_Ehdr {}
 
 pub(crate) const PT_LOAD: u32 = 1;
 
+#[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Phdr {
     pub p_type: Elf64_Word,
@@ -49,6 +51,7 @@ unsafe impl crate::util::Pod for Elf64_Phdr {}
 
 pub(crate) const PF_X: Elf64_Word = 1;
 
+#[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Shdr {
     pub sh_name: Elf64_Word,       /* Section name, index in string tbl */
@@ -72,7 +75,7 @@ pub(crate) const SHT_NOTE: Elf64_Word = 7;
 
 pub(crate) const STT_FUNC: u8 = 2;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Sym {
     pub st_name: Elf64_Word,  /* Symbol name, index in string tbl */
@@ -95,6 +98,7 @@ unsafe impl crate::util::Pod for Elf64_Sym {}
 
 pub(crate) const NT_GNU_BUILD_ID: Elf64_Word = 3;
 
+#[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Nhdr {
     pub n_namesz: Elf64_Word,
@@ -104,3 +108,75 @@ pub(crate) struct Elf64_Nhdr {
 
 // SAFETY: `Elf64_Nhdr` is valid for any bit pattern.
 unsafe impl crate::util::Pod for Elf64_Nhdr {}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let ehdr = Elf64_Ehdr {
+            e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            e_type: 3,
+            e_machine: 62,
+            e_version: 1,
+            e_entry: 4208,
+            e_phoff: 64,
+            e_shoff: 0,
+            e_flags: 0,
+            e_ehsize: 64,
+            e_phentsize: 56,
+            e_phnum: 13,
+            e_shentsize: 64,
+            e_shnum: 0,
+            e_shstrndx: 29,
+        };
+        assert_ne!(format!("{ehdr:?}"), "");
+
+        let phdr = Elf64_Phdr {
+            p_type: 0,
+            p_flags: 0,
+            p_offset: 0,
+            p_vaddr: 0,
+            p_paddr: 0,
+            p_filesz: 0,
+            p_memsz: 0,
+            p_align: 0,
+        };
+        assert_ne!(format!("{phdr:?}"), "");
+
+        let shdr = Elf64_Shdr {
+            sh_name: 27,
+            sh_type: 1,
+            sh_flags: 2,
+            sh_addr: 792,
+            sh_offset: 792,
+            sh_size: 28,
+            sh_link: 0,
+            sh_info: 0,
+            sh_addralign: 1,
+            sh_entsize: 0,
+        };
+        assert_ne!(format!("{shdr:?}"), "");
+
+        let nhdr = Elf64_Nhdr {
+            n_namesz: 0,
+            n_descsz: 0,
+            n_type: 0,
+        };
+        assert_ne!(format!("{nhdr:?}"), "");
+
+        let sym = Elf64_Sym {
+            st_name: 0,
+            st_info: 0,
+            st_other: 0,
+            st_shndx: 0,
+            st_value: 0,
+            st_size: 0,
+        };
+        assert_ne!(format!("{sym:?}"), "");
+    }
+}
