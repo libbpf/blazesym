@@ -63,10 +63,6 @@ impl SymResolver for KernelResolver {
             Ok(None)
         }
     }
-
-    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
-        None
-    }
 }
 
 impl Debug for KernelResolver {

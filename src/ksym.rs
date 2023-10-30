@@ -147,10 +147,6 @@ impl SymResolver for KSymResolver {
     fn find_code_info(&self, _addr: Addr, _inlined_fns: bool) -> Result<Option<AddrCodeInfo>> {
         Ok(None)
     }
-
-    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
-        None
-    }
 }
 
 impl Debug for KSymResolver {

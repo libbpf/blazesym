@@ -241,6 +241,7 @@ impl DwarfResolver {
                             file_offset: opts
                                 .offset_in_file
                                 .then(|| self.parser.find_file_offset(addr))
+                                .transpose()?
                                 .flatten(),
                             obj_file_name: None,
                         };
