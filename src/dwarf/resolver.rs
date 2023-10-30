@@ -238,7 +238,10 @@ impl DwarfResolver {
                             addr,
                             size,
                             sym_type: SymType::Function,
-                            file_offset: None,
+                            file_offset: opts
+                                .offset_in_file
+                                .then(|| self.parser.find_file_offset(addr))
+                                .flatten(),
                             obj_file_name: None,
                         };
                         Ok(info)

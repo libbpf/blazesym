@@ -472,6 +472,25 @@ impl ElfParser {
         find_sym(symtab, strtab, addr, st_type)
     }
 
+    /// Calculate the file offset of the given symbol.
+    ///
+    /// # Notes
+    /// It is the caller's responsibility to ensure that the symbol's section
+    /// index is not `SHN_UNDEF`.
+    fn file_offset(&self, shdrs: &[Elf64_Shdr], sym: &Elf64_Sym) -> Result<u64> {
+        debug_assert_ne!(sym.st_shndx, SHN_UNDEF);
+
+        let section = shdrs
+            .get(usize::from(sym.st_shndx))
+            .ok_or_invalid_input(|| {
+                format!(
+                    "ELF section index ({}) of symbol at {:#x} out of bounds",
+                    sym.st_shndx, sym.st_value
+                )
+            })?;
+        Ok(sym.st_value - section.sh_addr + section.sh_offset)
+    }
+
     pub(crate) fn find_addr<'slf>(
         &'slf self,
         name: &str,
@@ -482,6 +501,7 @@ impl ElfParser {
         }
 
         let mut cache = self.cache.borrow_mut();
+        let shdrs = cache.ensure_shdrs()?;
         let () = cache.ensure_symtab()?;
         let () = cache.ensure_str2symtab()?;
         // SANITY: The above `ensure_symtab` ensures we have `symtab`
@@ -508,7 +528,10 @@ impl ElfParser {
                             addr: sym_ref.st_value as Addr,
                             size: sym_ref.st_size as usize,
                             sym_type: SymType::Function,
-                            file_offset: None,
+                            file_offset: opts
+                                .offset_in_file
+                                .then(|| self.file_offset(shdrs, sym_ref))
+                                .transpose()?,
                             obj_file_name: None,
                         });
                     }
@@ -520,9 +543,8 @@ impl ElfParser {
     }
 
     /// Find the file offset of the symbol at address `addr`.
-    // TODO: See if we could make this a constant time calculation by supplying
-    //       the ELF symbol index (and potentially an offset from it) [this will
-    //       require a bit of a larger rework, including on call sites].
+    // If possible, use the constant-time [`file_offset`][Self::file_offset]
+    // method instead.
     pub(crate) fn find_file_offset(&self, addr: Addr) -> Option<u64> {
         let phdrs = self.program_headers().ok()?;
         let offset = phdrs.iter().find_map(|phdr| {
