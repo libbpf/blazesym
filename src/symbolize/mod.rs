@@ -338,3 +338,30 @@ impl Symbolized {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let lang = SrcLang::default();
+        assert_ne!(format!("{lang:?}"), "");
+
+        let sym = Sym {
+            name: "test".to_string(),
+            addr: 1337,
+            offset: 42,
+            size: None,
+            code_info: None,
+            inlined: Box::new([]),
+            _non_exhaustive: (),
+        };
+        assert_ne!(format!("{sym:?}"), "");
+
+        let symbolized = Symbolized::Sym(sym);
+        assert_ne!(format!("{symbolized:?}"), "");
+    }
+}
