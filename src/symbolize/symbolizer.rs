@@ -34,11 +34,9 @@ use crate::zip;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
-use crate::IntSym;
 use crate::IntoError as _;
 use crate::Pid;
 use crate::Result;
-use crate::SrcLang;
 use crate::SymResolver;
 
 use super::source::Apk;
@@ -52,6 +50,8 @@ use super::source::Source;
 use super::CodeInfo;
 use super::InlinedFn;
 use super::Input;
+use super::IntSym;
+use super::SrcLang;
 use super::Sym;
 use super::Symbolized;
 

@@ -8,10 +8,10 @@ use std::rc::Rc;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::IntSym;
+use crate::symbolize::SrcLang;
 use crate::Addr;
-use crate::IntSym;
 use crate::Result;
-use crate::SrcLang;
 use crate::SymResolver;
 
 use super::types::STT_FUNC;

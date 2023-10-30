@@ -11,11 +11,11 @@ use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::FrameCodeInfo;
+use crate::symbolize::IntSym;
+use crate::symbolize::SrcLang;
 use crate::Addr;
-use crate::IntSym;
 use crate::IntoError as _;
 use crate::Result;
-use crate::SrcLang;
 use crate::SymResolver;
 
 use super::inline::InlineInfo;
