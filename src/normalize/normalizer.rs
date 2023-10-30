@@ -334,7 +334,8 @@ mod tests {
             assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
 
-            let expected_offset = so.data_offset + elf_parser.find_file_offset(sym.addr).unwrap();
+            let expected_offset =
+                so.data_offset + elf_parser.find_file_offset(sym.addr).unwrap().unwrap();
             let output = normalized.outputs[0];
             assert_eq!(output.0, expected_offset);
             let meta = &normalized.meta[output.1];

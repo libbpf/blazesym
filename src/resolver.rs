@@ -28,7 +28,4 @@ where
     /// address will also be looked up and reported as the optional
     /// [`AddrCodeInfo::inlined`] attribute.
     fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo>>;
-    /// Translate an address (virtual) in a process to the file offset
-    /// in the object file.
-    fn addr_file_off(&self, addr: Addr) -> Option<u64>;
 }

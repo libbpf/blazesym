@@ -545,8 +545,8 @@ impl ElfParser {
     /// Find the file offset of the symbol at address `addr`.
     // If possible, use the constant-time [`file_offset`][Self::file_offset]
     // method instead.
-    pub(crate) fn find_file_offset(&self, addr: Addr) -> Option<u64> {
-        let phdrs = self.program_headers().ok()?;
+    pub(crate) fn find_file_offset(&self, addr: Addr) -> Result<Option<u64>> {
+        let phdrs = self.program_headers()?;
         let offset = phdrs.iter().find_map(|phdr| {
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
@@ -554,8 +554,8 @@ impl ElfParser {
                 }
             }
             None
-        })?;
-        Some(offset)
+        });
+        Ok(offset)
     }
 
     #[cfg(test)]

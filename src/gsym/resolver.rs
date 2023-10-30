@@ -301,11 +301,6 @@ impl SymResolver for GsymResolver<'_> {
             Ok(None)
         }
     }
-
-    fn addr_file_off(&self, _addr: Addr) -> Option<u64> {
-        // Unavailable
-        None
-    }
 }
 
 impl Debug for GsymResolver<'_> {

@@ -132,14 +132,6 @@ impl SymResolver for ElfResolver {
     fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
         Ok(None)
     }
-
-    /// Find the file offset of the symbol at address `addr`.
-    // TODO: See if we could make this a constant time calculation by supplying
-    //       the ELF symbol index (and potentially an offset from it) [this will
-    //       require a bit of a larger rework, including on call sites].
-    fn addr_file_off(&self, addr: Addr) -> Option<u64> {
-        self.parser().find_file_offset(addr)
-    }
 }
 
 impl Debug for ElfResolver {
@@ -158,7 +150,6 @@ mod tests {
     use super::*;
 
     use std::path::Path;
-    use std::rc::Rc;
 
 
     /// Check that we fail finding an offset for an address not
@@ -168,12 +159,9 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses-no-dwarf.bin");
-        let elf = ElfParser::open(&path).unwrap();
-        let backend = ElfBackend::Elf(Rc::new(elf));
-        let resolver = ElfResolver::with_backend(&path, backend).unwrap();
+        let parser = ElfParser::open(&path).unwrap();
 
-        assert_eq!(resolver.addr_file_off(0x0), None);
-        assert_eq!(resolver.addr_file_off(0xffffffffffffffff), None);
-        assert_eq!(resolver.file_name(), path);
+        assert_eq!(parser.find_file_offset(0x0).unwrap(), None);
+        assert_eq!(parser.find_file_offset(0xffffffffffffffff).unwrap(), None);
     }
 }
