@@ -13,6 +13,8 @@ Unreleased
 - Added caching logic to `inspect::Inspector`
 - Adjusted `inspect::SymInfo` type to optionally just reference cached
   data as opposed to having to heap-allocate copies of it
+- Added support for iterating over all symbols in a source to
+  `inspect::Inspector`
 - Made `inspect::SymInfo::file_offset` member optional
 - Added ability to contain backtraces in `Error` objects
 - Added support for symbolizing Gsym addresses to `blazecli`

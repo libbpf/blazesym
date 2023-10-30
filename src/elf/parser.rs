@@ -27,7 +27,6 @@ use super::types::Elf64_Sym;
 use super::types::PT_LOAD;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
-#[cfg(test)]
 use super::types::STT_FUNC;
 
 
@@ -539,6 +538,59 @@ impl ElfParser {
                 Ok(found)
             }
             None => Ok(vec![]),
+        }
+    }
+
+    /// Perform an operation on each symbol.
+    pub(crate) fn for_each_sym<F, R>(&self, opts: &FindAddrOpts, mut r: R, mut f: F) -> Result<R>
+    where
+        F: FnMut(R, &SymInfo<'_>) -> R,
+    {
+        if let SymType::Variable = opts.sym_type {
+            return Err(Error::with_unsupported("Not implemented"))
+        }
+
+        let mut cache = self.cache.borrow_mut();
+        let shdrs = cache.ensure_shdrs()?;
+        let () = cache.ensure_symtab()?;
+        let () = cache.ensure_str2symtab()?;
+        drop(cache);
+
+        let mut i = 0;
+        loop {
+            let cache = self.cache.borrow_mut();
+            // SANITY: The above `ensure_symtab` ensures we have `symtab`
+            //         available.
+            let symtab = cache.symtab.as_ref().unwrap();
+            // SANITY: The above `ensure_str2symtab` ensures we have
+            //         `str2symtab` available.
+            let str2symtab = cache.str2symtab.as_ref().unwrap();
+
+            if i >= str2symtab.len() {
+                break Ok(r)
+            }
+
+            let (name, idx) = &str2symtab[i];
+            let sym = &symtab
+                .get(*idx)
+                .ok_or_invalid_input(|| format!("symbol table index ({idx}) out of bounds"))?;
+            if sym.type_() == STT_FUNC && sym.st_shndx != SHN_UNDEF {
+                let sym_info = SymInfo {
+                    name: Cow::Borrowed(name),
+                    addr: sym.st_value as Addr,
+                    size: sym.st_size as usize,
+                    sym_type: SymType::Function,
+                    file_offset: opts
+                        .offset_in_file
+                        .then(|| self.file_offset(shdrs, sym))
+                        .transpose()?,
+                    obj_file_name: None,
+                };
+                drop(cache);
+                r = f(r, &sym_info)
+            }
+
+            i += 1;
         }
     }
 

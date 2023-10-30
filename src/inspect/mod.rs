@@ -29,7 +29,7 @@ pub use source::Source;
 
 
 /// The type of a symbol.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 pub enum SymType {
     /// The symbol type is unknown.
     #[default]
@@ -42,7 +42,7 @@ pub enum SymType {
 
 
 /// Information about a symbol.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct SymInfo<'src> {
     /// The name of the symbol; for example, a function name.
     pub name: Cow<'src, str>,
