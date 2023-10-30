@@ -9,9 +9,9 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
 use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::IntSym;
 use crate::Addr;
 use crate::Error;
-use crate::IntSym;
 use crate::Result;
 use crate::SymResolver;
 

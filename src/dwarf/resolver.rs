@@ -18,11 +18,11 @@ use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::FrameCodeInfo;
+use crate::symbolize::IntSym;
+use crate::symbolize::SrcLang;
 use crate::Addr;
 use crate::Error;
-use crate::IntSym;
 use crate::Result;
-use crate::SrcLang;
 
 use super::location::Location;
 use super::reader;

@@ -13,11 +13,11 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::IntSym;
+use crate::symbolize::SrcLang;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
-use crate::IntSym;
 use crate::Result;
-use crate::SrcLang;
 use crate::SymResolver;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
