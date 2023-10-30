@@ -12,6 +12,7 @@ Unreleased
 - Added caching for APK related symbolization data structures
 - Added caching logic to `inspect::Inspector`
 - Made `inspect::SymInfo::file_offset` member optional
+- Added ability to contain backtraces in `Error` objects
 - Added support for symbolizing Gsym addresses to `blazecli`
 - Fixed bogus inlined function reporting for Gsym
 - Bumped minimum supported Rust version to `1.65`
