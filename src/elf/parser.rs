@@ -663,6 +663,7 @@ mod tests {
     use super::super::types::SHN_LORESERVE;
 
     use std::env;
+    use std::env::current_exe;
     use std::io::Seek as _;
     use std::io::Write as _;
     use std::mem::size_of;
@@ -847,6 +848,24 @@ mod tests {
         let addr_r = parser.find_addr(name, &opts).unwrap();
         assert_eq!(addr_r.len(), 1);
         assert!(addr_r.iter().any(|x| x.addr == addr && x.size == size));
+    }
+
+    /// Validate our two methods of symbol file offset calculation against each
+    /// other.
+    #[test]
+    fn file_offset_calculation() {
+        let bin_name = current_exe().unwrap();
+        let opts = FindAddrOpts {
+            offset_in_file: true,
+            ..Default::default()
+        };
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let () = parser
+            .for_each_sym(&opts, (), |(), sym| {
+                let file_offset = parser.find_file_offset(sym.addr).unwrap();
+                assert_eq!(file_offset, sym.file_offset);
+            })
+            .unwrap();
     }
 
     /// Make sure that we can look up a symbol in an ELF file.
