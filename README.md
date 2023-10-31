@@ -2,7 +2,7 @@
 [![coverage](https://codecov.io/gh/libbpf/blazesym/branch/main/graph/badge.svg)](https://codecov.io/gh/libbpf/blazesym)
 [![crates.io](https://img.shields.io/crates/v/blazesym.svg)](https://crates.io/crates/blazesym)
 [![Docs](https://docs.rs/blazesym/badge.svg)](https://docs.rs/blazesym)
-[![rustc](https://img.shields.io/badge/rustc-1.64+-blue.svg)](https://blog.rust-lang.org/2022/09/22/Rust-1.64.0.html)
+[![rustc](https://img.shields.io/badge/rustc-1.65+-blue.svg)](https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html)
 
 # blazesym
 
