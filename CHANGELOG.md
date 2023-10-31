@@ -14,6 +14,7 @@ Unreleased
 - Made `inspect::SymInfo::file_offset` member optional
 - Added support for symbolizing Gsym addresses to `blazecli`
 - Fixed bogus inlined function reporting for Gsym
+- Bumped minimum supported Rust version to `1.65`
 
 
 0.2.0-alpha.7
