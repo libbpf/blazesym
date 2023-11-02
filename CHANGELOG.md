@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.8
+-------------
 - Fixed build failure when `dwarf` feature is not enabled
 - Changed `Addr` to map to 64 bit integer
 - Reworked normalization APIs to produce file offsets instead of virtual offsets
