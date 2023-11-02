@@ -71,6 +71,7 @@ unsafe impl crate::util::Pod for Elf64_Shdr {}
 
 pub(crate) const SHN_UNDEF: u16 = 0;
 pub(crate) const SHN_LORESERVE: u16 = 0xff00;
+pub(crate) const SHN_XINDEX: u16 = 0xffff;
 
 pub(crate) const SHT_NOTE: Elf64_Word = 7;
 
