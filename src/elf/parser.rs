@@ -24,6 +24,7 @@ use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
+use super::types::PN_XNUM;
 use super::types::PT_LOAD;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
@@ -79,14 +80,24 @@ fn find_sym<'mmap>(
 }
 
 
+#[derive(Clone, Copy, Debug)]
+struct EhdrExt<'mmap> {
+    /// The ELF header.
+    ehdr: &'mmap Elf64_Ehdr,
+    /// Override of `ehdr.e_shnum`, handling of which is special-cased by
+    /// the ELF standard.
+    shnum: usize,
+    /// Override of `ehdr.e_phnum`, handling of which is special-cased by
+    /// the ELF standard.
+    phnum: usize,
+}
+
+
 struct Cache<'mmap> {
     /// A slice of the raw ELF data that we are about to parse.
     elf_data: &'mmap [u8],
-    /// The cached ELF header as well as the actual number of section headers.
-    ///
-    /// This latter value effectively overrides that of `ehdr.e_shnum`, which is
-    /// special-cased by the ELF standard.
-    ehdr: Option<(&'mmap Elf64_Ehdr, usize)>,
+    /// The cached ELF header.
+    ehdr: Option<EhdrExt<'mmap>>,
     /// The cached ELF section headers.
     shdrs: Option<&'mmap [Elf64_Shdr]>,
     shstrtab: Option<&'mmap [u8]>,
@@ -146,7 +157,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(shdr)
     }
 
-    fn ensure_ehdr(&mut self) -> Result<(&'mmap Elf64_Ehdr, usize)> {
+    fn ensure_ehdr(&mut self) -> Result<EhdrExt<'mmap>> {
         if let Some(ehdr) = self.ehdr {
             return Ok(ehdr)
         }
@@ -182,8 +193,26 @@ impl<'mmap> Cache<'mmap> {
             ehdr.e_shnum.into()
         };
 
-        self.ehdr = Some((ehdr, shnum));
-        Ok((ehdr, shnum))
+        // "If the number of entries in the program header table is
+        // larger than or equal to PN_XNUM (0xffff), this member holds
+        // PN_XNUM (0xffff) and the real number of entries in the
+        // program header table is held in the sh_info member of the
+        // initial entry in section header table."
+        let phnum = if ehdr.e_phnum == PN_XNUM {
+            let shdr = self.read_first_shdr(ehdr)?;
+            usize::try_from(shdr.sh_info).ok().ok_or_invalid_data(|| {
+                format!(
+                    "ELF file contains unsupported number of program headers ({})",
+                    shdr.sh_info
+                )
+            })?
+        } else {
+            ehdr.e_phnum.into()
+        };
+
+        let ehdr = EhdrExt { ehdr, shnum, phnum };
+        self.ehdr = Some(ehdr);
+        Ok(ehdr)
     }
 
     fn ensure_shdrs(&mut self) -> Result<&'mmap [Elf64_Shdr]> {
@@ -191,12 +220,12 @@ impl<'mmap> Cache<'mmap> {
             return Ok(shdrs)
         }
 
-        let (ehdr, shnum) = self.ensure_ehdr()?;
+        let ehdr = self.ensure_ehdr()?;
         let shdrs = self
             .elf_data
-            .get(ehdr.e_shoff as usize..)
+            .get(ehdr.ehdr.e_shoff as usize..)
             .ok_or_invalid_data(|| "Elf64_Ehdr::e_shoff is invalid")?
-            .read_pod_slice_ref::<Elf64_Shdr>(shnum)
+            .read_pod_slice_ref::<Elf64_Shdr>(ehdr.shnum)
             .ok_or_invalid_data(|| "failed to read Elf64_Shdr")?;
         self.shdrs = Some(shdrs);
         Ok(shdrs)
@@ -207,12 +236,12 @@ impl<'mmap> Cache<'mmap> {
             return Ok(phdrs)
         }
 
-        let (ehdr, _shnum) = self.ensure_ehdr()?;
+        let ehdr = self.ensure_ehdr()?;
         let phdrs = self
             .elf_data
-            .get(ehdr.e_phoff as usize..)
+            .get(ehdr.ehdr.e_phoff as usize..)
             .ok_or_invalid_data(|| "Elf64_Ehdr::e_phoff is invalid")?
-            .read_pod_slice_ref::<Elf64_Phdr>(ehdr.e_phnum.into())
+            .read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
             .ok_or_invalid_data(|| "failed to read Elf64_Phdr")?;
         self.phdrs = Some(phdrs);
         Ok(phdrs)
@@ -242,8 +271,8 @@ impl<'mmap> Cache<'mmap> {
             return Ok(shstrtab)
         }
 
-        let (ehdr, _shnum) = self.ensure_ehdr()?;
-        let shstrndx = self.shstrndx(ehdr)?;
+        let ehdr = self.ensure_ehdr()?;
+        let shstrndx = self.shstrndx(ehdr.ehdr)?;
         let shstrtab = self.section_data(shstrndx)?;
         self.shstrtab = Some(shstrtab);
         Ok(shstrtab)
@@ -285,8 +314,8 @@ impl<'mmap> Cache<'mmap> {
     ///
     /// This function return the index of the section if found.
     fn find_section(&mut self, name: &str) -> Result<Option<usize>> {
-        let (_ehdr, shnum) = self.ensure_ehdr()?;
-        for i in 1..shnum {
+        let ehdr = self.ensure_ehdr()?;
+        for i in 1..ehdr.shnum {
             if self.section_name(i)? == name {
                 return Ok(Some(i))
             }
@@ -675,10 +704,11 @@ mod tests {
 
 
     /// Check that our `ElfParser` can handle more than 0xff00 section
-    /// headers properly.
+    /// headers and more than 0xffff program headers properly.
     #[test]
-    fn excessive_section_headers() {
+    fn excessive_section_and_program_headers() {
         const SHNUM: u16 = (SHN_LORESERVE + 0x42) as _;
+        const PHNUM: u32 = 0xffff + 0x43;
 
         #[repr(C)]
         struct Elf {
@@ -700,7 +730,7 @@ mod tests {
                 e_flags: 0,
                 e_ehsize: 64,
                 e_phentsize: 56,
-                e_phnum: 13,
+                e_phnum: PN_XNUM,
                 e_shentsize: 64,
                 e_shnum: 0,
                 e_shstrndx: 29,
@@ -714,7 +744,7 @@ mod tests {
                     sh_offset: 0,
                     sh_size: SHNUM.into(),
                     sh_link: 0,
-                    sh_info: 0,
+                    sh_info: PHNUM,
                     sh_addralign: 0,
                     sh_entsize: 0,
                 },
@@ -741,8 +771,9 @@ mod tests {
 
         let parser = ElfParser::open_file(&file).unwrap();
         let mut cache = parser.cache.borrow_mut();
-        let (_ehdr, shnum) = cache.ensure_ehdr().unwrap();
-        assert_eq!(shnum, SHNUM.into());
+        let ehdr = cache.ensure_ehdr().unwrap();
+        assert_eq!(ehdr.shnum, SHNUM.into());
+        assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
     }
 
     /// Test that our `ElfParser` can handle a `shstrndx` larger than
@@ -798,8 +829,8 @@ mod tests {
 
         let parser = ElfParser::open_file(&file).unwrap();
         let mut cache = parser.cache.borrow_mut();
-        let (ehdr, _shnum) = cache.ensure_ehdr().unwrap();
-        let shstrndx = cache.shstrndx(ehdr).unwrap();
+        let ehdr = cache.ensure_ehdr().unwrap();
+        let shstrndx = cache.shstrndx(ehdr.ehdr).unwrap();
         assert_eq!(shstrndx, SHSTRNDX.into());
     }
 

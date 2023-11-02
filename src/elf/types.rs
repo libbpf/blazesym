@@ -51,6 +51,8 @@ unsafe impl crate::util::Pod for Elf64_Phdr {}
 
 pub(crate) const PF_X: Elf64_Word = 1;
 
+pub(crate) const PN_XNUM: u16 = 0xffff;
+
 #[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Shdr {
