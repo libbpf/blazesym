@@ -350,18 +350,47 @@ mod tests {
         let lang = SrcLang::default();
         assert_ne!(format!("{lang:?}"), "");
 
+        let input = Input::FileOffset(0x1337);
+        assert_ne!(format!("{input:?}"), "");
+
+        let code_info = FrameCodeInfo {
+            dir: Path::new("/tmp/some-dir"),
+            file: OsStr::new("test.c"),
+            line: Some(1337),
+            column: None,
+        };
+
         let sym = Sym {
             name: "test".to_string(),
             addr: 1337,
             offset: 42,
             size: None,
             code_info: None,
-            inlined: Box::new([]),
+            inlined: Box::new([InlinedFn {
+                name: "inlined_test".to_string(),
+                code_info: Some(CodeInfo::from(&code_info)),
+                _non_exhaustive: (),
+            }]),
             _non_exhaustive: (),
         };
         assert_ne!(format!("{sym:?}"), "");
 
         let symbolized = Symbolized::Sym(sym);
         assert_ne!(format!("{symbolized:?}"), "");
+
+        let addr_code_info = AddrCodeInfo {
+            direct: (None, code_info),
+            inlined: Vec::new(),
+        };
+        assert_ne!(format!("{addr_code_info:?}"), "");
+    }
+
+    /// Test the `Symbolized::*_sym()` conversion methods for the `Unknown`
+    /// variant.
+    #[test]
+    fn symbolized_unknown_conversions() {
+        let symbolized = Symbolized::Unknown;
+        assert_eq!(symbolized.as_sym(), None);
+        assert_eq!(symbolized.into_sym(), None);
     }
 }
