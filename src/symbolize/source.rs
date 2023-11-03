@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -23,6 +24,7 @@ pub struct Apk {
 
 impl Apk {
     /// Create a new [`Apk`] object, referencing the provided path.
+    #[inline]
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
@@ -32,6 +34,7 @@ impl Apk {
 }
 
 impl From<Apk> for Source<'static> {
+    #[inline]
     fn from(apk: Apk) -> Self {
         Source::Apk(apk)
     }
@@ -39,7 +42,7 @@ impl From<Apk> for Source<'static> {
 
 impl Debug for Apk {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let Apk {
+        let Self {
             path,
             _non_exhaustive: (),
         } = self;
@@ -67,6 +70,7 @@ pub struct Elf {
 
 impl Elf {
     /// Create a new [`Elf`] object, referencing the provided path.
+    #[inline]
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
@@ -76,6 +80,7 @@ impl Elf {
 }
 
 impl From<Elf> for Source<'static> {
+    #[inline]
     fn from(elf: Elf) -> Self {
         Source::Elf(elf)
     }
@@ -83,7 +88,7 @@ impl From<Elf> for Source<'static> {
 
 impl Debug for Elf {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let Elf {
+        let Self {
             path,
             _non_exhaustive: (),
         } = self;
@@ -119,6 +124,7 @@ pub struct Kernel {
 }
 
 impl From<Kernel> for Source<'static> {
+    #[inline]
     fn from(kernel: Kernel) -> Self {
         Source::Kernel(kernel)
     }
@@ -144,6 +150,7 @@ pub struct Process {
 
 impl Process {
     /// Create a new [`Process`] object using the provided `pid`.
+    #[inline]
     pub fn new(pid: Pid) -> Self {
         Self {
             pid,
@@ -154,7 +161,7 @@ impl Process {
 
 impl Debug for Process {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let Process {
+        let Self {
             pid,
             _non_exhaustive: (),
         } = self;
@@ -167,6 +174,7 @@ impl Debug for Process {
 }
 
 impl From<Process> for Source<'static> {
+    #[inline]
     fn from(process: Process) -> Self {
         Source::Process(process)
     }
@@ -176,7 +184,7 @@ impl From<Process> for Source<'static> {
 /// Enumeration of supported Gsym sources.
 ///
 /// This type is used in the [`Source::Gsym`] variant.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum Gsym<'dat> {
     /// "Raw" Gsym data.
     Data(GsymData<'dat>),
@@ -184,8 +192,25 @@ pub enum Gsym<'dat> {
     File(GsymFile),
 }
 
+impl Debug for Gsym<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            Self::Data(data) => Debug::fmt(data, f),
+            Self::File(file) => Debug::fmt(file, f),
+        }
+    }
+}
+
+impl<'dat> From<Gsym<'dat>> for Source<'dat> {
+    #[inline]
+    fn from(gsym: Gsym<'dat>) -> Self {
+        Source::Gsym(gsym)
+    }
+}
+
+
 /// Gsym data.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GsymData<'dat> {
     /// The "raw" Gsym data.
     pub data: &'dat [u8],
@@ -196,6 +221,7 @@ pub struct GsymData<'dat> {
 
 impl<'dat> GsymData<'dat> {
     /// Create a new [`GsymData`] object, referencing the provided path.
+    #[inline]
     pub fn new(data: &'dat [u8]) -> Self {
         Self {
             data,
@@ -204,7 +230,21 @@ impl<'dat> GsymData<'dat> {
     }
 }
 
+impl Debug for GsymData<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Self {
+            data,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(GsymData))
+            .field(&data.get(0..(min(data.len(), 32))).unwrap_or_default())
+            .finish()
+    }
+}
+
 impl<'dat> From<GsymData<'dat>> for Source<'dat> {
+    #[inline]
     fn from(gsym: GsymData<'dat>) -> Self {
         Source::Gsym(Gsym::Data(gsym))
     }
@@ -212,7 +252,7 @@ impl<'dat> From<GsymData<'dat>> for Source<'dat> {
 
 
 /// A Gsym file.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct GsymFile {
     /// The path to the Gsym file.
     pub path: PathBuf,
@@ -223,6 +263,7 @@ pub struct GsymFile {
 
 impl GsymFile {
     /// Create a new [`GsymFile`] object, referencing the provided path.
+    #[inline]
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
@@ -231,7 +272,19 @@ impl GsymFile {
     }
 }
 
+impl Debug for GsymFile {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Self {
+            path,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(GsymFile)).field(path).finish()
+    }
+}
+
 impl From<GsymFile> for Source<'static> {
+    #[inline]
     fn from(gsym: GsymFile) -> Self {
         Source::Gsym(Gsym::File(gsym))
     }
@@ -280,19 +333,38 @@ mod tests {
     fn debug_repr() {
         let apk = Apk::new("/a-path/with/components.apk");
         assert_eq!(format!("{apk:?}"), "Apk(\"/a-path/with/components.apk\")");
-        let src = Source::Apk(apk);
+        let src = Source::from(apk);
         assert_eq!(format!("{src:?}"), "Apk(\"/a-path/with/components.apk\")");
 
         let elf = Elf::new("/a-path/with/components.elf");
         assert_eq!(format!("{elf:?}"), "Elf(\"/a-path/with/components.elf\")");
-        let src = Source::Elf(elf);
+        let src = Source::from(elf);
         assert_eq!(format!("{src:?}"), "Elf(\"/a-path/with/components.elf\")");
+
+        let gsym_data = GsymData::new(b"12345");
+        assert_eq!(format!("{gsym_data:?}"), "GsymData([49, 50, 51, 52, 53])");
+        let gsym = Gsym::Data(gsym_data.clone());
+        assert_eq!(format!("{gsym:?}"), "GsymData([49, 50, 51, 52, 53])");
+
+        let gsym_file = GsymFile::new("/a-path/gsym");
+        assert_eq!(format!("{gsym_file:?}"), "GsymFile(\"/a-path/gsym\")");
+        let gsym = Gsym::File(gsym_file);
+        assert_eq!(format!("{gsym:?}"), "GsymFile(\"/a-path/gsym\")");
+        let src = Source::from(gsym);
+        assert_eq!(format!("{src:?}"), "GsymFile(\"/a-path/gsym\")");
+        let src = Source::from(Gsym::Data(gsym_data));
+        assert_eq!(format!("{src:?}"), "GsymData([49, 50, 51, 52, 53])");
+
+        let kernel = Kernel::default();
+        assert_ne!(format!("{kernel:?}"), "");
+        let src = Source::from(kernel);
+        assert_ne!(format!("{src:?}"), "");
 
         let process = Process::new(Pid::Slf);
         assert_eq!(format!("{process:?}"), "Process(self)");
         let process = Process::new(Pid::from(1234));
         assert_eq!(format!("{process:?}"), "Process(1234)");
-        let src = Source::Process(process);
+        let src = Source::from(process);
         assert_eq!(format!("{src:?}"), "Process(1234)");
     }
 }
