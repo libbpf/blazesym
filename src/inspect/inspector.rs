@@ -71,8 +71,8 @@ impl Inspector {
 
     fn elf_resolver(&self, path: &Path, debug_info: bool) -> Result<Rc<ElfResolver>> {
         let mut cache = self.elf_cache.borrow_mut();
-        let (file, entry) = cache.entry(path)?;
-        let resolver = if let Some(resolver) = entry {
+        let (file, cell) = cache.entry(path)?;
+        let resolver = if let Some(resolver) = cell.get() {
             if resolver.uses_dwarf() == debug_info {
                 resolver.clone()
             } else {
@@ -83,7 +83,7 @@ impl Inspector {
             self.elf_resolver_from_parser(path, parser, debug_info)?
         };
 
-        *entry = Some(resolver.clone());
+        let resolver = cell.get_or_init(|| resolver).clone();
         Ok(resolver)
     }
 
@@ -220,7 +220,7 @@ mod tests {
         let inspector = Inspector::new();
         let resolver = || {
             let mut cache = inspector.elf_cache.borrow_mut();
-            cache.entry(&test_elf).unwrap().1.as_ref().unwrap().clone()
+            cache.entry(&test_elf).unwrap().1.get().unwrap().clone()
         };
 
         let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));

@@ -30,6 +30,7 @@ use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
 use crate::util;
 use crate::util::uname_release;
+use crate::util::OnceCellExt as _;
 use crate::zip;
 use crate::Addr;
 use crate::Error;
@@ -341,12 +342,9 @@ impl Symbolizer {
 
     fn elf_resolver(&self, path: &Path) -> Result<Rc<ElfResolver>> {
         let mut cache = self.elf_cache.borrow_mut();
-        let (file, resolver) = cache.entry(path)?;
-        if resolver.is_none() {
-            *resolver = Some(self.create_elf_resolver(path, file)?);
-        }
-        // SANITY: A resolver is always present at this point.
-        Ok(resolver.as_ref().unwrap().clone())
+        let (file, cell) = cache.entry(path)?;
+        let resolver = cell.get_or_try_init_(|| self.create_elf_resolver(path, file))?;
+        Ok(resolver.clone())
     }
 
     fn create_gsym_resolver(&self, path: &Path, file: &File) -> Result<Rc<GsymResolver<'static>>> {
@@ -356,12 +354,9 @@ impl Symbolizer {
 
     fn gsym_resolver(&self, path: &Path) -> Result<Rc<GsymResolver<'static>>> {
         let mut cache = self.gsym_cache.borrow_mut();
-        let (file, resolver) = cache.entry(path)?;
-        if resolver.is_none() {
-            *resolver = Some(self.create_gsym_resolver(path, file)?);
-        }
-        // SANITY: A resolver is always present at this point.
-        Ok(resolver.as_ref().unwrap().clone())
+        let (file, cell) = cache.entry(path)?;
+        let resolver = cell.get_or_try_init_(|| self.create_gsym_resolver(path, file))?;
+        Ok(resolver.clone())
     }
 
     fn create_apk_resolver(
@@ -408,15 +403,13 @@ impl Symbolizer {
 
     fn apk_resolver(&self, path: &Path, file_off: u64) -> Result<Option<(Rc<ElfResolver>, Addr)>> {
         let mut cache = self.apk_cache.borrow_mut();
-        let (file, data) = cache.entry(path)?;
-        if data.is_none() {
+        let (file, cell) = cache.entry(path)?;
+        let (apk, resolvers) = cell.get_or_try_init_(|| {
             let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
             let resolvers = InsertMap::new();
-            *data = Some((apk, resolvers))
-        }
+            Result::<_, Error>::Ok((apk, resolvers))
+        })?;
 
-        // SANITY: A resolver is always present at this point.
-        let (apk, ref mut resolvers) = data.as_mut().unwrap();
         let result = self.create_apk_resolver(apk, path, file_off, resolvers);
         result
     }
@@ -522,12 +515,9 @@ impl Symbolizer {
 
     fn ksym_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>> {
         let mut cache = self.ksym_cache.borrow_mut();
-        let (file, resolver) = cache.entry(path)?;
-        if resolver.is_none() {
-            *resolver = Some(self.create_ksym_resolver(path, file)?);
-        }
-        // SANITY: A resolver is always present at this point.
-        Ok(resolver.as_ref().unwrap().clone())
+        let (file, cell) = cache.entry(path)?;
+        let resolver = cell.get_or_try_init_(|| self.create_ksym_resolver(path, file))?;
+        Ok(resolver.clone())
     }
 
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {

@@ -1,3 +1,4 @@
+use std::cell::OnceCell;
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
@@ -36,12 +37,15 @@ impl EntryMeta {
 #[derive(Debug)]
 struct Entry<T> {
     file: File,
-    value: Option<T>,
+    value: OnceCell<T>,
 }
 
 impl<T> Entry<T> {
     fn new(file: File) -> Self {
-        Self { file, value: None }
+        Self {
+            file,
+            value: OnceCell::new(),
+        }
     }
 }
 
@@ -58,14 +62,14 @@ impl<T> FileCache<T> {
         }
     }
 
-    pub fn entry(&mut self, path: &Path) -> Result<(&File, &mut Option<T>)> {
+    pub fn entry(&mut self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
         let file =
             File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
         let stat = fstat(file.as_raw_fd())?;
         let meta = EntryMeta::new(path.to_path_buf(), &stat);
 
         let entry = self.cache.get_or_insert(meta, || Entry::new(file));
-        Ok((&entry.file, &mut entry.value))
+        Ok((&entry.file, &entry.value))
     }
 }
 
@@ -99,16 +103,17 @@ mod tests {
     fn lookup() {
         let mut cache = FileCache::<usize>::new();
         let tmpfile = NamedTempFile::new().unwrap();
-        {
-            let (_file, entry) = cache.entry(tmpfile.path()).unwrap();
-            assert_eq!(*entry, None);
 
-            *entry = Some(42);
+        {
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(cell.get(), None);
+
+            let () = cell.set(42).unwrap();
         }
 
         {
-            let (_file, entry) = cache.entry(tmpfile.path()).unwrap();
-            assert_eq!(*entry, Some(42));
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(cell.get(), Some(&42));
         }
     }
 
@@ -118,10 +123,10 @@ mod tests {
         let mut cache = FileCache::<usize>::new();
         let tmpfile = NamedTempFile::new().unwrap();
         let modified = {
-            let (file, entry) = cache.entry(tmpfile.path()).unwrap();
-            assert_eq!(*entry, None);
+            let (file, cell) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(cell.get(), None);
 
-            *entry = Some(42);
+            let () = cell.set(42).unwrap();
             file.metadata().unwrap().modified().unwrap()
         };
 
@@ -134,7 +139,7 @@ mod tests {
 
         {
             let (mut file, entry) = cache.entry(tmpfile.path()).unwrap();
-            assert_eq!(*entry, None);
+            assert_eq!(entry.get(), None);
             assert_ne!(file.metadata().unwrap().modified().unwrap(), modified);
 
             let mut content = Vec::new();
