@@ -47,6 +47,7 @@ mod elf;
 mod error;
 mod file_cache;
 mod gsym;
+mod insert_map;
 pub mod inspect;
 mod kernel;
 mod ksym;
