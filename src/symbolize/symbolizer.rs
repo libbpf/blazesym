@@ -1,7 +1,5 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::hash_map;
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::File;
@@ -18,6 +16,7 @@ use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::file_cache::FileCache;
 use crate::gsym::GsymResolver;
+use crate::insert_map::InsertMap;
 use crate::kernel::KernelResolver;
 use crate::ksym::KSymResolver;
 use crate::ksym::KALLSYMS;
@@ -208,7 +207,7 @@ impl Default for Builder {
 #[derive(Debug)]
 pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
-    apk_cache: RefCell<FileCache<(zip::Archive, HashMap<Range<u64>, Rc<ElfResolver>>)>>,
+    apk_cache: RefCell<FileCache<(zip::Archive, InsertMap<Range<u64>, Rc<ElfResolver>>)>>,
     elf_cache: RefCell<FileCache<Rc<ElfResolver>>>,
     gsym_cache: RefCell<FileCache<Rc<GsymResolver<'static>>>>,
     ksym_cache: RefCell<FileCache<Rc<KSymResolver>>>,
@@ -370,7 +369,7 @@ impl Symbolizer {
         apk: &zip::Archive,
         apk_path: &Path,
         file_off: u64,
-        resolver_map: &mut HashMap<Range<u64>, Rc<ElfResolver>>,
+        resolver_map: &InsertMap<Range<u64>, Rc<ElfResolver>>,
     ) -> Result<Option<(Rc<ElfResolver>, Addr)>> {
         // Find the APK entry covering the calculated file offset.
         for apk_entry in apk.entries() {
@@ -378,26 +377,23 @@ impl Symbolizer {
             let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
 
             if bounds.contains(&file_off) {
-                let resolver = match resolver_map.entry(bounds.clone()) {
-                    hash_map::Entry::Occupied(occupied) => occupied.into_mut(),
-                    hash_map::Entry::Vacant(vacancy) => {
-                        let mmap =
-                            apk.mmap()
-                                .constrain(bounds.clone())
-                                .ok_or_invalid_input(|| {
-                                    format!(
-                                        "invalid APK entry data bounds ({bounds:?}) in {}",
-                                        apk_path.display()
-                                    )
-                                })?;
-                        // Create an Android-style binary-in-APK path for
-                        // reporting purposes.
-                        let apk_elf_path = create_apk_elf_path(apk_path, apk_entry.path)?;
-                        let parser = Rc::new(ElfParser::from_mmap(mmap));
-                        let resolver = self.elf_resolver_from_parser(&apk_elf_path, parser)?;
-                        vacancy.insert(resolver)
-                    }
-                };
+                let resolver = resolver_map.get_or_try_insert(bounds.clone(), || {
+                    let mmap = apk
+                        .mmap()
+                        .constrain(bounds.clone())
+                        .ok_or_invalid_input(|| {
+                            format!(
+                                "invalid APK entry data bounds ({bounds:?}) in {}",
+                                apk_path.display()
+                            )
+                        })?;
+                    // Create an Android-style binary-in-APK path for
+                    // reporting purposes.
+                    let apk_elf_path = create_apk_elf_path(apk_path, apk_entry.path)?;
+                    let parser = Rc::new(ElfParser::from_mmap(mmap));
+                    let resolver = self.elf_resolver_from_parser(&apk_elf_path, parser)?;
+                    Ok(resolver)
+                })?;
 
                 let elf_off = file_off - apk_entry.data_offset;
                 if let Some(addr) = elf_offset_to_address(elf_off, resolver.parser())? {
@@ -415,7 +411,7 @@ impl Symbolizer {
         let (file, data) = cache.entry(path)?;
         if data.is_none() {
             let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
-            let resolvers = HashMap::new();
+            let resolvers = InsertMap::new();
             *data = Some((apk, resolvers))
         }
 
