@@ -1,10 +1,9 @@
-use std::collections::hash_map;
-use std::collections::HashMap;
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::insert_map::InsertMap;
 use crate::util::fstat;
 use crate::ErrorExt as _;
 use crate::Result;
@@ -49,13 +48,13 @@ impl<T> Entry<T> {
 
 #[derive(Debug)]
 pub(crate) struct FileCache<T> {
-    cache: HashMap<EntryMeta, Entry<T>>,
+    cache: InsertMap<EntryMeta, Entry<T>>,
 }
 
 impl<T> FileCache<T> {
     pub fn new() -> Self {
         Self {
-            cache: HashMap::new(),
+            cache: InsertMap::new(),
         }
     }
 
@@ -65,16 +64,8 @@ impl<T> FileCache<T> {
         let stat = fstat(file.as_raw_fd())?;
         let meta = EntryMeta::new(path.to_path_buf(), &stat);
 
-        match self.cache.entry(meta) {
-            hash_map::Entry::Occupied(occupied) => {
-                let entry = occupied.into_mut();
-                Ok((&entry.file, &mut entry.value))
-            }
-            hash_map::Entry::Vacant(vacancy) => {
-                let entry = vacancy.insert(Entry::new(file));
-                Ok((&entry.file, &mut entry.value))
-            }
-        }
+        let entry = self.cache.get_or_insert(meta, || Entry::new(file));
+        Ok((&entry.file, &mut entry.value))
     }
 }
 
