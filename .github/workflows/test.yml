@@ -133,6 +133,25 @@ jobs:
         profile: minimal
         override: true
     - run: cargo test --workspace --release
+  test-miri:
+    name: Test with Miri
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Miri
+      run: |
+        rustup toolchain install nightly --component miri
+        rustup override set nightly
+        cargo miri setup
+    # Miri would honor our custom test runner, but doesn't work with it. We
+    # could conceivably override that by specifying
+    # CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER, except it appears as if Miri
+    # uses the runner itself. In short, it's a mess. Just remove any
+    # such custom configuration when running Miri.
+    - name: Remove .cargo/config
+      run: rm .cargo/config
+    - name: Run tests
+      run: cargo miri test --features=dont-generate-unit-test-files -- "insert_map::" "util::"
   c-header:
     name: Check generated C header
     runs-on: ubuntu-latest
@@ -179,7 +198,6 @@ jobs:
         # libtest style benchmarks above. Sigh.
         cargo bench --bench=main --features=generate-large-test-files,dont-generate-unit-test-files -- --output-format=bencher | tee --append $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-
   clippy:
     name: Lint with clippy
     runs-on: ubuntu-latest
