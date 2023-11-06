@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::fs::File;
 use std::mem;
 use std::mem::swap;
 use std::path::Path;
@@ -45,12 +46,22 @@ pub struct GsymResolver<'dat> {
 }
 
 impl GsymResolver<'static> {
-    /// Create a `GsymResolver` that load data from the provided file.
-    pub fn new(file_name: PathBuf) -> Result<Self> {
-        let mmap = Mmap::builder().open(&file_name)?;
+    /// Create a `GsymResolver` that loads data from the provided file.
+    #[cfg(test)]
+    pub fn new(path: PathBuf) -> Result<Self> {
+        let mmap = Mmap::builder().open(&path)?;
+        Self::from_mmap(path, mmap)
+    }
+
+    pub fn from_file(path: PathBuf, file: &File) -> Result<Self> {
+        let mmap = Mmap::map(file)?;
+        Self::from_mmap(path, mmap)
+    }
+
+    fn from_mmap(path: PathBuf, mmap: Mmap) -> Result<Self> {
         let ctx = GsymContext::parse_header(&mmap)?;
         let slf = Self {
-            file_name: Some(file_name),
+            file_name: Some(path),
             // SAFETY: We own the underlying `Mmap` object and never hand out
             //         any 'static references to its data. So it is safe for us
             //         to transmute the lifetime.
