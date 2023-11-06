@@ -186,7 +186,7 @@ impl SymResolver for GsymResolver<'_> {
         _opts: &FindAddrOpts,
     ) -> Result<Vec<SymInfo<'slf>>> {
         // It is inefficient to find the address of a symbol with
-        // GSYM.  We may support it in the future if needed.
+        // Gsym. We may support it in the future if needed.
         Ok(Vec::new())
     }
 
@@ -389,5 +389,18 @@ mod tests {
         assert_eq!(info.direct.1.line, Some(21));
         assert_eq!(info.direct.1.file, "test-stable-addresses.c");
         assert_eq!(info.inlined, Vec::new());
+    }
+
+    /// Check that [`GsymResolver::find_addr`] behaves as expected.
+    #[test]
+    fn unsupported_find_addr() {
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.gsym");
+        let resolver = GsymResolver::new(test_gsym).unwrap();
+        let syms = resolver
+            .find_addr("factorial", &FindAddrOpts::default())
+            .unwrap();
+        assert_eq!(syms, Vec::new());
     }
 }
