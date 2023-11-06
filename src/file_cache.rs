@@ -10,43 +10,46 @@ use crate::ErrorExt as _;
 use crate::Result;
 
 
-#[derive(Debug)]
-struct Entry<T> {
+#[derive(Debug, Eq, Hash, PartialEq)]
+struct EntryMeta {
+    path: PathBuf,
     dev: libc::dev_t,
     inode: libc::ino_t,
     size: libc::off_t,
     mtime_sec: libc::time_t,
     mtime_nsec: i64,
-    file: File,
-    value: Option<T>,
 }
 
-impl<T> Entry<T> {
-    fn new(stat: &libc::stat, file: File) -> Self {
+impl EntryMeta {
+    fn new(path: PathBuf, stat: &libc::stat) -> Self {
         Self {
+            path,
             dev: stat.st_dev,
             inode: stat.st_ino,
             size: stat.st_size,
             mtime_sec: stat.st_mtime,
             mtime_nsec: stat.st_mtime_nsec,
-            file,
-            value: None,
         }
     }
+}
 
-    fn is_current(&self, stat: &libc::stat) -> bool {
-        stat.st_dev == self.dev
-            && stat.st_ino == self.inode
-            && stat.st_size == self.size
-            && stat.st_mtime == self.mtime_sec
-            && stat.st_mtime_nsec == self.mtime_nsec
+
+#[derive(Debug)]
+struct Entry<T> {
+    file: File,
+    value: Option<T>,
+}
+
+impl<T> Entry<T> {
+    fn new(file: File) -> Self {
+        Self { file, value: None }
     }
 }
 
 
 #[derive(Debug)]
 pub(crate) struct FileCache<T> {
-    cache: HashMap<PathBuf, Entry<T>>,
+    cache: HashMap<EntryMeta, Entry<T>>,
 }
 
 impl<T> FileCache<T> {
@@ -60,21 +63,15 @@ impl<T> FileCache<T> {
         let file =
             File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
         let stat = fstat(file.as_raw_fd())?;
+        let meta = EntryMeta::new(path.to_path_buf(), &stat);
 
-        match self.cache.entry(path.to_path_buf()) {
-            hash_map::Entry::Occupied(mut occupied) => {
-                if occupied.get().is_current(&stat) {
-                    let entry = occupied.into_mut();
-                    return Ok((&entry.file, &mut entry.value))
-                }
-                let entry = Entry::new(&stat, file);
-                let _old = occupied.insert(entry);
+        match self.cache.entry(meta) {
+            hash_map::Entry::Occupied(occupied) => {
                 let entry = occupied.into_mut();
                 Ok((&entry.file, &mut entry.value))
             }
             hash_map::Entry::Vacant(vacancy) => {
-                let entry = Entry::new(&stat, file);
-                let entry = vacancy.insert(entry);
+                let entry = vacancy.insert(Entry::new(file));
                 Ok((&entry.file, &mut entry.value))
             }
         }
@@ -91,18 +88,18 @@ mod tests {
     use std::thread::sleep;
     use std::time::Duration;
 
+    use tempfile::tempfile;
     use tempfile::NamedTempFile;
 
 
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let mut cache = FileCache::<()>::new();
+        let cache = FileCache::<()>::new();
         assert_ne!(format!("{cache:?}"), "");
 
-        let tmpfile = NamedTempFile::new().unwrap();
-        let (_file, _entry) = cache.entry(tmpfile.path()).unwrap();
-        let entry = cache.cache.get(tmpfile.path()).unwrap();
+        let tmpfile = tempfile().unwrap();
+        let entry = Entry::<usize>::new(tmpfile);
         assert_ne!(format!("{entry:?}"), "");
     }
 
