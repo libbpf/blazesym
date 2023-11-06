@@ -151,6 +151,34 @@ mod tests {
 
     use std::path::Path;
 
+    #[cfg(feature = "dwarf")]
+    use crate::dwarf::DwarfResolver;
+
+
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.bin");
+
+        let parser = Rc::new(ElfParser::open(&path).unwrap());
+        let backend = ElfBackend::Elf(parser.clone());
+        let resolver = ElfResolver::with_backend(&path, backend).unwrap();
+        let dbg = format!("{resolver:?}");
+        assert!(dbg.starts_with("ELF"), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
+
+        #[cfg(feature = "dwarf")]
+        {
+            let dwarf = DwarfResolver::from_parser(parser, true).unwrap();
+            let backend = ElfBackend::Dwarf(Rc::new(dwarf));
+            let resolver = ElfResolver::with_backend(&path, backend).unwrap();
+            let dbg = format!("{resolver:?}");
+            assert!(dbg.starts_with("DWARF"), "{dbg}");
+            assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
+        }
+    }
 
     /// Check that we fail finding an offset for an address not
     /// representing a symbol in an ELF file.

@@ -335,6 +335,19 @@ mod tests {
     use test_log::test;
 
 
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.gsym");
+
+        let resolver = GsymResolver::new(test_gsym).unwrap();
+        let dbg = format!("{resolver:?}");
+        assert!(dbg.starts_with("GSYM"), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addresses.gsym"), "{dbg}");
+    }
+
     /// Check that we can create a `GsymResolver` using a "raw" slice of data.
     #[test]
     fn creation_from_raw_data() {
