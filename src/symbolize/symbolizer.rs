@@ -166,11 +166,13 @@ impl Builder {
         } = self;
         let apk_cache = RefCell::new(FileCache::new());
         let elf_cache = RefCell::new(FileCache::new());
+        let gsym_cache = RefCell::new(FileCache::new());
         let ksym_cache = RefCell::new(FileCache::new());
 
         Symbolizer {
             apk_cache,
             elf_cache,
+            gsym_cache,
             ksym_cache,
             debug_syms,
             code_info,
@@ -208,6 +210,7 @@ pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
     apk_cache: RefCell<FileCache<(zip::Archive, HashMap<Range<u64>, Rc<ElfResolver>>)>>,
     elf_cache: RefCell<FileCache<Rc<ElfResolver>>>,
+    gsym_cache: RefCell<FileCache<Rc<GsymResolver<'static>>>>,
     ksym_cache: RefCell<FileCache<Rc<KSymResolver>>>,
     debug_syms: bool,
     code_info: bool,
@@ -342,6 +345,21 @@ impl Symbolizer {
         let (file, resolver) = cache.entry(path)?;
         if resolver.is_none() {
             *resolver = Some(self.create_elf_resolver(path, file)?);
+        }
+        // SANITY: A resolver is always present at this point.
+        Ok(resolver.as_ref().unwrap().clone())
+    }
+
+    fn create_gsym_resolver(&self, path: &Path, file: &File) -> Result<Rc<GsymResolver<'static>>> {
+        let resolver = GsymResolver::from_file(path.to_path_buf(), file)?;
+        Ok(Rc::new(resolver))
+    }
+
+    fn gsym_resolver(&self, path: &Path) -> Result<Rc<GsymResolver<'static>>> {
+        let mut cache = self.gsym_cache.borrow_mut();
+        let (file, resolver) = cache.entry(path)?;
+        if resolver.is_none() {
+            *resolver = Some(self.create_gsym_resolver(path, file)?);
         }
         // SANITY: A resolver is always present at this point.
         Ok(resolver.as_ref().unwrap().clone())
@@ -732,8 +750,8 @@ impl Symbolizer {
                     }
                 };
 
-                let resolver = GsymResolver::new(path.clone())?;
-                let symbols = self.symbolize_addrs(addrs, &resolver)?;
+                let resolver = self.gsym_resolver(path)?;
+                let symbols = self.symbolize_addrs(addrs, resolver.deref())?;
                 Ok(symbols)
             }
         }
@@ -869,8 +887,8 @@ impl Symbolizer {
                     }
                 };
 
-                let resolver = GsymResolver::new(path.clone())?;
-                self.symbolize_with_resolver(addr, &resolver)
+                let resolver = self.gsym_resolver(path)?;
+                self.symbolize_with_resolver(addr, resolver.deref())
             }
         }
     }

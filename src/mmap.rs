@@ -3,6 +3,7 @@ use std::io;
 use std::ops::Deref;
 use std::ops::Range;
 use std::os::unix::io::AsRawFd;
+#[cfg(test)]
 use std::path::Path;
 use std::ptr::null_mut;
 use std::rc::Rc;
@@ -34,6 +35,7 @@ impl Builder {
     }
 
     /// Memory map the file at the provided `path`.
+    #[cfg(test)]
     pub fn open<P>(self, path: P) -> Result<Mmap>
     where
         P: AsRef<Path>,
