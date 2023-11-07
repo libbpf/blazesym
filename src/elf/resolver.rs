@@ -67,6 +67,13 @@ impl ElfResolver {
 impl SymResolver for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
     fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
+        #[cfg(feature = "dwarf")]
+        if let ElfBackend::Dwarf(dwarf) = &self.backend {
+            if let Some(sym) = dwarf.find_sym(addr)? {
+                return Ok(Some(sym))
+            }
+        }
+
         let parser = self.parser();
         if let Some((name, addr, size)) = parser.find_sym(addr, STT_FUNC)? {
             // ELF does not carry any source code language information.
@@ -81,13 +88,9 @@ impl SymResolver for ElfResolver {
                 size: Some(size),
                 lang,
             };
-            return Ok(Some(sym))
-        }
-
-        match &self.backend {
-            #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(dwarf) => dwarf.find_sym(addr),
-            ElfBackend::Elf(_) => Ok(None),
+            Ok(Some(sym))
+        } else {
+            Ok(None)
         }
     }
 
@@ -97,19 +100,17 @@ impl SymResolver for ElfResolver {
             name: &str,
             opts: &FindAddrOpts,
         ) -> Result<Vec<SymInfo<'slf>>> {
-            let parser = slf.parser();
-            let syms = parser.find_addr(name, opts)?;
-            if !syms.is_empty() {
-                // We found symbols in ELF and DWARF wouldn't add information on
-                // top. So just roll with that.
-                return Ok(syms)
+            #[cfg(feature = "dwarf")]
+            if let ElfBackend::Dwarf(dwarf) = &slf.backend {
+                let syms = dwarf.find_addr(name, opts)?;
+                if !syms.is_empty() {
+                    return Ok(syms)
+                }
             }
 
-            match &slf.backend {
-                #[cfg(feature = "dwarf")]
-                ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
-                ElfBackend::Elf(_) => Ok(Vec::new()),
-            }
+            let parser = slf.parser();
+            let syms = parser.find_addr(name, opts)?;
+            Ok(syms)
         }
 
         let mut syms = find_addr_impl(self, name, opts)?;
