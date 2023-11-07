@@ -1,10 +1,10 @@
-use std::cell::OnceCell;
 use std::fs::File;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::insert_map::InsertMap;
+use crate::once::OnceCell;
 use crate::util::fstat;
 use crate::ErrorExt as _;
 use crate::Result;
