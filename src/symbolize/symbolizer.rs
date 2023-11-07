@@ -947,6 +947,25 @@ mod tests {
         assert_eq!(info.to_path(), Path::new("/foobar/source.c"));
     }
 
+    /// Make sure that we can demangle symbols.
+    #[test]
+    fn demangle() {
+        if !cfg!(feature = "demangle") {
+            return
+        }
+
+        let symbol = Cow::Borrowed("_ZN4core9panicking9panic_fmt17h5f1a6fd39197ad62E");
+        let name = maybe_demangle(symbol, SrcLang::Rust);
+        assert_eq!(name, "core::panicking::panic_fmt");
+
+        let symbol = Cow::Borrowed("_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc");
+        let name = maybe_demangle(symbol, SrcLang::Cpp);
+        assert_eq!(
+            name,
+            "std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*)"
+        );
+    }
+
     /// Make sure that we error out as expected on certain input
     /// variants.
     #[test]
