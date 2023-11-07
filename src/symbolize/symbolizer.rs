@@ -335,10 +335,10 @@ impl Symbolizer {
         self.elf_resolver_from_parser(path, parser)
     }
 
-    fn elf_resolver(&self, path: &Path) -> Result<Rc<ElfResolver>> {
+    fn elf_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<ElfResolver>> {
         let (file, cell) = self.elf_cache.entry(path)?;
         let resolver = cell.get_or_try_init_(|| self.create_elf_resolver(path, file))?;
-        Ok(resolver.clone())
+        Ok(resolver)
     }
 
     fn create_gsym_resolver(&self, path: &Path, file: &File) -> Result<Rc<GsymResolver<'static>>> {
@@ -346,19 +346,19 @@ impl Symbolizer {
         Ok(Rc::new(resolver))
     }
 
-    fn gsym_resolver(&self, path: &Path) -> Result<Rc<GsymResolver<'static>>> {
+    fn gsym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<GsymResolver<'static>>> {
         let (file, cell) = self.gsym_cache.entry(path)?;
         let resolver = cell.get_or_try_init_(|| self.create_gsym_resolver(path, file))?;
-        Ok(resolver.clone())
+        Ok(resolver)
     }
 
-    fn create_apk_resolver(
-        &self,
+    fn create_apk_resolver<'slf>(
+        &'slf self,
         apk: &zip::Archive,
         apk_path: &Path,
         file_off: u64,
-        resolver_map: &InsertMap<Range<u64>, Rc<ElfResolver>>,
-    ) -> Result<Option<(Rc<ElfResolver>, Addr)>> {
+        resolver_map: &'slf InsertMap<Range<u64>, Rc<ElfResolver>>,
+    ) -> Result<Option<(&'slf Rc<ElfResolver>, Addr)>> {
         // Find the APK entry covering the calculated file offset.
         for apk_entry in apk.entries() {
             let apk_entry = apk_entry?;
@@ -385,7 +385,7 @@ impl Symbolizer {
 
                 let elf_off = file_off - apk_entry.data_offset;
                 if let Some(addr) = elf_offset_to_address(elf_off, resolver.parser())? {
-                    return Ok(Some((resolver.clone(), addr)))
+                    return Ok(Some((resolver, addr)))
                 }
                 break
             }
@@ -394,7 +394,11 @@ impl Symbolizer {
         Ok(None)
     }
 
-    fn apk_resolver(&self, path: &Path, file_off: u64) -> Result<Option<(Rc<ElfResolver>, Addr)>> {
+    fn apk_resolver<'slf>(
+        &'slf self,
+        path: &Path,
+        file_off: u64,
+    ) -> Result<Option<(&'slf Rc<ElfResolver>, Addr)>> {
         let (file, cell) = self.apk_cache.entry(path)?;
         let (apk, resolvers) = cell.get_or_try_init_(|| {
             let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
@@ -505,10 +509,10 @@ impl Symbolizer {
         Ok(resolver)
     }
 
-    fn ksym_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>> {
+    fn ksym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<KSymResolver>> {
         let (file, cell) = self.ksym_cache.entry(path)?;
         let resolver = cell.get_or_try_init_(|| self.create_ksym_resolver(path, file))?;
-        Ok(resolver.clone())
+        Ok(resolver)
     }
 
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
@@ -565,7 +569,7 @@ impl Symbolizer {
             }
         };
 
-        KernelResolver::new(ksym_resolver, elf_resolver)
+        KernelResolver::new(ksym_resolver.cloned(), elf_resolver.cloned())
     }
 
     /// Symbolize a list of addresses.
