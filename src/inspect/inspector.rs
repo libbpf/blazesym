@@ -1,3 +1,4 @@
+use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
@@ -8,6 +9,7 @@ use crate::elf::ElfBackend;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::file_cache::FileCache;
+use crate::util::OnceCellExt as _;
 use crate::Result;
 use crate::SymResolver;
 
@@ -16,6 +18,16 @@ use super::source::Source;
 use super::FindAddrOpts;
 use super::SymInfo;
 use super::SymType;
+
+
+/// Resolver data associated with a specific source.
+#[derive(Clone, Debug)]
+struct ResolverData {
+    /// A bare-bones ELF resolver.
+    elf: OnceCell<Rc<ElfResolver>>,
+    /// An ELF resolver with debug information enabled.
+    dwarf: OnceCell<Rc<ElfResolver>>,
+}
 
 
 /// An inspector of various "sources".
@@ -33,7 +45,7 @@ use super::SymType;
 /// to consider creating a new `Inspector` instance regularly.
 #[derive(Debug)]
 pub struct Inspector {
-    elf_cache: RefCell<FileCache<Rc<ElfResolver>>>,
+    elf_cache: RefCell<FileCache<ResolverData>>,
 }
 
 impl Inspector {
@@ -72,18 +84,44 @@ impl Inspector {
     fn elf_resolver(&self, path: &Path, debug_info: bool) -> Result<Rc<ElfResolver>> {
         let mut cache = self.elf_cache.borrow_mut();
         let (file, cell) = cache.entry(path)?;
-        let resolver = if let Some(resolver) = cell.get() {
-            if resolver.uses_dwarf() == debug_info {
-                resolver.clone()
+        let resolver = if let Some(data) = cell.get() {
+            if debug_info {
+                data.dwarf.get_or_try_init_(|| {
+                    // SANITY: We *know* a `ResolverData` object is present and
+                    //         given that we are initializing the `dwarf` part
+                    //         of it, the `elf` part *must* be present.
+                    let parser = data.elf.get().unwrap().parser().clone();
+                    self.elf_resolver_from_parser(path, parser, true)
+                })?
             } else {
-                self.elf_resolver_from_parser(path, resolver.parser().clone(), debug_info)?
+                data.elf.get_or_try_init_(|| {
+                    // SANITY: We *know* a `ResolverData` object is present and
+                    //         given that we are initializing the `elf` part of
+                    //         it, the `dwarf` part *must* be present.
+                    let parser = data.dwarf.get().unwrap().parser().clone();
+                    self.elf_resolver_from_parser(path, parser, false)
+                })?
             }
+            .clone()
         } else {
             let parser = Rc::new(ElfParser::open_file(file)?);
             self.elf_resolver_from_parser(path, parser, debug_info)?
         };
 
-        let resolver = cell.get_or_init(|| resolver).clone();
+        let _data = cell.get_or_init(|| {
+            if debug_info {
+                ResolverData {
+                    dwarf: OnceCell::from(resolver.clone()),
+                    elf: OnceCell::new(),
+                }
+            } else {
+                ResolverData {
+                    dwarf: OnceCell::new(),
+                    elf: OnceCell::from(resolver.clone()),
+                }
+            }
+        });
+
         Ok(resolver)
     }
 
@@ -218,24 +256,30 @@ mod tests {
         assert!(elf.debug_info);
 
         let inspector = Inspector::new();
-        let resolver = || {
+        let data = || {
             let mut cache = inspector.elf_cache.borrow_mut();
             cache.entry(&test_elf).unwrap().1.get().unwrap().clone()
         };
 
         let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));
-        let resolver1 = resolver();
+        let data1 = data();
 
         let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));
-        let resolver2 = resolver();
-        assert!(Rc::ptr_eq(&resolver1, &resolver2));
+        let data2 = data();
+        assert!(Rc::ptr_eq(
+            data1.dwarf.get().unwrap(),
+            data2.dwarf.get().unwrap()
+        ));
 
         // When changing whether we use debug information we should create a new
         // resolver.
         elf.debug_info = false;
 
         let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));
-        let resolver3 = resolver();
-        assert!(!Rc::ptr_eq(&resolver1, &resolver3));
+        let data3 = data();
+        assert!(!Rc::ptr_eq(
+            data1.dwarf.get().unwrap(),
+            data3.elf.get().unwrap()
+        ));
     }
 }
