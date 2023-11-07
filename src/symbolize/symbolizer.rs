@@ -47,7 +47,7 @@ use super::source::GsymFile;
 use super::source::Kernel;
 use super::source::Process;
 use super::source::Source;
-use super::CodeInfo;
+use super::AddrCodeInfo;
 use super::InlinedFn;
 use super::Input;
 use super::IntSym;
@@ -189,6 +189,26 @@ impl Default for Builder {
 }
 
 
+/// An enumeration helping us to differentiate between cached and uncached
+/// symbol resolvers.
+///
+/// An "uncached" resolver is one that is created on the spot. We do so for
+/// cases when we keep the input data, for example (e.g., when we have no
+/// control over its lifetime).
+/// A "cached" resolver is one that ultimately lives in one of our internal
+/// caches. These caches have the same lifetime as the `Symbolizer` object
+/// itself (represented here as `'slf`).
+///
+/// Object of this type are at the core of our logic determining whether to
+/// heap allocate certain data such as paths or symbol names or whether to just
+/// hand out references to mmap'ed data.
+#[derive(Debug)]
+enum Resolver<'tmp, 'slf> {
+    Uncached(&'tmp (dyn SymResolver + 'tmp)),
+    Cached(&'slf dyn SymResolver),
+}
+
+
 /// Symbolizer provides an interface to symbolize addresses.
 ///
 /// An instance of this type is the unit at which symbolization inputs are
@@ -236,60 +256,100 @@ impl Symbolizer {
 
     /// Symbolize an address using the provided [`SymResolver`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver)))]
-    fn symbolize_with_resolver(
-        &self,
+    fn symbolize_with_resolver<'slf>(
+        &'slf self,
         addr: Addr,
-        resolver: &dyn SymResolver,
-    ) -> Result<Symbolized> {
-        let sym = if let Some(sym) = resolver.find_sym(addr)? {
-            sym
-        } else {
-            return Ok(Symbolized::Unknown)
+        resolver: &Resolver<'_, 'slf>,
+    ) -> Result<Symbolized<'slf>> {
+        let (sym_name, sym_addr, sym_size, lang) = match resolver {
+            Resolver::Uncached(resolver) => {
+                if let Some(sym) = resolver.find_sym(addr)? {
+                    let IntSym {
+                        name: sym_name,
+                        addr: sym_addr,
+                        size: sym_size,
+                        lang,
+                    } = sym;
+
+                    (Cow::Owned(sym_name.to_string()), sym_addr, sym_size, lang)
+                } else {
+                    return Ok(Symbolized::Unknown)
+                }
+            }
+            Resolver::Cached(resolver) => {
+                if let Some(sym) = resolver.find_sym(addr)? {
+                    let IntSym {
+                        name: sym_name,
+                        addr: sym_addr,
+                        size: sym_size,
+                        lang,
+                    } = sym;
+
+                    (Cow::Borrowed(sym_name), sym_addr, sym_size, lang)
+                } else {
+                    return Ok(Symbolized::Unknown)
+                }
+            }
         };
 
-        let addr_code_info = if self.code_info {
-            resolver.find_code_info(addr, self.inlined_fns)?
-        } else {
-            None
-        };
-
-        let (name, code_info) = if let Some(info) = &addr_code_info {
-            let name = info.direct.0;
-            let code_info = &info.direct.1;
-            (name, Some(CodeInfo::from(code_info)))
-        } else {
-            (None, None)
-        };
-
-        let IntSym {
-            name: sym_name,
-            addr: sym_addr,
-            size: sym_size,
-            lang,
-        } = sym;
-
-        let inlined = if let Some(code_info) = &addr_code_info {
-            code_info
-                .inlined
-                .iter()
-                .map(|(name, info)| {
-                    let name = self.maybe_demangle(Cow::Borrowed(name), lang);
-                    let info = info.as_ref().map(CodeInfo::from);
-                    InlinedFn {
-                        name: name.to_string(),
-                        code_info: info,
-                        _non_exhaustive: (),
+        let (name, code_info, inlined) = if self.code_info {
+            match resolver {
+                Resolver::Uncached(resolver) => {
+                    let addr_code_info = resolver.find_code_info(addr, self.inlined_fns)?;
+                    if let Some(AddrCodeInfo {
+                        direct: (direct_name, direct_code_info),
+                        inlined,
+                    }) = addr_code_info
+                    {
+                        let direct_name = direct_name.map(|name| Cow::Owned(name.to_string()));
+                        let direct_code_info = direct_code_info.to_owned();
+                        let inlined = inlined
+                            .into_iter()
+                            .map(|(name, info)| {
+                                let name = self.maybe_demangle(Cow::Owned(name.to_string()), lang);
+                                InlinedFn {
+                                    name,
+                                    code_info: info.map(|info| info.to_owned()),
+                                    _non_exhaustive: (),
+                                }
+                            })
+                            .collect();
+                        (direct_name, Some(direct_code_info), inlined)
+                    } else {
+                        (None, None, Vec::new())
                     }
-                })
-                .collect()
+                }
+                Resolver::Cached(resolver) => {
+                    let addr_code_info = resolver.find_code_info(addr, self.inlined_fns)?;
+                    if let Some(AddrCodeInfo {
+                        direct: (direct_name, direct_code_info),
+                        inlined,
+                    }) = addr_code_info
+                    {
+                        let direct_name = direct_name.map(Cow::Borrowed);
+                        let inlined = inlined
+                            .into_iter()
+                            .map(|(name, info)| {
+                                let name = self.maybe_demangle(Cow::Borrowed(name), lang);
+                                InlinedFn {
+                                    name,
+                                    code_info: info,
+                                    _non_exhaustive: (),
+                                }
+                            })
+                            .collect();
+                        (direct_name, Some(direct_code_info), inlined)
+                    } else {
+                        (None, None, Vec::new())
+                    }
+                }
+            }
         } else {
-            Vec::new()
+            (None, None, Vec::new())
         };
 
         let sym = Sym {
-            name: self
-                .maybe_demangle(Cow::Borrowed(name.unwrap_or(sym_name)), lang)
-                .to_string(),
+            name: self.maybe_demangle(name.unwrap_or(sym_name), lang),
             addr: sym_addr,
             offset: (addr - sym_addr) as usize,
             size: sym_size,
@@ -301,10 +361,10 @@ impl Symbolizer {
     }
 
     /// Symbolize a list of addresses using the provided [`SymResolver`].
-    fn symbolize_addrs(
-        &self,
+    fn symbolize_addrs<'slf>(
+        &'slf self,
         addrs: &[Addr],
-        resolver: &dyn SymResolver,
+        resolver: &Resolver<'_, 'slf>,
     ) -> Result<Vec<Symbolized>> {
         addrs
             .iter()
@@ -412,7 +472,7 @@ impl Symbolizer {
 
     fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Symbolized> {
         let resolver = self.elf_resolver(path)?;
-        let symbolized = self.symbolize_with_resolver(addr, resolver.deref())?;
+        let symbolized = self.symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))?;
         Ok(symbolized)
     }
 
@@ -423,7 +483,7 @@ impl Symbolizer {
             /// The "outer" `Symbolizer` instance.
             symbolizer: &'sym Symbolizer,
             /// Symbols representing the symbolized addresses.
-            all_symbols: Vec<Symbolized>,
+            all_symbols: Vec<Symbolized<'sym>>,
         }
 
         impl SymbolizeHandler<'_> {
@@ -432,9 +492,10 @@ impl Symbolizer {
                 let apk_path = &entry.path.symbolic_path;
                 match self.symbolizer.apk_resolver(apk_path, file_off)? {
                     Some((elf_resolver, elf_addr)) => {
-                        let symbol = self
-                            .symbolizer
-                            .symbolize_with_resolver(elf_addr, elf_resolver.deref())?;
+                        let symbol = self.symbolizer.symbolize_with_resolver(
+                            elf_addr,
+                            &Resolver::Cached(elf_resolver.deref()),
+                        )?;
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
@@ -600,7 +661,11 @@ impl Symbolizer {
     /// |        | source code location information | no                   | N/A                    |
     /// |        | inlined function information     | no                   | N/A                    |
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{input:#x?}"))))]
-    pub fn symbolize(&self, src: &Source, input: Input<&[u64]>) -> Result<Vec<Symbolized>> {
+    pub fn symbolize<'slf>(
+        &'slf self,
+        src: &Source,
+        input: Input<&[u64]>,
+    ) -> Result<Vec<Symbolized<'slf>>> {
         match src {
             Source::Apk(Apk {
                 path,
@@ -619,9 +684,10 @@ impl Symbolizer {
                 Input::FileOffset(offsets) => offsets
                     .iter()
                     .map(|offset| match self.apk_resolver(path, *offset)? {
-                        Some((elf_resolver, elf_addr)) => {
-                            self.symbolize_with_resolver(elf_addr, elf_resolver.deref())
-                        }
+                        Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
+                            elf_addr,
+                            &Resolver::Cached(elf_resolver.deref()),
+                        ),
                         None => Ok(Symbolized::Unknown),
                     })
                     .collect(),
@@ -634,7 +700,9 @@ impl Symbolizer {
                 match input {
                     Input::VirtOffset(addrs) => addrs
                         .iter()
-                        .map(|addr| self.symbolize_with_resolver(*addr, resolver.deref()))
+                        .map(|addr| {
+                            self.symbolize_with_resolver(*addr, &Resolver::Cached(resolver.deref()))
+                        })
                         .collect(),
                     Input::AbsAddr(..) => {
                         return Err(Error::with_unsupported(
@@ -645,7 +713,10 @@ impl Symbolizer {
                         .iter()
                         .map(
                             |offset| match elf_offset_to_address(*offset, resolver.parser())? {
-                                Some(addr) => self.symbolize_with_resolver(addr, resolver.deref()),
+                                Some(addr) => self.symbolize_with_resolver(
+                                    addr,
+                                    &Resolver::Cached(resolver.deref()),
+                                ),
                                 None => Ok(Symbolized::Unknown),
                             },
                         )
@@ -667,8 +738,8 @@ impl Symbolizer {
                     }
                 };
 
-                let resolver = self.create_kernel_resolver(kernel)?;
-                let symbols = self.symbolize_addrs(addrs, &resolver)?;
+                let resolver = Rc::new(self.create_kernel_resolver(kernel)?);
+                let symbols = self.symbolize_addrs(addrs, &Resolver::Uncached(resolver.deref()))?;
                 Ok(symbols)
             }
             Source::Process(Process {
@@ -709,8 +780,8 @@ impl Symbolizer {
                     }
                 };
 
-                let resolver = GsymResolver::with_data(data)?;
-                let symbols = self.symbolize_addrs(addrs, &resolver)?;
+                let resolver = Rc::new(GsymResolver::with_data(data)?);
+                let symbols = self.symbolize_addrs(addrs, &Resolver::Uncached(resolver.deref()))?;
                 Ok(symbols)
             }
             Source::Gsym(Gsym::File(GsymFile {
@@ -732,7 +803,7 @@ impl Symbolizer {
                 };
 
                 let resolver = self.gsym_resolver(path)?;
-                let symbols = self.symbolize_addrs(addrs, resolver.deref())?;
+                let symbols = self.symbolize_addrs(addrs, &Resolver::Cached(resolver.deref()))?;
                 Ok(symbols)
             }
         }
@@ -744,7 +815,11 @@ impl Symbolizer {
     /// using [`symbolize`][Self::symbolize]. However, in cases where only a
     /// single address is available, this method provides a more convenient API.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, input = format_args!("{input:#x?}"))))]
-    pub fn symbolize_single(&self, src: &Source, input: Input<u64>) -> Result<Symbolized> {
+    pub fn symbolize_single<'slf>(
+        &'slf self,
+        src: &Source,
+        input: Input<u64>,
+    ) -> Result<Symbolized<'slf>> {
         match src {
             Source::Apk(Apk {
                 path,
@@ -761,9 +836,8 @@ impl Symbolizer {
                     ))
                 }
                 Input::FileOffset(offset) => match self.apk_resolver(path, offset)? {
-                    Some((elf_resolver, elf_addr)) => {
-                        self.symbolize_with_resolver(elf_addr, elf_resolver.deref())
-                    }
+                    Some((elf_resolver, elf_addr)) => self
+                        .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver.deref())),
                     None => return Ok(Symbolized::Unknown),
                 },
             },
@@ -787,7 +861,7 @@ impl Symbolizer {
                     }
                 };
 
-                self.symbolize_with_resolver(addr, resolver.deref())
+                self.symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))
             }
             Source::Kernel(kernel) => {
                 let addr = match input {
@@ -804,8 +878,8 @@ impl Symbolizer {
                     }
                 };
 
-                let resolver = self.create_kernel_resolver(kernel)?;
-                self.symbolize_with_resolver(addr, &resolver)
+                let resolver = Rc::new(self.create_kernel_resolver(kernel)?);
+                self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
             }
             Source::Process(Process {
                 pid,
@@ -847,8 +921,8 @@ impl Symbolizer {
                     }
                 };
 
-                let resolver = GsymResolver::with_data(data)?;
-                self.symbolize_with_resolver(addr, &resolver)
+                let resolver = Rc::new(GsymResolver::with_data(data)?);
+                self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
             }
             Source::Gsym(Gsym::File(GsymFile {
                 path,
@@ -869,7 +943,7 @@ impl Symbolizer {
                 };
 
                 let resolver = self.gsym_resolver(path)?;
-                self.symbolize_with_resolver(addr, resolver.deref())
+                self.symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))
             }
         }
     }
@@ -886,15 +960,14 @@ impl Default for Symbolizer {
 mod tests {
     use super::*;
 
-    use std::ffi::OsString;
     use std::mem::transmute;
-    use std::path::PathBuf;
 
     use crate::elf::ElfParser;
     use crate::inspect::FindAddrOpts;
     use crate::inspect::SymType;
     use crate::mmap::Mmap;
     use crate::symbolize;
+    use crate::symbolize::CodeInfo;
     use crate::symbolize::Symbolizer;
     use crate::zip;
     use crate::ErrorKind;
@@ -917,14 +990,14 @@ mod tests {
     fn symbol_source_code_path() {
         let mut info = CodeInfo {
             dir: None,
-            file: OsString::from("source.c"),
+            file: Cow::Borrowed(OsStr::new("source.c")),
             line: Some(1),
             column: Some(2),
             _non_exhaustive: (),
         };
         assert_eq!(info.to_path(), Path::new("source.c"));
 
-        info.dir = Some(PathBuf::from("/foobar"));
+        info.dir = Some(Cow::Borrowed(Path::new("/foobar")));
         assert_eq!(info.to_path(), Path::new("/foobar/source.c"));
     }
 

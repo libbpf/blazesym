@@ -27,5 +27,5 @@ where
     /// `inlined_fns` is true, information about inlined calls at the very
     /// address will also be looked up and reported as the optional
     /// [`AddrCodeInfo::inlined`] attribute.
-    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo>>;
+    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>>;
 }

@@ -1,6 +1,9 @@
 Unreleased
 ----------
 - Added caching logic for Gsym resolvers to `symbolize::Symbolizer`
+- Adjusted various symbolization related types to contain `Cow` objects to
+  facilitate hand out of memory mapped data without unnecessary allocations
+  - Adjusted various symbolization code paths to stop heap-allocating
 
 
 0.2.0-alpha.8
