@@ -62,7 +62,7 @@ impl<T> FileCache<T> {
         }
     }
 
-    pub fn entry(&mut self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
+    pub fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
         let file =
             File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
         let stat = fstat(file.as_raw_fd())?;
@@ -101,7 +101,7 @@ mod tests {
     /// Check that we can associate data with a file.
     #[test]
     fn lookup() {
-        let mut cache = FileCache::<usize>::new();
+        let cache = FileCache::<usize>::new();
         let tmpfile = NamedTempFile::new().unwrap();
 
         {
@@ -120,7 +120,7 @@ mod tests {
     /// Make sure that a changed file purges the cache entry.
     #[test]
     fn outdated() {
-        let mut cache = FileCache::<usize>::new();
+        let cache = FileCache::<usize>::new();
         let tmpfile = NamedTempFile::new().unwrap();
         let modified = {
             let (file, cell) = cache.entry(tmpfile.path()).unwrap();

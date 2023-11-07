@@ -1,5 +1,4 @@
 use std::cell::OnceCell;
-use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -45,14 +44,14 @@ struct ResolverData {
 /// to consider creating a new `Inspector` instance regularly.
 #[derive(Debug)]
 pub struct Inspector {
-    elf_cache: RefCell<FileCache<ResolverData>>,
+    elf_cache: FileCache<ResolverData>,
 }
 
 impl Inspector {
     /// Create a new `Inspector`.
     pub fn new() -> Self {
         Self {
-            elf_cache: RefCell::new(FileCache::new()),
+            elf_cache: FileCache::new(),
         }
     }
 
@@ -82,8 +81,7 @@ impl Inspector {
     }
 
     fn elf_resolver(&self, path: &Path, debug_info: bool) -> Result<Rc<ElfResolver>> {
-        let mut cache = self.elf_cache.borrow_mut();
-        let (file, cell) = cache.entry(path)?;
+        let (file, cell) = self.elf_cache.entry(path)?;
         let resolver = if let Some(data) = cell.get() {
             if debug_info {
                 data.dwarf.get_or_try_init_(|| {
@@ -257,8 +255,14 @@ mod tests {
 
         let inspector = Inspector::new();
         let data = || {
-            let mut cache = inspector.elf_cache.borrow_mut();
-            cache.entry(&test_elf).unwrap().1.get().unwrap().clone()
+            inspector
+                .elf_cache
+                .entry(&test_elf)
+                .unwrap()
+                .1
+                .get()
+                .unwrap()
+                .clone()
         };
 
         let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));

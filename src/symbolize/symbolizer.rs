@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::File;
@@ -164,16 +163,12 @@ impl Builder {
             inlined_fns,
             demangle,
         } = self;
-        let apk_cache = RefCell::new(FileCache::new());
-        let elf_cache = RefCell::new(FileCache::new());
-        let gsym_cache = RefCell::new(FileCache::new());
-        let ksym_cache = RefCell::new(FileCache::new());
 
         Symbolizer {
-            apk_cache,
-            elf_cache,
-            gsym_cache,
-            ksym_cache,
+            apk_cache: FileCache::new(),
+            elf_cache: FileCache::new(),
+            gsym_cache: FileCache::new(),
+            ksym_cache: FileCache::new(),
             debug_syms,
             code_info,
             inlined_fns,
@@ -208,10 +203,10 @@ impl Default for Builder {
 #[derive(Debug)]
 pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
-    apk_cache: RefCell<FileCache<(zip::Archive, InsertMap<Range<u64>, Rc<ElfResolver>>)>>,
-    elf_cache: RefCell<FileCache<Rc<ElfResolver>>>,
-    gsym_cache: RefCell<FileCache<Rc<GsymResolver<'static>>>>,
-    ksym_cache: RefCell<FileCache<Rc<KSymResolver>>>,
+    apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Rc<ElfResolver>>)>,
+    elf_cache: FileCache<Rc<ElfResolver>>,
+    gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
+    ksym_cache: FileCache<Rc<KSymResolver>>,
     debug_syms: bool,
     code_info: bool,
     inlined_fns: bool,
@@ -341,8 +336,7 @@ impl Symbolizer {
     }
 
     fn elf_resolver(&self, path: &Path) -> Result<Rc<ElfResolver>> {
-        let mut cache = self.elf_cache.borrow_mut();
-        let (file, cell) = cache.entry(path)?;
+        let (file, cell) = self.elf_cache.entry(path)?;
         let resolver = cell.get_or_try_init_(|| self.create_elf_resolver(path, file))?;
         Ok(resolver.clone())
     }
@@ -353,8 +347,7 @@ impl Symbolizer {
     }
 
     fn gsym_resolver(&self, path: &Path) -> Result<Rc<GsymResolver<'static>>> {
-        let mut cache = self.gsym_cache.borrow_mut();
-        let (file, cell) = cache.entry(path)?;
+        let (file, cell) = self.gsym_cache.entry(path)?;
         let resolver = cell.get_or_try_init_(|| self.create_gsym_resolver(path, file))?;
         Ok(resolver.clone())
     }
@@ -402,8 +395,7 @@ impl Symbolizer {
     }
 
     fn apk_resolver(&self, path: &Path, file_off: u64) -> Result<Option<(Rc<ElfResolver>, Addr)>> {
-        let mut cache = self.apk_cache.borrow_mut();
-        let (file, cell) = cache.entry(path)?;
+        let (file, cell) = self.apk_cache.entry(path)?;
         let (apk, resolvers) = cell.get_or_try_init_(|| {
             let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
             let resolvers = InsertMap::new();
@@ -514,8 +506,7 @@ impl Symbolizer {
     }
 
     fn ksym_resolver(&self, path: &Path) -> Result<Rc<KSymResolver>> {
-        let mut cache = self.ksym_cache.borrow_mut();
-        let (file, cell) = cache.entry(path)?;
+        let (file, cell) = self.ksym_cache.entry(path)?;
         let resolver = cell.get_or_try_init_(|| self.create_ksym_resolver(path, file))?;
         Ok(resolver.clone())
     }
