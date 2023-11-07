@@ -29,7 +29,6 @@ use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
 use crate::util;
 use crate::util::uname_release;
-use crate::util::OnceCellExt as _;
 use crate::zip;
 use crate::Addr;
 use crate::Error;
@@ -397,7 +396,7 @@ impl Symbolizer {
 
     fn elf_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<ElfResolver>> {
         let (file, cell) = self.elf_cache.entry(path)?;
-        let resolver = cell.get_or_try_init_(|| self.create_elf_resolver(path, file))?;
+        let resolver = cell.get_or_try_init(|| self.create_elf_resolver(path, file))?;
         Ok(resolver)
     }
 
@@ -408,7 +407,7 @@ impl Symbolizer {
 
     fn gsym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<GsymResolver<'static>>> {
         let (file, cell) = self.gsym_cache.entry(path)?;
-        let resolver = cell.get_or_try_init_(|| self.create_gsym_resolver(path, file))?;
+        let resolver = cell.get_or_try_init(|| self.create_gsym_resolver(path, file))?;
         Ok(resolver)
     }
 
@@ -460,7 +459,7 @@ impl Symbolizer {
         file_off: u64,
     ) -> Result<Option<(&'slf Rc<ElfResolver>, Addr)>> {
         let (file, cell) = self.apk_cache.entry(path)?;
-        let (apk, resolvers) = cell.get_or_try_init_(|| {
+        let (apk, resolvers) = cell.get_or_try_init(|| {
             let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
             let resolvers = InsertMap::new();
             Result::<_, Error>::Ok((apk, resolvers))
@@ -572,7 +571,7 @@ impl Symbolizer {
 
     fn ksym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<KSymResolver>> {
         let (file, cell) = self.ksym_cache.entry(path)?;
-        let resolver = cell.get_or_try_init_(|| self.create_ksym_resolver(path, file))?;
+        let resolver = cell.get_or_try_init(|| self.create_ksym_resolver(path, file))?;
         Ok(resolver)
     }
 

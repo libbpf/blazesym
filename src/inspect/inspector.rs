@@ -1,4 +1,3 @@
-use std::cell::OnceCell;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -8,7 +7,7 @@ use crate::elf::ElfBackend;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::file_cache::FileCache;
-use crate::util::OnceCellExt as _;
+use crate::once::OnceCell;
 use crate::Result;
 use crate::SymResolver;
 
@@ -84,7 +83,7 @@ impl Inspector {
         let (file, cell) = self.elf_cache.entry(path)?;
         let resolver = if let Some(data) = cell.get() {
             if debug_info {
-                data.dwarf.get_or_try_init_(|| {
+                data.dwarf.get_or_try_init(|| {
                     // SANITY: We *know* a `ResolverData` object is present and
                     //         given that we are initializing the `dwarf` part
                     //         of it, the `elf` part *must* be present.
@@ -92,7 +91,7 @@ impl Inspector {
                     self.elf_resolver_from_parser(path, parser, true)
                 })?
             } else {
-                data.elf.get_or_try_init_(|| {
+                data.elf.get_or_try_init(|| {
                     // SANITY: We *know* a `ResolverData` object is present and
                     //         given that we are initializing the `elf` part of
                     //         it, the `dwarf` part *must* be present.

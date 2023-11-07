@@ -54,6 +54,7 @@ mod ksym;
 mod maps;
 mod mmap;
 pub mod normalize;
+mod once;
 mod resolver;
 pub mod symbolize;
 mod util;
