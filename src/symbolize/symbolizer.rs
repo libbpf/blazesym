@@ -59,31 +59,31 @@ use super::Symbolized;
 
 /// Demangle a symbol name using the demangling scheme for the given language.
 #[cfg(feature = "demangle")]
-fn maybe_demangle(name: &str, language: SrcLang) -> Cow<'_, str> {
+fn maybe_demangle(name: Cow<'_, str>, language: SrcLang) -> Cow<'_, str> {
     match language {
-        SrcLang::Rust => rustc_demangle::try_demangle(name)
+        SrcLang::Rust => rustc_demangle::try_demangle(name.as_ref())
             .ok()
             .as_ref()
             .map(|x| Cow::Owned(format!("{x:#}"))),
-        SrcLang::Cpp => cpp_demangle::Symbol::new(name)
+        SrcLang::Cpp => cpp_demangle::Symbol::new(name.as_ref())
             .ok()
             .and_then(|x| x.demangle(&Default::default()).ok().map(Cow::Owned)),
-        SrcLang::Unknown => rustc_demangle::try_demangle(name)
+        SrcLang::Unknown => rustc_demangle::try_demangle(name.as_ref())
             .map(|x| Cow::Owned(format!("{x:#}")))
             .ok()
             .or_else(|| {
-                cpp_demangle::Symbol::new(name)
+                cpp_demangle::Symbol::new(name.as_ref())
                     .ok()
                     .and_then(|sym| sym.demangle(&Default::default()).ok().map(Cow::Owned))
             }),
     }
-    .unwrap_or(Cow::Borrowed(name))
+    .unwrap_or(name)
 }
 
 #[cfg(not(feature = "demangle"))]
-fn maybe_demangle(name: &str, _language: SrcLang) -> Cow<'_, str> {
+fn maybe_demangle(name: Cow<'_, str>, _language: SrcLang) -> Cow<'_, str> {
     // Demangling is disabled.
-    Cow::Borrowed(name)
+    name
 }
 
 
@@ -231,11 +231,11 @@ impl Symbolizer {
     }
 
     /// Demangle the provided symbol if asked for and possible.
-    fn maybe_demangle<'sym>(&self, symbol: &'sym str, language: SrcLang) -> Cow<'sym, str> {
+    fn maybe_demangle<'sym>(&self, symbol: Cow<'sym, str>, language: SrcLang) -> Cow<'sym, str> {
         if self.demangle {
             maybe_demangle(symbol, language)
         } else {
-            Cow::Borrowed(symbol)
+            symbol
         }
     }
 
@@ -278,7 +278,7 @@ impl Symbolizer {
                 .inlined
                 .iter()
                 .map(|(name, info)| {
-                    let name = self.maybe_demangle(name, lang);
+                    let name = self.maybe_demangle(Cow::Borrowed(name), lang);
                     let info = info.as_ref().map(CodeInfo::from);
                     InlinedFn {
                         name: name.to_string(),
@@ -293,7 +293,7 @@ impl Symbolizer {
 
         let sym = Sym {
             name: self
-                .maybe_demangle(name.unwrap_or(sym_name), lang)
+                .maybe_demangle(Cow::Borrowed(name.unwrap_or(sym_name)), lang)
                 .to_string(),
             addr: sym_addr,
             offset: (addr - sym_addr) as usize,
