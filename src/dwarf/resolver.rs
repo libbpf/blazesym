@@ -18,7 +18,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::symbolize::AddrCodeInfo;
-use crate::symbolize::FrameCodeInfo;
+use crate::symbolize::CodeInfo;
 use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
 use crate::Addr;
@@ -111,11 +111,12 @@ impl DwarfResolver {
                     column,
                 } = direct_location;
 
-                let mut direct_code_info = FrameCodeInfo {
-                    dir,
-                    file,
+                let mut direct_code_info = CodeInfo {
+                    dir: Some(Cow::Borrowed(dir)),
+                    file: Cow::Borrowed(file),
                     line,
                     column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                    _non_exhaustive: (),
                 };
 
                 let inlined = if inlined_fns {
@@ -131,11 +132,12 @@ impl DwarfResolver {
                                     column,
                                 } = location;
 
-                                FrameCodeInfo {
-                                    dir,
-                                    file,
+                                CodeInfo {
+                                    dir: Some(Cow::Borrowed(dir)),
+                                    file: Cow::Borrowed(file),
                                     line,
                                     column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                                    _non_exhaustive: (),
                                 }
                             });
 
@@ -268,6 +270,7 @@ mod tests {
     use super::*;
 
     use std::env::current_exe;
+    use std::ffi::OsStr;
     use std::path::PathBuf;
 
     use test_log::test;
@@ -292,8 +295,8 @@ mod tests {
         let resolver = DwarfResolver::open(bin_name.as_ref(), true).unwrap();
 
         let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
-        assert_ne!(info.direct.1.dir, PathBuf::new());
-        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_ne!(info.direct.1.dir, Some(Cow::Owned(PathBuf::new())));
+        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.direct.1.line, Some(8));
         assert!(info.direct.1.column.is_some());
     }

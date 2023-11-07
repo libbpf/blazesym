@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -11,7 +13,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::AddrCodeInfo;
-use crate::symbolize::FrameCodeInfo;
+use crate::symbolize::CodeInfo;
 use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
 use crate::Addr;
@@ -86,7 +88,7 @@ impl<'dat> GsymResolver<'dat> {
         Ok(slf)
     }
 
-    fn query_frame_code_info(&self, file_idx: u32, line: Option<u32>) -> Result<FrameCodeInfo<'_>> {
+    fn query_frame_code_info(&self, file_idx: u32, line: Option<u32>) -> Result<CodeInfo<'_>> {
         let finfo = self
             .ctx
             .file_info(file_idx as usize)
@@ -104,11 +106,12 @@ impl<'dat> GsymResolver<'dat> {
                 format!("failed to retrieve file name string @ {}", finfo.filename)
             })?;
 
-        let info = FrameCodeInfo {
-            dir: Path::new(dir),
-            file,
+        let info = CodeInfo {
+            dir: Some(Cow::Borrowed(Path::new(dir))),
+            file: Cow::Borrowed(OsStr::new(file)),
             line,
             column: None,
+            _non_exhaustive: (),
         };
         Ok(info)
     }
@@ -372,14 +375,14 @@ mod tests {
         // line.
         let info = resolver.find_code_info(0x2000000, true).unwrap().unwrap();
         assert_eq!(info.direct.1.line, Some(50));
-        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
         let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
         assert_eq!(info.direct.1.line, Some(8));
-        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
 
         // Address is hopefully sufficiently far into `factorial_inline_test` to
@@ -391,19 +394,19 @@ mod tests {
 
         let info = resolver.find_code_info(addr, true).unwrap().unwrap();
         assert_eq!(info.direct.1.line, Some(32));
-        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined.len(), 2);
 
         let name = &info.inlined[0].0;
         assert_eq!(*name, "factorial_inline_wrapper");
         let frame = info.inlined[0].1.as_ref().unwrap();
-        assert_eq!(frame.file, "test-stable-addresses.c");
+        assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(frame.line, Some(26));
 
         let name = &info.inlined[1].0;
         assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
         let frame = info.inlined[1].1.as_ref().unwrap();
-        assert_eq!(frame.file, "test-stable-addresses.c");
+        assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(frame.line, Some(21));
 
         let info = resolver.find_code_info(addr, false).unwrap().unwrap();
@@ -411,7 +414,7 @@ mod tests {
         // different to that when using inlined function information, because in
         // Gsym this additional data is used to "refine" the result.
         assert_eq!(info.direct.1.line, Some(21));
-        assert_eq!(info.direct.1.file, "test-stable-addresses.c");
+        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
     }
 

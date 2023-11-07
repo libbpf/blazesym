@@ -101,9 +101,7 @@ mod symbolizer;
 
 use std::borrow::Cow;
 use std::ffi::OsStr;
-use std::ffi::OsString;
 use std::path::Path;
-use std::path::PathBuf;
 
 pub use source::Apk;
 pub use source::Elf;
@@ -156,26 +154,6 @@ where
 
 
 #[derive(Debug, PartialEq)]
-pub(crate) struct FrameCodeInfo<'src> {
-    pub dir: &'src Path,
-    pub file: &'src OsStr,
-    pub line: Option<u32>,
-    pub column: Option<u16>,
-}
-
-impl From<&FrameCodeInfo<'_>> for CodeInfo {
-    fn from(other: &FrameCodeInfo<'_>) -> Self {
-        Self {
-            dir: Some(other.dir.to_path_buf()),
-            file: other.file.to_os_string(),
-            line: other.line,
-            column: other.column,
-            _non_exhaustive: (),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
 pub(crate) struct AddrCodeInfo<'src> {
     /// Source information about the top-level frame belonging to an
     /// address.
@@ -183,19 +161,19 @@ pub(crate) struct AddrCodeInfo<'src> {
     /// It also contains an optional name, which is necessary for
     /// formats where inline information can "correct" (overwrite) the
     /// name of the symbol.
-    pub direct: (Option<&'src str>, FrameCodeInfo<'src>),
+    pub direct: (Option<&'src str>, CodeInfo<'src>),
     /// Source information about inlined functions, along with their names.
-    pub inlined: Vec<(&'src str, Option<FrameCodeInfo<'src>>)>,
+    pub inlined: Vec<(&'src str, Option<CodeInfo<'src>>)>,
 }
 
 
 /// Source code location information for a symbol or inlined function.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CodeInfo {
+pub struct CodeInfo<'src> {
     /// The directory in which the source file resides.
-    pub dir: Option<PathBuf>,
+    pub dir: Option<Cow<'src, Path>>,
     /// The file that defines the symbol.
-    pub file: OsString,
+    pub file: Cow<'src, OsStr>,
     /// The line number of the symbolized instruction in the source
     /// code.
     ///
@@ -210,7 +188,7 @@ pub struct CodeInfo {
     pub(crate) _non_exhaustive: (),
 }
 
-impl CodeInfo {
+impl CodeInfo<'_> {
     /// Helper method to retrieve the path to the represented source file,
     /// on a best-effort basis. It depends on the symbolization source data
     /// whether this path is absolute or relative and, if its the latter, what
@@ -223,16 +201,28 @@ impl CodeInfo {
             |dir| Cow::Owned(dir.join(&self.file)),
         )
     }
+
+    /// Convert this object into one with all references converted into
+    /// guaranteed owned (i.e., heap allocated) members.
+    pub fn to_owned(&self) -> CodeInfo<'static> {
+        CodeInfo {
+            dir: self.dir.as_ref().map(|dir| Cow::Owned(dir.to_path_buf())),
+            file: Cow::Owned(self.file.to_os_string()),
+            line: self.line,
+            column: self.column,
+            _non_exhaustive: (),
+        }
+    }
 }
 
 
 /// A type representing an inlined function.
 #[derive(Clone, Debug, PartialEq)]
-pub struct InlinedFn {
+pub struct InlinedFn<'src> {
     /// The symbol name of the inlined function.
-    pub name: String,
+    pub name: Cow<'src, str>,
     /// Source code location information for the call to the function.
-    pub code_info: Option<CodeInfo>,
+    pub code_info: Option<CodeInfo<'src>>,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
 }
@@ -266,9 +256,9 @@ pub(crate) struct IntSym<'src> {
 
 /// The result of address symbolization by [`Symbolizer`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct Sym {
+pub struct Sym<'src> {
     /// The symbol name that an address belongs to.
-    pub name: String,
+    pub name: Cow<'src, str>,
     /// The address at which the symbol is located (i.e., its "start").
     ///
     /// This is the "normalized" address of the symbol, as present in
@@ -288,7 +278,7 @@ pub struct Sym {
     /// The symbol's size, if available.
     pub size: Option<usize>,
     /// Source code location information for the symbol.
-    pub code_info: Option<CodeInfo>,
+    pub code_info: Option<CodeInfo<'src>>,
     /// Inlined function information, if requested and available.
     ///
     /// Availability depends on both the underlying symbolization source (e.g.,
@@ -300,7 +290,7 @@ pub struct Sym {
     /// falls into a function `f` at an inlined call to `g`, which in turn
     /// contains an inlined call to `h`, the symbols will be reported in the
     /// order `f`, `g`, `h`.
-    pub inlined: Box<[InlinedFn]>,
+    pub inlined: Box<[InlinedFn<'src>]>,
     /// The struct is non-exhaustive and open to extension.
     pub(crate) _non_exhaustive: (),
 }
@@ -310,18 +300,18 @@ pub struct Sym {
 // We keep this enum as exhaustive because additions to it, should they occur,
 // are expected to be backwards-compatibility breaking.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Symbolized {
+pub enum Symbolized<'src> {
     /// The input address was symbolized as the provided symbol.
-    Sym(Sym),
+    Sym(Sym<'src>),
     /// The input address was not found and could not be symbolized.
     Unknown,
 }
 
-impl Symbolized {
+impl<'src> Symbolized<'src> {
     /// Convert the object into a [`Sym`] reference, if the corresponding
     /// variant is active.
     #[inline]
-    pub fn as_sym(&self) -> Option<&Sym> {
+    pub fn as_sym(&self) -> Option<&Sym<'src>> {
         match self {
             Self::Sym(sym) => Some(sym),
             Self::Unknown => None,
@@ -331,7 +321,7 @@ impl Symbolized {
     /// Convert the object into a [`Sym`] object, if the corresponding variant
     /// is active.
     #[inline]
-    pub fn into_sym(self) -> Option<Sym> {
+    pub fn into_sym(self) -> Option<Sym<'src>> {
         match self {
             Self::Sym(sym) => Some(sym),
             Self::Unknown => None,
@@ -353,22 +343,23 @@ mod tests {
         let input = Input::FileOffset(0x1337);
         assert_ne!(format!("{input:?}"), "");
 
-        let code_info = FrameCodeInfo {
-            dir: Path::new("/tmp/some-dir"),
-            file: OsStr::new("test.c"),
+        let code_info = CodeInfo {
+            dir: Some(Cow::Borrowed(Path::new("/tmp/some-dir"))),
+            file: Cow::Borrowed(OsStr::new("test.c")),
             line: Some(1337),
             column: None,
+            _non_exhaustive: (),
         };
 
         let sym = Sym {
-            name: "test".to_string(),
+            name: Cow::Borrowed("test"),
             addr: 1337,
             offset: 42,
             size: None,
             code_info: None,
             inlined: Box::new([InlinedFn {
-                name: "inlined_test".to_string(),
-                code_info: Some(CodeInfo::from(&code_info)),
+                name: Cow::Borrowed("inlined_test"),
+                code_info: Some(code_info.clone()),
                 _non_exhaustive: (),
             }]),
             _non_exhaustive: (),

@@ -154,13 +154,13 @@ fn symbolize_dwarf_gsym_inlined() {
             let name = &result.inlined[0].name;
             assert_eq!(*name, "factorial_inline_wrapper");
             let frame = result.inlined[0].code_info.as_ref().unwrap();
-            assert_eq!(frame.file, "test-stable-addresses.c");
+            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
             assert_eq!(frame.line, Some(26));
 
             let name = &result.inlined[1].name;
             assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
             let frame = result.inlined[1].code_info.as_ref().unwrap();
-            assert_eq!(frame.file, "test-stable-addresses.c");
+            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
             assert_eq!(frame.line, Some(21));
         } else {
             assert!(result.inlined.is_empty(), "{:#?}", result.inlined);

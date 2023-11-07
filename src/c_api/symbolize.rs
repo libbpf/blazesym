@@ -435,7 +435,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
         match sym {
             Symbolized::Sym(sym) => {
                 let sym_ref = unsafe { &mut *syms_last };
-                let name_ptr = make_cstr(OsStr::new(&sym.name));
+                let name_ptr = make_cstr(OsStr::new(sym.name.as_ref()));
 
                 sym_ref.name = name_ptr;
                 sym_ref.addr = sym.addr;
@@ -447,7 +447,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
                 for inlined in sym.inlined.iter() {
                     let inlined_ref = unsafe { &mut *inlined_last };
 
-                    let name_ptr = make_cstr(OsStr::new(&inlined.name));
+                    let name_ptr = make_cstr(OsStr::new(inlined.name.as_ref()));
                     inlined_ref.name = name_ptr;
                     convert_code_info(
                         &inlined.code_info,
