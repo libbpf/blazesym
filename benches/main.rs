@@ -8,6 +8,12 @@ macro_rules! bench_fn {
     };
 }
 
+macro_rules! bench_sub_fn {
+    ($group:expr, $bench_fn:ident) => {
+        $group.bench_function(crate::bench_fn_name(stringify!($bench_fn)), $bench_fn);
+    };
+}
+
 
 mod inspect;
 mod normalize;
