@@ -1,5 +1,4 @@
 mod function;
-mod lazy;
 mod lines;
 mod location;
 mod range;

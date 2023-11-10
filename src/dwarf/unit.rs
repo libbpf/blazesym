@@ -25,9 +25,10 @@
 // > IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // > DEALINGS IN THE SOFTWARE.
 
+use crate::once::OnceCell;
+
 use super::function::Function;
 use super::function::Functions;
-use super::lazy::LazyCell;
 use super::lines::Lines;
 use super::location::Location;
 use super::location::LocationRangeUnitIter;
@@ -44,21 +45,21 @@ pub(super) struct UnitRange {
 pub(super) struct Unit<'dwarf> {
     dw_unit: gimli::Unit<R<'dwarf>>,
     lang: Option<gimli::DwLang>,
-    lines: LazyCell<Result<Lines<'dwarf>, gimli::Error>>,
-    funcs: LazyCell<Result<Functions<'dwarf>, gimli::Error>>,
+    lines: OnceCell<Result<Lines<'dwarf>, gimli::Error>>,
+    funcs: OnceCell<Result<Functions<'dwarf>, gimli::Error>>,
 }
 
 impl<'dwarf> Unit<'dwarf> {
     pub(super) fn new(
         unit: gimli::Unit<R<'dwarf>>,
         lang: Option<gimli::DwLang>,
-        lines: LazyCell<Result<Lines<'dwarf>, gimli::Error>>,
+        lines: OnceCell<Result<Lines<'dwarf>, gimli::Error>>,
     ) -> Self {
         Self {
             dw_unit: unit,
             lang,
             lines,
-            funcs: LazyCell::new(),
+            funcs: OnceCell::new(),
         }
     }
 
@@ -82,7 +83,7 @@ impl<'dwarf> Unit<'dwarf> {
         let unit = &self.dw_unit;
         let functions = self
             .funcs
-            .borrow_with(|| {
+            .get_or_init(|| {
                 let funcs = Functions::parse(unit, sections)?;
                 let () = funcs.parse_inlined_functions(unit, sections)?;
                 Ok(funcs)
@@ -103,7 +104,7 @@ impl<'dwarf> Unit<'dwarf> {
             None => return Ok(None),
         };
         self.lines
-            .borrow_with(|| Lines::parse(&self.dw_unit, ilnp.clone(), sections))
+            .get_or_init(|| Lines::parse(&self.dw_unit, ilnp.clone(), sections))
             .as_ref()
             .map(Some)
             .map_err(gimli::Error::clone)
@@ -130,7 +131,7 @@ impl<'dwarf> Unit<'dwarf> {
         sections: &gimli::Dwarf<R<'dwarf>>,
     ) -> Result<&Functions<'dwarf>, gimli::Error> {
         self.funcs
-            .borrow_with(|| Functions::parse(unit, sections))
+            .get_or_init(|| Functions::parse(unit, sections))
             .as_ref()
             .map_err(gimli::Error::clone)
     }
