@@ -100,7 +100,7 @@ struct Cache<'mmap> {
     /// The cached ELF header.
     ehdr: OnceCell<EhdrExt<'mmap>>,
     /// The cached ELF section headers.
-    shdrs: Option<&'mmap [Elf64_Shdr]>,
+    shdrs: OnceCell<&'mmap [Elf64_Shdr]>,
     shstrtab: Option<&'mmap [u8]>,
     /// The cached ELF program headers.
     phdrs: Option<&'mmap [Elf64_Phdr]>,
@@ -116,7 +116,7 @@ impl<'mmap> Cache<'mmap> {
         Self {
             elf_data,
             ehdr: OnceCell::new(),
-            shdrs: None,
+            shdrs: OnceCell::new(),
             shstrtab: None,
             phdrs: None,
             symtab: None,
@@ -215,11 +215,7 @@ impl<'mmap> Cache<'mmap> {
         self.ehdr.get_or_try_init(|| self.parse_ehdr())
     }
 
-    fn ensure_shdrs(&mut self) -> Result<&'mmap [Elf64_Shdr]> {
-        if let Some(shdrs) = self.shdrs {
-            return Ok(shdrs)
-        }
-
+    fn parse_shdrs(&self) -> Result<&'mmap [Elf64_Shdr]> {
         let ehdr = self.ensure_ehdr()?;
         let shdrs = self
             .elf_data
@@ -227,8 +223,11 @@ impl<'mmap> Cache<'mmap> {
             .ok_or_invalid_data(|| "Elf64_Ehdr::e_shoff is invalid")?
             .read_pod_slice_ref::<Elf64_Shdr>(ehdr.shnum)
             .ok_or_invalid_data(|| "failed to read Elf64_Shdr")?;
-        self.shdrs = Some(shdrs);
         Ok(shdrs)
+    }
+
+    fn ensure_shdrs(&self) -> Result<&'mmap [Elf64_Shdr]> {
+        self.shdrs.get_or_try_init(|| self.parse_shdrs()).copied()
     }
 
     fn ensure_phdrs(&mut self) -> Result<&'mmap [Elf64_Phdr]> {
@@ -649,7 +648,7 @@ impl ElfParser {
     }
 
     pub(crate) fn section_headers(&self) -> Result<&[Elf64_Shdr]> {
-        let mut cache = self.cache.borrow_mut();
+        let cache = self.cache.borrow();
         let phdrs = cache.ensure_shdrs()?;
         Ok(phdrs)
     }
