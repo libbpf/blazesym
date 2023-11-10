@@ -104,10 +104,10 @@ struct Cache<'mmap> {
     shstrtab: OnceCell<&'mmap [u8]>,
     /// The cached ELF program headers.
     phdrs: OnceCell<&'mmap [Elf64_Phdr]>,
-    symtab: Option<Box<[&'mmap Elf64_Sym]>>, // in address order
+    symtab: OnceCell<Box<[&'mmap Elf64_Sym]>>, // in address order
     /// The cached ELF string table.
-    strtab: Option<&'mmap [u8]>,
-    str2symtab: Option<Box<[(&'mmap str, usize)]>>, // strtab offset to symtab in the dictionary order
+    strtab: OnceCell<&'mmap [u8]>,
+    str2symtab: OnceCell<Box<[(&'mmap str, usize)]>>, // strtab offset to symtab in the dictionary order
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -119,9 +119,9 @@ impl<'mmap> Cache<'mmap> {
             shdrs: OnceCell::new(),
             shstrtab: OnceCell::new(),
             phdrs: OnceCell::new(),
-            symtab: None,
-            strtab: None,
-            str2symtab: None,
+            symtab: OnceCell::new(),
+            strtab: OnceCell::new(),
+            str2symtab: OnceCell::new(),
         }
     }
 
@@ -278,7 +278,7 @@ impl<'mmap> Cache<'mmap> {
     }
 
     /// Get the name of the section at a given index.
-    fn section_name(&mut self, idx: usize) -> Result<&'mmap str> {
+    fn section_name(&self, idx: usize) -> Result<&'mmap str> {
         let shdrs = self.ensure_shdrs()?;
         let shstrtab = self.ensure_shstrtab()?;
 
@@ -298,10 +298,7 @@ impl<'mmap> Cache<'mmap> {
 
     #[cfg(test)]
     fn symbol(&mut self, idx: usize) -> Result<&'mmap Elf64_Sym> {
-        let () = self.ensure_symtab()?;
-        // SANITY: The above `ensure_symtab` ensures we have `symtab`
-        //         available.
-        let symtab = self.symtab.as_ref().unwrap();
+        let symtab = self.ensure_symtab()?;
         let symbol = symtab
             .get(idx)
             .ok_or_invalid_input(|| format!("ELF symbol index ({idx}) out of bounds"))?;
@@ -312,7 +309,7 @@ impl<'mmap> Cache<'mmap> {
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
-    fn find_section(&mut self, name: &str) -> Result<Option<usize>> {
+    fn find_section(&self, name: &str) -> Result<Option<usize>> {
         let ehdr = self.ensure_ehdr()?;
         for i in 1..ehdr.shnum {
             if self.section_name(i)? == name {
@@ -322,22 +319,14 @@ impl<'mmap> Cache<'mmap> {
         Ok(None)
     }
 
-    // Note: This function should really return a reference to
-    //       `self.symtab`, but current borrow checker limitations
-    //       effectively prevent us from doing so.
-    fn ensure_symtab(&mut self) -> Result<()> {
-        if self.symtab.is_some() {
-            return Ok(())
-        }
-
+    fn parse_symtab(&self) -> Result<Box<[&'mmap Elf64_Sym]>> {
         let idx = if let Some(idx) = self.find_section(".symtab")? {
             idx
         } else if let Some(idx) = self.find_section(".dynsym")? {
             idx
         } else {
             // Neither symbol table exists. Fake an empty one.
-            self.symtab = Some(Box::default());
-            return Ok(())
+            return Ok(Box::default())
         };
         let mut symtab = self.section_data(idx)?;
 
@@ -362,15 +351,15 @@ impl<'mmap> Cache<'mmap> {
                 .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
         });
 
-        self.symtab = Some(symtab);
-        Ok(())
+        Ok(symtab)
     }
 
-    fn ensure_strtab(&mut self) -> Result<&'mmap [u8]> {
-        if let Some(strtab) = self.strtab {
-            return Ok(strtab)
-        }
+    fn ensure_symtab(&self) -> Result<&[&'mmap Elf64_Sym]> {
+        let symtab = self.symtab.get_or_try_init(|| self.parse_symtab())?.deref();
+        Ok(symtab)
+    }
 
+    fn parse_strtab(&self) -> Result<&'mmap [u8]> {
         let strtab = if let Some(idx) = self.find_section(".strtab")? {
             self.section_data(idx)?
         } else if let Some(idx) = self.find_section(".dynstr")? {
@@ -378,24 +367,16 @@ impl<'mmap> Cache<'mmap> {
         } else {
             &[]
         };
-
-        self.strtab = Some(strtab);
         Ok(strtab)
     }
 
-    // Note: This function should really return a reference to
-    //       `self.str2symtab`, but current borrow checker limitations
-    //       effectively prevent us from doing so.
-    fn ensure_str2symtab(&mut self) -> Result<()> {
-        if self.str2symtab.is_some() {
-            return Ok(())
-        }
+    fn ensure_strtab(&self) -> Result<&'mmap [u8]> {
+        self.strtab.get_or_try_init(|| self.parse_strtab()).copied()
+    }
 
+    fn parse_str2symtab(&self) -> Result<Box<[(&'mmap str, usize)]>> {
         let strtab = self.ensure_strtab()?;
-        let () = self.ensure_symtab()?;
-        // SANITY: The above `ensure_symtab` ensures we have `symtab`
-        //         available.
-        let symtab = self.symtab.as_ref().unwrap();
+        let symtab = self.ensure_symtab()?;
 
         let mut str2symtab = symtab
             .iter()
@@ -415,9 +396,15 @@ impl<'mmap> Cache<'mmap> {
             .into_boxed_slice();
 
         let () = str2symtab.sort_by_key(|&(name, _i)| name);
+        Ok(str2symtab)
+    }
 
-        self.str2symtab = Some(str2symtab);
-        Ok(())
+    fn ensure_str2symtab(&self) -> Result<&[(&'mmap str, usize)]> {
+        let str2symtab = self
+            .str2symtab
+            .get_or_try_init(|| self.parse_str2symtab())?
+            .deref();
+        Ok(str2symtab)
     }
 }
 
@@ -483,18 +470,15 @@ impl ElfParser {
     ///
     /// This function return the index of the section if found.
     pub fn find_section(&self, name: &str) -> Result<Option<usize>> {
-        let mut cache = self.cache.borrow_mut();
+        let cache = self.cache.borrow();
         let index = cache.find_section(name)?;
         Ok(index)
     }
 
     pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr, usize)>> {
-        let mut cache = self.cache.borrow_mut();
+        let cache = self.cache.borrow();
         let strtab = cache.ensure_strtab()?;
-        let () = cache.ensure_symtab()?;
-        // SANITY: The above `ensure_symtab` ensures we have `symtab`
-        //         available.
-        let symtab = cache.symtab.as_ref().unwrap();
+        let symtab = cache.ensure_symtab()?;
 
         find_sym(symtab, strtab, addr, st_type)
     }
@@ -527,16 +511,10 @@ impl ElfParser {
             return Err(Error::with_unsupported("Not implemented"))
         }
 
-        let mut cache = self.cache.borrow_mut();
+        let cache = self.cache.borrow();
         let shdrs = cache.ensure_shdrs()?;
-        let () = cache.ensure_symtab()?;
-        let () = cache.ensure_str2symtab()?;
-        // SANITY: The above `ensure_symtab` ensures we have `symtab`
-        //         available.
-        let symtab = cache.symtab.as_ref().unwrap();
-        // SANITY: The above `ensure_str2symtab` ensures we have
-        //         `str2symtab` available.
-        let str2symtab = cache.str2symtab.as_ref().unwrap();
+        let symtab = cache.ensure_symtab()?;
+        let str2symtab = cache.ensure_str2symtab()?;
 
         let r = find_match_or_lower_bound_by_key(str2symtab, name, |&(name, _i)| name);
         match r {
@@ -578,21 +556,15 @@ impl ElfParser {
             return Err(Error::with_unsupported("Not implemented"))
         }
 
-        let mut cache = self.cache.borrow_mut();
+        let cache = self.cache.borrow();
         let shdrs = cache.ensure_shdrs()?;
-        let () = cache.ensure_symtab()?;
-        let () = cache.ensure_str2symtab()?;
         drop(cache);
 
         let mut i = 0;
         loop {
             let cache = self.cache.borrow_mut();
-            // SANITY: The above `ensure_symtab` ensures we have `symtab`
-            //         available.
-            let symtab = cache.symtab.as_ref().unwrap();
-            // SANITY: The above `ensure_str2symtab` ensures we have
-            //         `str2symtab` available.
-            let str2symtab = cache.str2symtab.as_ref().unwrap();
+            let symtab = cache.ensure_symtab()?;
+            let str2symtab = cache.ensure_str2symtab()?;
 
             if i >= str2symtab.len() {
                 break Ok(r)
@@ -661,9 +633,8 @@ impl ElfParser {
 
     #[cfg(test)]
     fn pick_symtab_addr(&self) -> (&str, Addr, usize) {
-        let mut cache = self.cache.borrow_mut();
-        let () = cache.ensure_symtab().unwrap();
-        let symtab = cache.symtab.as_ref().unwrap();
+        let cache = self.cache.borrow();
+        let symtab = cache.ensure_symtab().unwrap();
 
         let mut idx = symtab.len() / 2;
         while symtab[idx].type_() != STT_FUNC || symtab[idx].st_shndx == SHN_UNDEF {
