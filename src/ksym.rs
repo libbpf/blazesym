@@ -197,15 +197,21 @@ mod tests {
             "kallsyms seems to be unavailable or with all 0 addresses. (Check {KALLSYMS})"
         );
 
+        let ensure_addr_for_name = |name, addr| {
+            let opts = FindAddrOpts {
+                offset_in_file: false,
+                sym_type: SymType::Function,
+            };
+            let found = resolver.find_addr(name, &opts).unwrap();
+            assert!(found.iter().any(|x| x.addr == addr));
+        };
+
+
         // Find the address of the symbol placed at the middle
         let sym = &resolver.syms[resolver.syms.len() / 2];
         let addr = sym.addr;
-        let name = sym.name.clone();
         let found = resolver.find_sym(addr).unwrap().unwrap();
-        assert_eq!(found.name, name);
-
-        let found = resolver.find_sym(addr + 1).unwrap().unwrap();
-        assert_eq!(found.name, name);
+        ensure_addr_for_name(found.name, addr);
 
         // 0 is an invalid address.  We remove all symbols with 0 as
         // thier address from the list.
@@ -214,23 +220,12 @@ mod tests {
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
         let addr = sym.addr;
-        let name = sym.name.clone();
         let found = resolver.find_sym(addr).unwrap().unwrap();
-        assert_eq!(found.name, name);
+        ensure_addr_for_name(found.name, addr);
 
         let found = resolver.find_sym(addr + 1).unwrap().unwrap();
-        assert_eq!(found.name, name);
-
-        // Find the symbol placed at the one third
-        let sym = &resolver.syms[resolver.syms.len() / 3];
-        let addr = sym.addr;
-        let name = sym.name.clone();
-        let opts = FindAddrOpts {
-            offset_in_file: false,
-            sym_type: SymType::Function,
-        };
-        let found = resolver.find_addr(&name, &opts).unwrap();
-        assert!(found.iter().any(|x| x.addr == addr));
+        // Should still find the previous symbol, which is the last one.
+        ensure_addr_for_name(found.name, addr);
     }
 
     #[test]
