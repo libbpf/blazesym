@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -297,7 +296,7 @@ impl<'mmap> Cache<'mmap> {
     }
 
     #[cfg(test)]
-    fn symbol(&mut self, idx: usize) -> Result<&'mmap Elf64_Sym> {
+    fn symbol(&self, idx: usize) -> Result<&'mmap Elf64_Sym> {
         let symtab = self.ensure_symtab()?;
         let symbol = symtab
             .get(idx)
@@ -423,7 +422,7 @@ pub(crate) struct ElfParser {
     //         this member. Rather, they should never outlive `self`.
     //         Furthermore, this member has to be listed before `mmap`
     //         to make sure we never end up with a dangling reference.
-    cache: RefCell<Cache<'static>>,
+    cache: Cache<'static>,
     /// The memory mapped file.
     _mmap: Mmap,
 }
@@ -444,7 +443,7 @@ impl ElfParser {
 
         let parser = ElfParser {
             _mmap: mmap,
-            cache: RefCell::new(Cache::new(elf_data)),
+            cache: Cache::new(elf_data),
         };
         parser
     }
@@ -462,23 +461,20 @@ impl ElfParser {
 
     /// Retrieve the data corresponding to the ELF section at index `idx`.
     pub fn section_data(&self, idx: usize) -> Result<&[u8]> {
-        let cache = self.cache.borrow();
-        cache.section_data(idx)
+        self.cache.section_data(idx)
     }
 
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
     pub fn find_section(&self, name: &str) -> Result<Option<usize>> {
-        let cache = self.cache.borrow();
-        let index = cache.find_section(name)?;
+        let index = self.cache.find_section(name)?;
         Ok(index)
     }
 
     pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr, usize)>> {
-        let cache = self.cache.borrow();
-        let strtab = cache.ensure_strtab()?;
-        let symtab = cache.ensure_symtab()?;
+        let strtab = self.cache.ensure_strtab()?;
+        let symtab = self.cache.ensure_symtab()?;
 
         find_sym(symtab, strtab, addr, st_type)
     }
@@ -511,10 +507,9 @@ impl ElfParser {
             return Err(Error::with_unsupported("Not implemented"))
         }
 
-        let cache = self.cache.borrow();
-        let shdrs = cache.ensure_shdrs()?;
-        let symtab = cache.ensure_symtab()?;
-        let str2symtab = cache.ensure_str2symtab()?;
+        let shdrs = self.cache.ensure_shdrs()?;
+        let symtab = self.cache.ensure_symtab()?;
+        let str2symtab = self.cache.ensure_str2symtab()?;
 
         let r = find_match_or_lower_bound_by_key(str2symtab, name, |&(name, _i)| name);
         match r {
@@ -556,15 +551,12 @@ impl ElfParser {
             return Err(Error::with_unsupported("Not implemented"))
         }
 
-        let cache = self.cache.borrow();
-        let shdrs = cache.ensure_shdrs()?;
-        drop(cache);
+        let shdrs = self.cache.ensure_shdrs()?;
 
         let mut i = 0;
         loop {
-            let cache = self.cache.borrow_mut();
-            let symtab = cache.ensure_symtab()?;
-            let str2symtab = cache.ensure_str2symtab()?;
+            let symtab = self.cache.ensure_symtab()?;
+            let str2symtab = self.cache.ensure_str2symtab()?;
 
             if i >= str2symtab.len() {
                 break Ok(r)
@@ -586,7 +578,6 @@ impl ElfParser {
                         .transpose()?,
                     obj_file_name: None,
                 };
-                drop(cache);
                 r = f(r, &sym_info)
             }
 
@@ -612,29 +603,25 @@ impl ElfParser {
 
     #[cfg(test)]
     fn get_symbol_name(&self, idx: usize) -> Result<&str> {
-        let mut cache = self.cache.borrow_mut();
-        let strtab = cache.ensure_strtab()?;
-        let sym = cache.symbol(idx)?;
+        let strtab = self.cache.ensure_strtab()?;
+        let sym = self.cache.symbol(idx)?;
         let name = symbol_name(strtab, sym)?;
         Ok(name)
     }
 
     pub(crate) fn section_headers(&self) -> Result<&[Elf64_Shdr]> {
-        let cache = self.cache.borrow();
-        let phdrs = cache.ensure_shdrs()?;
+        let phdrs = self.cache.ensure_shdrs()?;
         Ok(phdrs)
     }
 
     pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr]> {
-        let cache = self.cache.borrow();
-        let phdrs = cache.ensure_phdrs()?;
+        let phdrs = self.cache.ensure_phdrs()?;
         Ok(phdrs)
     }
 
     #[cfg(test)]
     fn pick_symtab_addr(&self) -> (&str, Addr, usize) {
-        let cache = self.cache.borrow();
-        let symtab = cache.ensure_symtab().unwrap();
+        let symtab = self.cache.ensure_symtab().unwrap();
 
         let mut idx = symtab.len() / 2;
         while symtab[idx].type_() != STT_FUNC || symtab[idx].st_shndx == SHN_UNDEF {
@@ -643,7 +630,6 @@ impl ElfParser {
         let sym = &symtab[idx];
         let addr = sym.st_value;
         let size = sym.st_size;
-        drop(cache);
 
         let sym_name = self.get_symbol_name(idx).unwrap();
         (
@@ -740,8 +726,7 @@ mod tests {
         let () = file.rewind().unwrap();
 
         let parser = ElfParser::open_file(&file).unwrap();
-        let cache = parser.cache.borrow();
-        let ehdr = cache.ensure_ehdr().unwrap();
+        let ehdr = parser.cache.ensure_ehdr().unwrap();
         assert_eq!(ehdr.shnum, SHNUM.into());
         assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
     }
@@ -798,9 +783,8 @@ mod tests {
         let () = file.rewind().unwrap();
 
         let parser = ElfParser::open_file(&file).unwrap();
-        let cache = parser.cache.borrow();
-        let ehdr = cache.ensure_ehdr().unwrap();
-        let shstrndx = cache.shstrndx(ehdr.ehdr).unwrap();
+        let ehdr = parser.cache.ensure_ehdr().unwrap();
+        let shstrndx = parser.cache.shstrndx(ehdr.ehdr).unwrap();
         assert_eq!(shstrndx, SHSTRNDX.into());
     }
 
