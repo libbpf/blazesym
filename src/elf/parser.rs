@@ -101,7 +101,7 @@ struct Cache<'mmap> {
     ehdr: OnceCell<EhdrExt<'mmap>>,
     /// The cached ELF section headers.
     shdrs: OnceCell<&'mmap [Elf64_Shdr]>,
-    shstrtab: Option<&'mmap [u8]>,
+    shstrtab: OnceCell<&'mmap [u8]>,
     /// The cached ELF program headers.
     phdrs: Option<&'mmap [Elf64_Phdr]>,
     symtab: Option<Box<[&'mmap Elf64_Sym]>>, // in address order
@@ -117,7 +117,7 @@ impl<'mmap> Cache<'mmap> {
             elf_data,
             ehdr: OnceCell::new(),
             shdrs: OnceCell::new(),
-            shstrtab: None,
+            shstrtab: OnceCell::new(),
             phdrs: None,
             symtab: None,
             strtab: None,
@@ -127,7 +127,7 @@ impl<'mmap> Cache<'mmap> {
 
     /// Retrieve the raw section data for the ELF section at index
     /// `idx`.
-    fn section_data(&mut self, idx: usize) -> Result<&'mmap [u8]> {
+    fn section_data(&self, idx: usize) -> Result<&'mmap [u8]> {
         let shdrs = self.ensure_shdrs()?;
         let section = shdrs
             .get(idx)
@@ -265,16 +265,17 @@ impl<'mmap> Cache<'mmap> {
         Ok(shstrndx)
     }
 
-    fn ensure_shstrtab(&mut self) -> Result<&'mmap [u8]> {
-        if let Some(shstrtab) = self.shstrtab {
-            return Ok(shstrtab)
-        }
-
+    fn parse_shstrtab(&self) -> Result<&'mmap [u8]> {
         let ehdr = self.ensure_ehdr()?;
         let shstrndx = self.shstrndx(ehdr.ehdr)?;
         let shstrtab = self.section_data(shstrndx)?;
-        self.shstrtab = Some(shstrtab);
         Ok(shstrtab)
+    }
+
+    fn ensure_shstrtab(&self) -> Result<&'mmap [u8]> {
+        self.shstrtab
+            .get_or_try_init(|| self.parse_shstrtab())
+            .copied()
     }
 
     /// Get the name of the section at a given index.
@@ -475,7 +476,7 @@ impl ElfParser {
 
     /// Retrieve the data corresponding to the ELF section at index `idx`.
     pub fn section_data(&self, idx: usize) -> Result<&[u8]> {
-        let mut cache = self.cache.borrow_mut();
+        let cache = self.cache.borrow();
         cache.section_data(idx)
     }
 
