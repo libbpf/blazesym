@@ -1,6 +1,7 @@
 use std::ops::Range;
 
 use crate::util::ReadRaw as _;
+use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Result;
 
@@ -47,8 +48,18 @@ impl InlineInfo {
                     .ok_or_invalid_data(|| "failed to read size from inline information")?
                     .0;
 
-                let start = base_addr + offset;
-                let end = start + size;
+                let start = base_addr
+                    .checked_add(offset)
+                    .ok_or_invalid_data(|| {
+                        format!("offset {offset:#x} overflowed base address {base_addr:#x}")
+                    })
+                    .context("failed calculate start address")?;
+                let end = start
+                    .checked_add(size)
+                    .ok_or_invalid_data(|| {
+                        format!("size {size:#x} overflowed start address {start:#x}")
+                    })
+                    .context("failed calculate end address")?;
                 if i == 0 {
                     child_base_addr = start;
                 }
