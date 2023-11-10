@@ -250,7 +250,7 @@ pub(crate) struct Function<'dwarf> {
     /// The function's range (begin and end address).
     pub(crate) range: Option<gimli::Range>,
     /// List of inlined function calls.
-    pub(super) inlined_functions: OnceCell<Result<InlinedFunctions<'dwarf>, Error>>,
+    pub(super) inlined_functions: OnceCell<InlinedFunctions<'dwarf>>,
 }
 
 impl Debug for Function<'_> {
@@ -462,12 +462,8 @@ impl<'dwarf> Function<'dwarf> {
         unit: &gimli::Unit<R<'dwarf>>,
         sections: &gimli::Dwarf<R<'dwarf>>,
     ) -> Result<&InlinedFunctions<'dwarf>, Error> {
-        let inlined_fns = self
-            .inlined_functions
-            .get_or_init(|| InlinedFunctions::parse(self.dw_die_offset, unit, sections))
-            .as_ref()
-            .map_err(Error::clone)?;
-        Ok(inlined_fns)
+        self.inlined_functions
+            .get_or_try_init(|| InlinedFunctions::parse(self.dw_die_offset, unit, sections))
     }
 
 
