@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -13,6 +12,7 @@ use std::path::PathBuf;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
+use crate::once::OnceCell;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
@@ -50,8 +50,12 @@ impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
 /// The users should provide the path of kallsyms, so you can provide
 /// a copy from other devices.
 pub struct KSymResolver {
+    // SAFETY: We must not hand out strings with a 'static lifetime to
+    //         callers. Rather, they should never outlive `self`.
+    //         Furthermore, this member has to be listed before `syms`
+    //         to make sure we never end up with dangling references.
+    sym_to_addr: OnceCell<HashMap<&'static str, Addr>>,
     syms: Vec<Ksym>,
-    sym_to_addr: RefCell<HashMap<&'static str, Addr>>,
     file_name: PathBuf,
 }
 
@@ -88,22 +92,10 @@ impl KSymResolver {
 
         let slf = Self {
             syms,
-            sym_to_addr: RefCell::default(),
+            sym_to_addr: OnceCell::new(),
             file_name: filename,
         };
         Ok(slf)
-    }
-
-    fn ensure_sym_to_addr(&self) {
-        if self.sym_to_addr.borrow().len() > 0 {
-            return
-        }
-        let mut sym_to_addr = self.sym_to_addr.borrow_mut();
-        for Ksym { name, addr } in self.syms.iter() {
-            // Performance & lifetime hacking
-            let name_static = unsafe { &*(name as *const String) };
-            sym_to_addr.insert(name_static, *addr);
-        }
     }
 
     fn find_ksym(&self, addr: Addr) -> Option<&Ksym> {
@@ -127,9 +119,20 @@ impl SymResolver for KSymResolver {
         if let SymType::Variable = opts.sym_type {
             return Ok(Vec::new())
         }
-        let () = self.ensure_sym_to_addr();
 
-        let sym_to_addr = self.sym_to_addr.borrow();
+        let sym_to_addr = self.sym_to_addr.get_or_init(|| {
+            self.syms
+                .iter()
+                .map(|Ksym { name, addr }| {
+                    // SAFETY: We ensure that all `Ksym` objects outlive the
+                    //         `syms` member, so conjuring up a 'static
+                    //         lifetime is fine.
+                    let name = unsafe { &*(name.as_ref() as *const str) };
+                    (name, *addr)
+                })
+                .collect()
+        });
+
         if let Some((name, addr)) = sym_to_addr.get_key_value(name) {
             Ok(vec![SymInfo {
                 name: Cow::Borrowed(name),
@@ -170,7 +173,7 @@ mod tests {
     fn debug_repr() {
         let resolver = KSymResolver {
             syms: Vec::new(),
-            sym_to_addr: RefCell::default(),
+            sym_to_addr: OnceCell::new(),
             file_name: PathBuf::new(),
         };
         assert_ne!(format!("{resolver:?}"), "");
@@ -249,7 +252,7 @@ mod tests {
                     name: "3".to_string(),
                 },
             ],
-            sym_to_addr: RefCell::default(),
+            sym_to_addr: OnceCell::new(),
             file_name: PathBuf::new(),
         };
 
