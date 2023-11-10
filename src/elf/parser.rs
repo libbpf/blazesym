@@ -12,6 +12,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::mmap::Mmap;
+use crate::once::OnceCell;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -97,7 +98,7 @@ struct Cache<'mmap> {
     /// A slice of the raw ELF data that we are about to parse.
     elf_data: &'mmap [u8],
     /// The cached ELF header.
-    ehdr: Option<EhdrExt<'mmap>>,
+    ehdr: OnceCell<EhdrExt<'mmap>>,
     /// The cached ELF section headers.
     shdrs: Option<&'mmap [Elf64_Shdr]>,
     shstrtab: Option<&'mmap [u8]>,
@@ -114,7 +115,7 @@ impl<'mmap> Cache<'mmap> {
     fn new(elf_data: &'mmap [u8]) -> Self {
         Self {
             elf_data,
-            ehdr: None,
+            ehdr: OnceCell::new(),
             shdrs: None,
             shstrtab: None,
             phdrs: None,
@@ -157,11 +158,7 @@ impl<'mmap> Cache<'mmap> {
         Ok(shdr)
     }
 
-    fn ensure_ehdr(&mut self) -> Result<EhdrExt<'mmap>> {
-        if let Some(ehdr) = self.ehdr {
-            return Ok(ehdr)
-        }
-
+    fn parse_ehdr(&self) -> Result<EhdrExt<'mmap>> {
         let mut elf_data = self.elf_data;
         let ehdr = elf_data
             .read_pod_ref::<Elf64_Ehdr>()
@@ -211,8 +208,11 @@ impl<'mmap> Cache<'mmap> {
         };
 
         let ehdr = EhdrExt { ehdr, shnum, phnum };
-        self.ehdr = Some(ehdr);
         Ok(ehdr)
+    }
+
+    fn ensure_ehdr(&self) -> Result<&EhdrExt<'mmap>> {
+        self.ehdr.get_or_try_init(|| self.parse_ehdr())
     }
 
     fn ensure_shdrs(&mut self) -> Result<&'mmap [Elf64_Shdr]> {
@@ -770,7 +770,7 @@ mod tests {
         let () = file.rewind().unwrap();
 
         let parser = ElfParser::open_file(&file).unwrap();
-        let mut cache = parser.cache.borrow_mut();
+        let cache = parser.cache.borrow();
         let ehdr = cache.ensure_ehdr().unwrap();
         assert_eq!(ehdr.shnum, SHNUM.into());
         assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
@@ -828,7 +828,7 @@ mod tests {
         let () = file.rewind().unwrap();
 
         let parser = ElfParser::open_file(&file).unwrap();
-        let mut cache = parser.cache.borrow_mut();
+        let cache = parser.cache.borrow();
         let ehdr = cache.ensure_ehdr().unwrap();
         let shstrndx = cache.shstrndx(ehdr.ehdr).unwrap();
         assert_eq!(shstrndx, SHSTRNDX.into());
