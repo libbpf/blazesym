@@ -433,10 +433,10 @@ impl Debug for Cache<'_> {
 #[derive(Debug)]
 pub(crate) struct ElfParser {
     /// A cache for relevant parts of the ELF file.
-    /// SAFETY: We must not hand out references with a 'static lifetime to
-    ///         this member. Rather, they should never outlive `self`.
-    ///         Furthermore, this member has to be listed before `mmap`
-    ///         to make sure we never end up with a dangling reference.
+    // SAFETY: We must not hand out references with a 'static lifetime to
+    //         this member. Rather, they should never outlive `self`.
+    //         Furthermore, this member has to be listed before `mmap`
+    //         to make sure we never end up with a dangling reference.
     cache: RefCell<Cache<'static>>,
     /// The memory mapped file.
     _mmap: Mmap,
