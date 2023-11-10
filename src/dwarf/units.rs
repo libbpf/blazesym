@@ -26,11 +26,11 @@
 // > DEALINGS IN THE SOFTWARE.
 
 use crate::log::warn;
+use crate::once::OnceCell;
 use crate::ErrorExt as _;
 use crate::Result;
 
 use super::function::Function;
-use super::lazy::LazyCell;
 use super::lines::Lines;
 use super::location::Location;
 use super::range::RangeAttributes;
@@ -184,13 +184,13 @@ impl<'dwarf> Units<'dwarf> {
                 }
             }
 
-            let lines = LazyCell::new();
+            let lines = OnceCell::new();
             if !have_unit_range {
                 // The unit did not declare any ranges.
                 // Try to get some ranges from the line program sequences.
                 if let Some(ref ilnp) = dw_unit.line_program {
                     if let Ok(lines) = lines
-                        .borrow_with(|| Lines::parse(&dw_unit, ilnp.clone(), &sections))
+                        .get_or_init(|| Lines::parse(&dw_unit, ilnp.clone(), &sections))
                         .as_ref()
                     {
                         for sequence in lines.sequences.iter() {
