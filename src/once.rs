@@ -67,7 +67,7 @@ impl<T> OnceCell<T> {
     #[inline]
     pub fn try_insert(&self, value: T) -> Result<&T, (&T, T)> {
         if let Some(old) = self.get() {
-            return Err((old, value));
+            return Err((old, value))
         }
 
         // SAFETY: This is the only place where we set the slot, no races
@@ -115,7 +115,7 @@ impl<T> OnceCell<T> {
         F: FnOnce() -> Result<T, E>,
     {
         if let Some(val) = self.get() {
-            return Ok(val);
+            return Ok(val)
         }
         /// Avoid inlining the initialization closure into the common path that fetches
         /// the already initialized value

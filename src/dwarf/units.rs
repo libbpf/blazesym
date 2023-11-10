@@ -189,9 +189,8 @@ impl<'dwarf> Units<'dwarf> {
                 // The unit did not declare any ranges.
                 // Try to get some ranges from the line program sequences.
                 if let Some(ref ilnp) = dw_unit.line_program {
-                    if let Ok(lines) = lines
-                        .get_or_init(|| Lines::parse(&dw_unit, ilnp.clone(), &sections))
-                        .as_ref()
+                    if let Ok(lines) =
+                        lines.get_or_try_init(|| Lines::parse(&dw_unit, ilnp.clone(), &sections))
                     {
                         for sequence in lines.sequences.iter() {
                             unit_ranges.push(UnitRange {
