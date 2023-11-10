@@ -103,7 +103,7 @@ struct Cache<'mmap> {
     shdrs: OnceCell<&'mmap [Elf64_Shdr]>,
     shstrtab: OnceCell<&'mmap [u8]>,
     /// The cached ELF program headers.
-    phdrs: Option<&'mmap [Elf64_Phdr]>,
+    phdrs: OnceCell<&'mmap [Elf64_Phdr]>,
     symtab: Option<Box<[&'mmap Elf64_Sym]>>, // in address order
     /// The cached ELF string table.
     strtab: Option<&'mmap [u8]>,
@@ -118,7 +118,7 @@ impl<'mmap> Cache<'mmap> {
             ehdr: OnceCell::new(),
             shdrs: OnceCell::new(),
             shstrtab: OnceCell::new(),
-            phdrs: None,
+            phdrs: OnceCell::new(),
             symtab: None,
             strtab: None,
             str2symtab: None,
@@ -230,11 +230,7 @@ impl<'mmap> Cache<'mmap> {
         self.shdrs.get_or_try_init(|| self.parse_shdrs()).copied()
     }
 
-    fn ensure_phdrs(&mut self) -> Result<&'mmap [Elf64_Phdr]> {
-        if let Some(phdrs) = self.phdrs {
-            return Ok(phdrs)
-        }
-
+    fn parse_phdrs(&self) -> Result<&'mmap [Elf64_Phdr]> {
         let ehdr = self.ensure_ehdr()?;
         let phdrs = self
             .elf_data
@@ -242,8 +238,11 @@ impl<'mmap> Cache<'mmap> {
             .ok_or_invalid_data(|| "Elf64_Ehdr::e_phoff is invalid")?
             .read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
             .ok_or_invalid_data(|| "failed to read Elf64_Phdr")?;
-        self.phdrs = Some(phdrs);
         Ok(phdrs)
+    }
+
+    fn ensure_phdrs(&self) -> Result<&'mmap [Elf64_Phdr]> {
+        self.phdrs.get_or_try_init(|| self.parse_phdrs()).copied()
     }
 
     fn shstrndx(&self, ehdr: &Elf64_Ehdr) -> Result<usize> {
@@ -655,7 +654,7 @@ impl ElfParser {
     }
 
     pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr]> {
-        let mut cache = self.cache.borrow_mut();
+        let cache = self.cache.borrow();
         let phdrs = cache.ensure_phdrs()?;
         Ok(phdrs)
     }
