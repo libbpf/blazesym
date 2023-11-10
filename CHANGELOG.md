@@ -4,6 +4,8 @@ Unreleased
 - Adjusted various symbolization related types to contain `Cow` objects to
   facilitate hand out of memory mapped data without unnecessary allocations
   - Adjusted various symbolization code paths to stop heap-allocating
+- Handled potential numeric overflow in Gsym inlined function parser more
+  gracefully
 
 
 0.2.0-alpha.8
