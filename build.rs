@@ -164,6 +164,7 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
+    println!("cargo:rerun-if-env-changed=LLVM_GSYMUTIL");
 
     let gsymutil = env::var_os("LLVM_GSYMUTIL").unwrap_or_else(|| OsString::from("llvm-gsymutil"));
 
