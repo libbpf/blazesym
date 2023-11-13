@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -54,7 +53,7 @@ pub struct KSymResolver {
     //         callers. Rather, they should never outlive `self`.
     //         Furthermore, this member has to be listed before `syms`
     //         to make sure we never end up with dangling references.
-    sym_to_addr: OnceCell<HashMap<&'static str, Addr>>,
+    sym_to_addr: OnceCell<Vec<(&'static str, Addr)>>,
     syms: Vec<Ksym>,
     file_name: PathBuf,
 }
@@ -121,7 +120,8 @@ impl SymResolver for KSymResolver {
         }
 
         let sym_to_addr = self.sym_to_addr.get_or_init(|| {
-            self.syms
+            let mut syms = self
+                .syms
                 .iter()
                 .map(|Ksym { name, addr }| {
                     // SAFETY: We ensure that all `Ksym` objects outlive the
@@ -130,21 +130,29 @@ impl SymResolver for KSymResolver {
                     let name = unsafe { &*(name.as_ref() as *const str) };
                     (name, *addr)
                 })
-                .collect()
+                .collect::<Vec<_>>();
+            let () =
+                syms.sort_by(|sym1, sym2| sym1.0.cmp(sym2.0).then_with(|| sym1.1.cmp(&sym2.1)));
+            syms
         });
 
-        if let Some((name, addr)) = sym_to_addr.get_key_value(name) {
-            Ok(vec![SymInfo {
-                name: Cow::Borrowed(name),
-                addr: *addr,
-                size: 0,
-                sym_type: SymType::Function,
-                file_offset: None,
-                obj_file_name: None,
-            }])
+        let result = find_match_or_lower_bound_by_key(sym_to_addr, name, |(name, _addr)| name);
+        let syms = if let Some(idx) = result {
+            sym_to_addr[idx..]
+                .iter()
+                .map(|(name, addr)| SymInfo {
+                    name: Cow::Borrowed(*name),
+                    addr: *addr,
+                    size: 0,
+                    sym_type: SymType::Function,
+                    file_offset: None,
+                    obj_file_name: None,
+                })
+                .collect()
         } else {
-            Ok(Vec::new())
-        }
+            Vec::new()
+        };
+        Ok(syms)
     }
 
     fn find_code_info(&self, _addr: Addr, _inlined_fns: bool) -> Result<Option<AddrCodeInfo>> {
@@ -206,7 +214,10 @@ mod tests {
                 sym_type: SymType::Function,
             };
             let found = resolver.find_addr(name, &opts).unwrap();
-            assert!(found.iter().any(|x| x.addr == addr));
+            assert!(
+                found.iter().any(|x| x.addr == addr),
+                "{addr:#x} {found:#x?}"
+            );
         };
 
 
