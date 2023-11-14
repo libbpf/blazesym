@@ -5,6 +5,7 @@ use std::fs::File;
 use std::ops::Deref as _;
 use std::ops::Range;
 use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 #[cfg(feature = "dwarf")]
@@ -24,7 +25,6 @@ use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::mmap::Mmap;
 use crate::normalize;
-use crate::normalize::create_apk_elf_path;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
 use crate::util;
@@ -53,6 +53,28 @@ use super::IntSym;
 use super::SrcLang;
 use super::Sym;
 use super::Symbolized;
+
+
+fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
+    let mut extension = apk
+        .extension()
+        .unwrap_or_else(|| OsStr::new("apk"))
+        .to_os_string();
+    // Append '!' to indicate separation from archive internal contents
+    // that follow. This is an Android convention.
+    let () = extension.push("!");
+
+    let mut apk = apk.to_path_buf();
+    if !apk.set_extension(extension) {
+        return Err(Error::with_invalid_data(format!(
+            "path {} is not valid",
+            apk.display()
+        )))
+    }
+
+    let path = apk.join(elf);
+    Ok(path)
+}
 
 
 /// Demangle a symbol name using the demangling scheme for the given language.
@@ -982,6 +1004,15 @@ mod tests {
 
         let symbolizer = builder.build();
         assert_ne!(format!("{symbolizer:?}"), "");
+    }
+
+    /// Check that we can create a path to an ELF inside an APK as expected.
+    #[test]
+    fn elf_apk_path_creation() {
+        let apk = Path::new("/root/test.apk");
+        let elf = Path::new("subdir/libc.so");
+        let path = create_apk_elf_path(apk, elf).unwrap();
+        assert_eq!(path, Path::new("/root/test.apk!/subdir/libc.so"));
     }
 
     /// Check that we can correctly construct the source code path to a symbol.
