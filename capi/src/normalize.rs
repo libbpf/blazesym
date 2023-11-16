@@ -10,15 +10,19 @@ use std::path::PathBuf;
 use std::ptr;
 use std::slice;
 
-use crate::log::error;
-use crate::normalize::Apk;
-use crate::normalize::Elf;
-use crate::normalize::Normalizer;
-use crate::normalize::Unknown;
-use crate::normalize::UserMeta;
-use crate::normalize::UserOutput;
-use crate::util::slice_from_user_array;
-use crate::Addr;
+use blazesym::normalize::Apk;
+use blazesym::normalize::Elf;
+use blazesym::normalize::Normalizer;
+use blazesym::normalize::Unknown;
+use blazesym::normalize::UserMeta;
+use blazesym::normalize::UserOutput;
+use blazesym::Addr;
+
+use crate::slice_from_user_array;
+
+
+/// C ABI compatible version of [`blazesym::normalize::Normalizer`].
+pub type blaze_normalizer = Normalizer;
 
 
 /// Create an instance of a blazesym normalizer.
@@ -26,7 +30,7 @@ use crate::Addr;
 /// The returned pointer should be released using
 /// [`blaze_normalizer_free`] once it is no longer needed.
 #[no_mangle]
-pub extern "C" fn blaze_normalizer_new() -> *mut Normalizer {
+pub extern "C" fn blaze_normalizer_new() -> *mut blaze_normalizer {
     let normalizer = Normalizer::new();
     let normalizer_box = Box::new(normalizer);
     Box::into_raw(normalizer_box)
@@ -42,7 +46,7 @@ pub extern "C" fn blaze_normalizer_new() -> *mut Normalizer {
 /// The provided normalizer should have been created by
 /// [`blaze_normalizer_new`].
 #[no_mangle]
-pub unsafe extern "C" fn blaze_normalizer_free(normalizer: *mut Normalizer) {
+pub unsafe extern "C" fn blaze_normalizer_free(normalizer: *mut blaze_normalizer) {
     if !normalizer.is_null() {
         // SAFETY: The caller needs to ensure that `normalizer` is a
         //         valid pointer.
@@ -260,6 +264,7 @@ impl From<UserMeta> for blaze_user_meta {
                     unknown: ManuallyDrop::new(blaze_user_meta_unknown::from(unknown)),
                 },
             },
+            _ => unreachable!(),
         }
     }
 }
@@ -356,7 +361,7 @@ impl From<UserOutput> for blaze_normalized_user_output {
 /// `addr_cnt` addresses.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs(
-    normalizer: *const Normalizer,
+    normalizer: *const blaze_normalizer,
     addrs: *const Addr,
     addr_cnt: usize,
     pid: u32,
@@ -370,10 +375,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     let result = normalizer.normalize_user_addrs(addrs, pid.into());
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
-        Err(err) => {
-            error!("failed to normalize user addresses: {err}");
-            ptr::null_mut()
-        }
+        Err(_err) => ptr::null_mut(),
     }
 }
 
@@ -397,7 +399,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 /// `addr_cnt` addresses.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
-    normalizer: *const Normalizer,
+    normalizer: *const blaze_normalizer,
     addrs: *const Addr,
     addr_cnt: usize,
     pid: u32,
@@ -411,10 +413,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     let result = normalizer.normalize_user_addrs_sorted(addrs, pid.into());
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
-        Err(err) => {
-            error!("failed to normalize user addresses: {err}");
-            ptr::null_mut()
-        }
+        Err(_err) => ptr::null_mut(),
     }
 }
 

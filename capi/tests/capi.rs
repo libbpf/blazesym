@@ -13,33 +13,33 @@ use std::slice;
 
 use blazesym::inspect;
 use blazesym::symbolize;
-
-use blazesym::c_api::blaze_inspect_elf_src;
-use blazesym::c_api::blaze_inspect_syms_elf;
-use blazesym::c_api::blaze_inspect_syms_free;
-use blazesym::c_api::blaze_inspector_free;
-use blazesym::c_api::blaze_inspector_new;
-use blazesym::c_api::blaze_normalize_user_addrs;
-use blazesym::c_api::blaze_normalize_user_addrs_sorted;
-use blazesym::c_api::blaze_normalizer_free;
-use blazesym::c_api::blaze_normalizer_new;
-use blazesym::c_api::blaze_result;
-use blazesym::c_api::blaze_result_free;
-use blazesym::c_api::blaze_symbolize_elf_file_addrs;
-use blazesym::c_api::blaze_symbolize_gsym_data_file_addrs;
-use blazesym::c_api::blaze_symbolize_gsym_file_file_addrs;
-use blazesym::c_api::blaze_symbolize_process_virt_addrs;
-use blazesym::c_api::blaze_symbolize_src_elf;
-use blazesym::c_api::blaze_symbolize_src_gsym_data;
-use blazesym::c_api::blaze_symbolize_src_gsym_file;
-use blazesym::c_api::blaze_symbolize_src_process;
-use blazesym::c_api::blaze_symbolizer;
-use blazesym::c_api::blaze_symbolizer_free;
-use blazesym::c_api::blaze_symbolizer_new;
-use blazesym::c_api::blaze_symbolizer_new_opts;
-use blazesym::c_api::blaze_symbolizer_opts;
-use blazesym::c_api::blaze_user_output_free;
 use blazesym::Addr;
+
+use blazesym_c::blaze_inspect_elf_src;
+use blazesym_c::blaze_inspect_syms_elf;
+use blazesym_c::blaze_inspect_syms_free;
+use blazesym_c::blaze_inspector_free;
+use blazesym_c::blaze_inspector_new;
+use blazesym_c::blaze_normalize_user_addrs;
+use blazesym_c::blaze_normalize_user_addrs_sorted;
+use blazesym_c::blaze_normalizer_free;
+use blazesym_c::blaze_normalizer_new;
+use blazesym_c::blaze_result;
+use blazesym_c::blaze_result_free;
+use blazesym_c::blaze_symbolize_elf_file_addrs;
+use blazesym_c::blaze_symbolize_gsym_data_file_addrs;
+use blazesym_c::blaze_symbolize_gsym_file_file_addrs;
+use blazesym_c::blaze_symbolize_process_virt_addrs;
+use blazesym_c::blaze_symbolize_src_elf;
+use blazesym_c::blaze_symbolize_src_gsym_data;
+use blazesym_c::blaze_symbolize_src_gsym_file;
+use blazesym_c::blaze_symbolize_src_process;
+use blazesym_c::blaze_symbolizer;
+use blazesym_c::blaze_symbolizer_free;
+use blazesym_c::blaze_symbolizer_new;
+use blazesym_c::blaze_symbolizer_new_opts;
+use blazesym_c::blaze_symbolizer_opts;
+use blazesym_c::blaze_user_output_free;
 
 
 /// Make sure that we can create and free a symbolizer instance.
@@ -109,6 +109,7 @@ fn symbolize_elf_dwarf_gsym() {
     }
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("..")
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
     let path_c = CString::new(path.to_str().unwrap()).unwrap();
@@ -121,6 +122,7 @@ fn symbolize_elf_dwarf_gsym() {
     test(symbolize, false);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("..")
         .join("data")
         .join("test-stable-addresses-dwarf-only.bin");
     let path_c = CString::new(path.to_str().unwrap()).unwrap();
@@ -133,6 +135,7 @@ fn symbolize_elf_dwarf_gsym() {
     test(symbolize, true);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("..")
         .join("data")
         .join("test-stable-addresses.gsym");
     let path_c = CString::new(path.to_str().unwrap()).unwrap();
@@ -145,6 +148,7 @@ fn symbolize_elf_dwarf_gsym() {
     test(symbolize, true);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("..")
         .join("data")
         .join("test-stable-addresses.gsym");
     let data = read_file(path).unwrap();
@@ -247,6 +251,7 @@ fn symbolize_dwarf_demangle() {
     }
 
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("..")
         .join("data")
         .join("test-rs.bin");
     let elf = inspect::Elf::new(&test_dwarf);
@@ -388,6 +393,7 @@ fn inspector_creation() {
 #[test]
 fn lookup_dwarf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("..")
         .join("data")
         .join("test-stable-addresses-dwarf-only.bin");
 
@@ -398,6 +404,7 @@ fn lookup_dwarf() {
     let inspector = blaze_inspector_new();
     let result = unsafe { blaze_inspect_syms_elf(inspector, &src, names.as_ptr(), names.len()) };
     let _src = inspect::Elf::from(src);
+    assert!(!result.is_null());
 
     let sym_infos = unsafe { slice::from_raw_parts(result, names.len()) };
     let sym_info = unsafe { &*sym_infos[0] };

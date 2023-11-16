@@ -11,22 +11,21 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 
-use crate::log::error;
-use crate::log::warn;
-use crate::symbolize::CodeInfo;
-use crate::symbolize::Elf;
-use crate::symbolize::GsymData;
-use crate::symbolize::GsymFile;
-use crate::symbolize::InlinedFn;
-use crate::symbolize::Input;
-use crate::symbolize::Kernel;
-use crate::symbolize::Process;
-use crate::symbolize::Source;
-use crate::symbolize::Sym;
-use crate::symbolize::Symbolized;
-use crate::symbolize::Symbolizer;
-use crate::util::slice_from_user_array;
-use crate::Addr;
+use blazesym::symbolize::CodeInfo;
+use blazesym::symbolize::Elf;
+use blazesym::symbolize::GsymData;
+use blazesym::symbolize::GsymFile;
+use blazesym::symbolize::InlinedFn;
+use blazesym::symbolize::Input;
+use blazesym::symbolize::Kernel;
+use blazesym::symbolize::Process;
+use blazesym::symbolize::Source;
+use blazesym::symbolize::Sym;
+use blazesym::symbolize::Symbolized;
+use blazesym::symbolize::Symbolizer;
+use blazesym::Addr;
+
+use crate::slice_from_user_array;
 
 
 /// The parameters to load symbols and debug information from an ELF.
@@ -159,7 +158,7 @@ impl From<&blaze_symbolize_src_gsym_file> for GsymFile {
 }
 
 
-/// A placeholder symbolizer for C API.
+/// C ABI compatible version of [`blazesym::symbolize::Symbolizer`].
 ///
 /// It is returned by [`blaze_symbolizer_new`] and should be free by
 /// [`blaze_symbolizer_free`].
@@ -503,15 +502,9 @@ unsafe fn blaze_symbolize_impl(
     let result = symbolizer.symbolize(&src, input);
 
     match result {
-        Ok(results) if results.is_empty() => {
-            warn!("empty result symbolizing {input_cnt} inputs");
-            ptr::null()
-        }
+        Ok(results) if results.is_empty() => ptr::null(),
         Ok(results) => convert_symbolizedresults_to_c(results),
-        Err(_err) => {
-            error!("failed to symbolize {input_cnt} inputs: {_err}");
-            ptr::null()
-        }
+        Err(_err) => ptr::null(),
     }
 }
 
