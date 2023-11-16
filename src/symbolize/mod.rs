@@ -185,7 +185,7 @@ pub struct CodeInfo<'src> {
     /// code.
     pub column: Option<u16>,
     /// The struct is non-exhaustive and open to extension.
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl CodeInfo<'_> {
@@ -224,7 +224,7 @@ pub struct InlinedFn<'src> {
     /// Source code location information for the call to the function.
     pub code_info: Option<CodeInfo<'src>>,
     /// The struct is non-exhaustive and open to extension.
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 
@@ -292,7 +292,7 @@ pub struct Sym<'src> {
     /// order `f`, `g`, `h`.
     pub inlined: Box<[InlinedFn<'src>]>,
     /// The struct is non-exhaustive and open to extension.
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 
