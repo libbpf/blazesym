@@ -1077,13 +1077,11 @@ mod tests {
                 ][..],
             ),
             (
-                symbolize::Source::Elf(symbolize::Elf::new(&test_elf)),
+                symbolize::Source::Elf(symbolize::Elf::new(test_elf)),
                 &[Input::AbsAddr([46].as_slice())][..],
             ),
             (
-                symbolize::Source::Gsym(symbolize::Gsym::File(symbolize::GsymFile::new(
-                    &test_gsym,
-                ))),
+                symbolize::Source::Gsym(symbolize::Gsym::File(symbolize::GsymFile::new(test_gsym))),
                 &[
                     Input::AbsAddr([48].as_slice()),
                     Input::FileOffset([49].as_slice()),
