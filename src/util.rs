@@ -7,7 +7,6 @@ use std::mem::align_of;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::os::unix::io::RawFd;
-use std::ptr::NonNull;
 use std::slice;
 
 
@@ -54,18 +53,6 @@ where
     Ok(result)
 }
 
-
-/// "Safely" create a slice from a user provided array.
-pub(crate) unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: usize) -> &'t [T] {
-    let items = if items.is_null() {
-        // `slice::from_raw_parts` requires a properly aligned non-NULL pointer.
-        // Craft one.
-        NonNull::dangling().as_ptr()
-    } else {
-        items
-    };
-    unsafe { slice::from_raw_parts(items, num_items) }
-}
 
 pub(crate) fn fstat(fd: RawFd) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();

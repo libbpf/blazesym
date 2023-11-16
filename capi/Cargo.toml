@@ -1,0 +1,32 @@
+[package]
+name = "cblazesym"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.64"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# `lib` is necessary for end-to-end tests.
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[features]
+# Enable this feature to re-generate the library's C header file. An
+# up-to-date version of this header should already be available in the
+# include/ directory, so this feature is only necessary when APIs are
+# changed.
+generate-c-header = ["cbindgen", "which"]
+
+[build-dependencies]
+cbindgen = {version = "0.26", optional = true}
+which = {version = "5.0.0", optional = true}
+
+[dependencies]
+# Pinned, because we use #[doc(hidden)] APIs.
+blazesym = {version = "=0.2.0-alpha.8", path = "../"}
+libc = "0.2.137"
+
+[dev-dependencies]
+env_logger = "0.10"
+test-log = {version = "0.2.13", default-features = false, features = ["trace"]}
+tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}

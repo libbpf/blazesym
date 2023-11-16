@@ -45,50 +45,6 @@ typedef enum blaze_user_meta_kind {
 } blaze_user_meta_kind;
 
 /**
- * An inspector of various "sources".
- *
- * Object of this type can be used to perform inspections of supported sources.
- * E.g., using an ELF file as a source, information about a symbol can be
- * inquired based on its name.
- *
- * An instance of this type is the unit at which inspection inputs are cached.
- * That is to say, source files (such as ELF) and the parsed data structures
- * may be kept around in memory for the lifetime of this object to speed up
- * future inspection requests.
- * If you are working with large input sources and/or do not intend to perform
- * multiple inspection requests for the same symbolization source, you may want
- * to consider creating a new `Inspector` instance regularly.
- */
-typedef struct blaze_inspector blaze_inspector;
-
-/**
- * A normalizer for addresses.
- *
- * Address normalization is the process of taking virtual absolute
- * addresses as they are seen by, say, a process (which include
- * relocation and process specific layout randomizations, among other
- * things) and converting them to "normalized" virtual addresses as
- * they are present in, say, an ELF binary or a DWARF debug info file,
- * and one would be able to see them using tools such as readelf(1).
- */
-typedef struct blaze_normalizer blaze_normalizer;
-
-/**
- * Symbolizer provides an interface to symbolize addresses.
- *
- * An instance of this type is the unit at which symbolization inputs are
- * cached. That is to say, source files (DWARF, ELF, ...) and the parsed data
- * structures may be kept around in memory for the lifetime of this object to
- * speed up future symbolization requests. If you are working with large input
- * sources and/or do not intend to perform multiple symbolization requests
- * (i.e., [`symbolize`][Symbolizer::symbolize] or
- * [`symbolize_single`][Symbolizer::symbolize_single] calls) for the same
- * symbolization source, you may want to consider creating a new `Symbolizer`
- * instance regularly.
- */
-typedef struct blaze_symbolizer blaze_symbolizer;
-
-/**
  * Information about a looked up symbol.
  */
 typedef struct blaze_sym_info {
@@ -119,6 +75,11 @@ typedef struct blaze_sym_info {
 } blaze_sym_info;
 
 /**
+ * C ABI compatible version of [`blazesym::inspect::Inspector`].
+ */
+typedef struct blaze_inspector blaze_inspector;
+
+/**
  * An object representing an ELF inspection source.
  *
  * C ABI compatible version of [`inspect::Elf`].
@@ -134,6 +95,11 @@ typedef struct blaze_inspect_elf_src {
    */
   bool debug_info;
 } blaze_inspect_elf_src;
+
+/**
+ * C ABI compatible version of [`blazesym::normalize::Normalizer`].
+ */
+typedef struct blaze_normalizer blaze_normalizer;
 
 /**
  * C compatible version of [`Apk`].
@@ -247,7 +213,7 @@ typedef struct blaze_normalized_user_output {
 } blaze_normalized_user_output;
 
 /**
- * A placeholder symbolizer for C API.
+ * C ABI compatible version of [`blazesym::symbolize::Symbolizer`].
  *
  * It is returned by [`blaze_symbolizer_new`] and should be free by
  * [`blaze_symbolizer_free`].
@@ -497,7 +463,7 @@ extern "C" {
  * [`blaze_inspector_new`], `src` needs to point to a valid object, and `names`
  * needs to be a valid pointer to `name_cnt` strings.
  */
-const struct blaze_sym_info *const *blaze_inspect_syms_elf(const struct blaze_inspector *inspector,
+const struct blaze_sym_info *const *blaze_inspect_syms_elf(const blaze_inspector *inspector,
                                                            const struct blaze_inspect_elf_src *src,
                                                            const char *const *names,
                                                            size_t name_cnt);
@@ -518,7 +484,7 @@ void blaze_inspect_syms_free(const struct blaze_sym_info *const *syms);
  * The returned pointer should be released using
  * [`blaze_inspector_free`] once it is no longer needed.
  */
-struct blaze_inspector *blaze_inspector_new(void);
+blaze_inspector *blaze_inspector_new(void);
 
 /**
  * Free a blazesym inspector.
@@ -530,7 +496,7 @@ struct blaze_inspector *blaze_inspector_new(void);
  * The provided inspector should have been created by
  * [`blaze_inspector_new`].
  */
-void blaze_inspector_free(struct blaze_inspector *inspector);
+void blaze_inspector_free(blaze_inspector *inspector);
 
 /**
  * Create an instance of a blazesym normalizer.
@@ -538,7 +504,7 @@ void blaze_inspector_free(struct blaze_inspector *inspector);
  * The returned pointer should be released using
  * [`blaze_normalizer_free`] once it is no longer needed.
  */
-struct blaze_normalizer *blaze_normalizer_new(void);
+blaze_normalizer *blaze_normalizer_new(void);
 
 /**
  * Free a blazesym normalizer.
@@ -550,7 +516,7 @@ struct blaze_normalizer *blaze_normalizer_new(void);
  * The provided normalizer should have been created by
  * [`blaze_normalizer_new`].
  */
-void blaze_normalizer_free(struct blaze_normalizer *normalizer);
+void blaze_normalizer_free(blaze_normalizer *normalizer);
 
 /**
  * Normalize a list of user space addresses.
@@ -569,7 +535,7 @@ void blaze_normalizer_free(struct blaze_normalizer *normalizer);
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
  * `addr_cnt` addresses.
  */
-struct blaze_normalized_user_output *blaze_normalize_user_addrs(const struct blaze_normalizer *normalizer,
+struct blaze_normalized_user_output *blaze_normalize_user_addrs(const blaze_normalizer *normalizer,
                                                                 const uintptr_t *addrs,
                                                                 size_t addr_cnt,
                                                                 uint32_t pid);
@@ -593,7 +559,7 @@ struct blaze_normalized_user_output *blaze_normalize_user_addrs(const struct bla
  * Callers need to pass in a valid `addrs` pointer, pointing to memory of
  * `addr_cnt` addresses.
  */
-struct blaze_normalized_user_output *blaze_normalize_user_addrs_sorted(const struct blaze_normalizer *normalizer,
+struct blaze_normalized_user_output *blaze_normalize_user_addrs_sorted(const blaze_normalizer *normalizer,
                                                                        const uintptr_t *addrs,
                                                                        size_t addr_cnt,
                                                                        uint32_t pid);

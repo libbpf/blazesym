@@ -1,4 +1,4 @@
-# See https://github.com/eqrion/cbindgen/blob/master/docs.md#cbindgentoml
+# See https://github.com/mozilla/cbindgen/blob/master/docs.md#cbindgentoml
 
 language = "C"
 cpp_compat = true
@@ -11,9 +11,9 @@ exclude = ["Addr"]
 
 [export.rename]
 "Addr" = "uintptr_t"
-"Inspector" = "blaze_inspector"
-"Normalizer" = "blaze_normalizer"
-"Symbolizer" = "blaze_symbolizer"
+"Inspector" = "struct blaze_inspector"
+"Normalizer" = "struct blaze_normalizer"
+"Symbolizer" = "struct blaze_symbolizer"
 
 [fn]
 args = "Vertical"

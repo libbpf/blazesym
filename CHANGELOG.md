@@ -6,6 +6,7 @@ Unreleased
   - Adjusted various symbolization code paths to stop heap-allocating
 - Handled potential numeric overflow in Gsym inlined function parser more
   gracefully
+- Moved C API definitions into `cblazesym` crate
 - Fixed build for some Android flavors
 
 
