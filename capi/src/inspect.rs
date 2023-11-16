@@ -16,15 +16,19 @@ use std::path::PathBuf;
 use std::ptr;
 
 #[cfg(doc)]
-use crate::inspect;
-use crate::inspect::Elf;
-use crate::inspect::Inspector;
-use crate::inspect::Source;
-use crate::inspect::SymInfo;
-use crate::inspect::SymType;
-use crate::log::error;
-use crate::util::slice_from_user_array;
-use crate::Addr;
+use blazesym::inspect;
+use blazesym::inspect::Elf;
+use blazesym::inspect::Inspector;
+use blazesym::inspect::Source;
+use blazesym::inspect::SymInfo;
+use blazesym::inspect::SymType;
+use blazesym::Addr;
+
+use crate::slice_from_user_array;
+
+
+/// C ABI compatible version of [`blazesym::inspect::Inspector`].
+pub type blaze_inspector = Inspector;
 
 
 /// An object representing an ELF inspection source.
@@ -240,7 +244,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
 /// needs to be a valid pointer to `name_cnt` strings.
 #[no_mangle]
 pub unsafe extern "C" fn blaze_inspect_syms_elf(
-    inspector: *const Inspector,
+    inspector: *const blaze_inspector,
     src: *const blaze_inspect_elf_src,
     names: *const *const c_char,
     name_cnt: usize,
@@ -262,10 +266,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
     let result = inspector.lookup(&names, &src);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
-        Err(err) => {
-            error!("failed to lookup symbols: {err}");
-            ptr::null()
-        }
+        Err(_err) => ptr::null(),
     }
 }
 
@@ -293,7 +294,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_free(syms: *const *const blaze_sym_i
 /// The returned pointer should be released using
 /// [`blaze_inspector_free`] once it is no longer needed.
 #[no_mangle]
-pub extern "C" fn blaze_inspector_new() -> *mut Inspector {
+pub extern "C" fn blaze_inspector_new() -> *mut blaze_inspector {
     let inspector = Inspector::new();
     let inspector_box = Box::new(inspector);
     Box::into_raw(inspector_box)
@@ -309,7 +310,7 @@ pub extern "C" fn blaze_inspector_new() -> *mut Inspector {
 /// The provided inspector should have been created by
 /// [`blaze_inspector_new`].
 #[no_mangle]
-pub unsafe extern "C" fn blaze_inspector_free(inspector: *mut Inspector) {
+pub unsafe extern "C" fn blaze_inspector_free(inspector: *mut blaze_inspector) {
     if !inspector.is_null() {
         // SAFETY: The caller needs to ensure that `inspector` is a
         //         valid pointer.

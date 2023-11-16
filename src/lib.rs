@@ -17,9 +17,9 @@
 //! - [`normalize`] exposes address normalization functionality
 //!
 //! C API bindings are defined in a cross-cutting manner as part of the
-//! [`c_api`] module (note that Rust code should not have to consume these
-//! functions and on the ABI level this module organization has no relevance for
-//! C).
+//! `cblazesym` crate (note that Rust code should not have to consume
+//! these functions and on the ABI level this module organization has no
+//! relevance for C).
 
 #![allow(
     clippy::collapsible_if,
@@ -40,7 +40,6 @@
 #[cfg(feature = "nightly")]
 extern crate test;
 
-pub mod c_api;
 #[cfg(feature = "dwarf")]
 mod dwarf;
 mod elf;
@@ -67,12 +66,6 @@ use std::num::NonZeroU32;
 use std::result;
 
 use resolver::SymResolver;
-
-
-// We import all C API items during doc creation to not have to mention the
-// `c_api` module in, say, the README.
-#[cfg(doc)]
-use c_api::*;
 
 
 pub use crate::error::Error;
