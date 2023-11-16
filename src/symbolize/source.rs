@@ -19,7 +19,7 @@ pub struct Apk {
     pub path: PathBuf,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl Apk {
@@ -65,7 +65,7 @@ pub struct Elf {
     pub path: PathBuf,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl Elf {
@@ -120,7 +120,7 @@ pub struct Kernel {
     pub kernel_image: Option<PathBuf>,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl From<Kernel> for Source<'static> {
@@ -145,7 +145,7 @@ pub struct Process {
     pub pid: Pid,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl Process {
@@ -216,7 +216,7 @@ pub struct GsymData<'dat> {
     pub data: &'dat [u8],
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl<'dat> GsymData<'dat> {
@@ -258,7 +258,7 @@ pub struct GsymFile {
     pub path: PathBuf,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl GsymFile {

@@ -12,7 +12,7 @@ pub struct Elf {
     pub debug_info: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl Elf {

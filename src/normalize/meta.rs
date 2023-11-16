@@ -44,7 +44,7 @@ pub struct Apk {
     pub path: PathBuf,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 
@@ -59,7 +59,7 @@ pub struct Elf {
     pub build_id: Option<BuildId>,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 
@@ -74,7 +74,7 @@ pub struct Elf {
 pub struct Unknown {
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
-    pub(crate) _non_exhaustive: (),
+    pub _non_exhaustive: (),
 }
 
 impl From<Unknown> for UserMeta {
