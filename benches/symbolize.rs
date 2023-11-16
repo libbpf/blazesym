@@ -3,7 +3,6 @@
 use std::hint::black_box;
 use std::path::Path;
 
-use blazesym::c_api;
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::GsymFile;
 use blazesym::symbolize::Input;
@@ -26,7 +25,7 @@ fn symbolize_process() {
         libc::dlopen as Addr,
         libc::fopen as Addr,
         symbolize_process as Addr,
-        c_api::blaze_inspector_free as Addr,
+        Symbolizer::symbolize_single as Addr,
     ];
 
     let symbolizer = Symbolizer::new();

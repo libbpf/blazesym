@@ -2,7 +2,6 @@
 
 use std::hint::black_box;
 
-use blazesym::c_api;
 use blazesym::normalize::Normalizer;
 use blazesym::Addr;
 
@@ -17,7 +16,7 @@ fn normalize_process() {
         libc::dlopen as Addr,
         libc::fopen as Addr,
         normalize_process as Addr,
-        c_api::blaze_inspector_free as Addr,
+        Normalizer::normalize_user_addrs_sorted as Addr,
     ];
     let () = addrs.sort();
 
