@@ -323,6 +323,12 @@ pub unsafe extern "C" fn blaze_inspector_free(inspector: *mut blaze_inspector) {
 mod tests {
     use super::*;
 
+    use std::ffi::CStr;
+    use std::ffi::CString;
+    use std::path::Path;
+    use std::ptr;
+    use std::slice;
+
     use test_log::test;
 
 
@@ -462,5 +468,42 @@ mod tests {
         // Test conversion of many `SymInfo` vectors.
         let syms = (0..200).map(|_| vec![sym.clone()]).collect();
         test(syms);
+    }
+
+    /// Make sure that we can create and free an inspector instance.
+    #[test]
+    fn inspector_creation() {
+        let inspector = blaze_inspector_new();
+        let () = unsafe { blaze_inspector_free(inspector) };
+    }
+
+    /// Make sure that we can lookup a function's address using DWARF information.
+    #[test]
+    fn lookup_dwarf() {
+        let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addresses-dwarf-only.bin");
+
+        let src = blaze_inspect_elf_src::from(Elf::new(test_dwarf));
+        let factorial = CString::new("factorial").unwrap();
+        let names = [factorial.as_ptr()];
+
+        let inspector = blaze_inspector_new();
+        let result =
+            unsafe { blaze_inspect_syms_elf(inspector, &src, names.as_ptr(), names.len()) };
+        let _src = Elf::from(src);
+        assert!(!result.is_null());
+
+        let sym_infos = unsafe { slice::from_raw_parts(result, names.len()) };
+        let sym_info = unsafe { &*sym_infos[0] };
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym_info.name) },
+            CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+        );
+        assert_eq!(sym_info.addr, 0x2000100);
+
+        let () = unsafe { blaze_inspect_syms_free(result) };
+        let () = unsafe { blaze_inspector_free(inspector) };
     }
 }
