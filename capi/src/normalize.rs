@@ -575,4 +575,66 @@ mod tests {
         let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
         assert_eq!(meta_new, meta);
     }
+
+    /// Make sure that we can create and free a normalizer instance.
+    #[test]
+    fn normalizer_creation() {
+        let normalizer = blaze_normalizer_new();
+        let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
+
+    /// Check that we can normalize user space addresses.
+    #[test]
+    fn normalize_user_addrs() {
+        let addrs = [
+            libc::__errno_location as Addr,
+            libc::dlopen as Addr,
+            libc::fopen as Addr,
+            elf_conversion as Addr,
+            normalize_user_addrs as Addr,
+        ];
+
+        let normalizer = blaze_normalizer_new();
+        assert_ne!(normalizer, ptr::null_mut());
+
+        let result = unsafe {
+            blaze_normalize_user_addrs(normalizer, addrs.as_slice().as_ptr(), addrs.len(), 0)
+        };
+        assert_ne!(result, ptr::null_mut());
+
+        let user_addrs = unsafe { &*result };
+        assert_eq!(user_addrs.meta_cnt, 2);
+        assert_eq!(user_addrs.output_cnt, 5);
+
+        let () = unsafe { blaze_user_output_free(result) };
+        let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
+
+    /// Check that we can normalize sorted user space addresses.
+    #[test]
+    fn normalize_user_addrs_sorted() {
+        let mut addrs = [
+            libc::__errno_location as Addr,
+            libc::dlopen as Addr,
+            libc::fopen as Addr,
+            elf_conversion as Addr,
+            normalize_user_addrs as Addr,
+        ];
+        let () = addrs.sort();
+
+        let normalizer = blaze_normalizer_new();
+        assert_ne!(normalizer, ptr::null_mut());
+
+        let result = unsafe {
+            blaze_normalize_user_addrs_sorted(normalizer, addrs.as_slice().as_ptr(), addrs.len(), 0)
+        };
+        assert_ne!(result, ptr::null_mut());
+
+        let user_addrs = unsafe { &*result };
+        assert_eq!(user_addrs.meta_cnt, 2);
+        assert_eq!(user_addrs.output_cnt, 5);
+
+        let () = unsafe { blaze_user_output_free(result) };
+        let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
 }
