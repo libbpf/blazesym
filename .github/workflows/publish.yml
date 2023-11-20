@@ -1,4 +1,4 @@
-name: Publish
+name: Publish blazesym
 
 on:
   workflow_dispatch:
