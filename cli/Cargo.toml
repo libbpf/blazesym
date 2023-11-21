@@ -5,7 +5,7 @@ version = "0.1.0"
 edition = "2021"
 rust-version = "1.65"
 default-run = "blazecli"
-license-file = "../LICENSE"
+license = "BSD-3-Clause"
 repository = "https://github.com/libbpf/blazesym"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
