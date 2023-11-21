@@ -716,6 +716,20 @@ mod tests {
             "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 }, inlined_cnt: 0, inlined: 0x0 }"
         );
 
+        let inlined = blaze_symbolize_inlined_fn {
+            name: ptr::null(),
+            code_info: blaze_symbolize_code_info {
+                dir: ptr::null(),
+                file: ptr::null(),
+                line: 42,
+                column: 1,
+            },
+        };
+        assert_eq!(
+            format!("{inlined:?}"),
+            "blaze_symbolize_inlined_fn { name: 0x0, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 } }"
+        );
+
         let result = blaze_result { cnt: 0, syms: [] };
         assert_eq!(format!("{result:?}"), "blaze_result { cnt: 0, syms: [] }");
 
