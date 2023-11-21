@@ -1,9 +1,12 @@
 [package]
 name = "blazecli"
-version = "0.0.0"
+description = "A command line utility for the blazesym library."
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.65"
 default-run = "blazecli"
+license-file = "../LICENSE"
+repository = "https://github.com/libbpf/blazesym"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -18,7 +21,7 @@ grev = "0.1.3"
 
 [dependencies]
 anyhow = "1.0.68"
-blazesym = {path = "../", features = ["tracing"]}
+blazesym = {version = "=0.2.0-alpha.8", path = "../", features = ["tracing"]}
 clap = {version = "4.1.7", features = ["derive"]}
 clap_complete = {version = "4.1.1", optional = true}
 tracing = "0.1"
