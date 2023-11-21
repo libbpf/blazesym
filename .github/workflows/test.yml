@@ -40,6 +40,25 @@ jobs:
     - name: Build ${{ matrix.profile }}
       run: |
         cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
+  build-cross:
+    name: Cross-compile [${{ matrix.target }}]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [
+          aarch64-linux-android,
+          arm-linux-androideabi,
+          armv7-linux-androideabi,
+          x86_64-unknown-linux-musl,
+        ]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/setup-cross-toolchain-action@v1
+        with:
+          target: ${{ matrix.target }}
+      - run: |
+          cargo build --lib
   nop-rebuilds:
     name: No-op rebuilds
     runs-on: ubuntu-22.04

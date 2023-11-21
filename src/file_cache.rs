@@ -11,6 +11,9 @@ use crate::Result;
 
 
 #[derive(Debug, Eq, Hash, PartialEq)]
+// `libc` has deprecated `time_t` usage on `musl`. See
+// https://github.com/rust-lang/libc/issues/1848
+#[cfg_attr(target_env = "musl", allow(deprecated))]
 struct EntryMeta {
     path: PathBuf,
     dev: libc::dev_t,
@@ -22,13 +25,15 @@ struct EntryMeta {
 
 impl EntryMeta {
     fn new(path: PathBuf, stat: &libc::stat) -> Self {
+        // Casts are necessary because on Android some libc types do not
+        // use proper typedefs. https://github.com/rust-lang/libc/issues/3285
         Self {
             path,
-            dev: stat.st_dev,
-            inode: stat.st_ino,
-            size: stat.st_size,
+            dev: stat.st_dev as _,
+            inode: stat.st_ino as _,
+            size: stat.st_size as _,
             mtime_sec: stat.st_mtime,
-            mtime_nsec: stat.st_mtime_nsec,
+            mtime_nsec: stat.st_mtime_nsec as _,
         }
     }
 }

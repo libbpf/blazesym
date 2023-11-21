@@ -6,6 +6,7 @@ Unreleased
   - Adjusted various symbolization code paths to stop heap-allocating
 - Handled potential numeric overflow in Gsym inlined function parser more
   gracefully
+- Fixed build for some Android flavors
 
 
 0.2.0-alpha.8
