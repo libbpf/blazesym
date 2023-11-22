@@ -655,6 +655,7 @@ mod tests {
     use std::ffi::CStr;
     use std::ffi::CString;
     use std::fs::read as read_file;
+    use std::hint::black_box;
     use std::path::Path;
     use std::ptr;
     use std::slice;
@@ -764,6 +765,124 @@ mod tests {
         let kernel = Kernel::from(&kernel);
         assert_eq!(kernel.kallsyms, Some(PathBuf::from("/proc/kallsyms")));
         assert_eq!(kernel.kernel_image, Some(PathBuf::from("/boot/image")));
+    }
+
+    /// Test the Rust to C symbol conversion.
+    #[test]
+    fn symbol_conversion() {
+        fn touch<X: Clone>(x: &X) {
+            let x = x.clone();
+            let _x = black_box(x);
+        }
+
+        fn touch_cstr(s: *const c_char) {
+            if !s.is_null() {
+                let s = unsafe { CStr::from_ptr(s) }.to_bytes();
+                let _x = black_box(s);
+            }
+        }
+
+        fn touch_code_info(code_info: &blaze_symbolize_code_info) {
+            let blaze_symbolize_code_info {
+                dir,
+                file,
+                line,
+                column,
+            } = code_info;
+
+            let _x = touch_cstr(*dir);
+            let _x = touch_cstr(*file);
+            let _x = touch(line);
+            let _x = touch(column);
+        }
+
+        /// Touch all "members" of a [`blaze_result`].
+        fn touch_result(result: *const blaze_result) {
+            let result = unsafe { &*result };
+            for i in 0..result.cnt {
+                let sym = unsafe { &*result.syms.as_slice().as_ptr().add(i) };
+                let blaze_sym {
+                    name,
+                    addr,
+                    offset,
+                    code_info,
+                    inlined_cnt,
+                    inlined,
+                } = sym;
+
+                let () = touch_cstr(*name);
+                let _x = touch(addr);
+                let _x = touch(offset);
+                let () = touch_code_info(code_info);
+
+                for j in 0..*inlined_cnt {
+                    let inlined_fn = unsafe { &*inlined.add(j) };
+                    let blaze_symbolize_inlined_fn { name, code_info } = inlined_fn;
+                    let () = touch_cstr(*name);
+                    let () = touch_code_info(code_info);
+                }
+            }
+        }
+
+        // Empty list of symbols.
+        let results = vec![];
+        let result = convert_symbolizedresults_to_c(results);
+        let () = touch_result(result);
+        let () = unsafe { blaze_result_free(result) };
+
+        // A single symbol with inlined function information.
+        let results = vec![Symbolized::Sym(Sym {
+            name: "test".into(),
+            addr: 0x1337,
+            offset: 0x1338,
+            size: Some(42),
+            code_info: Some(CodeInfo {
+                dir: None,
+                file: OsStr::new("a-file").into(),
+                line: Some(42),
+                column: Some(43),
+                _non_exhaustive: (),
+            }),
+            inlined: vec![InlinedFn {
+                name: "inlined_fn".into(),
+                code_info: Some(CodeInfo {
+                    dir: Some(Path::new("/some/dir").into()),
+                    file: OsStr::new("another-file").into(),
+                    line: Some(42),
+                    column: Some(43),
+                    _non_exhaustive: (),
+                }),
+                _non_exhaustive: (),
+            }]
+            .into_boxed_slice(),
+            _non_exhaustive: (),
+        })];
+        let result = convert_symbolizedresults_to_c(results);
+        let () = touch_result(result);
+        let () = unsafe { blaze_result_free(result) };
+
+        // One symbol and some unsymbolized values.
+        let results = vec![
+            Symbolized::Unknown,
+            Symbolized::Sym(Sym {
+                name: "test".into(),
+                addr: 0x1337,
+                offset: 0x1338,
+                size: None,
+                code_info: None,
+                inlined: vec![InlinedFn {
+                    name: "inlined_fn".into(),
+                    code_info: None,
+                    _non_exhaustive: (),
+                }]
+                .into_boxed_slice(),
+                _non_exhaustive: (),
+            }),
+            Symbolized::Unknown,
+        ];
+        let result = convert_symbolizedresults_to_c(results);
+        let () = touch_result(result);
+        let () = unsafe { blaze_result_free(result) };
     }
 
     /// Make sure that we can create and free a symbolizer instance.
