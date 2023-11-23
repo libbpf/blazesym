@@ -7,9 +7,9 @@ use std::path::PathBuf;
 pub struct Elf {
     /// The path to the ELF file.
     pub path: PathBuf,
-    /// Whether or not to consult debug information to satisfy the request (if
-    /// present).
-    pub debug_info: bool,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    pub debug_syms: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -17,10 +17,12 @@ pub struct Elf {
 
 impl Elf {
     /// Create a new [`Elf`] object, referencing the provided path.
+    ///
+    /// `debug_syms` defaults to `true` when using this constructor.
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
-            debug_info: true,
+            debug_syms: true,
             _non_exhaustive: (),
         }
     }
