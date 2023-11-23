@@ -6,6 +6,7 @@ use crate::dwarf::DwarfResolver;
 use crate::elf::ElfBackend;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
+use crate::elf::ElfResolverData;
 use crate::file_cache::FileCache;
 use crate::once::OnceCell;
 use crate::Result;
@@ -16,16 +17,6 @@ use super::source::Source;
 use super::FindAddrOpts;
 use super::SymInfo;
 use super::SymType;
-
-
-/// Resolver data associated with a specific source.
-#[derive(Clone, Debug)]
-struct ResolverData {
-    /// A bare-bones ELF resolver.
-    elf: OnceCell<Rc<ElfResolver>>,
-    /// An ELF resolver with debug information enabled.
-    dwarf: OnceCell<Rc<ElfResolver>>,
-}
 
 
 /// An inspector of various "sources".
@@ -43,7 +34,7 @@ struct ResolverData {
 /// to consider creating a new `Inspector` instance regularly.
 #[derive(Debug)]
 pub struct Inspector {
-    elf_cache: FileCache<ResolverData>,
+    elf_cache: FileCache<ElfResolverData>,
 }
 
 impl Inspector {
@@ -84,17 +75,19 @@ impl Inspector {
         let resolver = if let Some(data) = cell.get() {
             if debug_syms {
                 data.dwarf.get_or_try_init(|| {
-                    // SANITY: We *know* a `ResolverData` object is present and
-                    //         given that we are initializing the `dwarf` part
-                    //         of it, the `elf` part *must* be present.
+                    // SANITY: We *know* a `ElfResolverData` object is
+                    //         present and given that we are
+                    //         initializing the `dwarf` part of it, the
+                    //         `elf` part *must* be present.
                     let parser = data.elf.get().unwrap().parser().clone();
                     self.elf_resolver_from_parser(path, parser, true)
                 })?
             } else {
                 data.elf.get_or_try_init(|| {
-                    // SANITY: We *know* a `ResolverData` object is present and
-                    //         given that we are initializing the `elf` part of
-                    //         it, the `dwarf` part *must* be present.
+                    // SANITY: We *know* a `ElfResolverData` object is
+                    //         present and given that we are
+                    //         initializing the `elf` part of it, the
+                    //         `dwarf` part *must* be present.
                     let parser = data.dwarf.get().unwrap().parser().clone();
                     self.elf_resolver_from_parser(path, parser, false)
                 })?
@@ -107,12 +100,12 @@ impl Inspector {
 
         let _data = cell.get_or_init(|| {
             if debug_syms {
-                ResolverData {
+                ElfResolverData {
                     dwarf: OnceCell::from(resolver.clone()),
                     elf: OnceCell::new(),
                 }
             } else {
-                ResolverData {
+                ElfResolverData {
                     dwarf: OnceCell::new(),
                     elf: OnceCell::from(resolver.clone()),
                 }
