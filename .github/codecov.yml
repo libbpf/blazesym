@@ -4,6 +4,13 @@ coverage:
       default:
         # We don't gate anything based on flaky code coverage reports.
         informational: true
+      blazesym:
+        paths:
+          - src/
+      blazesym-c:
+        paths:
+          - capi/src/
+      # Note: blazecli is ignored at the llvm-cov level.
     patch:
       default:
         informational: true
