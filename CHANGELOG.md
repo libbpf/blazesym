@@ -6,6 +6,7 @@ Unreleased
   - Adjusted various symbolization code paths to stop heap-allocating
 - Adjusted normalization logic to honor executable and readable proc maps
   entries
+- Renamed `inspect::Elf::debug_info` to `debug_syms`
 - Handled potential numeric overflow in Gsym inlined function parser more
   gracefully
 - Moved C API definitions into `blazesym-c` crate

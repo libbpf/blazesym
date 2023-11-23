@@ -90,10 +90,10 @@ typedef struct blaze_inspect_elf_src {
    */
   const char *path;
   /**
-   * Whether or not to consult debug information to satisfy the request (if
-   * present).
+   * Whether or not to consult debug symbols to satisfy the request
+   * (if present).
    */
-  bool debug_info;
+  bool debug_syms;
 } blaze_inspect_elf_src;
 
 /**

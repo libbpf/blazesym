@@ -39,36 +39,36 @@ pub type blaze_inspector = Inspector;
 pub struct blaze_inspect_elf_src {
     /// The path to the ELF file. This member is always present.
     pub path: *const c_char,
-    /// Whether or not to consult debug information to satisfy the request (if
-    /// present).
-    pub debug_info: bool,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    pub debug_syms: bool,
 }
 
 impl From<Elf> for blaze_inspect_elf_src {
     fn from(other: Elf) -> Self {
         let Elf {
             path,
-            debug_info,
+            debug_syms,
             _non_exhaustive: (),
         } = other;
         Self {
             path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
-            debug_info,
+            debug_syms,
         }
     }
 }
 
 impl From<blaze_inspect_elf_src> for Elf {
     fn from(other: blaze_inspect_elf_src) -> Self {
-        let blaze_inspect_elf_src { path, debug_info } = other;
+        let blaze_inspect_elf_src { path, debug_syms } = other;
 
         Elf {
             path: PathBuf::from(OsString::from_vec(
                 unsafe { CString::from_raw(path as *mut _) }.into_bytes(),
             )),
-            debug_info,
+            debug_syms,
             _non_exhaustive: (),
         }
     }
@@ -76,14 +76,14 @@ impl From<blaze_inspect_elf_src> for Elf {
 
 impl From<&blaze_inspect_elf_src> for Elf {
     fn from(other: &blaze_inspect_elf_src) -> Self {
-        let blaze_inspect_elf_src { path, debug_info } = other;
+        let blaze_inspect_elf_src { path, debug_syms } = other;
 
         Elf {
             path: Path::new(OsStr::from_bytes(
                 unsafe { CStr::from_ptr(*path) }.to_bytes(),
             ))
             .to_path_buf(),
-            debug_info: *debug_info,
+            debug_syms: *debug_syms,
             _non_exhaustive: (),
         }
     }
@@ -337,11 +337,11 @@ mod tests {
     fn debug_repr() {
         let elf = blaze_inspect_elf_src {
             path: ptr::null(),
-            debug_info: true,
+            debug_syms: true,
         };
         assert_eq!(
             format!("{elf:?}"),
-            "blaze_inspect_elf_src { path: 0x0, debug_info: true }"
+            "blaze_inspect_elf_src { path: 0x0, debug_syms: true }"
         );
 
         let info = blaze_sym_info {

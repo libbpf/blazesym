@@ -456,8 +456,8 @@ fn inspect() {
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
     let mut elf = inspect::Elf::new(test_elf);
-    assert!(elf.debug_info);
-    elf.debug_info = false;
+    assert!(elf.debug_syms);
+    elf.debug_syms = false;
     let src = inspect::Source::Elf(elf);
     let () = test(src);
 }

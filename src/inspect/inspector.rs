@@ -60,10 +60,10 @@ impl Inspector {
         &self,
         path: &Path,
         parser: Rc<ElfParser>,
-        debug_info: bool,
+        debug_syms: bool,
     ) -> Result<Rc<ElfResolver>> {
         #[cfg(feature = "dwarf")]
-        let backend = if debug_info {
+        let backend = if debug_syms {
             let debug_line_info = true;
             let dwarf = DwarfResolver::from_parser(parser, debug_line_info)?;
             let backend = ElfBackend::Dwarf(Rc::new(dwarf));
@@ -79,10 +79,10 @@ impl Inspector {
         Ok(resolver)
     }
 
-    fn elf_resolver(&self, path: &Path, debug_info: bool) -> Result<Rc<ElfResolver>> {
+    fn elf_resolver(&self, path: &Path, debug_syms: bool) -> Result<Rc<ElfResolver>> {
         let (file, cell) = self.elf_cache.entry(path)?;
         let resolver = if let Some(data) = cell.get() {
-            if debug_info {
+            if debug_syms {
                 data.dwarf.get_or_try_init(|| {
                     // SANITY: We *know* a `ResolverData` object is present and
                     //         given that we are initializing the `dwarf` part
@@ -102,11 +102,11 @@ impl Inspector {
             .clone()
         } else {
             let parser = Rc::new(ElfParser::open_file(file)?);
-            self.elf_resolver_from_parser(path, parser, debug_info)?
+            self.elf_resolver_from_parser(path, parser, debug_syms)?
         };
 
         let _data = cell.get_or_init(|| {
-            if debug_info {
+            if debug_syms {
                 ResolverData {
                     dwarf: OnceCell::from(resolver.clone()),
                     elf: OnceCell::new(),
@@ -140,10 +140,10 @@ impl Inspector {
         match src {
             Source::Elf(Elf {
                 path,
-                debug_info,
+                debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver = self.elf_resolver(path, *debug_info)?;
+                let resolver = self.elf_resolver(path, *debug_syms)?;
                 let syms = names
                     .iter()
                     .map(|name| {
@@ -174,7 +174,7 @@ impl Inspector {
     /// - undefined symbols (such as ones referencing a different shared
     ///   object) are not reported
     /// - for the [`Elf`](Source::Elf) source, at present DWARF symbols are
-    ///   ignored (irrespective of the [`debug_info`][Elf::debug_info]
+    ///   ignored (irrespective of the [`debug_syms`][Elf::debug_syms]
     ///   configuration)
     pub fn for_each<F, R>(&self, src: &Source, r: R, f: F) -> Result<R>
     where
@@ -183,14 +183,14 @@ impl Inspector {
         match src {
             Source::Elf(Elf {
                 path,
-                debug_info,
+                debug_syms,
                 _non_exhaustive: (),
             }) => {
                 let opts = FindAddrOpts {
                     offset_in_file: true,
                     sym_type: SymType::Unknown,
                 };
-                let resolver = self.elf_resolver(path, *debug_info)?;
+                let resolver = self.elf_resolver(path, *debug_syms)?;
                 let parser = resolver.parser();
                 parser.for_each_sym(&opts, r, f)
             }
@@ -238,7 +238,7 @@ mod tests {
         let () = test(&src);
 
         let mut elf = Elf::new(file);
-        elf.debug_info = !elf.debug_info;
+        elf.debug_syms = !elf.debug_syms;
         let src = Source::Elf(elf);
         let () = test(&src);
     }
@@ -250,7 +250,7 @@ mod tests {
             .join("data")
             .join("test-stable-addresses-no-dwarf.bin");
         let mut elf = Elf::new(&test_elf);
-        assert!(elf.debug_info);
+        assert!(elf.debug_syms);
 
         let inspector = Inspector::new();
         let data = || {
@@ -274,9 +274,9 @@ mod tests {
             data2.dwarf.get().unwrap()
         ));
 
-        // When changing whether we use debug information we should create a new
-        // resolver.
-        elf.debug_info = false;
+        // When changing whether we use debug symbols we should create a
+        // new resolver.
+        elf.debug_syms = false;
 
         let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));
         let data3 = data();
