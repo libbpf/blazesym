@@ -1,14 +1,5 @@
-use std::path::Path;
-use std::rc::Rc;
-
-#[cfg(feature = "dwarf")]
-use crate::dwarf::DwarfResolver;
-use crate::elf::ElfBackend;
-use crate::elf::ElfParser;
-use crate::elf::ElfResolver;
 use crate::elf::ElfResolverData;
 use crate::file_cache::FileCache;
-use crate::once::OnceCell;
 use crate::Result;
 use crate::SymResolver;
 
@@ -45,76 +36,6 @@ impl Inspector {
         }
     }
 
-    // TODO: Overlap with similar functionality in the `Symbolizer`. Need to
-    //       deduplicate at some point.
-    fn elf_resolver_from_parser(
-        &self,
-        path: &Path,
-        parser: Rc<ElfParser>,
-        debug_syms: bool,
-    ) -> Result<Rc<ElfResolver>> {
-        #[cfg(feature = "dwarf")]
-        let backend = if debug_syms {
-            let debug_line_info = true;
-            let dwarf = DwarfResolver::from_parser(parser, debug_line_info)?;
-            let backend = ElfBackend::Dwarf(Rc::new(dwarf));
-            backend
-        } else {
-            ElfBackend::Elf(parser)
-        };
-
-        #[cfg(not(feature = "dwarf"))]
-        let backend = ElfBackend::Elf(parser);
-
-        let resolver = Rc::new(ElfResolver::with_backend(path, backend)?);
-        Ok(resolver)
-    }
-
-    fn elf_resolver(&self, path: &Path, debug_syms: bool) -> Result<Rc<ElfResolver>> {
-        let (file, cell) = self.elf_cache.entry(path)?;
-        let resolver = if let Some(data) = cell.get() {
-            if debug_syms {
-                data.dwarf.get_or_try_init(|| {
-                    // SANITY: We *know* a `ElfResolverData` object is
-                    //         present and given that we are
-                    //         initializing the `dwarf` part of it, the
-                    //         `elf` part *must* be present.
-                    let parser = data.elf.get().unwrap().parser().clone();
-                    self.elf_resolver_from_parser(path, parser, true)
-                })?
-            } else {
-                data.elf.get_or_try_init(|| {
-                    // SANITY: We *know* a `ElfResolverData` object is
-                    //         present and given that we are
-                    //         initializing the `elf` part of it, the
-                    //         `dwarf` part *must* be present.
-                    let parser = data.dwarf.get().unwrap().parser().clone();
-                    self.elf_resolver_from_parser(path, parser, false)
-                })?
-            }
-            .clone()
-        } else {
-            let parser = Rc::new(ElfParser::open_file(file)?);
-            self.elf_resolver_from_parser(path, parser, debug_syms)?
-        };
-
-        let _data = cell.get_or_init(|| {
-            if debug_syms {
-                ElfResolverData {
-                    dwarf: OnceCell::from(resolver.clone()),
-                    elf: OnceCell::new(),
-                }
-            } else {
-                ElfResolverData {
-                    dwarf: OnceCell::new(),
-                    elf: OnceCell::from(resolver.clone()),
-                }
-            }
-        });
-
-        Ok(resolver)
-    }
-
     /// Look up information (address etc.) about a list of symbols,
     /// given their names.
     ///
@@ -136,7 +57,8 @@ impl Inspector {
                 debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver = self.elf_resolver(path, *debug_syms)?;
+                let code_info = true;
+                let resolver = self.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
                 let syms = names
                     .iter()
                     .map(|name| {
@@ -183,7 +105,8 @@ impl Inspector {
                     offset_in_file: true,
                     sym_type: SymType::Unknown,
                 };
-                let resolver = self.elf_resolver(path, *debug_syms)?;
+                let code_info = true;
+                let resolver = self.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
                 let parser = resolver.parser();
                 parser.for_each_sym(&opts, r, f)
             }
@@ -203,6 +126,7 @@ mod tests {
     use super::*;
 
     use std::path::Path;
+    use std::rc::Rc;
 
     use crate::ErrorKind;
 
