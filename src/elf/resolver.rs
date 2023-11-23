@@ -6,6 +6,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+#[cfg(feature = "dwarf")]
+use crate::dwarf::DwarfResolver;
+use crate::file_cache::FileCache;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
@@ -13,6 +16,7 @@ use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
 use crate::Addr;
+use crate::Error;
 use crate::Result;
 use crate::SymResolver;
 
@@ -28,6 +32,69 @@ pub(crate) struct ElfResolverData {
     pub elf: OnceCell<Rc<ElfResolver>>,
     /// An ELF resolver with debug information enabled.
     pub dwarf: OnceCell<Rc<ElfResolver>>,
+}
+
+impl FileCache<ElfResolverData> {
+    pub(crate) fn elf_resolver<'slf>(
+        &'slf self,
+        path: &Path,
+        debug_syms: bool,
+        code_info: bool,
+    ) -> Result<&'slf Rc<ElfResolver>> {
+        let (file, cell) = self.entry(path)?;
+        let resolver = if let Some(data) = cell.get() {
+            if debug_syms {
+                data.dwarf.get_or_try_init(|| {
+                    // SANITY: We *know* a `ElfResolverData` object is
+                    //         present and given that we are
+                    //         initializing the `dwarf` part of it, the
+                    //         `elf` part *must* be present.
+                    let parser = data.elf.get().unwrap().parser().clone();
+                    let resolver = ElfResolver::from_parser(path, parser, debug_syms, code_info)?;
+                    let resolver = Rc::new(resolver);
+                    Result::<_, Error>::Ok(resolver)
+                })?
+            } else {
+                data.elf.get_or_try_init(|| {
+                    // SANITY: We *know* a `ElfResolverData` object is
+                    //         present and given that we are
+                    //         initializing the `elf` part of it, the
+                    //         `dwarf` part *must* be present.
+                    let parser = data.dwarf.get().unwrap().parser().clone();
+                    let resolver = ElfResolver::from_parser(path, parser, debug_syms, code_info)?;
+                    let resolver = Rc::new(resolver);
+                    Result::<_, Error>::Ok(resolver)
+                })?
+            }
+            .clone()
+        } else {
+            let parser = Rc::new(ElfParser::open_file(file)?);
+            let resolver = ElfResolver::from_parser(path, parser, debug_syms, code_info)?;
+            Rc::new(resolver)
+        };
+
+        let data = cell.get_or_init(|| {
+            if debug_syms {
+                ElfResolverData {
+                    dwarf: OnceCell::from(resolver),
+                    elf: OnceCell::new(),
+                }
+            } else {
+                ElfResolverData {
+                    dwarf: OnceCell::new(),
+                    elf: OnceCell::from(resolver),
+                }
+            }
+        });
+
+        let resolver = if debug_syms {
+            data.dwarf.get()
+        } else {
+            data.elf.get()
+        };
+        // SANITY: We made sure to create the desired resolver above.
+        Ok(resolver.unwrap())
+    }
 }
 
 
@@ -51,6 +118,28 @@ impl ElfResolver {
             backend,
             file_name: file_name.to_path_buf(),
         })
+    }
+
+    pub(crate) fn from_parser(
+        path: &Path,
+        parser: Rc<ElfParser>,
+        _debug_syms: bool,
+        code_info: bool,
+    ) -> Result<Self> {
+        #[cfg(feature = "dwarf")]
+        let backend = if _debug_syms {
+            let dwarf = DwarfResolver::from_parser(parser, code_info)?;
+            let backend = ElfBackend::Dwarf(Rc::new(dwarf));
+            backend
+        } else {
+            ElfBackend::Elf(parser)
+        };
+
+        #[cfg(not(feature = "dwarf"))]
+        let backend = ElfBackend::Elf(parser);
+
+        let resolver = ElfResolver::with_backend(path, backend)?;
+        Ok(resolver)
     }
 
     pub(crate) fn parser(&self) -> &Rc<ElfParser> {
