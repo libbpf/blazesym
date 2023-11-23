@@ -8,3 +8,4 @@ pub(crate) mod types;
 pub(crate) use backend::ElfBackend;
 pub(crate) use parser::ElfParser;
 pub(crate) use resolver::ElfResolver;
+pub(crate) use resolver::ElfResolverData;

@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
+use crate::once::OnceCell;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
@@ -18,6 +19,17 @@ use crate::SymResolver;
 use super::types::STT_FUNC;
 use super::ElfBackend;
 use super::ElfParser;
+
+
+/// Resolver data associated with a specific source.
+#[derive(Clone, Debug)]
+pub(crate) struct ElfResolverData {
+    /// A bare-bones ELF resolver.
+    pub elf: OnceCell<Rc<ElfResolver>>,
+    /// An ELF resolver with debug information enabled.
+    pub dwarf: OnceCell<Rc<ElfResolver>>,
+}
+
 
 /// The symbol resolver for a single ELF file.
 ///
