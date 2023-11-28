@@ -306,7 +306,7 @@ mod tests {
 7fd5ba059000-7fd5ba1a8000 r-xp 00022000 00:12 2088876                    /lib64/libc.so.6
 7fd5ba1a8000-7fd5ba1fa000 r--p 00171000 00:12 2088876                    /lib64/libc.so.6
 7fd5ba1fa000-7fd5ba1fe000 r--p 001c3000 00:12 2088876                    /lib64/libc.so.6
-7fd5ba1fe000-7fd5ba200000 rw-p 001c7000 00:12 2088876                    /lib64/libc.so.6
+7fd5ba1fe000-7fd5ba200000 -w-p 001c7000 00:12 2088876                    /lib64/libc.so.6
 7fd5ba200000-7fd5ba208000 rw-p 00000000 00:00 0
 7fd5ba214000-7fd5ba216000 rw-p 00000000 00:00 0
 7fd5ba216000-7fd5ba217000 r--p 00000000 00:12 2088889                    /lib64/ld-linux-x86-64.so.2
