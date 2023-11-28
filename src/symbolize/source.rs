@@ -17,6 +17,13 @@ use super::Symbolizer;
 pub struct Apk {
     /// The path to an APK file.
     pub path: PathBuf,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    ///
+    /// On top of this runtime configuration, the crate needs to be
+    /// built with the `dwarf` feature to actually consult debug
+    /// symbols. If neither is satisfied, ELF symbols will be used.
+    pub debug_syms: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -24,10 +31,13 @@ pub struct Apk {
 
 impl Apk {
     /// Create a new [`Apk`] object, referencing the provided path.
+    ///
+    /// `debug_syms` defaults to `true` when using this constructor.
     #[inline]
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
+            debug_syms: true,
             _non_exhaustive: (),
         }
     }
@@ -44,6 +54,7 @@ impl Debug for Apk {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let Self {
             path,
+            debug_syms: _,
             _non_exhaustive: (),
         } = self;
 
@@ -58,11 +69,14 @@ impl Debug for Apk {
 #[derive(Clone)]
 pub struct Elf {
     /// The path to an ELF file.
-    ///
-    /// It can be an executable or shared object.
-    /// For example, passing `"/bin/sh"` will load symbols and debug information from `sh`.
-    /// Whereas passing `"/lib/libc.so.xxx"` will load symbols and debug information from the libc.
     pub path: PathBuf,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    ///
+    /// On top of this runtime configuration, the crate needs to be
+    /// built with the `dwarf` feature to actually consult debug
+    /// symbols. If neither is satisfied, ELF symbols will be used.
+    pub debug_syms: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -70,10 +84,13 @@ pub struct Elf {
 
 impl Elf {
     /// Create a new [`Elf`] object, referencing the provided path.
+    ///
+    /// `debug_syms` defaults to `true` when using this constructor.
     #[inline]
     pub fn new(path: impl Into<PathBuf>) -> Self {
         Self {
             path: path.into(),
+            debug_syms: true,
             _non_exhaustive: (),
         }
     }
@@ -90,6 +107,7 @@ impl Debug for Elf {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let Self {
             path,
+            debug_syms: _,
             _non_exhaustive: (),
         } = self;
 
@@ -101,7 +119,7 @@ impl Debug for Elf {
 /// Linux Kernel's binary image and a copy of `/proc/kallsyms`.
 ///
 /// This type is used in the [`Source::Kernel`] variant.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Kernel {
     /// The path of a kallsyms copy.
     ///
@@ -118,9 +136,27 @@ pub struct Kernel {
     /// kernel image of the running kernel in `"/boot/"` or
     /// `"/usr/lib/debug/boot/"`.
     pub kernel_image: Option<PathBuf>,
+    /// Whether or not to consult debug symbols from `kernel_image`
+    /// to satisfy the request (if present).
+    ///
+    /// On top of this runtime configuration, the crate needs to be
+    /// built with the `dwarf` feature to actually consult debug
+    /// symbols. If neither is satisfied, ELF symbols will be used.
+    pub debug_syms: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
+}
+
+impl Default for Kernel {
+    fn default() -> Self {
+        Self {
+            kallsyms: None,
+            kernel_image: None,
+            debug_syms: true,
+            _non_exhaustive: (),
+        }
+    }
 }
 
 impl From<Kernel> for Source<'static> {
@@ -143,6 +179,13 @@ impl From<Kernel> for Source<'static> {
 pub struct Process {
     /// The referenced process' ID.
     pub pid: Pid,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    ///
+    /// On top of this runtime configuration, the crate needs to be
+    /// built with the `dwarf` feature to actually consult debug
+    /// symbols. If neither is satisfied, ELF symbols will be used.
+    pub debug_syms: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -150,10 +193,13 @@ pub struct Process {
 
 impl Process {
     /// Create a new [`Process`] object using the provided `pid`.
+    ///
+    /// `debug_syms` defaults to `true` when using this constructor.
     #[inline]
     pub fn new(pid: Pid) -> Self {
         Self {
             pid,
+            debug_syms: true,
             _non_exhaustive: (),
         }
     }
@@ -163,6 +209,7 @@ impl Debug for Process {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let Self {
             pid,
+            debug_syms: _,
             _non_exhaustive: (),
         } = self;
 
