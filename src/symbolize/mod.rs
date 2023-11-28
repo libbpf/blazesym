@@ -137,6 +137,23 @@ pub enum Input<T> {
     FileOffset(T),
 }
 
+impl<T> Input<T> {
+    /// Extract the inner payload.
+    ///
+    /// ```rust
+    /// # use blazesym::symbolize;
+    /// let addrs = [1, 2, 3, 4];
+    /// let input = symbolize::Input::FileOffset(addrs.as_slice());
+    /// assert_eq!(input.into_inner(), &[1, 2, 3, 4]);
+    /// ```
+    #[inline]
+    pub fn into_inner(self) -> T {
+        match self {
+            Self::AbsAddr(x) | Self::VirtOffset(x) | Self::FileOffset(x) => x,
+        }
+    }
+}
+
 #[cfg(test)]
 impl<T> Input<&[T]>
 where
