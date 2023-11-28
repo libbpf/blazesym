@@ -257,8 +257,8 @@ pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<PathMapsEntry> {
         path_name,
     } = entry;
 
-    // Only entries that are executable (--x-) are of relevance.
-    if (mode & 0b0010) != 0b0010 {
+    // Only readable (r---) or executable (--x-) entries are of relevance.
+    if (mode & 0b1010) == 0 {
         return None
     }
 
