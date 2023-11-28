@@ -37,6 +37,8 @@ jobs:
         profile: minimal
         override: true
     - uses: Swatinem/rust-cache@v2
+      with:
+        key: ${{ matrix.rust }}-${{ matrix.profile }}
     - name: Build ${{ matrix.profile }}
       run: |
         cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
