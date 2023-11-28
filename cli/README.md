@@ -4,6 +4,8 @@
 blazecli
 ========
 
+- [Changelog](CHANGELOG.md)
+
 **blazecli** is a command line interface for the
 [**blazesym**][blazesym] library. It aims to closely mirror the
 structure of the library in its command and sub-command structure.

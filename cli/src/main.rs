@@ -110,23 +110,29 @@ fn print_frame(
 /// The handler for the 'symbolize' command.
 fn symbolize(symbolize: args::Symbolize) -> Result<()> {
     let symbolizer = Symbolizer::new();
-    let (src, addrs) = match symbolize {
-        args::Symbolize::Elf(args::Elf { path, addrs }) => {
+    let (src, input, addrs) = match symbolize {
+        args::Symbolize::Elf(args::Elf { path, ref addrs }) => {
             let src = symbolize::Source::from(symbolize::Elf::new(path));
-            (src, addrs)
+            let addrs = addrs.as_slice();
+            let input = symbolize::Input::VirtOffset(addrs);
+            (src, input, addrs)
         }
-        args::Symbolize::Gsym(args::Gsym { path, addrs }) => {
+        args::Symbolize::Gsym(args::Gsym { path, ref addrs }) => {
             let src = symbolize::Source::from(symbolize::GsymFile::new(path));
-            (src, addrs)
+            let addrs = addrs.as_slice();
+            let input = symbolize::Input::VirtOffset(addrs);
+            (src, input, addrs)
         }
-        args::Symbolize::Process(args::Process { pid, addrs }) => {
+        args::Symbolize::Process(args::Process { pid, ref addrs }) => {
             let src = symbolize::Source::from(symbolize::Process::new(pid));
-            (src, addrs)
+            let addrs = addrs.as_slice();
+            let input = symbolize::Input::AbsAddr(addrs);
+            (src, input, addrs)
         }
     };
 
     let syms = symbolizer
-        .symbolize(&src, symbolize::Input::VirtOffset(&addrs))
+        .symbolize(&src, input)
         .context("failed to symbolize addresses")?;
 
     for (input_addr, sym) in addrs.iter().copied().zip(syms) {
