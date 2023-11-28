@@ -42,13 +42,17 @@ pub struct blaze_symbolize_src_elf {
     /// passing "/lib/libc.so.xxx" will load symbols and debug information from
     /// libc.
     pub path: *const c_char,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    pub debug_syms: bool,
 }
 
 impl From<&blaze_symbolize_src_elf> for Elf {
     fn from(elf: &blaze_symbolize_src_elf) -> Self {
-        let blaze_symbolize_src_elf { path } = elf;
+        let blaze_symbolize_src_elf { path, debug_syms } = elf;
         Self {
             path: unsafe { from_cstr(*path) },
+            debug_syms: *debug_syms,
             _non_exhaustive: (),
         }
     }
@@ -76,6 +80,9 @@ pub struct blaze_symbolize_src_kernel {
     /// kernel image of the running kernel in `"/boot/"` or
     /// `"/usr/lib/debug/boot/"`.
     pub kernel_image: *const c_char,
+    /// Whether or not to consult debug symbols from `kernel_image`
+    /// to satisfy the request (if present).
+    pub debug_syms: bool,
 }
 
 impl From<&blaze_symbolize_src_kernel> for Kernel {
@@ -83,10 +90,12 @@ impl From<&blaze_symbolize_src_kernel> for Kernel {
         let blaze_symbolize_src_kernel {
             kallsyms,
             kernel_image,
+            debug_syms,
         } = kernel;
         Self {
             kallsyms: (!kallsyms.is_null()).then(|| unsafe { from_cstr(*kallsyms) }),
             kernel_image: (!kernel_image.is_null()).then(|| unsafe { from_cstr(*kernel_image) }),
+            debug_syms: *debug_syms,
             _non_exhaustive: (),
         }
     }
@@ -105,13 +114,17 @@ pub struct blaze_symbolize_src_process {
     /// blazesym will parse `/proc/<pid>/maps` and load all the object
     /// files.
     pub pid: u32,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    pub debug_syms: bool,
 }
 
 impl From<&blaze_symbolize_src_process> for Process {
     fn from(process: &blaze_symbolize_src_process) -> Self {
-        let blaze_symbolize_src_process { pid } = process;
+        let blaze_symbolize_src_process { pid, debug_syms } = process;
         Self {
             pid: (*pid).into(),
+            debug_syms: *debug_syms,
             _non_exhaustive: (),
         }
     }
@@ -264,8 +277,6 @@ unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_symbolizer_opts {
-    /// Whether to enable usage of debug symbols.
-    pub debug_syms: bool,
     /// Whether to attempt to gather source code location information.
     ///
     /// This setting implies `debug_syms` (and forces it to `true`).
@@ -300,14 +311,12 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     // SAFETY: The caller ensures that the pointer is valid.
     let opts = unsafe { &*opts };
     let blaze_symbolizer_opts {
-        debug_syms,
         code_info,
         inlined_fns,
         demangle,
     } = opts;
 
     let symbolizer = Symbolizer::builder()
-        .enable_debug_syms(*debug_syms)
         .enable_code_info(*code_info)
         .enable_inlined_fns(*inlined_fns)
         .enable_demangling(*demangle)
@@ -666,22 +675,32 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let elf = blaze_symbolize_src_elf { path: ptr::null() };
-        assert_eq!(format!("{elf:?}"), "blaze_symbolize_src_elf { path: 0x0 }");
+        let elf = blaze_symbolize_src_elf {
+            path: ptr::null(),
+            debug_syms: false,
+        };
+        assert_eq!(
+            format!("{elf:?}"),
+            "blaze_symbolize_src_elf { path: 0x0, debug_syms: false }"
+        );
 
         let kernel = blaze_symbolize_src_kernel {
             kallsyms: ptr::null(),
             kernel_image: ptr::null(),
+            debug_syms: true,
         };
         assert_eq!(
             format!("{kernel:?}"),
-            "blaze_symbolize_src_kernel { kallsyms: 0x0, kernel_image: 0x0 }"
+            "blaze_symbolize_src_kernel { kallsyms: 0x0, kernel_image: 0x0, debug_syms: true }"
         );
 
-        let process = blaze_symbolize_src_process { pid: 1337 };
+        let process = blaze_symbolize_src_process {
+            pid: 1337,
+            debug_syms: true,
+        };
         assert_eq!(
             format!("{process:?}"),
-            "blaze_symbolize_src_process { pid: 1337 }"
+            "blaze_symbolize_src_process { pid: 1337, debug_syms: true }"
         );
 
         let gsym_data = blaze_symbolize_src_gsym_data {
@@ -735,14 +754,13 @@ mod tests {
         assert_eq!(format!("{result:?}"), "blaze_result { cnt: 0, syms: [] }");
 
         let opts = blaze_symbolizer_opts {
-            debug_syms: true,
             code_info: false,
             inlined_fns: false,
             demangle: true,
         };
         assert_eq!(
             format!("{opts:?}"),
-            "blaze_symbolizer_opts { debug_syms: true, code_info: false, inlined_fns: false, demangle: true }"
+            "blaze_symbolizer_opts { code_info: false, inlined_fns: false, demangle: true }"
         );
     }
 
@@ -753,6 +771,7 @@ mod tests {
         let kernel = blaze_symbolize_src_kernel {
             kallsyms: ptr::null(),
             kernel_image: ptr::null(),
+            debug_syms: true,
         };
         let kernel = Kernel::from(&kernel);
         assert_eq!(kernel.kallsyms, None);
@@ -761,6 +780,7 @@ mod tests {
         let kernel = blaze_symbolize_src_kernel {
             kallsyms: b"/proc/kallsyms\0" as *const _ as *const c_char,
             kernel_image: b"/boot/image\0" as *const _ as *const c_char,
+            debug_syms: false,
         };
         let kernel = Kernel::from(&kernel);
         assert_eq!(kernel.kallsyms, Some(PathBuf::from("/proc/kallsyms")));
@@ -897,7 +917,6 @@ mod tests {
     #[test]
     fn symbolizer_creation_with_opts() {
         let opts = blaze_symbolizer_opts {
-            debug_syms: true,
             code_info: false,
             inlined_fns: false,
             demangle: true,
@@ -956,6 +975,7 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let elf_src = blaze_symbolize_src_elf {
             path: path_c.as_ptr(),
+            debug_syms: true,
         };
         let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
             blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs, addr_cnt)
@@ -969,6 +989,7 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let elf_src = blaze_symbolize_src_elf {
             path: path_c.as_ptr(),
+            debug_syms: true,
         };
         let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
             blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs, addr_cnt)
@@ -1009,7 +1030,6 @@ mod tests {
     fn symbolize_dwarf_demangle() {
         fn test(path: &Path, addr: Addr) -> Result<(), ()> {
             let opts = blaze_symbolizer_opts {
-                debug_syms: true,
                 code_info: true,
                 inlined_fns: true,
                 demangle: false,
@@ -1018,6 +1038,7 @@ mod tests {
             let path_c = CString::new(path.to_str().unwrap()).unwrap();
             let elf_src = blaze_symbolize_src_elf {
                 path: path_c.as_ptr(),
+                debug_syms: true,
             };
             let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
             let addrs = [addr];
@@ -1056,7 +1077,6 @@ mod tests {
 
             // Do it again, this time with demangling enabled.
             let opts = blaze_symbolizer_opts {
-                debug_syms: true,
                 code_info: true,
                 inlined_fns: true,
                 demangle: true,
@@ -1129,7 +1149,10 @@ mod tests {
     /// Make sure that we can symbolize an address in a process.
     #[test]
     fn symbolize_in_process() {
-        let process_src = blaze_symbolize_src_process { pid: 0 };
+        let process_src = blaze_symbolize_src_process {
+            pid: 0,
+            debug_syms: true,
+        };
 
         let symbolizer = blaze_symbolizer_new();
         let addrs = [blaze_symbolizer_new as Addr];

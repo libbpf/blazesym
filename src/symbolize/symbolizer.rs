@@ -125,8 +125,6 @@ fn elf_offset_to_address(offset: u64, parser: &ElfParser) -> Result<Option<Addr>
 /// By default all features are enabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    /// Whether to enable usage of debug symbols.
-    debug_syms: bool,
     /// Whether to attempt to gather source code location information.
     ///
     /// This setting implies usage of debug symbols and forces the corresponding
@@ -143,14 +141,6 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Enable/disable usage of debug symbols.
-    ///
-    /// That can be useful in cases where ELF symbol information is stripped.
-    pub fn enable_debug_syms(mut self, enable: bool) -> Builder {
-        self.debug_syms = enable;
-        self
-    }
-
     /// Enable/disable source code location information (line numbers,
     /// file names etc.).
     pub fn enable_code_info(mut self, enable: bool) -> Builder {
@@ -177,7 +167,6 @@ impl Builder {
     /// Create the [`Symbolizer`] object.
     pub fn build(self) -> Symbolizer {
         let Builder {
-            debug_syms,
             code_info,
             inlined_fns,
             demangle,
@@ -188,7 +177,6 @@ impl Builder {
             elf_cache: FileCache::new(),
             gsym_cache: FileCache::new(),
             ksym_cache: FileCache::new(),
-            debug_syms,
             code_info,
             inlined_fns,
             demangle,
@@ -199,7 +187,6 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
-            debug_syms: true,
             code_info: true,
             inlined_fns: true,
             demangle: true,
@@ -246,7 +233,6 @@ pub struct Symbolizer {
     elf_cache: FileCache<ElfResolverData>,
     gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
     ksym_cache: FileCache<Rc<KSymResolver>>,
-    debug_syms: bool,
     code_info: bool,
     inlined_fns: bool,
     demangle: bool,
@@ -407,6 +393,7 @@ impl Symbolizer {
         apk: &zip::Archive,
         apk_path: &Path,
         file_off: u64,
+        debug_syms: bool,
         resolver_map: &'slf InsertMap<Range<u64>, Rc<ElfResolver>>,
     ) -> Result<Option<(&'slf Rc<ElfResolver>, Addr)>> {
         // Find the APK entry covering the calculated file offset.
@@ -432,7 +419,7 @@ impl Symbolizer {
                     let resolver = ElfResolver::from_parser(
                         &apk_elf_path,
                         parser,
-                        self.debug_syms,
+                        debug_syms,
                         self.code_info,
                     )?;
                     let resolver = Rc::new(resolver);
@@ -454,6 +441,7 @@ impl Symbolizer {
         &'slf self,
         path: &Path,
         file_off: u64,
+        debug_syms: bool,
     ) -> Result<Option<(&'slf Rc<ElfResolver>, Addr)>> {
         let (file, cell) = self.apk_cache.entry(path)?;
         let (apk, resolvers) = cell.get_or_try_init(|| {
@@ -462,24 +450,32 @@ impl Symbolizer {
             Result::<_, Error>::Ok((apk, resolvers))
         })?;
 
-        let result = self.create_apk_resolver(apk, path, file_off, resolvers);
+        let result = self.create_apk_resolver(apk, path, file_off, debug_syms, resolvers);
         result
     }
 
-    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path) -> Result<Symbolized> {
+    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path, debug_syms: bool) -> Result<Symbolized> {
         let resolver = self
             .elf_cache
-            .elf_resolver(path, self.debug_syms, self.code_info)?;
+            .elf_resolver(path, debug_syms, self.code_info)?;
         let symbolized = self.symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))?;
         Ok(symbolized)
     }
 
     /// Symbolize the given list of user space addresses in the provided
     /// process.
-    fn symbolize_user_addrs(&self, addrs: &[Addr], pid: Pid) -> Result<Vec<Symbolized>> {
+    fn symbolize_user_addrs(
+        &self,
+        addrs: &[Addr],
+        pid: Pid,
+        debug_syms: bool,
+    ) -> Result<Vec<Symbolized>> {
         struct SymbolizeHandler<'sym> {
             /// The "outer" `Symbolizer` instance.
             symbolizer: &'sym Symbolizer,
+            /// Whether or not to consult debug symbols to satisfy the request
+            /// (if present).
+            debug_syms: bool,
             /// Symbols representing the symbolized addresses.
             all_symbols: Vec<Symbolized<'sym>>,
         }
@@ -488,7 +484,10 @@ impl Symbolizer {
             fn handle_apk_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let file_off = addr - entry.range.start + entry.offset;
                 let apk_path = &entry.path.symbolic_path;
-                match self.symbolizer.apk_resolver(apk_path, file_off)? {
+                match self
+                    .symbolizer
+                    .apk_resolver(apk_path, file_off, self.debug_syms)?
+                {
                     Some((elf_resolver, elf_addr)) => {
                         let symbol = self.symbolizer.symbolize_with_resolver(
                             elf_addr,
@@ -512,7 +511,7 @@ impl Symbolizer {
                     Some(norm_addr) => {
                         let symbol = self
                             .symbolizer
-                            .resolve_addr_in_elf(norm_addr, path)
+                            .resolve_addr_in_elf(norm_addr, path, self.debug_syms)
                             .with_context(|| {
                                 format!(
                                     "failed to symbolize normalized address {norm_addr:#x} in ELF file {}",
@@ -550,6 +549,7 @@ impl Symbolizer {
         let entries = maps::parse(pid)?;
         let handler = SymbolizeHandler {
             symbolizer: self,
+            debug_syms,
             all_symbols: Vec::with_capacity(addrs.len()),
         };
 
@@ -578,6 +578,7 @@ impl Symbolizer {
         let Kernel {
             kallsyms,
             kernel_image,
+            debug_syms,
             _non_exhaustive: (),
         } = src;
 
@@ -602,7 +603,7 @@ impl Symbolizer {
         let elf_resolver = if let Some(image) = kernel_image {
             let resolver = self
                 .elf_cache
-                .elf_resolver(image, self.debug_syms, self.code_info)?;
+                .elf_resolver(image, *debug_syms, self.code_info)?;
             Some(resolver)
         } else {
             let release = uname_release()?.to_str().unwrap().to_string();
@@ -616,7 +617,7 @@ impl Symbolizer {
             if let Some(image) = kernel_image {
                 let result = self
                     .elf_cache
-                    .elf_resolver(&image, self.debug_syms, self.code_info);
+                    .elf_resolver(&image, *debug_syms, self.code_info);
                 match result {
                     Ok(resolver) => Some(resolver),
                     Err(err) => {
@@ -671,6 +672,7 @@ impl Symbolizer {
         match src {
             Source::Apk(Apk {
                 path,
+                debug_syms,
                 _non_exhaustive: (),
             }) => match input {
                 Input::VirtOffset(..) => {
@@ -685,22 +687,25 @@ impl Symbolizer {
                 }
                 Input::FileOffset(offsets) => offsets
                     .iter()
-                    .map(|offset| match self.apk_resolver(path, *offset)? {
-                        Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
-                            elf_addr,
-                            &Resolver::Cached(elf_resolver.deref()),
-                        ),
-                        None => Ok(Symbolized::Unknown),
-                    })
+                    .map(
+                        |offset| match self.apk_resolver(path, *offset, *debug_syms)? {
+                            Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
+                                elf_addr,
+                                &Resolver::Cached(elf_resolver.deref()),
+                            ),
+                            None => Ok(Symbolized::Unknown),
+                        },
+                    )
                     .collect(),
             },
             Source::Elf(Elf {
                 path,
+                debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver =
-                    self.elf_cache
-                        .elf_resolver(path, self.debug_syms, self.code_info)?;
+                let resolver = self
+                    .elf_cache
+                    .elf_resolver(path, *debug_syms, self.code_info)?;
                 match input {
                     Input::VirtOffset(addrs) => addrs
                         .iter()
@@ -748,6 +753,7 @@ impl Symbolizer {
             }
             Source::Process(Process {
                 pid,
+                debug_syms,
                 _non_exhaustive: (),
             }) => {
                 let addrs = match input {
@@ -764,7 +770,7 @@ impl Symbolizer {
                     }
                 };
 
-                self.symbolize_user_addrs(addrs, *pid)
+                self.symbolize_user_addrs(addrs, *pid, *debug_syms)
             }
             Source::Gsym(Gsym::Data(GsymData {
                 data,
@@ -827,6 +833,7 @@ impl Symbolizer {
         match src {
             Source::Apk(Apk {
                 path,
+                debug_syms,
                 _non_exhaustive: (),
             }) => match input {
                 Input::VirtOffset(..) => {
@@ -839,7 +846,7 @@ impl Symbolizer {
                         "APK symbolization does not support absolute address inputs",
                     ))
                 }
-                Input::FileOffset(offset) => match self.apk_resolver(path, offset)? {
+                Input::FileOffset(offset) => match self.apk_resolver(path, offset, *debug_syms)? {
                     Some((elf_resolver, elf_addr)) => self
                         .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver.deref())),
                     None => return Ok(Symbolized::Unknown),
@@ -847,11 +854,12 @@ impl Symbolizer {
             },
             Source::Elf(Elf {
                 path,
+                debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver =
-                    self.elf_cache
-                        .elf_resolver(path, self.debug_syms, self.code_info)?;
+                let resolver = self
+                    .elf_cache
+                    .elf_resolver(path, *debug_syms, self.code_info)?;
                 let addr = match input {
                     Input::VirtOffset(addr) => addr,
                     Input::AbsAddr(..) => {
@@ -889,6 +897,7 @@ impl Symbolizer {
             }
             Source::Process(Process {
                 pid,
+                debug_syms,
                 _non_exhaustive: (),
             }) => {
                 let addr = match input {
@@ -905,7 +914,7 @@ impl Symbolizer {
                     }
                 };
 
-                let mut symbols = self.symbolize_user_addrs(&[addr], *pid)?;
+                let mut symbols = self.symbolize_user_addrs(&[addr], *pid, *debug_syms)?;
                 debug_assert!(symbols.len() <= 1, "{symbols:#?}");
                 Ok(symbols.pop().unwrap_or(Symbolized::Unknown))
             }

@@ -41,12 +41,11 @@ fn symbolize_elf() {
     let elf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.elf");
-    let src = Source::Elf(Elf::new(elf_vmlinux));
-    let symbolizer = Symbolizer::builder()
-        .enable_debug_syms(false)
-        .enable_code_info(false)
-        .build();
+    let mut elf = Elf::new(elf_vmlinux);
+    elf.debug_syms = false;
+    let src = Source::Elf(elf);
 
+    let symbolizer = Symbolizer::builder().enable_code_info(false).build();
     let result = symbolizer
         .symbolize_single(
             black_box(&src),

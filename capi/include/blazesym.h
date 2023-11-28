@@ -225,10 +225,6 @@ typedef struct blaze_symbolizer blaze_symbolizer;
  */
 typedef struct blaze_symbolizer_opts {
   /**
-   * Whether to enable usage of debug symbols.
-   */
-  bool debug_syms;
-  /**
    * Whether to attempt to gather source code location information.
    *
    * This setting implies `debug_syms` (and forces it to `true`).
@@ -371,6 +367,11 @@ typedef struct blaze_symbolize_src_process {
    * files.
    */
   uint32_t pid;
+  /**
+   * Whether or not to consult debug symbols to satisfy the request
+   * (if present).
+   */
+  bool debug_syms;
 } blaze_symbolize_src_process;
 
 /**
@@ -398,6 +399,11 @@ typedef struct blaze_symbolize_src_kernel {
    * `"/usr/lib/debug/boot/"`.
    */
   const char *kernel_image;
+  /**
+   * Whether or not to consult debug symbols from `kernel_image`
+   * to satisfy the request (if present).
+   */
+  bool debug_syms;
 } blaze_symbolize_src_kernel;
 
 /**
@@ -416,6 +422,11 @@ typedef struct blaze_symbolize_src_elf {
    * libc.
    */
   const char *path;
+  /**
+   * Whether or not to consult debug symbols to satisfy the request
+   * (if present).
+   */
+  bool debug_syms;
 } blaze_symbolize_src_elf;
 
 /**
