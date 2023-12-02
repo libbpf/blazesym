@@ -430,7 +430,9 @@ pub(crate) struct ElfParser {
 impl ElfParser {
     /// Create an `ElfParser` from an open file.
     pub fn open_file(file: &File) -> Result<ElfParser> {
-        Mmap::map(file).map(Self::from_mmap)
+        Mmap::map(file)
+            .map(Self::from_mmap)
+            .context("failed to memory map file")
     }
 
     /// Create an `ElfParser` from mmap'ed data.
@@ -450,13 +452,9 @@ impl ElfParser {
 
     /// Create an `ElfParser` for a path.
     pub fn open(filename: &Path) -> Result<ElfParser> {
-        let file = File::open(filename)?;
-        let parser = Self::open_file(&file);
-        if let Ok(parser) = parser {
-            Ok(parser)
-        } else {
-            parser
-        }
+        let file = File::open(filename)
+            .with_context(|| format!("failed to open {}", filename.display()))?;
+        Self::open_file(&file)
     }
 
     /// Retrieve the data corresponding to the ELF section at index `idx`.
