@@ -47,7 +47,7 @@ completion script can be generated via the `shell-complete` utility
 program and then only needs to be sourced to make the current shell
 provide context-sensitive tab completion support. E.g.,
 ```bash
-$ cargo run --bin=shell-complete --features="clap_complete" -- bash > blazecli.bash
+$ cargo run -p blazecli --bin=shell-complete --features="clap_complete" -- bash > blazecli.bash
 $ source blazecli.bash
 ```
 
