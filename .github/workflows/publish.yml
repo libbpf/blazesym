@@ -15,7 +15,7 @@ jobs:
       shell: bash
       run: |
         cargo generate-lockfile
-        version="$(cargo pkgid | cut -d '#' -f2 | grep -o '[^:]*$')"
+        version="$(cargo pkgid | cut -d '#' -f2 | cut -d '@' -f2 | grep -o '[^:]*$')"
         if [ -z "${version}" ]; then
           echo "Invalid version number"
           exit 1
@@ -48,7 +48,8 @@ jobs:
               \"name\":\"v${version}\",
               \"draft\":false,
               \"prerelease\":false,
-              \"generate_release_notes\":false
+              \"generate_release_notes\":false,
+              \"make_latest\":\"true\"
             }"
     - name: Publish
       run: cargo publish --no-verify --token "${CARGO_REGISTRY_TOKEN}"
