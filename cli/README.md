@@ -59,5 +59,5 @@ refer to the help text (`--help`) of the `shell-complete` program for
 the list of supported shells.
 
 [blazesym]: https://crates.io/crates/blazesym
-[blazesym-sym]: https://docs.rs/blazesym/0.2.0-alpha.8/blazesym/symbolize/struct.Symbolizer.html
-[blazesym-elf-src]: https://docs.rs/blazesym/0.2.0-alpha.8/blazesym/symbolize/enum.Source.html#variant.Elf
+[blazesym-sym]: https://docs.rs/blazesym/0.2.0-alpha.9/blazesym/symbolize/struct.Symbolizer.html
+[blazesym-elf-src]: https://docs.rs/blazesym/0.2.0-alpha.9/blazesym/symbolize/enum.Source.html#variant.Elf
