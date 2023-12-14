@@ -657,6 +657,40 @@ mod tests {
     use test_log::test;
 
 
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let ehdr = Elf64_Ehdr {
+            e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            e_type: 3,
+            e_machine: 62,
+            e_version: 1,
+            e_entry: 4208,
+            e_phoff: 64,
+            e_shoff: size_of::<Elf64_Ehdr>() as _,
+            e_flags: 0,
+            e_ehsize: 64,
+            e_phentsize: 56,
+            e_phnum: PN_XNUM,
+            e_shentsize: 64,
+            e_shnum: 0,
+            e_shstrndx: 29,
+        };
+        let ehdr = EhdrExt {
+            ehdr: &ehdr,
+            shnum: 42,
+            phnum: 0,
+        };
+        assert_ne!(format!("{ehdr:?}"), "");
+
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-debug.bin");
+
+        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        assert_ne!(format!("{parser:?}"), "");
+    }
+
     /// Check that our `ElfParser` can handle more than 0xff00 section
     /// headers and more than 0xffff program headers properly.
     #[test]
