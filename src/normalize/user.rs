@@ -101,9 +101,9 @@ impl UserOutput {
 }
 
 
-pub(crate) trait Handler {
+pub(crate) trait Handler<D = ()> {
     /// Handle an unknown address.
-    fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()>;
+    fn handle_unknown_addr(&mut self, addr: Addr, data: D) -> Result<()>;
 
     /// Handle an address residing in the provided [`PathMapsEntry`].
     fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()>;
@@ -138,12 +138,12 @@ impl<R> NormalizationHandler<R> {
     }
 }
 
-impl<R> Handler for NormalizationHandler<R>
+impl<R> Handler<()> for NormalizationHandler<R>
 where
     R: BuildIdReader,
 {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"))))]
-    fn handle_unknown_addr(&mut self, addr: Addr) -> Result<()> {
+    fn handle_unknown_addr(&mut self, addr: Addr, (): ()) -> Result<()> {
         self.unknown_idx = self.normalized.add_unknown_addr(addr, self.unknown_idx);
         Ok(())
     }
@@ -173,15 +173,17 @@ where
 }
 
 
-pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, H>(
+pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, H, D>(
     addrs: A,
     entries: E,
     mut handler: H,
+    data: D,
 ) -> Result<H>
 where
     A: ExactSizeIterator<Item = Addr> + Clone,
     E: Iterator<Item = Result<maps::MapsEntry>>,
-    H: Handler,
+    H: Handler<D>,
+    D: Clone,
 {
     let mut entries = entries.filter_map(|result| match result {
         Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
@@ -217,7 +219,7 @@ where
                 // cannot normalize. We have to assume that addresses
                 // were valid and the ELF object was just unmapped,
                 // similar to above.
-                let () = handler.handle_unknown_addr(addr)?;
+                let () = handler.handle_unknown_addr(addr, data.clone())?;
                 continue 'main
             };
         }
@@ -228,7 +230,7 @@ where
         // happen, for example, if an ELF object was unmapped between
         // address capture and normalization.
         if addr < entry.range.start {
-            let () = handler.handle_unknown_addr(addr)?;
+            let () = handler.handle_unknown_addr(addr, data.clone())?;
             continue 'main
         }
 
@@ -268,12 +270,12 @@ where
 
     if read_build_ids {
         let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
+        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler, ())?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     } else {
         let handler = NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
-        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler)?;
+        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler, ())?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     }
