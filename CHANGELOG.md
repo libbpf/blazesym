@@ -1,3 +1,10 @@
+Unreleased
+----------
+- Introduced `symbolize::Reason` enum to provide best guess at
+  why symbolization was not successful as part of the
+  `symbolize::Symbolized::Unknown` variant
+
+
 0.2.0-alpha.9
 -------------
 - Added caching logic for Gsym resolvers to `symbolize::Symbolizer`

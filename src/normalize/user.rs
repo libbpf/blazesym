@@ -330,6 +330,7 @@ mod tests {
                 addrs.as_slice().iter().copied(),
                 entries,
                 handler,
+                (),
             )
             .unwrap()
             .normalized;

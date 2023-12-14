@@ -150,7 +150,7 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
                     print_frame(&frame.name, None, &frame.code_info);
                 }
             }
-            symbolize::Symbolized::Unknown => {
+            symbolize::Symbolized::Unknown(..) => {
                 println!("{input_addr:#0width$x}: <no-symbol>", width = ADDR_WIDTH)
             }
         }

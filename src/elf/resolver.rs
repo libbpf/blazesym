@@ -14,6 +14,7 @@ use crate::inspect::SymInfo;
 use crate::once::OnceCell;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::IntSym;
+use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
 use crate::Addr;
 use crate::Error;
@@ -158,16 +159,16 @@ impl ElfResolver {
 
 impl SymResolver for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
-    fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
+    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
         #[cfg(feature = "dwarf")]
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             if let Some(sym) = dwarf.find_sym(addr)? {
-                return Ok(Some(sym))
+                return Ok(Ok(sym))
             }
         }
 
         let parser = self.parser();
-        if let Some((name, addr, size)) = parser.find_sym(addr, STT_FUNC)? {
+        let result = parser.find_sym(addr, STT_FUNC)?.map(|(name, addr, size)| {
             // ELF does not carry any source code language information.
             let lang = SrcLang::Unknown;
             // We found the address in ELF.
@@ -180,10 +181,10 @@ impl SymResolver for ElfResolver {
                 size: Some(size),
                 lang,
             };
-            Ok(Some(sym))
-        } else {
-            Ok(None)
-        }
+            sym
+        });
+
+        Ok(result)
     }
 
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
