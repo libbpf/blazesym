@@ -496,7 +496,7 @@ impl Symbolizer {
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
-                    None => self.handle_unknown_addr(addr),
+                    None => self.handle_unknown_addr(addr, ()),
                 }
             }
 
@@ -521,14 +521,14 @@ impl Symbolizer {
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
-                    None => self.handle_unknown_addr(addr),
+                    None => self.handle_unknown_addr(addr, ()),
                 }
             }
         }
 
-        impl normalize::Handler for SymbolizeHandler<'_> {
+        impl normalize::Handler<()> for SymbolizeHandler<'_> {
             #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
-            fn handle_unknown_addr(&mut self, _addr: Addr) -> Result<()> {
+            fn handle_unknown_addr(&mut self, _addr: Addr, (): ()) -> Result<()> {
                 let () = self.all_symbols.push(Symbolized::Unknown);
                 Ok(())
             }
@@ -556,7 +556,9 @@ impl Symbolizer {
         let handler = util::with_ordered_elems(
             addrs,
             |handler: &mut SymbolizeHandler<'_>| handler.all_symbols.as_mut_slice(),
-            |sorted_addrs| normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, handler),
+            |sorted_addrs| {
+                normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, handler, ())
+            },
         )?;
         Ok(handler.all_symbols)
     }
