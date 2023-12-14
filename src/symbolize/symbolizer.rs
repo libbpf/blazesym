@@ -48,6 +48,7 @@ use super::AddrCodeInfo;
 use super::InlinedFn;
 use super::Input;
 use super::IntSym;
+use super::Reason;
 use super::SrcLang;
 use super::Sym;
 use super::Symbolized;
@@ -267,8 +268,8 @@ impl Symbolizer {
         resolver: &Resolver<'_, 'slf>,
     ) -> Result<Symbolized<'slf>> {
         let (sym_name, sym_addr, sym_size, lang) = match resolver {
-            Resolver::Uncached(resolver) => {
-                if let Some(sym) = resolver.find_sym(addr)? {
+            Resolver::Uncached(resolver) => match resolver.find_sym(addr)? {
+                Ok(sym) => {
                     let IntSym {
                         name: sym_name,
                         addr: sym_addr,
@@ -277,12 +278,11 @@ impl Symbolizer {
                     } = sym;
 
                     (Cow::Owned(sym_name.to_string()), sym_addr, sym_size, lang)
-                } else {
-                    return Ok(Symbolized::Unknown)
                 }
-            }
-            Resolver::Cached(resolver) => {
-                if let Some(sym) = resolver.find_sym(addr)? {
+                Err(reason) => return Ok(Symbolized::Unknown(reason)),
+            },
+            Resolver::Cached(resolver) => match resolver.find_sym(addr)? {
+                Ok(sym) => {
                     let IntSym {
                         name: sym_name,
                         addr: sym_addr,
@@ -291,10 +291,9 @@ impl Symbolizer {
                     } = sym;
 
                     (Cow::Borrowed(sym_name), sym_addr, sym_size, lang)
-                } else {
-                    return Ok(Symbolized::Unknown)
                 }
-            }
+                Err(reason) => return Ok(Symbolized::Unknown(reason)),
+            },
         };
 
         let (name, code_info, inlined) = if self.code_info {
@@ -496,7 +495,7 @@ impl Symbolizer {
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
-                    None => self.handle_unknown_addr(addr, ()),
+                    None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
                 }
             }
 
@@ -521,15 +520,15 @@ impl Symbolizer {
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
-                    None => self.handle_unknown_addr(addr, ()),
+                    None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
                 }
             }
         }
 
-        impl normalize::Handler<()> for SymbolizeHandler<'_> {
+        impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
             #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
-            fn handle_unknown_addr(&mut self, _addr: Addr, (): ()) -> Result<()> {
-                let () = self.all_symbols.push(Symbolized::Unknown);
+            fn handle_unknown_addr(&mut self, _addr: Addr, reason: Reason) -> Result<()> {
+                let () = self.all_symbols.push(Symbolized::Unknown(reason));
                 Ok(())
             }
 
@@ -557,7 +556,12 @@ impl Symbolizer {
             addrs,
             |handler: &mut SymbolizeHandler<'_>| handler.all_symbols.as_mut_slice(),
             |sorted_addrs| {
-                normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, handler, ())
+                normalize_sorted_user_addrs_with_entries(
+                    sorted_addrs,
+                    entries,
+                    handler,
+                    Reason::Unmapped,
+                )
             },
         )?;
         Ok(handler.all_symbols)
@@ -695,7 +699,7 @@ impl Symbolizer {
                                 elf_addr,
                                 &Resolver::Cached(elf_resolver.deref()),
                             ),
-                            None => Ok(Symbolized::Unknown),
+                            None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                         },
                     )
                     .collect(),
@@ -728,7 +732,7 @@ impl Symbolizer {
                                     addr,
                                     &Resolver::Cached(resolver.deref()),
                                 ),
-                                None => Ok(Symbolized::Unknown),
+                                None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                             },
                         )
                         .collect(),
@@ -851,7 +855,7 @@ impl Symbolizer {
                 Input::FileOffset(offset) => match self.apk_resolver(path, offset, *debug_syms)? {
                     Some((elf_resolver, elf_addr)) => self
                         .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver.deref())),
-                    None => return Ok(Symbolized::Unknown),
+                    None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                 },
             },
             Source::Elf(Elf {
@@ -872,7 +876,7 @@ impl Symbolizer {
                     Input::FileOffset(offset) => {
                         match elf_offset_to_address(offset, resolver.parser())? {
                             Some(addr) => addr,
-                            None => return Ok(Symbolized::Unknown),
+                            None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                         }
                     }
                 };
@@ -917,8 +921,11 @@ impl Symbolizer {
                 };
 
                 let mut symbols = self.symbolize_user_addrs(&[addr], *pid, *debug_syms)?;
-                debug_assert!(symbols.len() <= 1, "{symbols:#?}");
-                Ok(symbols.pop().unwrap_or(Symbolized::Unknown))
+                debug_assert!(symbols.len() == 1, "{symbols:#?}");
+                // SANITY: `symbolize_user_addrs` should *always* return
+                //         one result for one input (except on error
+                //         paths, of course).
+                Ok(symbols.pop().unwrap())
             }
             Source::Gsym(Gsym::Data(GsymData {
                 data,

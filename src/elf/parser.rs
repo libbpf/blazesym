@@ -12,6 +12,7 @@ use crate::inspect::SymInfo;
 use crate::inspect::SymType;
 use crate::mmap::Mmap;
 use crate::once::OnceCell;
+use crate::symbolize::Reason;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -470,11 +471,18 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Option<(&str, Addr, usize)>> {
+    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Result<(&str, Addr, usize), Reason>> {
         let strtab = self.cache.ensure_strtab()?;
         let symtab = self.cache.ensure_symtab()?;
 
-        find_sym(symtab, strtab, addr, st_type)
+        let sym = find_sym(symtab, strtab, addr, st_type)?.ok_or({
+            if symtab.is_empty() {
+                Reason::MissingSyms
+            } else {
+                Reason::UnknownAddr
+            }
+        });
+        Ok(sym)
     }
 
     /// Calculate the file offset of the given symbol.

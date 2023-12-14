@@ -14,6 +14,7 @@ use crate::inspect::SymType;
 use crate::once::OnceCell;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::IntSym;
+use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
@@ -97,9 +98,19 @@ impl KSymResolver {
         Ok(slf)
     }
 
-    fn find_ksym(&self, addr: Addr) -> Option<&Ksym> {
-        find_match_or_lower_bound_by_key(&self.syms, addr, |ksym: &Ksym| ksym.addr)
-            .and_then(|idx| self.syms.get(idx))
+    fn find_ksym(&self, addr: Addr) -> Result<&Ksym, Reason> {
+        let result = find_match_or_lower_bound_by_key(&self.syms, addr, |ksym: &Ksym| ksym.addr)
+            .and_then(|idx| self.syms.get(idx));
+        match result {
+            Some(sym) => Ok(sym),
+            None => {
+                if self.syms.is_empty() {
+                    Err(Reason::MissingSyms)
+                } else {
+                    Err(Reason::UnknownAddr)
+                }
+            }
+        }
     }
 
     /// Retrieve the path to the kallsyms file used by this resolver.
@@ -109,7 +120,7 @@ impl KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
+    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
         let sym = self.find_ksym(addr).map(IntSym::from);
         Ok(sym)
     }
@@ -228,8 +239,8 @@ mod tests {
         ensure_addr_for_name(found.name, addr);
 
         // 0 is an invalid address.  We remove all symbols with 0 as
-        // thier address from the list.
-        assert!(resolver.find_sym(0).unwrap().is_none());
+        // their address from the list.
+        assert!(resolver.find_sym(0).unwrap().is_err());
 
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
@@ -268,7 +279,7 @@ mod tests {
         };
 
         // The address is less than the smallest address of all symbols.
-        assert!(resolver.find_ksym(1).is_none());
+        assert!(resolver.find_ksym(1).is_err());
 
         // The address match symbols exactly (the first address.)
         let sym = resolver.find_ksym(0x123).unwrap();

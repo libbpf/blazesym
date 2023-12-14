@@ -88,7 +88,7 @@ fn main() -> Result<()> {
                     print_frame(&frame.name, None, &frame.code_info);
                 }
             }
-            Symbolized::Unknown => {
+            Symbolized::Unknown(..) => {
                 println!("{input_addr:#0width$x}: <no-symbol>", width = ADDR_WIDTH)
             }
         }

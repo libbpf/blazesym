@@ -15,6 +15,7 @@ use crate::mmap::Mmap;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::IntSym;
+use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
 use crate::Addr;
 use crate::IntoError as _;
@@ -158,14 +159,14 @@ impl<'dat> GsymResolver<'dat> {
 }
 
 impl SymResolver for GsymResolver<'_> {
-    fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
+    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let found = self
                 .ctx
                 .addr_at(idx)
                 .ok_or_invalid_data(|| format!("failed to read address table entry {idx}"))?;
             if addr < found {
-                return Ok(None)
+                return Ok(Err(Reason::UnknownAddr))
             }
 
             let info = self
@@ -188,9 +189,9 @@ impl SymResolver for GsymResolver<'_> {
                 lang,
             };
 
-            Ok(Some(sym))
+            Ok(Ok(sym))
         } else {
-            Ok(None)
+            Ok(Err(Reason::UnknownAddr))
         }
     }
 

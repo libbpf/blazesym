@@ -396,7 +396,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
     // blaze_sym, and C strings of symbol and path.
     let (strtab_size, inlined_fn_cnt) = results.iter().fold((0, 0), |acc, sym| match sym {
         Symbolized::Sym(sym) => (acc.0 + sym_strtab_size(sym), acc.1 + sym.inlined.len()),
-        Symbolized::Unknown => acc,
+        Symbolized::Unknown(..) => acc,
     });
 
     let buf_size = strtab_size
@@ -466,7 +466,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
                     inlined_last = unsafe { inlined_last.add(1) };
                 }
             }
-            Symbolized::Unknown => {
+            Symbolized::Unknown(..) => {
                 // Unknown symbols/addresses are just represented with all
                 // fields set to zero.
                 // SAFETY: `syms_last` is pointing to a writable and properly
@@ -670,6 +670,7 @@ mod tests {
     use std::slice;
 
     use blazesym::inspect;
+    use blazesym::symbolize::Reason;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -883,7 +884,7 @@ mod tests {
 
         // One symbol and some unsymbolized values.
         let results = vec![
-            Symbolized::Unknown,
+            Symbolized::Unknown(Reason::UnknownAddr),
             Symbolized::Sym(Sym {
                 name: "test".into(),
                 addr: 0x1337,
@@ -898,7 +899,7 @@ mod tests {
                 .into_boxed_slice(),
                 _non_exhaustive: (),
             }),
-            Symbolized::Unknown,
+            Symbolized::Unknown(Reason::InvalidFileOffset),
         ];
         let result = convert_symbolizedresults_to_c(results);
         let () = touch_result(result);

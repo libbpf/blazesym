@@ -89,7 +89,7 @@
 //!                 print_frame(&frame.name, None, &frame.code_info);
 //!             }
 //!         }
-//!         Symbolized::Unknown => {
+//!         Symbolized::Unknown(..) => {
 //!             println!("{input_addr:#0width$x}: <no-symbol>", width = ADDR_WIDTH)
 //!         }
 //!     }
@@ -101,6 +101,9 @@ mod symbolizer;
 
 use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::path::Path;
 
 pub use source::Apk;
@@ -313,6 +316,42 @@ pub struct Sym<'src> {
 }
 
 
+/// The reason why symbolization failed.
+///
+/// The reason is generally only meant as a hint. Reasons reported may change
+/// over time and, hence, should not be relied upon for the correctness of the
+/// application.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum Reason {
+    /// The absolute address was not found in the corresponding process' virtual
+    /// memory map.
+    Unmapped,
+    /// The file offset does not map to a valid piece of code/data.
+    InvalidFileOffset,
+    /// The symbolization source has no or no relevant symbols.
+    ///
+    /// This reason could for instance be used if a shared object only
+    /// has dynamic symbols, but appears to be stripped aside from that.
+    MissingSyms,
+    /// The address could not be found in the symbolization source.
+    UnknownAddr,
+}
+
+impl Display for Reason {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let s = match self {
+            Self::Unmapped => "absolute address not found in virtual memory map of process",
+            Self::InvalidFileOffset => "file offset does not map to a valid piece of code/data",
+            Self::MissingSyms => "symbolization source has no or no relevant symbols",
+            Self::UnknownAddr => "address not found in symbolization source",
+        };
+
+        f.write_str(s)
+    }
+}
+
+
 /// An enumeration used as reporting vehicle for address symbolization.
 // We keep this enum as exhaustive because additions to it, should they occur,
 // are expected to be backwards-compatibility breaking.
@@ -321,7 +360,10 @@ pub enum Symbolized<'src> {
     /// The input address was symbolized as the provided symbol.
     Sym(Sym<'src>),
     /// The input address was not found and could not be symbolized.
-    Unknown,
+    ///
+    /// The provided reason is a best guess, hinting at what ultimately
+    /// prevented the symbolization from being successful.
+    Unknown(Reason),
 }
 
 impl<'src> Symbolized<'src> {
@@ -331,7 +373,7 @@ impl<'src> Symbolized<'src> {
     pub fn as_sym(&self) -> Option<&Sym<'src>> {
         match self {
             Self::Sym(sym) => Some(sym),
-            Self::Unknown => None,
+            Self::Unknown(..) => None,
         }
     }
 
@@ -341,7 +383,7 @@ impl<'src> Symbolized<'src> {
     pub fn into_sym(self) -> Option<Sym<'src>> {
         match self {
             Self::Sym(sym) => Some(sym),
-            Self::Unknown => None,
+            Self::Unknown(..) => None,
         }
     }
 }
@@ -393,11 +435,20 @@ mod tests {
         assert_ne!(format!("{addr_code_info:?}"), "");
     }
 
+    /// Exercise the `Display` representation of various types.
+    #[test]
+    fn display_repr() {
+        assert_eq!(
+            Reason::MissingSyms.to_string(),
+            "symbolization source has no or no relevant symbols"
+        );
+    }
+
     /// Test the `Symbolized::*_sym()` conversion methods for the `Unknown`
     /// variant.
     #[test]
     fn symbolized_unknown_conversions() {
-        let symbolized = Symbolized::Unknown;
+        let symbolized = Symbolized::Unknown(Reason::UnknownAddr);
         assert_eq!(symbolized.as_sym(), None);
         assert_eq!(symbolized.into_sym(), None);
     }

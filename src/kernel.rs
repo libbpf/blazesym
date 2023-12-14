@@ -10,6 +10,7 @@ use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::IntSym;
+use crate::symbolize::Reason;
 use crate::Addr;
 use crate::Error;
 use crate::Result;
@@ -40,7 +41,7 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>> {
+    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
             ksym_resolver.find_sym(addr)
         } else {
