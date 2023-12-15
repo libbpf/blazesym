@@ -17,6 +17,8 @@ use blazesym::inspect;
 use blazesym::inspect::Inspector;
 use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
+use blazesym::symbolize::Reason;
+use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::ErrorKind;
@@ -122,6 +124,22 @@ fn symbolize_elf_dwarf_gsym() {
     let data = read_file(&path).unwrap();
     let src = symbolize::Source::from(symbolize::GsymData::new(&data));
     test(src, true);
+}
+
+/// Check that we "fail" symbolization as expected on a stripped ELF
+/// binary.
+#[test]
+fn symbolize_elf_stripped() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-stripped.bin");
+    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .unwrap();
+
+    assert_eq!(result, Symbolized::Unknown(Reason::MissingSyms));
 }
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined

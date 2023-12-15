@@ -371,6 +371,7 @@ fn prepare_test_files(crate_root: &Path) {
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test-stable-addresses.gsym");
     dwarf(&src, "test-stable-addresses-dwarf-only.bin");
+    strip(&src, "test-stable-addresses-stripped.bin", &[]);
 
     let src = crate_root.join("data").join("kallsyms.xz");
     let mut dst = src.clone();
