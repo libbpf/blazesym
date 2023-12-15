@@ -107,14 +107,14 @@ fn main() {
         use std::fs::copy;
         use std::fs::write;
 
-        let crate_dir = env!("CARGO_MANIFEST_DIR");
+        let crate_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
 
         cbindgen::Builder::new()
-            .with_crate(crate_dir)
-            .with_config(cbindgen::Config::from_root_or_default(crate_dir))
+            .with_crate(&crate_dir)
+            .with_config(cbindgen::Config::from_root_or_default(&crate_dir))
             .generate()
             .expect("Unable to generate bindings")
-            .write_to_file(Path::new(crate_dir).join("include").join("blazesym.h"));
+            .write_to_file(Path::new(&crate_dir).join("include").join("blazesym.h"));
 
         // Generate a C program that just included blazesym.h as a basic
         // smoke test that cbindgen didn't screw up completely.
@@ -144,7 +144,7 @@ int main() {
                 "-Wextra",
                 "-Werror",
                 "-I",
-                Path::new(crate_dir).join("include").to_str().unwrap(),
+                Path::new(&crate_dir).join("include").to_str().unwrap(),
             ],
         );
 
@@ -161,7 +161,7 @@ int main() {
                         "-Wextra",
                         "-Werror",
                         "-I",
-                        Path::new(crate_dir).join("include").to_str().unwrap(),
+                        Path::new(&crate_dir).join("include").to_str().unwrap(),
                     ],
                 );
             }

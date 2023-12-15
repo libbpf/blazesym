@@ -1,10 +1,12 @@
+use std::env;
+
 use anyhow::Result;
 
 use grev::git_revision_auto;
 
 
 fn main() -> Result<()> {
-    let dir = env!("CARGO_MANIFEST_DIR");
+    let dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     if let Some(git_rev) = git_revision_auto(dir)? {
         println!(
             "cargo:rustc-env=VERSION={} ({})",
