@@ -113,10 +113,14 @@ impl<'mmap> SymbolTableCache<'mmap> {
         }
     }
 
-    fn create_str2sym(&self) -> Result<Vec<(&'mmap str, usize)>> {
+    fn create_str2sym<F>(&self, mut filter: F) -> Result<Vec<(&'mmap str, usize)>>
+    where
+        F: FnMut(&Elf64_Sym) -> bool,
+    {
         let mut str2sym = self
             .syms
             .iter()
+            .filter(|sym| filter(sym))
             .enumerate()
             .map(|(i, sym)| {
                 let name = self
@@ -136,11 +140,14 @@ impl<'mmap> SymbolTableCache<'mmap> {
         Ok(str2sym)
     }
 
-    fn ensure_str2sym(&self) -> Result<&[(&'mmap str, usize)]> {
+    fn ensure_str2sym<F>(&self, filter: F) -> Result<&[(&'mmap str, usize)]>
+    where
+        F: FnMut(&Elf64_Sym) -> bool,
+    {
         let str2sym = self
             .str2sym
             .get_or_try_init(|| {
-                let str2sym = self.create_str2sym()?;
+                let str2sym = self.create_str2sym(filter)?;
                 let str2sym = str2sym.into_boxed_slice();
                 Result::<_, Error>::Ok(str2sym)
             })?
@@ -449,13 +456,19 @@ impl<'mmap> Cache<'mmap> {
 
     fn ensure_str2symtab(&self) -> Result<&[(&'mmap str, usize)]> {
         let symtab = self.ensure_symtab_cache()?;
-        let str2sym = symtab.ensure_str2sym()?;
+        let str2sym = symtab.ensure_str2sym(|_sym| true)?;
         Ok(str2sym)
     }
 
     fn ensure_str2dynsym(&self) -> Result<&[(&'mmap str, usize)]> {
+        let symtab = self.ensure_symtab_cache()?;
         let dynsym = self.ensure_dynsym_cache()?;
-        let str2sym = dynsym.ensure_str2sym()?;
+        let str2sym = dynsym.ensure_str2sym(|sym| {
+            // We filter out all the symbols that already exist in symtab,
+            // to prevent any duplicates from showing up.
+            let result = find_sym(&symtab.syms, symtab.strs, sym.st_value, sym.type_());
+            !matches!(result, Ok(Some(_)))
+        })?;
         Ok(str2sym)
     }
 }
