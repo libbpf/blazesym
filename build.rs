@@ -325,6 +325,13 @@ fn prepare_test_files(crate_root: &Path) {
         "libtest-so-no-separate-code.so",
         &["-shared", "-fPIC", "-Wl,--build-id=md5,-z,noseparate-code"],
     );
+    let src = crate_root.join("data").join("libtest-so.so");
+    strip(&src, "libtest-so-stripped.so", &[]);
+    strip(
+        &src,
+        "libtest-so-partly-stripped.so",
+        &["--keep-symbol=the_ignored_answer"],
+    );
 
     let src = crate_root.join("data").join("test-exe.c");
     cc(&src, "test-no-debug.bin", &["-g0", "-Wl,--build-id=none"]);
