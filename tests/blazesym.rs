@@ -548,6 +548,43 @@ fn inspect() {
 }
 
 
+/// Make sure that we can look up a dynamic symbol in an ELF file.
+#[test]
+fn inspect_dynamic_symbol() {
+    #[track_caller]
+    fn test(bin: &str) {
+        let bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(bin);
+
+        let src = inspect::Source::Elf(inspect::Elf::new(&bin));
+        let inspector = Inspector::new();
+        let results = inspector
+            .lookup(&src, &["the_answer"])
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
+
+        let src = symbolize::Source::Elf(symbolize::Elf::new(&bin));
+        let symbolizer = Symbolizer::new();
+        let result = symbolizer
+            .symbolize_single(&src, symbolize::Input::VirtOffset(results[0].addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(result.name, "the_answer");
+        assert_eq!(result.addr, results[0].addr);
+    }
+
+    test("libtest-so.so");
+    test("libtest-so-stripped.so");
+    test("libtest-so-partly-stripped.so");
+}
+
+
 /// Read four bytes at the given `offset` in the file identified by `path`.
 fn read_4bytes_at(path: &Path, offset: u64) -> [u8; 4] {
     let offset = offset as usize;
