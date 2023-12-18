@@ -574,3 +574,25 @@ fn inspect_all_symbols() {
     assert!(syms.contains("factorial_wrapper"));
     assert!(syms.contains("factorial_inline_test"));
 }
+
+
+/// Check that we can iterate over all symbols in an ELF file, without
+/// encountering duplicates caused by dynamic/static symbol overlap.
+#[test]
+fn inspect_all_symbols_without_duplicates() {
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so.so");
+    let elf = inspect::Elf::new(test_elf);
+    let src = inspect::Source::Elf(elf);
+
+    let inspector = Inspector::new();
+    let syms = inspector
+        .for_each(&src, Vec::<String>::new(), |mut syms, sym| {
+            let () = syms.push(sym.name.to_string());
+            syms
+        })
+        .unwrap();
+
+    assert_eq!(syms.iter().filter(|name| *name == "the_answer").count(), 1);
+}
