@@ -163,6 +163,8 @@ struct Cache<'mmap> {
     phdrs: OnceCell<&'mmap [Elf64_Phdr]>,
     /// The cached symbol table.
     symtab: OnceCell<SymbolTableCache<'mmap>>,
+    /// The cached dynamic symbol table.
+    dynsym: OnceCell<SymbolTableCache<'mmap>>,
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -175,6 +177,7 @@ impl<'mmap> Cache<'mmap> {
             shstrtab: OnceCell::new(),
             phdrs: OnceCell::new(),
             symtab: OnceCell::new(),
+            dynsym: OnceCell::new(),
         }
     }
 
@@ -413,9 +416,26 @@ impl<'mmap> Cache<'mmap> {
         })
     }
 
+    fn ensure_dynsym_cache(&self) -> Result<&SymbolTableCache<'mmap>> {
+        self.dynsym.get_or_try_init(|| {
+            // TODO: We really should check the `.dynamic` section for
+            //       information on what symbol and string tables to
+            //       use instead of hard coding names here.
+            let syms = self.parse_syms(".dynsym")?;
+            let dynstr = self.parse_strs(".dynstr")?;
+            let cache = SymbolTableCache::new(syms, dynstr);
+            Ok(cache)
+        })
+    }
+
     fn ensure_symtab(&self) -> Result<&[&'mmap Elf64_Sym]> {
         let symtab = self.ensure_symtab_cache()?;
         Ok(&symtab.syms)
+    }
+
+    fn ensure_dynsym(&self) -> Result<&[&'mmap Elf64_Sym]> {
+        let dynsym = self.ensure_dynsym_cache()?;
+        Ok(&dynsym.syms)
     }
 
     fn parse_strs(&self, section: &str) -> Result<&'mmap [u8]> {
@@ -430,6 +450,12 @@ impl<'mmap> Cache<'mmap> {
     fn ensure_str2symtab(&self) -> Result<&[(&'mmap str, usize)]> {
         let symtab = self.ensure_symtab_cache()?;
         let str2sym = symtab.ensure_str2sym()?;
+        Ok(str2sym)
+    }
+
+    fn ensure_str2dynsym(&self) -> Result<&[(&'mmap str, usize)]> {
+        let dynsym = self.ensure_dynsym_cache()?;
+        let str2sym = dynsym.ensure_str2sym()?;
         Ok(str2sym)
     }
 }
@@ -499,15 +525,25 @@ impl ElfParser {
 
     pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Result<(&str, Addr, usize), Reason>> {
         let symtab_cache = self.cache.ensure_symtab_cache()?;
+        if let Some(sym) = find_sym(&symtab_cache.syms, symtab_cache.strs, addr, st_type)? {
+            return Ok(Ok(sym))
+        }
 
-        let sym = find_sym(&symtab_cache.syms, symtab_cache.strs, addr, st_type)?.ok_or({
-            if symtab_cache.syms.is_empty() {
-                Reason::MissingSyms
-            } else {
-                Reason::UnknownAddr
-            }
-        });
-        Ok(sym)
+        let dynsym_cache = self.cache.ensure_dynsym_cache()?;
+        if let Some(sym) = find_sym(&dynsym_cache.syms, dynsym_cache.strs, addr, st_type)? {
+            return Ok(Ok(sym))
+        }
+
+        // At this point we haven't found a symbol for the given
+        // address. The emptiness of `dynsym` has no bearing on the
+        // reason we report -- for all intents and purposes it is either
+        // required or not at all necessary.
+        let reason = if symtab_cache.syms.is_empty() {
+            Reason::MissingSyms
+        } else {
+            Reason::UnknownAddr
+        };
+        Ok(Err(reason))
     }
 
     /// Calculate the file offset of the given symbol.
@@ -529,28 +565,23 @@ impl ElfParser {
         Ok(sym.st_value - section.sh_addr + section.sh_offset)
     }
 
-    pub(crate) fn find_addr<'slf>(
+    fn find_addr_impl<'slf>(
         &'slf self,
         name: &str,
         opts: &FindAddrOpts,
+        shdrs: &'slf [Elf64_Shdr],
+        syms: &[&'slf Elf64_Sym],
+        str2sym: &'slf [(&'slf str, usize)],
     ) -> Result<Vec<SymInfo<'slf>>> {
-        if let SymType::Variable = opts.sym_type {
-            return Err(Error::with_unsupported("Not implemented"))
-        }
-
-        let shdrs = self.cache.ensure_shdrs()?;
-        let symtab = self.cache.ensure_symtab()?;
-        let str2symtab = self.cache.ensure_str2symtab()?;
-
-        let r = find_match_or_lower_bound_by_key(str2symtab, name, |&(name, _i)| name);
+        let r = find_match_or_lower_bound_by_key(str2sym, name, |&(name, _i)| name);
         match r {
             Some(idx) => {
                 let mut found = vec![];
-                for (name_visit, sym_i) in str2symtab.iter().skip(idx) {
+                for (name_visit, sym_i) in str2sym.iter().skip(idx) {
                     if *name_visit != name {
                         break
                     }
-                    let sym_ref = &symtab.get(*sym_i).ok_or_invalid_input(|| {
+                    let sym_ref = &syms.get(*sym_i).ok_or_invalid_input(|| {
                         format!("symbol table index ({sym_i}) out of bounds")
                     })?;
                     if sym_ref.st_shndx != SHN_UNDEF {
@@ -573,11 +604,11 @@ impl ElfParser {
         }
     }
 
-    /// Perform an operation on each symbol.
-    pub(crate) fn for_each_sym<F, R>(&self, opts: &FindAddrOpts, mut r: R, mut f: F) -> Result<R>
-    where
-        F: FnMut(R, &SymInfo<'_>) -> R,
-    {
+    pub(crate) fn find_addr<'slf>(
+        &'slf self,
+        name: &str,
+        opts: &FindAddrOpts,
+    ) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::with_unsupported("Not implemented"))
         }
@@ -585,9 +616,32 @@ impl ElfParser {
         let shdrs = self.cache.ensure_shdrs()?;
         let symtab = self.cache.ensure_symtab()?;
         let str2symtab = self.cache.ensure_str2symtab()?;
+        let syms = self.find_addr_impl(name, opts, shdrs, symtab, str2symtab)?;
+        if !syms.is_empty() {
+            return Ok(syms)
+        }
 
-        for (name, idx) in str2symtab {
-            let sym = &symtab
+        let dynsym = self.cache.ensure_dynsym()?;
+        let str2dynsym = self.cache.ensure_str2dynsym()?;
+        let syms = self.find_addr_impl(name, opts, shdrs, dynsym, str2dynsym)?;
+        Ok(syms)
+    }
+
+    fn for_each_sym_impl<F, R>(
+        &self,
+        opts: &FindAddrOpts,
+        syms: &[&Elf64_Sym],
+        str2sym: &[(&str, usize)],
+        mut r: R,
+        mut f: F,
+    ) -> Result<R>
+    where
+        F: FnMut(R, &SymInfo<'_>) -> R,
+    {
+        let shdrs = self.cache.ensure_shdrs()?;
+
+        for (name, idx) in str2sym {
+            let sym = &syms
                 .get(*idx)
                 .ok_or_invalid_input(|| format!("symbol table index ({idx}) out of bounds"))?;
             if sym.type_() == STT_FUNC && sym.st_shndx != SHN_UNDEF {
@@ -605,6 +659,26 @@ impl ElfParser {
                 r = f(r, &sym_info)
             }
         }
+
+        Ok(r)
+    }
+
+    /// Perform an operation on each symbol.
+    pub(crate) fn for_each_sym<F, R>(&self, opts: &FindAddrOpts, r: R, mut f: F) -> Result<R>
+    where
+        F: FnMut(R, &SymInfo<'_>) -> R,
+    {
+        if let SymType::Variable = opts.sym_type {
+            return Err(Error::with_unsupported("Not implemented"))
+        }
+
+        let symtab = self.cache.ensure_symtab()?;
+        let str2symtab = self.cache.ensure_str2symtab()?;
+        let r = self.for_each_sym_impl(opts, symtab, str2symtab, r, &mut f)?;
+
+        let dynsym = self.cache.ensure_dynsym()?;
+        let str2dynsym = self.cache.ensure_str2dynsym()?;
+        let r = self.for_each_sym_impl(opts, dynsym, str2dynsym, r, &mut f)?;
 
         Ok(r)
     }
