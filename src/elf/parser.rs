@@ -94,6 +94,63 @@ struct EhdrExt<'mmap> {
 }
 
 
+#[derive(Debug)]
+struct SymbolTableCache<'mmap> {
+    /// The cached symbols (in address order).
+    syms: Box<[&'mmap Elf64_Sym]>,
+    /// The string table.
+    strs: &'mmap [u8],
+    /// The cached name to symbol index table (in dictionary order).
+    str2sym: OnceCell<Box<[(&'mmap str, usize)]>>,
+}
+
+impl<'mmap> SymbolTableCache<'mmap> {
+    fn new(syms: Vec<&'mmap Elf64_Sym>, strs: &'mmap [u8]) -> Self {
+        Self {
+            syms: syms.into_boxed_slice(),
+            strs,
+            str2sym: OnceCell::new(),
+        }
+    }
+
+    fn create_str2sym(&self) -> Result<Vec<(&'mmap str, usize)>> {
+        let mut str2sym = self
+            .syms
+            .iter()
+            .enumerate()
+            .map(|(i, sym)| {
+                let name = self
+                    .strs
+                    .get(sym.st_name as usize..)
+                    .ok_or_invalid_input(|| "string table index out of bounds")?
+                    .read_cstr()
+                    .ok_or_invalid_input(|| "no valid string found in string table")?
+                    .to_str()
+                    .map_err(Error::with_invalid_data)
+                    .context("invalid symbol name")?;
+                Ok((name, i))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let () = str2sym.sort_by_key(|&(name, _i)| name);
+        Ok(str2sym)
+    }
+
+    fn ensure_str2sym(&self) -> Result<&[(&'mmap str, usize)]> {
+        let str2sym = self
+            .str2sym
+            .get_or_try_init(|| {
+                let str2sym = self.create_str2sym()?;
+                let str2sym = str2sym.into_boxed_slice();
+                Result::<_, Error>::Ok(str2sym)
+            })?
+            .deref();
+
+        Ok(str2sym)
+    }
+}
+
+
 struct Cache<'mmap> {
     /// A slice of the raw ELF data that we are about to parse.
     elf_data: &'mmap [u8],
@@ -104,11 +161,8 @@ struct Cache<'mmap> {
     shstrtab: OnceCell<&'mmap [u8]>,
     /// The cached ELF program headers.
     phdrs: OnceCell<&'mmap [Elf64_Phdr]>,
-    symtab: OnceCell<Box<[&'mmap Elf64_Sym]>>, // in address order
-    /// The cached ELF string table.
-    strtab: OnceCell<&'mmap [u8]>,
-    str2symtab: OnceCell<Box<[(&'mmap str, usize)]>>, /* strtab offset to symtab in the
-                                                       * dictionary order */
+    /// The cached symbol table.
+    symtab: OnceCell<SymbolTableCache<'mmap>>,
 }
 
 impl<'mmap> Cache<'mmap> {
@@ -121,8 +175,6 @@ impl<'mmap> Cache<'mmap> {
             shstrtab: OnceCell::new(),
             phdrs: OnceCell::new(),
             symtab: OnceCell::new(),
-            strtab: OnceCell::new(),
-            str2symtab: OnceCell::new(),
         }
     }
 
@@ -320,92 +372,65 @@ impl<'mmap> Cache<'mmap> {
         Ok(None)
     }
 
-    fn parse_symtab(&self) -> Result<Box<[&'mmap Elf64_Sym]>> {
-        let idx = if let Some(idx) = self.find_section(".symtab")? {
-            idx
-        } else if let Some(idx) = self.find_section(".dynsym")? {
+    fn parse_syms(&self, section: &str) -> Result<Vec<&'mmap Elf64_Sym>> {
+        let idx = if let Some(idx) = self.find_section(section)? {
             idx
         } else {
-            // Neither symbol table exists. Fake an empty one.
-            return Ok(Box::default())
+            // The symbol table does not exists. Fake an empty one.
+            return Ok(Vec::new())
         };
-        let mut symtab = self.section_data(idx)?;
+        let mut syms = self.section_data(idx)?;
 
-        if symtab.len() % mem::size_of::<Elf64_Sym>() != 0 {
+        if syms.len() % mem::size_of::<Elf64_Sym>() != 0 {
             return Err(Error::with_invalid_data(
                 "size of symbol table section is invalid",
             ))
         }
 
-        let count = symtab.len() / mem::size_of::<Elf64_Sym>();
-        let mut symtab = symtab
+        let count = syms.len() / mem::size_of::<Elf64_Sym>();
+        let mut syms = syms
             .read_pod_slice_ref::<Elf64_Sym>(count)
             .ok_or_invalid_data(|| "failed to read symbol table contents")?
             .iter()
-            .collect::<Vec<&Elf64_Sym>>()
-            .into_boxed_slice();
+            .collect::<Vec<&Elf64_Sym>>();
         // Order symbols by address and those with equal address descending by
         // size.
-        let () = symtab.sort_by(|sym1, sym2| {
+        let () = syms.sort_by(|sym1, sym2| {
             sym1.st_value
                 .cmp(&sym2.st_value)
                 .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
         });
 
-        Ok(symtab)
+        Ok(syms)
+    }
+
+    fn ensure_symtab_cache(&self) -> Result<&SymbolTableCache<'mmap>> {
+        self.symtab.get_or_try_init(|| {
+            let syms = self.parse_syms(".symtab")?;
+            let strtab = self.parse_strs(".strtab")?;
+            let cache = SymbolTableCache::new(syms, strtab);
+            Ok(cache)
+        })
     }
 
     fn ensure_symtab(&self) -> Result<&[&'mmap Elf64_Sym]> {
-        let symtab = self.symtab.get_or_try_init(|| self.parse_symtab())?.deref();
-        Ok(symtab)
+        let symtab = self.ensure_symtab_cache()?;
+        Ok(&symtab.syms)
     }
 
-    fn parse_strtab(&self) -> Result<&'mmap [u8]> {
-        let strtab = if let Some(idx) = self.find_section(".strtab")? {
-            self.section_data(idx)?
-        } else if let Some(idx) = self.find_section(".dynstr")? {
+    fn parse_strs(&self, section: &str) -> Result<&'mmap [u8]> {
+        let strs = if let Some(idx) = self.find_section(section)? {
             self.section_data(idx)?
         } else {
             &[]
         };
-        Ok(strtab)
-    }
-
-    fn ensure_strtab(&self) -> Result<&'mmap [u8]> {
-        self.strtab.get_or_try_init(|| self.parse_strtab()).copied()
-    }
-
-    fn parse_str2symtab(&self) -> Result<Box<[(&'mmap str, usize)]>> {
-        let strtab = self.ensure_strtab()?;
-        let symtab = self.ensure_symtab()?;
-
-        let mut str2symtab = symtab
-            .iter()
-            .enumerate()
-            .map(|(i, sym)| {
-                let name = strtab
-                    .get(sym.st_name as usize..)
-                    .ok_or_invalid_input(|| "string table index out of bounds")?
-                    .read_cstr()
-                    .ok_or_invalid_input(|| "no valid string found in string table")?
-                    .to_str()
-                    .map_err(Error::with_invalid_data)
-                    .context("invalid symbol name")?;
-                Ok((name, i))
-            })
-            .collect::<Result<Vec<_>>>()?
-            .into_boxed_slice();
-
-        let () = str2symtab.sort_by_key(|&(name, _i)| name);
-        Ok(str2symtab)
+        Ok(strs)
     }
 
     fn ensure_str2symtab(&self) -> Result<&[(&'mmap str, usize)]> {
-        let str2symtab = self
-            .str2symtab
-            .get_or_try_init(|| self.parse_str2symtab())?
-            .deref();
-        Ok(str2symtab)
+        let symtab = self.ensure_symtab_cache()?;
+        let str2sym = symtab.ensure_str2sym()?;
+        Ok(str2sym)
     }
 }
 
@@ -473,11 +498,10 @@ impl ElfParser {
     }
 
     pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Result<(&str, Addr, usize), Reason>> {
-        let strtab = self.cache.ensure_strtab()?;
-        let symtab = self.cache.ensure_symtab()?;
+        let symtab_cache = self.cache.ensure_symtab_cache()?;
 
-        let sym = find_sym(symtab, strtab, addr, st_type)?.ok_or({
-            if symtab.is_empty() {
+        let sym = find_sym(&symtab_cache.syms, symtab_cache.strs, addr, st_type)?.ok_or({
+            if symtab_cache.syms.is_empty() {
                 Reason::MissingSyms
             } else {
                 Reason::UnknownAddr
@@ -610,9 +634,9 @@ impl ElfParser {
 
     #[cfg(test)]
     fn get_symbol_name(&self, idx: usize) -> Result<&str> {
-        let strtab = self.cache.ensure_strtab()?;
+        let symtab_cache = self.cache.ensure_symtab_cache()?;
         let sym = self.cache.symbol(idx)?;
-        let name = symbol_name(strtab, sym)?;
+        let name = symbol_name(symtab_cache.strs, sym)?;
         Ok(name)
     }
 
