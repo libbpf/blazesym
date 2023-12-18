@@ -4,6 +4,8 @@ Unreleased
   why symbolization was not successful as part of the
   `symbolize::Symbolized::Unknown` variant
 - Introduced `apk` and `gsym` compile-time features
+- Improved handling of dynamic ELF symbols for symbolization and
+  inspection
 - Reordered `pid` argument to normalization functions before addresses
 - Reordered `src` argument to inspection functions before names
 
