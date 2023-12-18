@@ -583,17 +583,10 @@ impl ElfParser {
         }
 
         let shdrs = self.cache.ensure_shdrs()?;
+        let symtab = self.cache.ensure_symtab()?;
+        let str2symtab = self.cache.ensure_str2symtab()?;
 
-        let mut i = 0;
-        loop {
-            let symtab = self.cache.ensure_symtab()?;
-            let str2symtab = self.cache.ensure_str2symtab()?;
-
-            if i >= str2symtab.len() {
-                break Ok(r)
-            }
-
-            let (name, idx) = &str2symtab[i];
+        for (name, idx) in str2symtab {
             let sym = &symtab
                 .get(*idx)
                 .ok_or_invalid_input(|| format!("symbol table index ({idx}) out of bounds"))?;
@@ -611,9 +604,9 @@ impl ElfParser {
                 };
                 r = f(r, &sym_info)
             }
-
-            i += 1;
         }
+
+        Ok(r)
     }
 
     /// Find the file offset of the symbol at address `addr`.
