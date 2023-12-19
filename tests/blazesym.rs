@@ -294,7 +294,7 @@ fn symbolize_dwarf_demangle() {
 
     let inspector = Inspector::new();
     let results = inspector
-        .lookup(&["_RNvCs69hjMPjVIJK_4test13test_function"], &src)
+        .lookup(&src, &["_RNvCs69hjMPjVIJK_4test13test_function"])
         .unwrap()
         .into_iter()
         .flatten()
@@ -448,7 +448,7 @@ fn inspect() {
     fn test(src: inspect::Source) {
         let inspector = Inspector::new();
         let results = inspector
-            .lookup(&["factorial"], &src)
+            .lookup(&src, &["factorial"])
             .unwrap()
             .into_iter()
             .flatten()
@@ -501,7 +501,7 @@ fn inspect_file_offset_elf() {
 
     let inspector = Inspector::new();
     let results = inspector
-        .lookup(&["dummy"], &src)
+        .lookup(&src, &["dummy"])
         .unwrap()
         .into_iter()
         .flatten()

@@ -7,7 +7,7 @@
 //! let src = inspect::Source::Elf(inspect::Elf::new("/usr/bin/libc.so"));
 //! let inspector = Inspector::new();
 //! let results = inspector
-//!     .lookup(&["fopen"], &src)
+//!     .lookup(&src, &["fopen"])
 //!     .unwrap();
 //!
 //! // `results` contains a list of addresses of `fopen` symbols in `libc`.

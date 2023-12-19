@@ -4,6 +4,7 @@ Unreleased
   why symbolization was not successful as part of the
   `symbolize::Symbolized::Unknown` variant
 - Reordered `pid` argument to normalization functions before addresses
+- Reordered `src` argument to inspection functions before names
 
 
 0.2.0-alpha.9

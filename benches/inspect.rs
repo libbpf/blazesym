@@ -18,7 +18,7 @@ fn lookup_elf() {
 
     let inspector = Inspector::new();
     let results = inspector
-        .lookup(black_box(&["abort_creds"]), black_box(&src))
+        .lookup(black_box(&src), black_box(&["abort_creds"]))
         .unwrap()
         .into_iter()
         .flatten()
@@ -39,7 +39,7 @@ fn lookup_dwarf() {
 
     let inspector = Inspector::new();
     let results = inspector
-        .lookup(black_box(&["abort_creds"]), black_box(&src))
+        .lookup(black_box(&src), black_box(&["abort_creds"]))
         .unwrap()
         .into_iter()
         .flatten()

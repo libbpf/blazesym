@@ -43,8 +43,8 @@ impl Inspector {
     /// - no symbol name demangling is performed currently
     pub fn lookup<'slf>(
         &'slf self,
-        names: &[&str],
         src: &Source,
+        names: &[&str],
     ) -> Result<Vec<Vec<SymInfo<'slf>>>> {
         let opts = FindAddrOpts {
             offset_in_file: true,
@@ -144,7 +144,7 @@ mod tests {
     fn non_present_file() {
         fn test(src: &Source) {
             let inspector = Inspector::new();
-            let err = inspector.lookup(&["factorial"], src).unwrap_err();
+            let err = inspector.lookup(src, &["factorial"]).unwrap_err();
             assert_eq!(err.kind(), ErrorKind::NotFound);
         }
 
@@ -181,10 +181,10 @@ mod tests {
                 .clone()
         };
 
-        let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));
+        let _results = inspector.lookup(&Source::Elf(elf.clone()), &["factorial"]);
         let data1 = data();
 
-        let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));
+        let _results = inspector.lookup(&Source::Elf(elf.clone()), &["factorial"]);
         let data2 = data();
         assert!(Rc::ptr_eq(
             data1.dwarf.get().unwrap(),
@@ -195,7 +195,7 @@ mod tests {
         // new resolver.
         elf.debug_syms = false;
 
-        let _results = inspector.lookup(&["factorial"], &Source::Elf(elf.clone()));
+        let _results = inspector.lookup(&Source::Elf(elf.clone()), &["factorial"]);
         let data3 = data();
         assert!(!Rc::ptr_eq(
             data1.dwarf.get().unwrap(),
