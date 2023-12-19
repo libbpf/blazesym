@@ -1120,7 +1120,7 @@ mod tests {
 
         let inspector = inspect::Inspector::new();
         let results = inspector
-            .lookup(&["_RNvCs69hjMPjVIJK_4test13test_function"], &src)
+            .lookup(&src, &["_RNvCs69hjMPjVIJK_4test13test_function"])
             .unwrap()
             .into_iter()
             .flatten()

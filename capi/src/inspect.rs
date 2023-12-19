@@ -263,7 +263,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
             unsafe { CStr::from_ptr(p) }.to_str().unwrap()
         })
         .collect::<Vec<_>>();
-    let result = inspector.lookup(&names, &src);
+    let result = inspector.lookup(&src, &names);
     match result {
         Ok(syms) => convert_syms_list_to_c(syms),
         Err(_err) => ptr::null(),
