@@ -135,6 +135,7 @@ impl BuildIdReader for NoBuildIdReader {
 ///
 /// Returns [`None`] if the file does not contain a build ID.
 ///
+/// # Examples
 /// ```
 /// # use std::path::Path;
 /// # let retrieve_path_to_elf_file = || {
