@@ -362,9 +362,9 @@ impl From<UserOutput> for blaze_normalized_user_output {
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs(
     normalizer: *const blaze_normalizer,
+    pid: u32,
     addrs: *const Addr,
     addr_cnt: usize,
-    pid: u32,
 ) -> *mut blaze_normalized_user_output {
     // SAFETY: The caller needs to ensure that `normalizer` is a valid
     //         pointer.
@@ -372,7 +372,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_cnt` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
-    let result = normalizer.normalize_user_addrs(addrs, pid.into());
+    let result = normalizer.normalize_user_addrs(pid.into(), addrs);
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
         Err(_err) => ptr::null_mut(),
@@ -400,9 +400,9 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     normalizer: *const blaze_normalizer,
+    pid: u32,
     addrs: *const Addr,
     addr_cnt: usize,
-    pid: u32,
 ) -> *mut blaze_normalized_user_output {
     // SAFETY: The caller needs to ensure that `normalizer` is a valid
     //         pointer.
@@ -410,7 +410,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_cnt` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
-    let result = normalizer.normalize_user_addrs_sorted(addrs, pid.into());
+    let result = normalizer.normalize_user_addrs_sorted(pid.into(), addrs);
     match result {
         Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
         Err(_err) => ptr::null_mut(),
@@ -598,7 +598,7 @@ mod tests {
         assert_ne!(normalizer, ptr::null_mut());
 
         let result = unsafe {
-            blaze_normalize_user_addrs(normalizer, addrs.as_slice().as_ptr(), addrs.len(), 0)
+            blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
         };
         assert_ne!(result, ptr::null_mut());
 
@@ -626,7 +626,7 @@ mod tests {
         assert_ne!(normalizer, ptr::null_mut());
 
         let result = unsafe {
-            blaze_normalize_user_addrs_sorted(normalizer, addrs.as_slice().as_ptr(), addrs.len(), 0)
+            blaze_normalize_user_addrs_sorted(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
         };
         assert_ne!(result, ptr::null_mut());
 
