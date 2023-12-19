@@ -362,7 +362,7 @@ fn normalize_elf_addr() {
 
         let normalizer = Normalizer::new();
         let normalized = normalizer
-            .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
+            .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
@@ -417,7 +417,7 @@ fn normalize_build_id_rading() {
             .enable_build_ids(read_build_ids)
             .build();
         let normalized = normalizer
-            .normalize_user_addrs_sorted([the_answer_addr as Addr].as_slice(), Pid::Slf)
+            .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);

@@ -3,6 +3,7 @@ Unreleased
 - Introduced `symbolize::Reason` enum to provide best guess at
   why symbolization was not successful as part of the
   `symbolize::Symbolized::Unknown` variant
+- Reordered `pid` argument to normalization functions before addresses
 
 
 0.2.0-alpha.9

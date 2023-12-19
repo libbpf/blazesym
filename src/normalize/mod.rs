@@ -26,7 +26,7 @@
 //! let fopen_addr = libc::fopen as Addr;
 //! let addrs = [fopen_addr];
 //! let pid = Pid::Slf;
-//! let normalized = normalizer.normalize_user_addrs(&addrs, pid).unwrap();
+//! let normalized = normalizer.normalize_user_addrs(pid, &addrs).unwrap();
 //! assert_eq!(normalized.outputs.len(), 1);
 //!
 //! let (file_offset, meta_idx) = normalized.outputs[0];

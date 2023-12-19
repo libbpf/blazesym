@@ -547,9 +547,9 @@ void blaze_normalizer_free(blaze_normalizer *normalizer);
  * `addr_cnt` addresses.
  */
 struct blaze_normalized_user_output *blaze_normalize_user_addrs(const blaze_normalizer *normalizer,
+                                                                uint32_t pid,
                                                                 const uintptr_t *addrs,
-                                                                size_t addr_cnt,
-                                                                uint32_t pid);
+                                                                size_t addr_cnt);
 
 /**
  * Normalize a list of user space addresses.
@@ -571,9 +571,9 @@ struct blaze_normalized_user_output *blaze_normalize_user_addrs(const blaze_norm
  * `addr_cnt` addresses.
  */
 struct blaze_normalized_user_output *blaze_normalize_user_addrs_sorted(const blaze_normalizer *normalizer,
+                                                                       uint32_t pid,
                                                                        const uintptr_t *addrs,
-                                                                       size_t addr_cnt,
-                                                                       uint32_t pid);
+                                                                       size_t addr_cnt);
 
 /**
  * Free an object as returned by [`blaze_normalize_user_addrs`] or

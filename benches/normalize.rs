@@ -22,7 +22,7 @@ fn normalize_process() {
 
     let normalizer = Normalizer::new();
     let normalized = normalizer
-        .normalize_user_addrs_sorted(black_box(addrs.as_slice()), black_box(0.into()))
+        .normalize_user_addrs_sorted(black_box(0.into()), black_box(addrs.as_slice()))
         .unwrap();
     assert_eq!(normalized.outputs.len(), 5);
 }

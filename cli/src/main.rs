@@ -44,7 +44,7 @@ fn normalize(normalize: args::Normalize) -> Result<()> {
     match normalize {
         args::Normalize::User(args::User { pid, addrs }) => {
             let normalized = normalizer
-                .normalize_user_addrs(addrs.as_slice(), pid)
+                .normalize_user_addrs(pid, addrs.as_slice())
                 .context("failed to normalize addresses")?;
             for (addr, (output, meta_idx)) in addrs.iter().zip(&normalized.outputs) {
                 print!("{addr:#016x}: ");
