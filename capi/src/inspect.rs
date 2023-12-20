@@ -7,6 +7,7 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::mem;
+use std::mem::ManuallyDrop;
 use std::ops::Deref as _;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
@@ -44,33 +45,34 @@ pub struct blaze_inspect_elf_src {
     pub debug_syms: bool,
 }
 
-impl From<Elf> for blaze_inspect_elf_src {
-    fn from(other: Elf) -> Self {
+#[cfg_attr(not(test), allow(unused))]
+impl blaze_inspect_elf_src {
+    fn from(other: Elf) -> ManuallyDrop<Self> {
         let Elf {
             path,
             debug_syms,
             _non_exhaustive: (),
         } = other;
-        Self {
+
+        let slf = Self {
             path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
             debug_syms,
-        }
+        };
+        ManuallyDrop::new(slf)
     }
-}
 
-impl From<blaze_inspect_elf_src> for Elf {
-    fn from(other: blaze_inspect_elf_src) -> Self {
-        let blaze_inspect_elf_src { path, debug_syms } = other;
+    unsafe fn free(self) {
+        let Self { path, debug_syms } = self;
 
-        Elf {
+        let _elf = Elf {
             path: PathBuf::from(OsString::from_vec(
                 unsafe { CString::from_raw(path as *mut _) }.into_bytes(),
             )),
             debug_syms,
             _non_exhaustive: (),
-        }
+        };
     }
 }
 
@@ -78,7 +80,7 @@ impl From<&blaze_inspect_elf_src> for Elf {
     fn from(other: &blaze_inspect_elf_src) -> Self {
         let blaze_inspect_elf_src { path, debug_syms } = other;
 
-        Elf {
+        Self {
             path: unsafe { from_cstr(*path) },
             debug_syms: *debug_syms,
             _non_exhaustive: (),
@@ -488,8 +490,8 @@ mod tests {
 
         let inspector = blaze_inspector_new();
         let result =
-            unsafe { blaze_inspect_syms_elf(inspector, &src, names.as_ptr(), names.len()) };
-        let _src = Elf::from(src);
+            unsafe { blaze_inspect_syms_elf(inspector, &*src, names.as_ptr(), names.len()) };
+        let () = unsafe { ManuallyDrop::into_inner(src).free() };
         assert!(!result.is_null());
 
         let sym_infos = unsafe { slice::from_raw_parts(result, names.len()) };
