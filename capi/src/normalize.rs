@@ -29,6 +29,11 @@ pub type blaze_normalizer = Normalizer;
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_normalizer_opts {
+    /// The size of this object's type.
+    ///
+    /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
+    /// ensure compatibility in the presence of member additions.
+    pub type_size: usize,
     /// Whether to read and report build IDs as part of the normalization
     /// process.
     pub build_ids: bool,
@@ -61,7 +66,10 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
 ) -> *mut blaze_normalizer {
     // SAFETY: The caller ensures that the pointer is valid.
     let opts = unsafe { &*opts };
-    let blaze_normalizer_opts { build_ids } = opts;
+    let blaze_normalizer_opts {
+        type_size: _,
+        build_ids,
+    } = opts;
 
     let normalizer = Normalizer::builder().enable_build_ids(*build_ids).build();
     let normalizer_box = Box::new(normalizer);
@@ -487,6 +495,7 @@ mod tests {
 
     use std::ffi::CStr;
     use std::io;
+    use std::mem::size_of;
     use std::path::Path;
 
     use blazesym::helper::read_elf_build_id;
@@ -682,6 +691,7 @@ mod tests {
             assert!(!the_answer_addr.is_null());
 
             let opts = blaze_normalizer_opts {
+                type_size: size_of::<blaze_normalizer_opts>(),
                 build_ids: read_build_ids,
             };
             let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };

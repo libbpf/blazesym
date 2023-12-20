@@ -7,6 +7,7 @@ use std::io::ErrorKind;
 use std::io::Result;
 use std::ops::Deref as _;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 
@@ -130,25 +131,24 @@ fn compile(compiler: &str, src: &Path, dst: &str, options: &[&str]) {
 }
 
 /// Compile `src` into `dst` using `cc`.
-#[cfg_attr(not(feature = "generate-c-header"), allow(dead_code))]
 fn cc(src: &Path, dst: &str, options: &[&str]) {
     compile("cc", src, dst, options)
 }
 
 fn main() {
+    let crate_dir = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
+
     #[cfg(feature = "generate-c-header")]
     {
         use std::fs::copy;
         use std::fs::write;
-
-        let crate_dir = env::var_os("CARGO_MANIFEST_DIR").unwrap();
 
         cbindgen::Builder::new()
             .with_crate(&crate_dir)
             .with_config(cbindgen::Config::from_root_or_default(&crate_dir))
             .generate()
             .expect("Unable to generate bindings")
-            .write_to_file(Path::new(&crate_dir).join("include").join("blazesym.h"));
+            .write_to_file(crate_dir.join("include").join("blazesym.h"));
 
         // Generate a C program that just included blazesym.h as a basic
         // smoke test that cbindgen didn't screw up completely.
@@ -178,7 +178,7 @@ int main() {
                 "-Wextra",
                 "-Werror",
                 "-I",
-                Path::new(&crate_dir).join("include").to_str().unwrap(),
+                crate_dir.join("include").to_str().unwrap(),
             ],
         );
 
@@ -195,10 +195,19 @@ int main() {
                         "-Wextra",
                         "-Werror",
                         "-I",
-                        Path::new(&crate_dir).join("include").to_str().unwrap(),
+                        crate_dir.join("include").to_str().unwrap(),
                     ],
                 );
             }
         }
+    }
+
+    if cfg!(feature = "check-doc-snippets") {
+        let src = crate_dir.join("examples").join("input-struct-init.c");
+        cc(
+            &src,
+            "input-struct-init.o",
+            &["-I", crate_dir.join("include").to_str().unwrap(), "-c"],
+        );
     }
 }
