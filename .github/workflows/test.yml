@@ -204,7 +204,7 @@ jobs:
     - name: Remove .cargo/config
       run: rm .cargo/config
     - name: Run tests
-      run: cargo miri test --features=dont-generate-unit-test-files -- "insert_map::" "util::"
+      run: cargo miri test --features=dont-generate-unit-test-files -- "insert_map::" "util::" "::elf_src_validity"
   c-header:
     name: Check generated C header
     runs-on: ubuntu-latest

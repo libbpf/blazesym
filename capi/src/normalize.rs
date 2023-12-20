@@ -3,6 +3,7 @@ use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::mem::size_of;
 use std::mem::ManuallyDrop;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStringExt as _;
@@ -37,6 +38,19 @@ pub struct blaze_normalizer_opts {
     /// Whether to read and report build IDs as part of the normalization
     /// process.
     pub build_ids: bool,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 7],
+}
+
+impl Default for blaze_normalizer_opts {
+    fn default() -> Self {
+        Self {
+            type_size: size_of::<Self>(),
+            build_ids: false,
+            reserved: [0; 7],
+        }
+    }
 }
 
 
@@ -64,14 +78,18 @@ pub extern "C" fn blaze_normalizer_new() -> *mut blaze_normalizer {
 pub unsafe extern "C" fn blaze_normalizer_new_opts(
     opts: *const blaze_normalizer_opts,
 ) -> *mut blaze_normalizer {
-    // SAFETY: The caller ensures that the pointer is valid.
-    let opts = unsafe { &*opts };
+    if !input_zeroed!(opts, blaze_normalizer_opts) {
+        return ptr::null_mut()
+    }
+    let opts = input_sanitize!(opts, blaze_normalizer_opts);
+
     let blaze_normalizer_opts {
         type_size: _,
         build_ids,
+        reserved: _,
     } = opts;
 
-    let normalizer = Normalizer::builder().enable_build_ids(*build_ids).build();
+    let normalizer = Normalizer::builder().enable_build_ids(build_ids).build();
     let normalizer_box = Box::new(normalizer);
     Box::into_raw(normalizer_box)
 }
@@ -495,11 +513,17 @@ mod tests {
 
     use std::ffi::CStr;
     use std::io;
-    use std::mem::size_of;
     use std::path::Path;
 
     use blazesym::helper::read_elf_build_id;
 
+
+    /// Check that various types have expected sizes.
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn type_sizes() {
+        assert_eq!(size_of::<blaze_normalizer_opts>(), 16);
+    }
 
     /// Exercise the `Debug` representation of various types.
     #[test]
@@ -691,9 +715,10 @@ mod tests {
             assert!(!the_answer_addr.is_null());
 
             let opts = blaze_normalizer_opts {
-                type_size: size_of::<blaze_normalizer_opts>(),
                 build_ids: read_build_ids,
+                ..Default::default()
             };
+
             let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };
             assert!(!normalizer.is_null());
 

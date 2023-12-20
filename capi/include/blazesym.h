@@ -116,6 +116,11 @@ typedef struct blaze_inspect_elf_src {
    * (if present).
    */
   bool debug_syms;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[7];
 } blaze_inspect_elf_src;
 
 /**
@@ -139,6 +144,11 @@ typedef struct blaze_normalizer_opts {
    * process.
    */
   bool build_ids;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[7];
 } blaze_normalizer_opts;
 
 /**
@@ -289,6 +299,11 @@ typedef struct blaze_symbolizer_opts {
    * the underlying language does not mangle symbols (such as C).
    */
   bool demangle;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[5];
 } blaze_symbolizer_opts;
 
 /**
@@ -431,6 +446,11 @@ typedef struct blaze_symbolize_src_process {
    * procedure.
    */
   bool perf_map;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[2];
 } blaze_symbolize_src_process;
 
 /**
@@ -470,6 +490,11 @@ typedef struct blaze_symbolize_src_kernel {
    * to satisfy the request (if present).
    */
   bool debug_syms;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[7];
 } blaze_symbolize_src_kernel;
 
 /**
@@ -500,6 +525,11 @@ typedef struct blaze_symbolize_src_elf {
    * (if present).
    */
   bool debug_syms;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[7];
 } blaze_symbolize_src_elf;
 
 /**
