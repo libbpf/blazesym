@@ -79,6 +79,38 @@ where
     }
 }
 
+fn adjust_mtime(path: &Path) -> Result<()> {
+    // Note that `OUT_DIR` is only present at runtime.
+    let out_dir = env::var("OUT_DIR").unwrap();
+    // The $OUT_DIR/output file is (in current versions of Cargo [as of
+    // 1.69]) the file containing the reference time stamp that Cargo
+    // checks to determine whether something is considered outdated and
+    // in need to be rebuild. It's an implementation detail, yes, but we
+    // don't rely on it for anything essential.
+    let output = Path::new(&out_dir)
+        .parent()
+        .ok_or_else(|| Error::new(ErrorKind::Other, "OUT_DIR has no parent"))?
+        .join("output");
+
+    if !output.exists() {
+        // The file may not exist for legitimate reasons, e.g., when we
+        // build for the very first time. If there is not reference there
+        // is nothing for us to do, so just bail.
+        return Ok(())
+    }
+
+    let () = run(
+        "touch",
+        [
+            "-m".as_ref(),
+            "--reference".as_ref(),
+            output.as_os_str(),
+            path.as_os_str(),
+        ],
+    )?;
+    Ok(())
+}
+
 /// Compile `src` into `dst` using the provided compiler.
 fn compile(compiler: &str, src: &Path, dst: &str, options: &[&str]) {
     let dst = src.with_file_name(dst);
@@ -93,6 +125,8 @@ fn compile(compiler: &str, src: &Path, dst: &str, options: &[&str]) {
             .chain([src.as_os_str(), "-o".as_ref(), dst.as_os_str()]),
     )
     .unwrap_or_else(|err| panic!("failed to run `{compiler}`: {err}"));
+
+    let () = adjust_mtime(&dst).unwrap();
 }
 
 /// Compile `src` into `dst` using `cc`.
