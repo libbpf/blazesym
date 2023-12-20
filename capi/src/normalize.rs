@@ -152,6 +152,8 @@ pub struct blaze_user_meta_apk {
     /// The canonical absolute path to the APK, including its name.
     /// This member is always present.
     pub path: *mut c_char,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 8],
 }
 
 impl blaze_user_meta_apk {
@@ -165,12 +167,13 @@ impl blaze_user_meta_apk {
             path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
+            reserved: [0u8; 8],
         };
         ManuallyDrop::new(slf)
     }
 
     unsafe fn free(self) {
-        let Self { path } = self;
+        let Self { path, reserved: _ } = self;
 
         let _apk = Apk {
             path: PathBuf::from(OsString::from_vec(
@@ -192,6 +195,8 @@ pub struct blaze_user_meta_elf {
     pub build_id_len: usize,
     /// The optional build ID of the ELF file, if found.
     pub build_id: *mut u8,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 8],
 }
 
 impl blaze_user_meta_elf {
@@ -222,6 +227,7 @@ impl blaze_user_meta_elf {
                     }
                 })
                 .unwrap_or_else(ptr::null_mut),
+            reserved: [0u8; 8],
         };
         ManuallyDrop::new(slf)
     }
@@ -231,6 +237,7 @@ impl blaze_user_meta_elf {
             path,
             build_id_len,
             build_id,
+            reserved: _,
         } = self;
 
         let _elf = Elf {
@@ -250,8 +257,8 @@ impl blaze_user_meta_elf {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_meta_unknown {
-    /// This member is unused.
-    pub _unused: u8,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 8],
 }
 
 impl blaze_user_meta_unknown {
@@ -260,12 +267,12 @@ impl blaze_user_meta_unknown {
             _non_exhaustive: (),
         } = other;
 
-        let slf = Self { _unused: 0 };
+        let slf = Self { reserved: [0u8; 8] };
         ManuallyDrop::new(slf)
     }
 
     fn free(self) {
-        let blaze_user_meta_unknown { _unused } = self;
+        let blaze_user_meta_unknown { reserved: _ } = self;
     }
 }
 
@@ -354,6 +361,8 @@ pub struct blaze_normalized_user_output {
     pub output_cnt: usize,
     /// An array of `output_cnt` objects.
     pub outputs: *mut blaze_normalized_output,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 8],
 }
 
 impl blaze_normalized_user_output {
@@ -388,6 +397,7 @@ impl blaze_normalized_user_output {
                 .unwrap()
                 .as_mut_ptr()
             },
+            reserved: [0u8; 8],
         };
         ManuallyDrop::new(slf)
     }
@@ -523,6 +533,9 @@ mod tests {
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
         assert_eq!(size_of::<blaze_normalizer_opts>(), 16);
+        assert_eq!(size_of::<blaze_user_meta_apk>(), 16);
+        assert_eq!(size_of::<blaze_user_meta_elf>(), 32);
+        assert_eq!(size_of::<blaze_user_meta_unknown>(), 8);
     }
 
     /// Exercise the `Debug` representation of various types.
@@ -542,29 +555,34 @@ mod tests {
 
         let apk = blaze_user_meta_apk {
             path: ptr::null_mut(),
+            reserved: [0u8; 8],
         };
-        assert_eq!(format!("{apk:?}"), "blaze_user_meta_apk { path: 0x0 }",);
+        assert_eq!(
+            format!("{apk:?}"),
+            "blaze_user_meta_apk { path: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }",
+        );
 
         let elf = blaze_user_meta_elf {
             path: ptr::null_mut(),
             build_id_len: 0,
             build_id: ptr::null_mut(),
+            reserved: [0u8; 8],
         };
         assert_eq!(
             format!("{elf:?}"),
-            "blaze_user_meta_elf { path: 0x0, build_id_len: 0, build_id: 0x0 }",
+            "blaze_user_meta_elf { path: 0x0, build_id_len: 0, build_id: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }",
         );
 
-        let unknown = blaze_user_meta_unknown { _unused: 42 };
+        let unknown = blaze_user_meta_unknown { reserved: [0u8; 8] };
         assert_eq!(
             format!("{unknown:?}"),
-            "blaze_user_meta_unknown { _unused: 42 }",
+            "blaze_user_meta_unknown { reserved: [0, 0, 0, 0, 0, 0, 0, 0] }",
         );
 
         let meta = blaze_user_meta {
             kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
             variant: blaze_user_meta_variant {
-                unknown: ManuallyDrop::new(blaze_user_meta_unknown { _unused: 42 }),
+                unknown: ManuallyDrop::new(blaze_user_meta_unknown { reserved: [0u8; 8] }),
             },
         };
         assert_eq!(
@@ -577,10 +595,11 @@ mod tests {
             metas: ptr::null_mut(),
             output_cnt: 0,
             outputs: ptr::null_mut(),
+            reserved: [0u8; 8],
         };
         assert_eq!(
             format!("{user_addrs:?}"),
-            "blaze_normalized_user_output { meta_cnt: 0, metas: 0x0, output_cnt: 0, outputs: 0x0 }",
+            "blaze_normalized_user_output { meta_cnt: 0, metas: 0x0, output_cnt: 0, outputs: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }",
         );
     }
 

@@ -316,6 +316,8 @@ pub struct blaze_symbolize_code_info {
     /// The column number of the symbolized instruction in the source
     /// code.
     pub column: u16,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 10],
 }
 
 
@@ -327,6 +329,8 @@ pub struct blaze_symbolize_inlined_fn {
     pub name: *const c_char,
     /// Source code location information for the inlined function.
     pub code_info: blaze_symbolize_code_info,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 8],
 }
 
 
@@ -363,6 +367,8 @@ pub struct blaze_sym {
     pub inlined_cnt: usize,
     /// An array of `inlined_cnt` symbolized inlined function calls.
     pub inlined: *const blaze_symbolize_inlined_fn,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 8],
 }
 
 /// `blaze_result` is the result of symbolization for C API.
@@ -866,6 +872,9 @@ mod tests {
         assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_data>(), 24);
         assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_file>(), 16);
         assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 16);
+        assert_eq!(mem::size_of::<blaze_symbolize_code_info>(), 32);
+        assert_eq!(mem::size_of::<blaze_symbolize_inlined_fn>(), 48);
+        assert_eq!(mem::size_of::<blaze_sym>(), 80);
     }
 
     /// Exercise the `Debug` representation of various types.
@@ -931,13 +940,15 @@ mod tests {
                 file: ptr::null(),
                 line: 42,
                 column: 1,
+                reserved: [0u8; 10],
             },
             inlined_cnt: 0,
             inlined: ptr::null(),
+            reserved: [0u8; 8],
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 }, inlined_cnt: 0, inlined: 0x0 }"
+            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let inlined = blaze_symbolize_inlined_fn {
@@ -947,11 +958,13 @@ mod tests {
                 file: ptr::null(),
                 line: 42,
                 column: 1,
+                reserved: [0u8; 10],
             },
+            reserved: [0u8; 8],
         };
         assert_eq!(
             format!("{inlined:?}"),
-            "blaze_symbolize_inlined_fn { name: 0x0, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1 } }"
+            "blaze_symbolize_inlined_fn { name: 0x0, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let result = blaze_result { cnt: 0, syms: [] };
@@ -1010,6 +1023,7 @@ mod tests {
                 file,
                 line,
                 column,
+                reserved: _,
             } = code_info;
 
             let _x = touch_cstr(*dir);
@@ -1030,6 +1044,7 @@ mod tests {
                     code_info,
                     inlined_cnt,
                     inlined,
+                    reserved: _,
                 } = sym;
 
                 let () = touch_cstr(*name);
@@ -1039,7 +1054,11 @@ mod tests {
 
                 for j in 0..*inlined_cnt {
                     let inlined_fn = unsafe { &*inlined.add(j) };
-                    let blaze_symbolize_inlined_fn { name, code_info } = inlined_fn;
+                    let blaze_symbolize_inlined_fn {
+                        name,
+                        code_info,
+                        reserved: _,
+                    } = inlined_fn;
                     let () = touch_cstr(*name);
                     let () = touch_code_info(code_info);
                 }
