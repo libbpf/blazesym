@@ -7,6 +7,7 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::mem;
+use std::mem::size_of;
 use std::mem::ManuallyDrop;
 use std::ops::Deref as _;
 use std::os::raw::c_char;
@@ -38,6 +39,11 @@ pub type blaze_inspector = Inspector;
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_inspect_elf_src {
+    /// The size of this object's type.
+    ///
+    /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
+    /// ensure compatibility in the presence of member additions.
+    pub type_size: usize,
     /// The path to the ELF file. This member is always present.
     pub path: *const c_char,
     /// Whether or not to consult debug symbols to satisfy the request
@@ -55,6 +61,7 @@ impl blaze_inspect_elf_src {
         } = other;
 
         let slf = Self {
+            type_size: size_of::<Self>(),
             path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
@@ -64,7 +71,11 @@ impl blaze_inspect_elf_src {
     }
 
     unsafe fn free(self) {
-        let Self { path, debug_syms } = self;
+        let Self {
+            type_size: _,
+            path,
+            debug_syms,
+        } = self;
 
         let _elf = Elf {
             path: PathBuf::from(OsString::from_vec(
@@ -78,7 +89,11 @@ impl blaze_inspect_elf_src {
 
 impl From<&blaze_inspect_elf_src> for Elf {
     fn from(other: &blaze_inspect_elf_src) -> Self {
-        let blaze_inspect_elf_src { path, debug_syms } = other;
+        let blaze_inspect_elf_src {
+            type_size: _,
+            path,
+            debug_syms,
+        } = other;
 
         Self {
             path: unsafe { from_cstr(*path) },
@@ -334,12 +349,13 @@ mod tests {
     #[test]
     fn debug_repr() {
         let elf = blaze_inspect_elf_src {
+            type_size: 24,
             path: ptr::null(),
             debug_syms: true,
         };
         assert_eq!(
             format!("{elf:?}"),
-            "blaze_inspect_elf_src { path: 0x0, debug_syms: true }"
+            "blaze_inspect_elf_src { type_size: 24, path: 0x0, debug_syms: true }"
         );
 
         let info = blaze_sym_info {

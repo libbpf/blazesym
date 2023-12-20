@@ -6,6 +6,18 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+/* Helper macro to declare and initialize a blazesym input struct.
+ *
+ * Inspired by `LIBBPF_OPTS` macro provided by libbpf.
+ */
+#define BLAZE_INPUT(TYPE, NAME, ...)        \
+  struct TYPE NAME = ({                     \
+    (struct TYPE) {                         \
+      .type_size = sizeof(struct TYPE),     \
+      __VA_ARGS__                           \
+    };                                      \
+  })
+
 
 /**
  * The type of a symbol.
@@ -89,6 +101,13 @@ typedef struct blaze_inspector blaze_inspector;
  */
 typedef struct blaze_inspect_elf_src {
   /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
+  /**
    * The path to the ELF file. This member is always present.
    */
   const char *path;
@@ -108,6 +127,13 @@ typedef struct blaze_normalizer blaze_normalizer;
  * Options for configuring [`blaze_normalizer`] objects.
  */
 typedef struct blaze_normalizer_opts {
+  /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
   /**
    * Whether to read and report build IDs as part of the normalization
    * process.
@@ -238,6 +264,13 @@ typedef struct blaze_symbolizer blaze_symbolizer;
  * Options for configuring [`blaze_symbolizer`] objects.
  */
 typedef struct blaze_symbolizer_opts {
+  /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
   /**
    * Whether to attempt to gather source code location information.
    *
@@ -375,6 +408,13 @@ typedef struct blaze_result {
  */
 typedef struct blaze_symbolize_src_process {
   /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
+  /**
    * It is the PID of a process to symbolize.
    *
    * blazesym will parse `/proc/<pid>/maps` and load all the object
@@ -400,6 +440,13 @@ typedef struct blaze_symbolize_src_process {
  * debug information.
  */
 typedef struct blaze_symbolize_src_kernel {
+  /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
   /**
    * The path of a copy of kallsyms.
    *
@@ -433,6 +480,13 @@ typedef struct blaze_symbolize_src_kernel {
  */
 typedef struct blaze_symbolize_src_elf {
   /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
+  /**
    * The path to the ELF file.
    *
    * The referenced file may be an executable or shared object. For example,
@@ -453,6 +507,13 @@ typedef struct blaze_symbolize_src_elf {
  */
 typedef struct blaze_symbolize_src_gsym_data {
   /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
+  /**
    * The Gsym data.
    */
   const uint8_t *data;
@@ -466,6 +527,13 @@ typedef struct blaze_symbolize_src_gsym_data {
  * The parameters to load symbols and debug information from a Gsym file.
  */
 typedef struct blaze_symbolize_src_gsym_file {
+  /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
   /**
    * The path to a gsym file.
    */

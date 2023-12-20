@@ -1,10 +1,21 @@
 //! C API bindings for the library.
+//!
+//! # Compatibility
+//! The library aims to provide forward compatibility with newer
+//! versions and backward compatibility with older ones. To make that
+//! happen, relevant types that are being passed to the library contain
+//! the `type_size` member that is to be set to the type's size. The
+//! `BLAZE_INPUT` macro can be used for convenient initialization:
+//! ```c
+#![doc = include_str!("../examples/input-struct-init.c")]
+//! ```
 
 #![allow(
     clippy::collapsible_if,
     clippy::fn_to_numeric_cast,
     clippy::let_and_return,
-    clippy::let_unit_value
+    clippy::let_unit_value,
+    clippy::manual_non_exhaustive
 )]
 #![deny(unsafe_op_in_unsafe_fn)]
 
