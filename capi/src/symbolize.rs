@@ -518,10 +518,10 @@ unsafe fn blaze_symbolize_impl(
 }
 
 
-/// Symbolize a list of process virtual addresses.
+/// Symbolize a list of process absolute addresses.
 ///
-/// Return an array of [`blaze_result`] with the same size as the
-/// number of input addresses. The caller should free the returned array by
+/// Return an array of [`blaze_result`] with the same size as the number
+/// of input addresses. The caller should free the returned array by
 /// calling [`blaze_result_free`].
 ///
 /// # Safety
@@ -530,7 +530,7 @@ unsafe fn blaze_symbolize_impl(
 /// [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_process_virt_addrs(
+pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_process,
     addrs: *const Addr,
@@ -542,10 +542,10 @@ pub unsafe extern "C" fn blaze_symbolize_process_virt_addrs(
 }
 
 
-/// Symbolize a list of kernel virtual addresses.
+/// Symbolize a list of kernel absolute addresses.
 ///
-/// Return an array of [`blaze_result`] with the same size as the
-/// number of input addresses. The caller should free the returned array by
+/// Return an array of [`blaze_result`] with the same size as the number
+/// of input addresses. The caller should free the returned array by
 /// calling [`blaze_result_free`].
 ///
 /// # Safety
@@ -554,7 +554,7 @@ pub unsafe extern "C" fn blaze_symbolize_process_virt_addrs(
 /// [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_kernel_virt_addrs(
+pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_kernel,
     addrs: *const Addr,
@@ -566,10 +566,10 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_virt_addrs(
 }
 
 
-/// Symbolize file addresses in an ELF file.
+/// Symbolize addresses representing virtual offsets in an ELF file.
 ///
-/// Return an array of [`blaze_result`] with the same size as the
-/// number of input addresses. The caller should free the returned array by
+/// Return an array of [`blaze_result`] with the same size as the number
+/// of input addresses. The caller should free the returned array by
 /// calling [`blaze_result_free`].
 ///
 /// # Safety
@@ -578,7 +578,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_virt_addrs(
 /// [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_elf_file_addrs(
+pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_elf,
     addrs: *const Addr,
@@ -590,7 +590,8 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_addrs(
 }
 
 
-/// Symbolize file addresses using "raw" Gsym data.
+/// Symbolize addresses representing virtual offsets using "raw" Gsym
+/// data.
 ///
 /// Return an array of [`blaze_result`] with the same size as the
 /// number of input addresses. The caller should free the returned array by
@@ -602,7 +603,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_addrs(
 /// [`blaze_symbolize_src_gsym_data`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_gsym_data_file_addrs(
+pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_gsym_data,
     addrs: *const Addr,
@@ -616,10 +617,10 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_file_addrs(
 }
 
 
-/// Symbolize file addresses in a Gsym file.
+/// Symbolize addresses representing virtual offsets in a Gsym file.
 ///
-/// Return an array of [`blaze_result`] with the same size as the
-/// number of input addresses. The caller should free the returned array by
+/// Return an array of [`blaze_result`] with the same size as the number
+/// of input addresses. The caller should free the returned array by
 /// calling [`blaze_result_free`].
 ///
 /// # Safety
@@ -628,7 +629,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_file_addrs(
 /// [`blaze_symbolize_src_gsym_file`] object. `addrs` must represent an array of
 /// `addr_cnt` objects.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_symbolize_gsym_file_file_addrs(
+pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
     src: *const blaze_symbolize_src_gsym_file,
     addrs: *const Addr,
@@ -979,7 +980,7 @@ mod tests {
             debug_syms: true,
         };
         let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-            blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs, addr_cnt)
+            blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs, addr_cnt)
         };
         test(symbolize, false);
 
@@ -993,7 +994,7 @@ mod tests {
             debug_syms: true,
         };
         let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-            blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs, addr_cnt)
+            blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs, addr_cnt)
         };
         test(symbolize, true);
 
@@ -1006,7 +1007,7 @@ mod tests {
             path: path_c.as_ptr(),
         };
         let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-            blaze_symbolize_gsym_file_file_addrs(symbolizer, &gsym_src, addrs, addr_cnt)
+            blaze_symbolize_gsym_file_virt_offsets(symbolizer, &gsym_src, addrs, addr_cnt)
         };
         test(symbolize, true);
 
@@ -1020,7 +1021,7 @@ mod tests {
             data_len: data.len(),
         };
         let symbolize = |symbolizer, addrs, addr_cnt| unsafe {
-            blaze_symbolize_gsym_data_file_addrs(symbolizer, &gsym_src, addrs, addr_cnt)
+            blaze_symbolize_gsym_data_virt_offsets(symbolizer, &gsym_src, addrs, addr_cnt)
         };
         test(symbolize, true);
     }
@@ -1044,7 +1045,7 @@ mod tests {
             let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
             let addrs = [addr];
             let result = unsafe {
-                blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+                blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
             };
             assert!(!result.is_null());
 
@@ -1086,7 +1087,7 @@ mod tests {
             let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
             let addrs = [addr];
             let result = unsafe {
-                blaze_symbolize_elf_file_addrs(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+                blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
             };
             assert!(!result.is_null());
 
@@ -1158,12 +1159,7 @@ mod tests {
         let symbolizer = blaze_symbolizer_new();
         let addrs = [blaze_symbolizer_new as Addr];
         let result = unsafe {
-            blaze_symbolize_process_virt_addrs(
-                symbolizer,
-                &process_src,
-                addrs.as_ptr(),
-                addrs.len(),
-            )
+            blaze_symbolize_process_abs_addrs(symbolizer, &process_src, addrs.as_ptr(), addrs.len())
         };
 
         assert!(!result.is_null());

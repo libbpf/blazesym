@@ -609,10 +609,10 @@ blaze_symbolizer *blaze_symbolizer_new_opts(const struct blaze_symbolizer_opts *
 void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
 
 /**
- * Symbolize a list of process virtual addresses.
+ * Symbolize a list of process absolute addresses.
  *
- * Return an array of [`blaze_result`] with the same size as the
- * number of input addresses. The caller should free the returned array by
+ * Return an array of [`blaze_result`] with the same size as the number
+ * of input addresses. The caller should free the returned array by
  * calling [`blaze_result_free`].
  *
  * # Safety
@@ -621,16 +621,16 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  * [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blaze_result *blaze_symbolize_process_virt_addrs(blaze_symbolizer *symbolizer,
-                                                              const struct blaze_symbolize_src_process *src,
-                                                              const uintptr_t *addrs,
-                                                              size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_process_abs_addrs(blaze_symbolizer *symbolizer,
+                                                             const struct blaze_symbolize_src_process *src,
+                                                             const uintptr_t *addrs,
+                                                             size_t addr_cnt);
 
 /**
- * Symbolize a list of kernel virtual addresses.
+ * Symbolize a list of kernel absolute addresses.
  *
- * Return an array of [`blaze_result`] with the same size as the
- * number of input addresses. The caller should free the returned array by
+ * Return an array of [`blaze_result`] with the same size as the number
+ * of input addresses. The caller should free the returned array by
  * calling [`blaze_result_free`].
  *
  * # Safety
@@ -639,16 +639,16 @@ const struct blaze_result *blaze_symbolize_process_virt_addrs(blaze_symbolizer *
  * [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blaze_result *blaze_symbolize_kernel_virt_addrs(blaze_symbolizer *symbolizer,
-                                                             const struct blaze_symbolize_src_kernel *src,
-                                                             const uintptr_t *addrs,
-                                                             size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_kernel_abs_addrs(blaze_symbolizer *symbolizer,
+                                                            const struct blaze_symbolize_src_kernel *src,
+                                                            const uintptr_t *addrs,
+                                                            size_t addr_cnt);
 
 /**
- * Symbolize file addresses in an ELF file.
+ * Symbolize addresses representing virtual offsets in an ELF file.
  *
- * Return an array of [`blaze_result`] with the same size as the
- * number of input addresses. The caller should free the returned array by
+ * Return an array of [`blaze_result`] with the same size as the number
+ * of input addresses. The caller should free the returned array by
  * calling [`blaze_result_free`].
  *
  * # Safety
@@ -657,13 +657,14 @@ const struct blaze_result *blaze_symbolize_kernel_virt_addrs(blaze_symbolizer *s
  * [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blaze_result *blaze_symbolize_elf_file_addrs(blaze_symbolizer *symbolizer,
-                                                          const struct blaze_symbolize_src_elf *src,
-                                                          const uintptr_t *addrs,
-                                                          size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_elf_virt_offsets(blaze_symbolizer *symbolizer,
+                                                            const struct blaze_symbolize_src_elf *src,
+                                                            const uintptr_t *addrs,
+                                                            size_t addr_cnt);
 
 /**
- * Symbolize file addresses using "raw" Gsym data.
+ * Symbolize addresses representing virtual offsets using "raw" Gsym
+ * data.
  *
  * Return an array of [`blaze_result`] with the same size as the
  * number of input addresses. The caller should free the returned array by
@@ -675,16 +676,16 @@ const struct blaze_result *blaze_symbolize_elf_file_addrs(blaze_symbolizer *symb
  * [`blaze_symbolize_src_gsym_data`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blaze_result *blaze_symbolize_gsym_data_file_addrs(blaze_symbolizer *symbolizer,
-                                                                const struct blaze_symbolize_src_gsym_data *src,
-                                                                const uintptr_t *addrs,
-                                                                size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_gsym_data_virt_offsets(blaze_symbolizer *symbolizer,
+                                                                  const struct blaze_symbolize_src_gsym_data *src,
+                                                                  const uintptr_t *addrs,
+                                                                  size_t addr_cnt);
 
 /**
- * Symbolize file addresses in a Gsym file.
+ * Symbolize addresses representing virtual offsets in a Gsym file.
  *
- * Return an array of [`blaze_result`] with the same size as the
- * number of input addresses. The caller should free the returned array by
+ * Return an array of [`blaze_result`] with the same size as the number
+ * of input addresses. The caller should free the returned array by
  * calling [`blaze_result_free`].
  *
  * # Safety
@@ -693,10 +694,10 @@ const struct blaze_result *blaze_symbolize_gsym_data_file_addrs(blaze_symbolizer
  * [`blaze_symbolize_src_gsym_file`] object. `addrs` must represent an array of
  * `addr_cnt` objects.
  */
-const struct blaze_result *blaze_symbolize_gsym_file_file_addrs(blaze_symbolizer *symbolizer,
-                                                                const struct blaze_symbolize_src_gsym_file *src,
-                                                                const uintptr_t *addrs,
-                                                                size_t addr_cnt);
+const struct blaze_result *blaze_symbolize_gsym_file_virt_offsets(blaze_symbolizer *symbolizer,
+                                                                  const struct blaze_symbolize_src_gsym_file *src,
+                                                                  const uintptr_t *addrs,
+                                                                  size_t addr_cnt);
 
 /**
  * Free an array returned by any of the `blaze_symbolize_*` variants.
