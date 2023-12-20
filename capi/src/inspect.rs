@@ -7,7 +7,6 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::mem;
-use std::mem::size_of;
 use std::mem::ManuallyDrop;
 use std::ops::Deref as _;
 use std::os::raw::c_char;
@@ -49,6 +48,20 @@ pub struct blaze_inspect_elf_src {
     /// Whether or not to consult debug symbols to satisfy the request
     /// (if present).
     pub debug_syms: bool,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 7],
+}
+
+impl Default for blaze_inspect_elf_src {
+    fn default() -> Self {
+        Self {
+            type_size: mem::size_of::<Self>(),
+            path: ptr::null(),
+            debug_syms: false,
+            reserved: [0; 7],
+        }
+    }
 }
 
 #[cfg_attr(not(test), allow(unused))]
@@ -61,11 +74,11 @@ impl blaze_inspect_elf_src {
         } = other;
 
         let slf = Self {
-            type_size: size_of::<Self>(),
             path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
             debug_syms,
+            ..Default::default()
         };
         ManuallyDrop::new(slf)
     }
@@ -75,6 +88,7 @@ impl blaze_inspect_elf_src {
             type_size: _,
             path,
             debug_syms,
+            reserved: _,
         } = self;
 
         let _elf = Elf {
@@ -87,17 +101,18 @@ impl blaze_inspect_elf_src {
     }
 }
 
-impl From<&blaze_inspect_elf_src> for Elf {
-    fn from(other: &blaze_inspect_elf_src) -> Self {
+impl From<blaze_inspect_elf_src> for Elf {
+    fn from(other: blaze_inspect_elf_src) -> Self {
         let blaze_inspect_elf_src {
             type_size: _,
             path,
             debug_syms,
+            reserved: _,
         } = other;
 
         Self {
-            path: unsafe { from_cstr(*path) },
-            debug_syms: *debug_syms,
+            path: unsafe { from_cstr(path) },
+            debug_syms,
             _non_exhaustive: (),
         }
     }
@@ -263,10 +278,15 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
     names: *const *const c_char,
     name_cnt: usize,
 ) -> *const *const blaze_sym_info {
+    if !input_zeroed!(src, blaze_inspect_elf_src) {
+        return ptr::null()
+    }
+    let src = input_sanitize!(src, blaze_inspect_elf_src);
+
     // SAFETY: The caller ensures that the pointer is valid.
     let inspector = unsafe { &*inspector };
     // SAFETY: The caller ensures that the pointer is valid.
-    let src = Source::Elf(Elf::from(unsafe { &*src }));
+    let src = Source::Elf(Elf::from(src));
     // SAFETY: The caller ensures that the pointer is valid and the count
     //         matches.
     let names = unsafe { slice_from_user_array(names, name_cnt) };
@@ -338,12 +358,20 @@ mod tests {
 
     use std::ffi::CStr;
     use std::ffi::CString;
+    use std::mem::MaybeUninit;
     use std::path::Path;
     use std::ptr;
     use std::slice;
 
     use test_log::test;
 
+
+    /// Check that various types have expected sizes.
+    #[test]
+    #[cfg(target_pointer_width = "64")]
+    fn type_sizes() {
+        assert_eq!(mem::size_of::<blaze_inspect_elf_src>(), 24);
+    }
 
     /// Exercise the `Debug` representation of various types.
     #[test]
@@ -352,10 +380,11 @@ mod tests {
             type_size: 24,
             path: ptr::null(),
             debug_syms: true,
+            reserved: [0; 7],
         };
         assert_eq!(
             format!("{elf:?}"),
-            "blaze_inspect_elf_src { type_size: 24, path: 0x0, debug_syms: true }"
+            "blaze_inspect_elf_src { type_size: 24, path: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let info = blaze_sym_info {
@@ -370,6 +399,50 @@ mod tests {
             format!("{info:?}"),
             "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, obj_file_name: 0x0, sym_type: BLAZE_SYM_VAR }"
         );
+    }
+
+    /// Test that we can correctly validate zeroed "extensions" of a
+    /// struct.
+    // NB: If renamed, please adjust Miri CI workflow accordingly.
+    #[test]
+    fn elf_src_validity() {
+        #[repr(C)]
+        struct elf_src_with_ext {
+            type_size: usize,
+            _path: *const c_char,
+            debug_syms: bool,
+            reserved: [u8; 7],
+            foobar: bool,
+        }
+
+        assert!(mem::size_of::<blaze_inspect_elf_src>() < mem::size_of::<elf_src_with_ext>());
+
+        let mut src = MaybeUninit::<elf_src_with_ext>::uninit();
+        let () = unsafe {
+            ptr::write_bytes(
+                src.as_mut_ptr().cast::<u8>(),
+                0,
+                mem::size_of::<elf_src_with_ext>(),
+            )
+        };
+
+        let mut src = unsafe { src.assume_init() };
+        src.type_size = mem::size_of::<elf_src_with_ext>();
+        src.debug_syms = true;
+
+        let src_ptr = &src as *const _ as *const blaze_inspect_elf_src;
+        assert!(input_zeroed!(src_ptr, blaze_inspect_elf_src));
+
+        src.reserved[0] = 1;
+        assert!(!input_zeroed!(src_ptr, blaze_inspect_elf_src));
+        src.reserved[0] = 0;
+
+        src.type_size = mem::size_of::<usize>() - 1;
+        assert!(!input_zeroed!(src_ptr, blaze_inspect_elf_src));
+        src.type_size = mem::size_of::<elf_src_with_ext>();
+
+        src.foobar = true;
+        assert!(!input_zeroed!(src_ptr, blaze_inspect_elf_src));
     }
 
     /// Check that we can properly convert a "syms list" into the corresponding
