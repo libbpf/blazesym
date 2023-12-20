@@ -22,7 +22,11 @@
 /**
  * The type of a symbol.
  */
-typedef enum blaze_sym_type {
+enum blaze_sym_type
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
   /**
    * The symbol type is unspecified or unknown.
    *
@@ -39,7 +43,10 @@ typedef enum blaze_sym_type {
    * The symbol is a variable.
    */
   BLAZE_SYM_VAR,
-} blaze_sym_type;
+};
+#ifndef __cplusplus
+typedef uint8_t blaze_sym_type;
+#endif // __cplusplus
 
 /**
  * The valid variant kind in [`blaze_user_meta`].
@@ -86,7 +93,11 @@ typedef struct blaze_sym_info {
   /**
    * See [`inspect::SymInfo::sym_type`].
    */
-  enum blaze_sym_type sym_type;
+  blaze_sym_type sym_type;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[15];
 } blaze_sym_info;
 
 /**
@@ -160,6 +171,10 @@ typedef struct blaze_user_meta_apk {
    * This member is always present.
    */
   char *path;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[8];
 } blaze_user_meta_apk;
 
 /**
@@ -178,6 +193,10 @@ typedef struct blaze_user_meta_elf {
    * The optional build ID of the ELF file, if found.
    */
   uint8_t *build_id;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[8];
 } blaze_user_meta_elf;
 
 /**
@@ -185,9 +204,9 @@ typedef struct blaze_user_meta_elf {
  */
 typedef struct blaze_user_meta_unknown {
   /**
-   * This member is unused.
+   * Unused member available for future expansion.
    */
-  uint8_t _unused;
+  uint8_t reserved[8];
 } blaze_user_meta_unknown;
 
 /**
@@ -260,6 +279,10 @@ typedef struct blaze_normalized_user_output {
    * An array of `output_cnt` objects.
    */
   struct blaze_normalized_output *outputs;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[8];
 } blaze_normalized_user_output;
 
 /**
@@ -332,6 +355,10 @@ typedef struct blaze_symbolize_code_info {
    * code.
    */
   uint16_t column;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[10];
 } blaze_symbolize_code_info;
 
 /**
@@ -346,6 +373,10 @@ typedef struct blaze_symbolize_inlined_fn {
    * Source code location information for the inlined function.
    */
   struct blaze_symbolize_code_info code_info;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[8];
 } blaze_symbolize_inlined_fn;
 
 /**
@@ -393,6 +424,10 @@ typedef struct blaze_sym {
    * An array of `inlined_cnt` symbolized inlined function calls.
    */
   const struct blaze_symbolize_inlined_fn *inlined;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[8];
 } blaze_sym;
 
 /**

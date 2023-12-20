@@ -120,7 +120,7 @@ impl From<blaze_inspect_elf_src> for Elf {
 
 
 /// The type of a symbol.
-#[repr(C)]
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum blaze_sym_type {
     /// The symbol type is unspecified or unknown.
@@ -163,6 +163,8 @@ pub struct blaze_sym_info {
     pub obj_file_name: *const c_char,
     /// See [`inspect::SymInfo::sym_type`].
     pub sym_type: blaze_sym_type,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 15],
 }
 
 
@@ -233,6 +235,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                     sym_type: sym_type.into(),
                     file_offset: file_offset.unwrap_or(0),
                     obj_file_name,
+                    reserved: [0u8; 15],
                 }
             };
             sym_ptr = unsafe { sym_ptr.add(1) };
@@ -245,6 +248,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 sym_type: blaze_sym_type::BLAZE_SYM_UNDEF,
                 file_offset: 0,
                 obj_file_name: ptr::null(),
+                reserved: [0u8; 15],
             }
         };
         sym_ptr = unsafe { sym_ptr.add(1) };
@@ -371,6 +375,7 @@ mod tests {
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
         assert_eq!(mem::size_of::<blaze_inspect_elf_src>(), 24);
+        assert_eq!(mem::size_of::<blaze_sym_info>(), 56);
     }
 
     /// Exercise the `Debug` representation of various types.
@@ -394,10 +399,11 @@ mod tests {
             file_offset: 31,
             obj_file_name: ptr::null(),
             sym_type: blaze_sym_type::BLAZE_SYM_VAR,
+            reserved: [0u8; 15],
         };
         assert_eq!(
             format!("{info:?}"),
-            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, obj_file_name: 0x0, sym_type: BLAZE_SYM_VAR }"
+            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, obj_file_name: 0x0, sym_type: BLAZE_SYM_VAR, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
     }
 
