@@ -4,6 +4,8 @@
 blazesym-c
 ==========
 
+- [Changelog](CHANGELOG.md)
+
 **blazesym-c** provides C language bindings for the [**blazesym**][blazesym]
 library.
 
