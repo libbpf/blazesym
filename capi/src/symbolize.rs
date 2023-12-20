@@ -265,7 +265,7 @@ pub struct blaze_result {
 ///
 /// # Safety
 /// The provided `cstr` should be terminated with a NUL byte.
-unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
+pub(crate) unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
     Path::new(OsStr::from_bytes(
         unsafe { CStr::from_ptr(cstr) }.to_bytes(),
     ))

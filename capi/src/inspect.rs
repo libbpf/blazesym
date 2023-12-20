@@ -11,7 +11,6 @@ use std::ops::Deref as _;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::ffi::OsStringExt as _;
-use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 
@@ -24,6 +23,7 @@ use blazesym::inspect::SymInfo;
 use blazesym::inspect::SymType;
 use blazesym::Addr;
 
+use crate::from_cstr;
 use crate::slice_from_user_array;
 
 
@@ -79,10 +79,7 @@ impl From<&blaze_inspect_elf_src> for Elf {
         let blaze_inspect_elf_src { path, debug_syms } = other;
 
         Elf {
-            path: Path::new(OsStr::from_bytes(
-                unsafe { CStr::from_ptr(*path) }.to_bytes(),
-            ))
-            .to_path_buf(),
+            path: unsafe { from_cstr(*path) },
             debug_syms: *debug_syms,
             _non_exhaustive: (),
         }
