@@ -96,30 +96,30 @@ pub struct blaze_user_meta_apk {
     pub path: *mut c_char,
 }
 
-impl From<Apk> for blaze_user_meta_apk {
-    fn from(other: Apk) -> Self {
+impl blaze_user_meta_apk {
+    fn from(other: Apk) -> ManuallyDrop<Self> {
         let Apk {
             path,
             _non_exhaustive: (),
         } = other;
-        Self {
+
+        let slf = Self {
             path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
-        }
+        };
+        ManuallyDrop::new(slf)
     }
-}
 
-impl From<blaze_user_meta_apk> for Apk {
-    fn from(other: blaze_user_meta_apk) -> Self {
-        let blaze_user_meta_apk { path } = other;
+    unsafe fn free(self) {
+        let Self { path } = self;
 
-        Apk {
+        let _apk = Apk {
             path: PathBuf::from(OsString::from_vec(
                 unsafe { CString::from_raw(path) }.into_bytes(),
             )),
             _non_exhaustive: (),
-        }
+        };
     }
 }
 
@@ -136,14 +136,15 @@ pub struct blaze_user_meta_elf {
     pub build_id: *mut u8,
 }
 
-impl From<Elf> for blaze_user_meta_elf {
-    fn from(other: Elf) -> Self {
+impl blaze_user_meta_elf {
+    fn from(other: Elf) -> ManuallyDrop<Self> {
         let Elf {
             path,
             build_id,
             _non_exhaustive: (),
         } = other;
-        Self {
+
+        let slf = Self {
             path: CString::new(path.into_os_string().into_vec())
                 .expect("encountered path with NUL bytes")
                 .into_raw(),
@@ -163,19 +164,18 @@ impl From<Elf> for blaze_user_meta_elf {
                     }
                 })
                 .unwrap_or_else(ptr::null_mut),
-        }
+        };
+        ManuallyDrop::new(slf)
     }
-}
 
-impl From<blaze_user_meta_elf> for Elf {
-    fn from(other: blaze_user_meta_elf) -> Self {
+    unsafe fn free(self) {
         let blaze_user_meta_elf {
             path,
             build_id_len,
             build_id,
-        } = other;
+        } = self;
 
-        Elf {
+        let _elf = Elf {
             path: PathBuf::from(OsString::from_vec(
                 unsafe { CString::from_raw(path) }.into_bytes(),
             )),
@@ -183,7 +183,7 @@ impl From<blaze_user_meta_elf> for Elf {
                 Box::<[u8]>::from_raw(slice::from_raw_parts_mut(build_id, build_id_len)).into_vec()
             }),
             _non_exhaustive: (),
-        }
+        };
     }
 }
 
@@ -196,21 +196,18 @@ pub struct blaze_user_meta_unknown {
     pub _unused: u8,
 }
 
-impl From<Unknown> for blaze_user_meta_unknown {
-    fn from(other: Unknown) -> Self {
+impl blaze_user_meta_unknown {
+    fn from(other: Unknown) -> ManuallyDrop<Self> {
         let Unknown {
             _non_exhaustive: (),
         } = other;
-        Self { _unused: 0 }
-    }
-}
 
-impl From<blaze_user_meta_unknown> for Unknown {
-    fn from(other: blaze_user_meta_unknown) -> Self {
-        let blaze_user_meta_unknown { _unused } = other;
-        Unknown {
-            _non_exhaustive: (),
-        }
+        let slf = Self { _unused: 0 };
+        ManuallyDrop::new(slf)
+    }
+
+    fn free(self) {
+        let blaze_user_meta_unknown { _unused } = self;
     }
 }
 
@@ -243,49 +240,42 @@ pub struct blaze_user_meta {
     pub variant: blaze_user_meta_variant,
 }
 
-impl From<UserMeta> for blaze_user_meta {
-    fn from(other: UserMeta) -> Self {
-        match other {
+impl blaze_user_meta {
+    fn from(other: UserMeta) -> ManuallyDrop<Self> {
+        let slf = match other {
             UserMeta::Apk(apk) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_APK,
                 variant: blaze_user_meta_variant {
-                    apk: ManuallyDrop::new(blaze_user_meta_apk::from(apk)),
+                    apk: blaze_user_meta_apk::from(apk),
                 },
             },
             UserMeta::Elf(elf) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_ELF,
                 variant: blaze_user_meta_variant {
-                    elf: ManuallyDrop::new(blaze_user_meta_elf::from(elf)),
+                    elf: blaze_user_meta_elf::from(elf),
                 },
             },
             UserMeta::Unknown(unknown) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
                 variant: blaze_user_meta_variant {
-                    unknown: ManuallyDrop::new(blaze_user_meta_unknown::from(unknown)),
+                    unknown: blaze_user_meta_unknown::from(unknown),
                 },
             },
             _ => unreachable!(),
-        }
+        };
+        ManuallyDrop::new(slf)
     }
-}
 
-impl From<blaze_user_meta> for UserMeta {
-    fn from(other: blaze_user_meta) -> Self {
-        match other.kind {
+    unsafe fn free(self) {
+        match self.kind {
             blaze_user_meta_kind::BLAZE_USER_META_APK => {
-                UserMeta::Apk(Apk::from(ManuallyDrop::into_inner(unsafe {
-                    other.variant.apk
-                })))
+                ManuallyDrop::into_inner(unsafe { self.variant.apk }).free()
             }
             blaze_user_meta_kind::BLAZE_USER_META_ELF => {
-                UserMeta::Elf(Elf::from(ManuallyDrop::into_inner(unsafe {
-                    other.variant.elf
-                })))
+                ManuallyDrop::into_inner(unsafe { self.variant.elf }).free()
             }
             blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN => {
-                UserMeta::Unknown(Unknown::from(ManuallyDrop::into_inner(unsafe {
-                    other.variant.unknown
-                })))
+                ManuallyDrop::into_inner(unsafe { self.variant.unknown }).free()
             }
         }
     }
@@ -308,9 +298,9 @@ pub struct blaze_normalized_user_output {
     pub outputs: *mut blaze_normalized_output,
 }
 
-impl From<UserOutput> for blaze_normalized_user_output {
-    fn from(other: UserOutput) -> Self {
-        Self {
+impl blaze_normalized_user_output {
+    fn from(other: UserOutput) -> ManuallyDrop<Self> {
+        let slf = Self {
             meta_cnt: other.meta.len(),
             metas: unsafe {
                 Box::into_raw(
@@ -318,6 +308,7 @@ impl From<UserOutput> for blaze_normalized_user_output {
                         .meta
                         .into_iter()
                         .map(blaze_user_meta::from)
+                        .map(ManuallyDrop::into_inner)
                         .collect::<Vec<_>>()
                         .into_boxed_slice(),
                 )
@@ -339,7 +330,8 @@ impl From<UserOutput> for blaze_normalized_user_output {
                 .unwrap()
                 .as_mut_ptr()
             },
-        }
+        };
+        ManuallyDrop::new(slf)
     }
 }
 
@@ -374,7 +366,9 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
     let result = normalizer.normalize_user_addrs(pid.into(), addrs);
     match result {
-        Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
+        Ok(addrs) => Box::into_raw(Box::new(ManuallyDrop::into_inner(
+            blaze_normalized_user_output::from(addrs),
+        ))),
         Err(_err) => ptr::null_mut(),
     }
 }
@@ -412,7 +406,9 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
     let result = normalizer.normalize_user_addrs_sorted(pid.into(), addrs);
     match result {
-        Ok(addrs) => Box::into_raw(Box::new(blaze_normalized_user_output::from(addrs))),
+        Ok(addrs) => Box::into_raw(Box::new(ManuallyDrop::into_inner(
+            blaze_normalized_user_output::from(addrs),
+        ))),
         Err(_err) => ptr::null_mut(),
     }
 }
@@ -448,7 +444,7 @@ pub unsafe extern "C" fn blaze_user_output_free(output: *mut blaze_normalized_us
     .into_vec();
 
     for addr_meta in addr_metas {
-        let _meta = UserMeta::from(addr_meta);
+        let () = unsafe { addr_meta.free() };
     }
 }
 
@@ -525,12 +521,12 @@ mod tests {
             _non_exhaustive: (),
         };
 
-        let unknown_new = Unknown::from(blaze_user_meta_unknown::from(unknown.clone()));
-        assert_eq!(unknown_new, unknown);
+        let unknown_c = blaze_user_meta_unknown::from(unknown.clone());
+        let () = ManuallyDrop::into_inner(unknown_c).free();
 
-        let meta = UserMeta::Unknown(unknown_new);
-        let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
-        assert_eq!(meta_new, meta);
+        let meta = UserMeta::Unknown(unknown);
+        let meta_c = blaze_user_meta::from(meta);
+        let () = unsafe { ManuallyDrop::into_inner(meta_c).free() };
     }
 
     /// Check that we can convert an [`Apk`] into a [`blaze_user_meta_apk`] and
@@ -542,20 +538,12 @@ mod tests {
             _non_exhaustive: (),
         };
 
-        let apk_new = Apk::from(blaze_user_meta_apk::from(apk.clone()));
-        assert_eq!(apk_new, apk);
+        let apk_c = blaze_user_meta_apk::from(apk.clone());
+        let () = unsafe { ManuallyDrop::into_inner(apk_c).free() };
 
-        let apk = Apk {
-            path: PathBuf::new(),
-            _non_exhaustive: (),
-        };
-
-        let apk_new = Apk::from(blaze_user_meta_apk::from(apk.clone()));
-        assert_eq!(apk_new, apk);
-
-        let meta = UserMeta::Apk(apk_new);
-        let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
-        assert_eq!(meta_new, meta);
+        let meta = UserMeta::Apk(apk);
+        let meta_c = blaze_user_meta::from(meta);
+        let () = unsafe { ManuallyDrop::into_inner(meta_c).free() };
     }
 
     /// Check that we can convert an [`Elf`] into a [`blaze_user_meta_elf`]
@@ -568,12 +556,12 @@ mod tests {
             _non_exhaustive: (),
         };
 
-        let elf_new = Elf::from(blaze_user_meta_elf::from(elf.clone()));
-        assert_eq!(elf_new, elf);
+        let elf_c = blaze_user_meta_elf::from(elf.clone());
+        let () = unsafe { ManuallyDrop::into_inner(elf_c).free() };
 
-        let meta = UserMeta::Elf(elf_new);
-        let meta_new = UserMeta::from(blaze_user_meta::from(meta.clone()));
-        assert_eq!(meta_new, meta);
+        let meta = UserMeta::Elf(elf);
+        let meta_c = blaze_user_meta::from(meta);
+        let () = unsafe { ManuallyDrop::into_inner(meta_c).free() };
     }
 
     /// Make sure that we can create and free a normalizer instance.
