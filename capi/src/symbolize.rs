@@ -64,7 +64,7 @@ impl From<&blaze_symbolize_src_elf> for Elf {
 /// Use a kernel image and a snapshot of its kallsyms as a source of symbols and
 /// debug information.
 #[repr(C)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub struct blaze_symbolize_src_kernel {
     /// The path of a copy of kallsyms.
     ///
