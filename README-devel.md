@@ -26,6 +26,7 @@ For all Criterion powered benchmarks, a run will automatically establish a new
 base line. You can check out a different change, re-run the above command, and
 it will print the performance difference.
 
+
 ### Profiling
 To get a CPU profile in the form of a flamegraph, you can use
 [`cargo-flamegraph`][flamegraph] (can be installed via `cargo install
@@ -33,6 +34,11 @@ flamegraph`). The following command will create a profile for the
 `bench_function_parsing_blazesym` benchmark, for example:
 ```sh
 $ cargo flamegraph --package=blazesym --unit-bench --root --features=nightly -- bench_function_parsing_blazesym
+```
+
+For Criterion based benchmarks, use:
+```sh
+$ cargo flamegraph --bench=main --root --features=nightly -- symbolize_gsym_multi_no_setup --bench
 ```
 
 [criterion]: https://crates.io/crates/criterion
