@@ -17,7 +17,9 @@ based][libtest] unit-test style ones.
 
 To run the full benchmark suite, use:
 ```sh
-$ cargo bench --features=nightly --features=generate-large-test-files
+# Perform one-time setup of required data.
+$ cargo check --features=generate-large-test-files
+$ cargo bench --features=nightly
 ```
 
 For all Criterion powered benchmarks, a run will automatically establish a new

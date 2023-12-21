@@ -161,11 +161,9 @@ where
     M: Measurement,
 {
     bench_fn!(group, symbolize_process);
-    if cfg!(feature = "generate-large-test-files") {
-        bench_fn!(group, symbolize_elf);
-        bench_fn!(group, symbolize_dwarf_no_lines);
-        bench_fn!(group, symbolize_dwarf);
-        bench_fn!(group, symbolize_gsym);
-        bench_sub_fn!(group, symbolize_gsym_multi_no_setup);
-    }
+    bench_fn!(group, symbolize_elf);
+    bench_fn!(group, symbolize_dwarf_no_lines);
+    bench_fn!(group, symbolize_dwarf);
+    bench_fn!(group, symbolize_gsym);
+    bench_sub_fn!(group, symbolize_gsym_multi_no_setup);
 }

@@ -54,8 +54,6 @@ pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
 where
     M: Measurement,
 {
-    if cfg!(feature = "generate-large-test-files") {
-        bench_fn!(group, lookup_dwarf);
-        bench_fn!(group, lookup_elf);
-    }
+    bench_fn!(group, lookup_dwarf);
+    bench_fn!(group, lookup_elf);
 }
