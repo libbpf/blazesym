@@ -31,6 +31,7 @@
 #![warn(
     missing_debug_implementations,
     missing_docs,
+    clippy::absolute_paths,
     rustdoc::broken_intra_doc_links
 )]
 #![cfg_attr(feature = "nightly", feature(test))]

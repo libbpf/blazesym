@@ -1,3 +1,5 @@
+use crate::util::Pod;
+
 const EI_NIDENT: usize = 16;
 
 type Elf64_Addr = u64;
@@ -29,7 +31,7 @@ pub(crate) struct Elf64_Ehdr {
 }
 
 // SAFETY: `Elf64_Ehdr` is valid for any bit pattern.
-unsafe impl crate::util::Pod for Elf64_Ehdr {}
+unsafe impl Pod for Elf64_Ehdr {}
 
 pub(crate) const PT_LOAD: u32 = 1;
 
@@ -47,7 +49,7 @@ pub(crate) struct Elf64_Phdr {
 }
 
 // SAFETY: `Elf64_Phdr` is valid for any bit pattern.
-unsafe impl crate::util::Pod for Elf64_Phdr {}
+unsafe impl Pod for Elf64_Phdr {}
 
 pub(crate) const PF_X: Elf64_Word = 1;
 
@@ -69,7 +71,7 @@ pub(crate) struct Elf64_Shdr {
 }
 
 // SAFETY: `Elf64_Shdr` is valid for any bit pattern.
-unsafe impl crate::util::Pod for Elf64_Shdr {}
+unsafe impl Pod for Elf64_Shdr {}
 
 pub(crate) const SHN_UNDEF: u16 = 0;
 pub(crate) const SHN_LORESERVE: u16 = 0xff00;
@@ -98,7 +100,7 @@ impl Elf64_Sym {
 }
 
 // SAFETY: `Elf64_Sym` is valid for any bit pattern.
-unsafe impl crate::util::Pod for Elf64_Sym {}
+unsafe impl Pod for Elf64_Sym {}
 
 pub(crate) const NT_GNU_BUILD_ID: Elf64_Word = 3;
 
@@ -111,7 +113,7 @@ pub(crate) struct Elf64_Nhdr {
 }
 
 // SAFETY: `Elf64_Nhdr` is valid for any bit pattern.
-unsafe impl crate::util::Pod for Elf64_Nhdr {}
+unsafe impl Pod for Elf64_Nhdr {}
 
 
 #[cfg(test)]
