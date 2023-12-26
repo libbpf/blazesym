@@ -1,0 +1,4 @@
+# For general information about this file, check
+# https://doc.rust-lang.org/stable/clippy/configuration.html
+
+absolute-paths-allowed-crates = [ "gimli" ]
