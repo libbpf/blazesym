@@ -13,6 +13,7 @@ use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::elf::ElfResolverData;
 use crate::file_cache::FileCache;
+#[cfg(feature = "gsym")]
 use crate::gsym::GsymResolver;
 use crate::insert_map::InsertMap;
 use crate::kernel::KernelResolver;
@@ -27,6 +28,7 @@ use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
 use crate::util;
 use crate::util::uname_release;
+#[cfg(feature = "apk")]
 use crate::zip;
 use crate::Addr;
 use crate::Error;
@@ -36,10 +38,14 @@ use crate::Pid;
 use crate::Result;
 use crate::SymResolver;
 
+#[cfg(feature = "apk")]
 use super::source::Apk;
 use super::source::Elf;
+#[cfg(feature = "gsym")]
 use super::source::Gsym;
+#[cfg(feature = "gsym")]
 use super::source::GsymData;
+#[cfg(feature = "gsym")]
 use super::source::GsymFile;
 use super::source::Kernel;
 use super::source::Process;
@@ -54,6 +60,7 @@ use super::Sym;
 use super::Symbolized;
 
 
+#[cfg(feature = "apk")]
 fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
     let mut extension = apk
         .extension()
@@ -174,8 +181,10 @@ impl Builder {
         } = self;
 
         Symbolizer {
+            #[cfg(feature = "apk")]
             apk_cache: FileCache::new(),
             elf_cache: FileCache::new(),
+            #[cfg(feature = "gsym")]
             gsym_cache: FileCache::new(),
             ksym_cache: FileCache::new(),
             code_info,
@@ -230,8 +239,10 @@ enum Resolver<'tmp, 'slf> {
 #[derive(Debug)]
 pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
+    #[cfg(feature = "apk")]
     apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Rc<ElfResolver>>)>,
     elf_cache: FileCache<ElfResolverData>,
+    #[cfg(feature = "gsym")]
     gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
     ksym_cache: FileCache<Rc<KSymResolver>>,
     code_info: bool,
@@ -376,17 +387,20 @@ impl Symbolizer {
             .collect()
     }
 
+    #[cfg(feature = "gsym")]
     fn create_gsym_resolver(&self, path: &Path, file: &File) -> Result<Rc<GsymResolver<'static>>> {
         let resolver = GsymResolver::from_file(path.to_path_buf(), file)?;
         Ok(Rc::new(resolver))
     }
 
+    #[cfg(feature = "gsym")]
     fn gsym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<GsymResolver<'static>>> {
         let (file, cell) = self.gsym_cache.entry(path)?;
         let resolver = cell.get_or_try_init(|| self.create_gsym_resolver(path, file))?;
         Ok(resolver)
     }
 
+    #[cfg(feature = "apk")]
     fn create_apk_resolver<'slf>(
         &'slf self,
         apk: &zip::Archive,
@@ -436,6 +450,7 @@ impl Symbolizer {
         Ok(None)
     }
 
+    #[cfg(feature = "apk")]
     fn apk_resolver<'slf>(
         &'slf self,
         path: &Path,
@@ -480,6 +495,7 @@ impl Symbolizer {
         }
 
         impl SymbolizeHandler<'_> {
+            #[cfg(feature = "apk")]
             fn handle_apk_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
                 let file_off = addr - entry.range.start + entry.offset;
                 let apk_path = &entry.path.symbolic_path;
@@ -539,6 +555,7 @@ impl Symbolizer {
                     .extension()
                     .unwrap_or_else(|| OsStr::new(""));
                 match ext.to_str() {
+                    #[cfg(feature = "apk")]
                     Some("apk") | Some("zip") => self.handle_apk_addr(addr, entry),
                     _ => self.handle_elf_addr(addr, entry),
                 }
@@ -676,6 +693,7 @@ impl Symbolizer {
         input: Input<&[u64]>,
     ) -> Result<Vec<Symbolized<'slf>>> {
         match src {
+            #[cfg(feature = "apk")]
             Source::Apk(Apk {
                 path,
                 debug_syms,
@@ -778,6 +796,7 @@ impl Symbolizer {
 
                 self.symbolize_user_addrs(addrs, *pid, *debug_syms)
             }
+            #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
                 data,
                 _non_exhaustive: (),
@@ -800,6 +819,7 @@ impl Symbolizer {
                 let symbols = self.symbolize_addrs(addrs, &Resolver::Uncached(resolver.deref()))?;
                 Ok(symbols)
             }
+            #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::File(GsymFile {
                 path,
                 _non_exhaustive: (),
@@ -822,6 +842,7 @@ impl Symbolizer {
                 let symbols = self.symbolize_addrs(addrs, &Resolver::Cached(resolver.deref()))?;
                 Ok(symbols)
             }
+            Source::Phantom(()) => unreachable!(),
         }
     }
 
@@ -837,6 +858,7 @@ impl Symbolizer {
         input: Input<u64>,
     ) -> Result<Symbolized<'slf>> {
         match src {
+            #[cfg(feature = "apk")]
             Source::Apk(Apk {
                 path,
                 debug_syms,
@@ -927,6 +949,7 @@ impl Symbolizer {
                 //         paths, of course).
                 Ok(symbols.pop().unwrap())
             }
+            #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
                 data,
                 _non_exhaustive: (),
@@ -948,6 +971,7 @@ impl Symbolizer {
                 let resolver = Rc::new(GsymResolver::with_data(data)?);
                 self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
             }
+            #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::File(GsymFile {
                 path,
                 _non_exhaustive: (),
@@ -969,6 +993,7 @@ impl Symbolizer {
                 let resolver = self.gsym_resolver(path)?;
                 self.symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))
             }
+            Source::Phantom(()) => unreachable!(),
         }
     }
 }
@@ -993,7 +1018,6 @@ mod tests {
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::symbolize::Symbolizer;
-    use crate::zip;
     use crate::ErrorKind;
 
     use test_log::test;
@@ -1010,6 +1034,7 @@ mod tests {
     }
 
     /// Check that we can create a path to an ELF inside an APK as expected.
+    #[cfg(feature = "apk")]
     #[test]
     fn elf_apk_path_creation() {
         let apk = Path::new("/root/test.apk");
@@ -1106,8 +1131,11 @@ mod tests {
     }
 
     /// Check that we can symbolize an address residing in a zip archive.
+    #[cfg(feature = "apk")]
     #[test]
     fn symbolize_zip() {
+        use crate::zip;
+
         let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.zip");

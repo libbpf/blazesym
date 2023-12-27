@@ -3,6 +3,7 @@ Unreleased
 - Introduced `symbolize::Reason` enum to provide best guess at
   why symbolization was not successful as part of the
   `symbolize::Symbolized::Unknown` variant
+- Introduced `apk` and `gsym` compile-time features
 - Reordered `pid` argument to normalization functions before addresses
 - Reordered `src` argument to inspection functions before names
 

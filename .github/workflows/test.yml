@@ -29,6 +29,14 @@ jobs:
             # unification may mean that `--no-default-features` goes
             # without effect.
             args: "--no-default-features"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
+            args: "--no-default-features --features=apk"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
+            args: "--no-default-features --features=gsym"
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@master
@@ -216,8 +224,8 @@ jobs:
     name: Generate documentation
     runs-on: ubuntu-latest
     env:
-      RUSTDOCFLAGS: '-D warnings'
+      RUSTDOCFLAGS: '--cfg docsrs -D warnings'
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@nightly
       - run: cargo doc --workspace --no-deps
