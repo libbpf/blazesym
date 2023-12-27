@@ -485,7 +485,6 @@ const struct blaze_sym_info *const *blaze_inspect_syms_elf(const blaze_inspector
  * # Safety
  *
  * The pointer must be returned by [`blaze_inspect_syms_elf`].
- *
  */
 void blaze_inspect_syms_free(const struct blaze_sym_info *const *syms);
 

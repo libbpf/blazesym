@@ -84,8 +84,8 @@ struct CdFileHeader {
     disk: u16,
     internal_attributes: u16,
     external_attributes: u32,
-    /// Offset from the start of the disk containing the local file header to the
-    /// start of the local file header.
+    /// Offset from the start of the disk containing the local file header to
+    /// the start of the local file header.
     offset: u32,
 }
 
@@ -118,7 +118,8 @@ unsafe impl Pod for LocalFileHeader {}
 /// Carries information on path, compression method, and data corresponding to a
 /// file in a zip archive.
 pub struct Entry<'archive> {
-    /// Compression method as defined in pkzip spec. 0 means data is uncompressed.
+    /// Compression method as defined in pkzip spec. 0 means data is
+    /// uncompressed.
     pub compression: u16,
     /// The path to the file inside the archive.
     pub path: &'archive Path,

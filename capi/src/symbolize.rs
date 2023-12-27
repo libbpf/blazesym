@@ -1025,8 +1025,8 @@ mod tests {
         test(symbolize, true);
     }
 
-    /// Symbolize an address inside a DWARF file, with and without auto-demangling
-    /// enabled.
+    /// Symbolize an address inside a DWARF file, with and without
+    /// auto-demangling enabled.
     #[test]
     fn symbolize_dwarf_demangle() {
         fn test(path: &Path, addr: Addr) -> Result<(), ()> {

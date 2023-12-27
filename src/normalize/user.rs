@@ -250,8 +250,8 @@ where
 /// normalized), could have a few reasons, including, but not limited
 /// to:
 /// - user error (if a bogus address was provided)
-/// - they belonged to an ELF object that has been unmapped since the
-///   address was captured
+/// - they belonged to an ELF object that has been unmapped since the address
+///   was captured
 ///
 /// The process' ID should be provided in `pid`.
 ///
