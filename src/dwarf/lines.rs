@@ -57,7 +57,8 @@ fn render_file<'dwarf>(
         Path::new("")
     };
 
-    // The directory index 0 is defined to correspond to the compilation unit directory.
+    // The directory index 0 is defined to correspond to the compilation unit
+    // directory.
     let dir = if file.directory_index() != 0 {
         if let Some(directory) = file.directory(header) {
             let d = sections.attr_string(dw_unit, directory)?;

@@ -42,7 +42,8 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
     Ok(None)
 }
 
-/// Attempt to read an ELF binary's build ID from the .note.gnu.build-id section.
+/// Attempt to read an ELF binary's build ID from the .note.gnu.build-id
+/// section.
 fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
     let build_id_section = ".note.gnu.build-id";
     // The build ID is contained in the `.note.gnu.build-id` section. See
@@ -179,7 +180,8 @@ mod tests {
     use test_log::test;
 
 
-    /// Check that we can read a binary's build ID based on the ELF section name as well as ELF section type.
+    /// Check that we can read a binary's build ID based on the ELF section name
+    /// as well as ELF section type.
     #[test]
     fn build_id_reading_from_name_and_notes() {
         fn test(f: fn(&ElfParser) -> Result<Option<Vec<u8>>>) {

@@ -38,11 +38,11 @@ pub struct LineTableHeader {
 impl LineTableHeader {
     /// Parse [`AddrData`] of type [`INFO_TYPE_LINE_TABLE_INFO`].
     ///
-    /// An `AddrData` of `INFO_TYPE_LINE_TABLE_INFO` type is a table of line numbers
-    /// for a symbol. `AddrData` is the payload of `AddrInfo`. One `AddrInfo`
-    /// may have several `AddrData` entries in its payload. Each `AddrData`
-    /// entry stores a type of data related to the symbol the `AddrInfo`
-    /// presents.
+    /// An `AddrData` of `INFO_TYPE_LINE_TABLE_INFO` type is a table of line
+    /// numbers for a symbol. `AddrData` is the payload of `AddrInfo`. One
+    /// `AddrInfo` may have several `AddrData` entries in its payload. Each
+    /// `AddrData` entry stores a type of data related to the symbol the
+    /// `AddrInfo` presents.
     ///
     /// # Arguments
     ///
@@ -76,7 +76,8 @@ impl LineTableRow {
     ///
     /// # Arguments
     ///
-    /// * `header` - is a [`LineTableHeader`] returned by [`parse_line_table_header()`].
+    /// * `header` - is a [`LineTableHeader`] returned by
+    ///   [`parse_line_table_header()`].
     /// * `symaddr` - the address of the symbol that `header` belongs to.
     pub fn from_header(header: &LineTableHeader, symaddr: Addr) -> Self {
         Self {
@@ -93,11 +94,11 @@ impl LineTableRow {
 /// # Arguments
 ///
 /// * `row` - a line table row to present the current states of the virtual
-///           machine. [`LineTableRow::from_header`] can create a `LineTableRow`
-///           to keep the states of a virtual machine.
+///   machine. [`LineTableRow::from_header`] can create a `LineTableRow` to keep
+///   the states of a virtual machine.
 /// * `header` - is a `LineTableHeader`.
 /// * `ops` - is the buffer of the operators following the `LineTableHeader` in
-///           a GSYM file.
+///   a GSYM file.
 pub fn run_op(
     row: &mut LineTableRow,
     header: &LineTableHeader,

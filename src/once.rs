@@ -9,10 +9,10 @@ use std::hint::unreachable_unchecked;
 
 /// A cell which can be written to only once.
 ///
-/// This allows obtaining a shared `&T` reference to its inner value without copying or replacing
-/// it (unlike [`Cell`]), and without runtime borrow checks (unlike [`RefCell`]). However,
-/// only immutable references can be obtained unless one has a mutable reference to the cell
-/// itself.
+/// This allows obtaining a shared `&T` reference to its inner value without
+/// copying or replacing it (unlike [`Cell`]), and without runtime borrow checks
+/// (unlike [`RefCell`]). However, only immutable references can be obtained
+/// unless one has a mutable reference to the cell itself.
 ///
 /// For a thread-safe version of this struct, see [`std::sync::OnceLock`].
 ///
@@ -117,8 +117,8 @@ impl<T> OnceCell<T> {
         if let Some(val) = self.get() {
             return Ok(val)
         }
-        /// Avoid inlining the initialization closure into the common path that fetches
-        /// the already initialized value
+        /// Avoid inlining the initialization closure into the common path that
+        /// fetches the already initialized value
         #[cold]
         fn outlined_call<F, T, E>(f: F) -> Result<T, E>
         where
@@ -190,5 +190,6 @@ impl<T> From<T> for OnceCell<T> {
     }
 }
 
-// Just like for `Cell<T>` this isn't needed, but results in nicer error messages.
+// Just like for `Cell<T>` this isn't needed, but results in nicer error
+// messages.
 //impl<T> !Sync for OnceCell<T> {}

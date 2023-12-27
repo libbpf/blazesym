@@ -107,7 +107,8 @@ struct Cache<'mmap> {
     symtab: OnceCell<Box<[&'mmap Elf64_Sym]>>, // in address order
     /// The cached ELF string table.
     strtab: OnceCell<&'mmap [u8]>,
-    str2symtab: OnceCell<Box<[(&'mmap str, usize)]>>, // strtab offset to symtab in the dictionary order
+    str2symtab: OnceCell<Box<[(&'mmap str, usize)]>>, /* strtab offset to symtab in the
+                                                       * dictionary order */
 }
 
 impl<'mmap> Cache<'mmap> {

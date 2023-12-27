@@ -370,10 +370,9 @@ pub enum ErrorKind {
 /// semantics, but in short:
 /// - If you want panics and errors to both have backtraces, set
 ///   `RUST_BACKTRACE=1`
-/// - If you want only errors to have backtraces, set
-///   `RUST_LIB_BACKTRACE=1`
-/// - If you want only panics to have backtraces, set `RUST_BACKTRACE=1`
-///   and `RUST_LIB_BACKTRACE=0`
+/// - If you want only errors to have backtraces, set `RUST_LIB_BACKTRACE=1`
+/// - If you want only panics to have backtraces, set `RUST_BACKTRACE=1` and
+///   `RUST_LIB_BACKTRACE=0`
 // Representation is optimized for fast copying (a single machine word),
 // not so much for fast creation (as it is heap allocated). We generally
 // expect errors to be exceptional, though a lot of functionality is

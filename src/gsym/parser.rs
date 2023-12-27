@@ -81,7 +81,8 @@ impl GsymContext<'_> {
     ///
     /// * `data` - is the content of a standalone GSYM.
     ///
-    /// Returns a GsymContext, which includes the Header and other important tables.
+    /// Returns a GsymContext, which includes the Header and other important
+    /// tables.
     pub fn parse_header(data: &[u8]) -> Result<GsymContext> {
         fn parse_header_impl(mut data: &[u8]) -> Option<Result<GsymContext>> {
             let head = data;
@@ -140,8 +141,8 @@ impl GsymContext<'_> {
             .ok_or_invalid_data(|| "GSYM data does not contain sufficient bytes")?
     }
 
-    /// Find the index of an entry in the address table potentially containing the
-    /// given address.
+    /// Find the index of an entry in the address table potentially containing
+    /// the given address.
     ///
     /// Callers should check the `AddrInfo` object at the returned index to see
     /// whether the symbol actually covers the provided address.

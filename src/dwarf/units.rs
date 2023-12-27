@@ -82,7 +82,8 @@ impl<'dwarf> Units<'dwarf> {
                 None => continue,
             };
             // We mainly want compile units, but we may need to follow references to entries
-            // within other units for function names.  We don't need anything from type units.
+            // within other units for function names.  We don't need anything from type
+            // units.
             match header.type_() {
                 gimli::UnitType::Type { .. } | gimli::UnitType::SplitType { .. } => continue,
                 _ => {}
@@ -142,8 +143,8 @@ impl<'dwarf> Units<'dwarf> {
                 // - DW_AT_low_pc/DW_AT_high_pc
                 //
                 // Using DW_AT_ranges before .debug_aranges is possibly an arbitrary choice,
-                // but the feeling is that DW_AT_ranges is more likely to be reliable or complete
-                // if it is present.
+                // but the feeling is that DW_AT_ranges is more likely to be reliable or
+                // complete if it is present.
                 //
                 // .debug_aranges must be used before DW_AT_low_pc/DW_AT_high_pc because
                 // it has been observed on macOS that DW_AT_ranges was not emitted even for
@@ -245,8 +246,8 @@ impl<'dwarf> Units<'dwarf> {
 
     /// Finds the CUs covering the range of addresses given.
     ///
-    /// The range is [low, high) (ie, the upper bound is exclusive). This can return multiple
-    /// ranges for the same unit.
+    /// The range is [low, high) (ie, the upper bound is exclusive). This can
+    /// return multiple ranges for the same unit.
     #[inline]
     fn find_units_range(
         &self,
@@ -359,7 +360,8 @@ impl<'dwarf> Units<'dwarf> {
         Ok(None)
     }
 
-    /// Find the source file and line corresponding to the given virtual memory address.
+    /// Find the source file and line corresponding to the given virtual memory
+    /// address.
     pub fn find_location(&self, probe: u64) -> Result<Option<Location<'_>>, gimli::Error> {
         for unit in self.find_units(probe) {
             if let Some(location) = unit.find_location(probe, &self.dwarf)? {

@@ -1,11 +1,11 @@
 //! **blazesym** is a library that can be used to symbolize addresses. Address
-//! symbolization is a common problem in tracing contexts, for example, where users
-//! want to reason about functions by name, but low level components report only the
-//! "raw" addresses (e.g., in the form of stacktraces).
+//! symbolization is a common problem in tracing contexts, for example, where
+//! users want to reason about functions by name, but low level components
+//! report only the "raw" addresses (e.g., in the form of stacktraces).
 //!
-//! In addition to symbolization, **blazesym** also provides APIs for the reverse
-//! operation: looking up addresses from symbol names. That can be useful, for
-//! example, for configuring breakpoints or tracepoints.
+//! In addition to symbolization, **blazesym** also provides APIs for the
+//! reverse operation: looking up addresses from symbol names. That can be
+//! useful, for example, for configuring breakpoints or tracepoints.
 //!
 //! ## Overview
 //! The crate is organized via public modules that expose functionality

@@ -275,7 +275,6 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
 /// # Safety
 ///
 /// The pointer must be returned by [`blaze_inspect_syms_elf`].
-///
 #[no_mangle]
 pub unsafe extern "C" fn blaze_inspect_syms_free(syms: *const *const blaze_sym_info) {
     if syms.is_null() {
@@ -476,7 +475,8 @@ mod tests {
         let () = unsafe { blaze_inspector_free(inspector) };
     }
 
-    /// Make sure that we can lookup a function's address using DWARF information.
+    /// Make sure that we can lookup a function's address using DWARF
+    /// information.
     #[test]
     fn lookup_dwarf() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))

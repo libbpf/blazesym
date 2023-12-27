@@ -84,10 +84,9 @@ impl Inspector {
     ///
     /// # Notes
     /// - no symbol name demangling is performed currently
-    /// - currently only function symbols (as opposed to variables) are
-    ///   reported
-    /// - undefined symbols (such as ones referencing a different shared
-    ///   object) are not reported
+    /// - currently only function symbols (as opposed to variables) are reported
+    /// - undefined symbols (such as ones referencing a different shared object)
+    ///   are not reported
     /// - for the [`Elf`](Source::Elf) source, at present DWARF symbols are
     ///   ignored (irrespective of the [`debug_syms`][Elf::debug_syms]
     ///   configuration)

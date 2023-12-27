@@ -23,7 +23,8 @@ pub struct Output<M> {
     ///
     /// A file offset is one as it would appear in a binary or debug symbol
     /// file, i.e., one excluding any relocations. The data reported here can be
-    /// used with the [`symbolize::Input::FileOffset`][crate::symbolize::Input::FileOffset]
+    /// used with the
+    /// [`symbolize::Input::FileOffset`][crate::symbolize::Input::FileOffset]
     /// variant.
     pub outputs: Vec<(u64, usize)>,
     /// Meta information about the normalized outputs.

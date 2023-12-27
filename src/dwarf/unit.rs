@@ -93,8 +93,8 @@ impl<'dwarf> Unit<'dwarf> {
         &self,
         sections: &gimli::Dwarf<R<'dwarf>>,
     ) -> Result<Option<&Lines<'dwarf>>, gimli::Error> {
-        // NB: line information is always stored in the main debug file so this does not need
-        // to handle DWOs.
+        // NB: line information is always stored in the main debug file so this does not
+        // need to handle DWOs.
         let ilnp = match self.dw_unit.line_program {
             Some(ref ilnp) => ilnp,
             None => return Ok(None),
