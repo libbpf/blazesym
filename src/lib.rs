@@ -34,18 +34,25 @@
     clippy::absolute_paths,
     rustdoc::broken_intra_doc_links
 )]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(test))]
-#![cfg_attr(not(feature = "dwarf"), allow(dead_code))]
+#![cfg_attr(
+    not(all(feature = "apk", feature = "dwarf", feature = "gsym")),
+    allow(dead_code, unused_imports)
+)]
 
 
 #[cfg(feature = "nightly")]
 extern crate test;
 
+#[macro_use]
+mod cfg;
 #[cfg(feature = "dwarf")]
 mod dwarf;
 mod elf;
 mod error;
 mod file_cache;
+#[cfg(feature = "gsym")]
 mod gsym;
 mod insert_map;
 pub mod inspect;
@@ -58,6 +65,7 @@ mod once;
 mod resolver;
 pub mod symbolize;
 mod util;
+#[cfg(feature = "apk")]
 mod zip;
 
 use std::fmt::Display;

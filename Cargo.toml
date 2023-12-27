@@ -35,15 +35,30 @@ autobenches = false
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [features]
-default = ["backtrace", "demangle", "dwarf"]
+default = [
+  "apk",
+  "backtrace",
+  "demangle",
+  "dwarf",
+  "gsym",
+]
+# Enable this feature to enable APK support (mostly relevant for
+# Android).
+apk = []
 # Enable this feature to compile in support for capturing backtraces in errors.
 # Note that by default backtraces will not be collected unless opted in with
 # environment variables.
 backtrace = []
-# Enable this feature to enable DWARF support.
-dwarf = ["gimli"]
 # Enable this feature to get transparent symbol demangling.
 demangle = ["cpp_demangle", "rustc-demangle"]
+# Enable this feature to enable DWARF support.
+dwarf = ["gimli"]
+# Enable this feature to enable Gsym support.
+gsym = []
+
+# Below here are dev-mostly features that should not be needed by
+# regular users.
+
 # Enable this feature to opt in to the generation of unit test files.
 # Having these test files created is necessary for running tests.
 generate-unit-test-files = ["xz2", "zip"]
@@ -92,3 +107,8 @@ libc = "0.2.137"
 reqwest = {version = "0.11.18", optional = true, features = ["blocking"]}
 xz2 = {version = "0.1.7", optional = true}
 zip = {version = "0.6.4", optional = true, default-features = false}
+
+# https://docs.rs/about/metadata
+[package.metadata.docs.rs]
+# defines the configuration attribute `docsrs`
+rustdoc-args = ["--cfg", "docsrs"]

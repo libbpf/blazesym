@@ -106,10 +106,14 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::path::Path;
 
+#[cfg(feature = "apk")]
 pub use source::Apk;
 pub use source::Elf;
+#[cfg(feature = "gsym")]
 pub use source::Gsym;
+#[cfg(feature = "gsym")]
 pub use source::GsymData;
+#[cfg(feature = "gsym")]
 pub use source::GsymFile;
 pub use source::Kernel;
 pub use source::Process;

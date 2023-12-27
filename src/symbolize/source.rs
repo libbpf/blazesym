@@ -10,6 +10,7 @@ use crate::Pid;
 use super::Symbolizer;
 
 
+cfg_apk! {
 /// A single APK file.
 ///
 /// This type is used in the [`Source::Apk`] variant.
@@ -60,6 +61,7 @@ impl Debug for Apk {
 
         f.debug_tuple(stringify!(Apk)).field(path).finish()
     }
+}
 }
 
 
@@ -228,6 +230,7 @@ impl From<Process> for Source<'static> {
 }
 
 
+cfg_gsym! {
 /// Enumeration of supported Gsym sources.
 ///
 /// This type is used in the [`Source::Gsym`] variant.
@@ -336,6 +339,7 @@ impl From<GsymFile> for Source<'static> {
         Source::Gsym(Gsym::File(gsym))
     }
 }
+}
 
 
 /// The description of a source of symbols and debug information.
@@ -346,6 +350,8 @@ impl From<GsymFile> for Source<'static> {
 #[non_exhaustive]
 pub enum Source<'dat> {
     /// A single APK file.
+    #[cfg(feature = "apk")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "apk")))]
     Apk(Apk),
     /// A single ELF file.
     Elf(Elf),
@@ -354,17 +360,24 @@ pub enum Source<'dat> {
     /// Information about a process.
     Process(Process),
     /// A Gsym file.
+    #[cfg(feature = "gsym")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "gsym")))]
     Gsym(Gsym<'dat>),
+    #[doc(hidden)]
+    Phantom(&'dat ()),
 }
 
 impl Debug for Source<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
+            #[cfg(feature = "apk")]
             Self::Apk(apk) => Debug::fmt(apk, f),
             Self::Elf(elf) => Debug::fmt(elf, f),
             Self::Kernel(kernel) => Debug::fmt(kernel, f),
             Self::Process(process) => Debug::fmt(process, f),
+            #[cfg(feature = "gsym")]
             Self::Gsym(gsym) => Debug::fmt(gsym, f),
+            Self::Phantom(()) => unreachable!(),
         }
     }
 }
@@ -377,6 +390,7 @@ mod tests {
 
     /// Exercise the `Debug` representation of various types.
     #[test]
+    #[cfg(all(feature = "apk", feature = "gsym"))]
     fn debug_repr() {
         let apk = Apk::new("/a-path/with/components.apk");
         assert_eq!(format!("{apk:?}"), "Apk(\"/a-path/with/components.apk\")");
