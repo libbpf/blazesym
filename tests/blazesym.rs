@@ -5,12 +5,18 @@
 )]
 
 use std::collections::HashSet;
+use std::env;
 use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fs::read as read_file;
 use std::io::Error;
+use std::io::Read as _;
+use std::io::Write as _;
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
+use std::process::Command;
+use std::process::Stdio;
+use std::str;
 
 use blazesym::helper::read_elf_build_id;
 use blazesym::inspect;
@@ -23,6 +29,11 @@ use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::ErrorKind;
 use blazesym::Pid;
+
+use libc::kill;
+use libc::SIGKILL;
+
+use scopeguard::defer;
 
 use test_log::test;
 
@@ -346,6 +357,62 @@ fn symbolize_process() {
         "{}",
         result.name
     );
+}
+
+/// Check that we can symbolize an address in a process using a binary
+/// located in a local mount namespace accessible binary.
+#[test]
+fn symbolize_process_in_mount_namespace() {
+    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so.so");
+    let mnt_ns = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-mnt-ns.bin");
+
+    let mut child = Command::new(mnt_ns)
+        .arg(test_so)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    let pid = child.id();
+    defer!({
+        // Best effort only. The child may end up terminating gracefully
+        // if everything goes as planned.
+        // TODO: Ideally this kill would be pid FD based to eliminate
+        //       any possibility of killing the wrong entity.
+        let _rc = unsafe { kill(pid as _, SIGKILL) };
+    });
+
+    let mut buf = [0u8; 64];
+    let count = child
+        .stdout
+        .as_mut()
+        .unwrap()
+        .read(&mut buf)
+        .expect("failed to read child output");
+    let addr_str = str::from_utf8(&buf[0..count]).unwrap().trim_end();
+    let addr = Addr::from_str_radix(addr_str.trim_start_matches("0x"), 16).unwrap();
+
+    // Make sure to destroy the symbolizer before terminating the child.
+    // Otherwise something holds on to a reference and cleanup may fail.
+    // TODO: This needs to be better understood.
+    {
+        let src = symbolize::Source::Process(symbolize::Process::new(Pid::from(child.id())));
+        let symbolizer = Symbolizer::new();
+        let result = symbolizer
+            .symbolize_single(&src, symbolize::Input::AbsAddr(addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+        assert_eq!(result.name, "await_input");
+    }
+
+    // "Signal" the child to terminate gracefully.
+    let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
+    let _status = child.wait().unwrap();
 }
 
 /// Check that we can normalize addresses in an ELF shared object.
