@@ -52,6 +52,8 @@ mod kernel;
 mod ksym;
 mod maps;
 mod mmap;
+#[cfg(target_os = "linux")]
+mod namespace;
 pub mod normalize;
 mod once;
 mod resolver;
@@ -64,6 +66,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::num::NonZeroU32;
 use std::result;
+use std::str::FromStr;
 
 use resolver::SymResolver;
 
@@ -88,7 +91,7 @@ pub mod helper {
 
 
 /// An enumeration identifying a process.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Pid {
     /// The current process.
     Slf,
@@ -111,6 +114,15 @@ impl From<u32> for Pid {
     }
 }
 
+impl FromStr for Pid {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.parse::<u32>().map(Self::from).map_err(|_| {
+            Error::with_invalid_data(format!("failed to parse input `{s}` as process ID"))
+        })
+    }
+}
 
 #[cfg(feature = "tracing")]
 #[macro_use]

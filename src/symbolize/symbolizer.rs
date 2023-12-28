@@ -22,6 +22,8 @@ use crate::log;
 use crate::maps;
 use crate::maps::PathMapsEntry;
 use crate::mmap::Mmap;
+#[cfg(target_os = "linux")]
+use crate::namespace::NsInfo;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
@@ -545,6 +547,11 @@ impl Symbolizer {
             }
         }
 
+        #[cfg(target_os = "linux")]
+        let nsi = NsInfo::new(pid)?;
+        #[cfg(target_os = "linux")]
+        let entries = maps::parse(nsi.pid())?;
+        #[cfg(not(target_os = "linux"))]
         let entries = maps::parse(pid)?;
         let handler = SymbolizeHandler {
             symbolizer: self,
