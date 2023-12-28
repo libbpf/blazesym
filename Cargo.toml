@@ -98,6 +98,7 @@ anyhow = "1.0.71"
 blazesym = {path = ".", features = ["generate-unit-test-files", "tracing"]}
 criterion = {version = "0.5.1", default-features = false, features = ["rayon", "cargo_bench_support"]}
 env_logger = "0.10"
+scopeguard = "1.2"
 tempfile = "3.4"
 test-log = {version = "0.2", default-features = false, features = ["trace"]}
 tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}

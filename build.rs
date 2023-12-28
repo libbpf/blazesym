@@ -333,6 +333,9 @@ fn prepare_test_files(crate_root: &Path) {
     cc(&src, "test-dwarf-v4.bin", &["-gstrict-dwarf", "-gdwarf-4"]);
     cc(&src, "test-dwarf-v5.bin", &["-gstrict-dwarf", "-gdwarf-5"]);
 
+    let src = crate_root.join("data").join("test-mnt-ns.c");
+    cc(&src, "test-mnt-ns.bin", &[]);
+
     let src = crate_root.join("data").join("test-stable-addresses.c");
     let src_cu2 = crate_root.join("data").join("test-stable-addresses-cu2.c");
     let src_cu2 = src_cu2.to_str().unwrap();
