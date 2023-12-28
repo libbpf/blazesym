@@ -47,6 +47,8 @@ extern crate test;
 
 #[macro_use]
 mod cfg;
+#[cfg(feature = "breakpad")]
+mod breakpad;
 #[cfg(feature = "dwarf")]
 mod dwarf;
 mod elf;

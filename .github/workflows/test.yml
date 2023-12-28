@@ -36,6 +36,10 @@ jobs:
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
+            args: "--lib --no-default-features --features=breakpad"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
             args: "--lib --no-default-features --features=gsym"
           - runs-on: ubuntu-latest
             rust: stable
