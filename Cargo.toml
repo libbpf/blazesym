@@ -47,6 +47,8 @@ apk = []
 # Note that by default backtraces will not be collected unless opted in with
 # environment variables.
 backtrace = []
+# Enable this feature to enable Breakpad support.
+breakpad = ["circular", "nom"]
 # Enable this feature to get transparent symbol demangling.
 demangle = ["cpp_demangle", "rustc-demangle"]
 # Enable this feature to enable DWARF support.
@@ -82,9 +84,11 @@ lto = true
 codegen-units = 1
 
 [dependencies]
+circular = {version = "0.3", optional = true}
 cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.28", optional = true}
 libc = "0.2.137"
+nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1.4", optional = true}
 tracing = {version = "0.1.27", default-features = false, features = ["attributes"], optional = true}
 
@@ -93,7 +97,7 @@ tracing = {version = "0.1.27", default-features = false, features = ["attributes
 # APIs.
 addr2line = "=0.21.0"
 anyhow = "1.0.71"
-blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "gsym", "tracing"]}
+blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "breakpad", "gsym", "tracing"]}
 criterion = {version = "0.5.1", default-features = false, features = ["rayon", "cargo_bench_support"]}
 env_logger = "0.10"
 scopeguard = "1.2"
@@ -109,6 +113,6 @@ zip = {version = "0.6.4", optional = true, default-features = false}
 
 # https://docs.rs/about/metadata
 [package.metadata.docs.rs]
-features = ["apk", "backtrace", "demangle", "dwarf", "gsym"]
+features = ["apk", "backtrace", "breakpad", "demangle", "dwarf", "gsym"]
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
