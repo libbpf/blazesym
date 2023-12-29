@@ -1,7 +1,3 @@
-/*
- * The sample program is used to generate test.bin.
- */
-
 #include <stdio.h>
 
 static

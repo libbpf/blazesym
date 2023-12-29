@@ -360,7 +360,7 @@ fn symbolize_process() {
 }
 
 /// Check that we can symbolize an address in a process using a binary
-/// located in a local mount namespace accessible binary.
+/// located in a local mount namespace.
 #[test]
 fn symbolize_process_in_mount_namespace() {
     let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
