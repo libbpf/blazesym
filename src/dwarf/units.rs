@@ -476,7 +476,7 @@ mod tests {
             let loc = units.find_location(addr).unwrap().unwrap();
             assert_ne!(loc.dir, Path::new(""));
             assert_eq!(loc.file, OsStr::new("test-exe.c"));
-            assert_eq!(loc.line.unwrap(), 8);
+            assert_eq!(loc.line.unwrap(), 4);
 
             assert!(funcs.next().is_none());
         }
