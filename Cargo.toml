@@ -36,11 +36,9 @@ autobenches = false
 
 [features]
 default = [
-  "apk",
   "backtrace",
   "demangle",
   "dwarf",
-  "gsym",
 ]
 # Enable this feature to enable APK support (mostly relevant for
 # Android).
@@ -95,7 +93,7 @@ tracing = {version = "0.1", default-features = false, features = ["attributes"],
 # APIs.
 addr2line = "=0.21.0"
 anyhow = "1.0.71"
-blazesym = {path = ".", features = ["generate-unit-test-files", "tracing"]}
+blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "gsym", "tracing"]}
 criterion = {version = "0.5.1", default-features = false, features = ["rayon", "cargo_bench_support"]}
 env_logger = "0.10"
 scopeguard = "1.2"
