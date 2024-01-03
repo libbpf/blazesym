@@ -256,7 +256,7 @@ where
 /// The process' ID should be provided in `pid`.
 ///
 /// File offsets are reported in the exact same order in which the
-/// non-normalized addresses ones were provided.
+/// non-normalized addresses were provided.
 pub(super) fn normalize_user_addrs_sorted_impl<A>(
     addrs: A,
     pid: Pid,
