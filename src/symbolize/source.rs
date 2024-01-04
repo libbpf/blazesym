@@ -65,6 +65,50 @@ impl Debug for Apk {
 }
 
 
+cfg_breakpad! {
+/// A single Breakpad file.
+///
+/// This type is used in the [`Source::Breakpad`] variant.
+#[derive(Clone)]
+pub struct Breakpad {
+    /// The path to a Breakpad file.
+    pub path: PathBuf,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
+}
+
+impl Breakpad {
+    /// Create a new [`Breakpad`] object, referencing the provided path.
+    #[inline]
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            _non_exhaustive: (),
+        }
+    }
+}
+
+impl From<Breakpad> for Source<'static> {
+    #[inline]
+    fn from(breakpad: Breakpad) -> Self {
+        Source::Breakpad(breakpad)
+    }
+}
+
+impl Debug for Breakpad {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Self {
+            path,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(Breakpad)).field(path).finish()
+    }
+}
+}
+
+
 /// A single ELF file.
 ///
 /// This type is used in the [`Source::Elf`] variant.
@@ -353,6 +397,10 @@ pub enum Source<'dat> {
     #[cfg(feature = "apk")]
     #[cfg_attr(docsrs, doc(cfg(feature = "apk")))]
     Apk(Apk),
+    /// A single Breakpad file.
+    #[cfg(feature = "breakpad")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "breakpad")))]
+    Breakpad(Breakpad),
     /// A single ELF file.
     Elf(Elf),
     /// Information about the Linux kernel.
@@ -372,6 +420,8 @@ impl Debug for Source<'_> {
         match self {
             #[cfg(feature = "apk")]
             Self::Apk(apk) => Debug::fmt(apk, f),
+            #[cfg(feature = "breakpad")]
+            Self::Breakpad(breakpad) => Debug::fmt(breakpad, f),
             Self::Elf(elf) => Debug::fmt(elf, f),
             Self::Kernel(kernel) => Debug::fmt(kernel, f),
             Self::Process(process) => Debug::fmt(process, f),
@@ -390,12 +440,23 @@ mod tests {
 
     /// Exercise the `Debug` representation of various types.
     #[test]
-    #[cfg(all(feature = "apk", feature = "gsym"))]
+    #[cfg(all(feature = "apk", feature = "breakpad", feature = "gsym"))]
     fn debug_repr() {
         let apk = Apk::new("/a-path/with/components.apk");
         assert_eq!(format!("{apk:?}"), "Apk(\"/a-path/with/components.apk\")");
         let src = Source::from(apk);
         assert_eq!(format!("{src:?}"), "Apk(\"/a-path/with/components.apk\")");
+
+        let breakpad = Breakpad::new("/a-path/with/components.sym");
+        assert_eq!(
+            format!("{breakpad:?}"),
+            "Breakpad(\"/a-path/with/components.sym\")"
+        );
+        let src = Source::from(breakpad);
+        assert_eq!(
+            format!("{src:?}"),
+            "Breakpad(\"/a-path/with/components.sym\")"
+        );
 
         let elf = Elf::new("/a-path/with/components.elf");
         assert_eq!(format!("{elf:?}"), "Elf(\"/a-path/with/components.elf\")");

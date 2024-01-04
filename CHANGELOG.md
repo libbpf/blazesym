@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Added support for Breakpad format behind `breakpad` feature (disabled
+  by default)
+
+
 0.2.0-alpha.10
 --------------
 - Introduced `symbolize::Reason` enum to provide best guess at why symbolization

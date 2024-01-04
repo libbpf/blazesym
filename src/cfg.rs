@@ -8,6 +8,16 @@ macro_rules! cfg_apk {
     }
 }
 
+macro_rules! cfg_breakpad {
+    ($($item:item)*) => {
+        $(
+            #[cfg(feature = "breakpad")]
+            #[cfg_attr(docsrs, doc(cfg(feature = "breakpad")))]
+            $item
+        )*
+    }
+}
+
 macro_rules! cfg_gsym {
     ($($item:item)*) => {
         $(

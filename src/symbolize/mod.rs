@@ -108,6 +108,8 @@ use std::path::Path;
 
 #[cfg(feature = "apk")]
 pub use source::Apk;
+#[cfg(feature = "breakpad")]
+pub use source::Breakpad;
 pub use source::Elf;
 #[cfg(feature = "gsym")]
 pub use source::Gsym;
