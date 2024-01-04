@@ -205,6 +205,41 @@ fn dwarf(src: &Path, dst: impl AsRef<OsStr>) {
     strip(src, dst, &["--keep-section=.debug_*"])
 }
 
+/// Generate a Breakpad .sym file for the given source.
+#[cfg(feature = "dump_syms")]
+fn syms(src: &Path, dst: impl AsRef<OsStr>) {
+    use std::env::consts::ARCH;
+
+    use dump_syms::dumper;
+    use dump_syms::dumper::Config;
+    use dump_syms::dumper::FileOutput;
+    use dump_syms::dumper::Output;
+
+    let dst = src.with_file_name(dst);
+
+    let config = Config {
+        output: Output::File(FileOutput::Path(dst)),
+        symbol_server: None,
+        debug_id: None,
+        code_id: None,
+        arch: ARCH,
+        num_jobs: 1,
+        check_cfi: false,
+        emit_inlines: true,
+        mapping_var: None,
+        mapping_src: None,
+        mapping_dest: None,
+        mapping_file: None,
+    };
+    let path = src.to_str().unwrap();
+    let () = dumper::single_file(&config, path).unwrap();
+}
+
+#[cfg(not(feature = "dump_syms"))]
+fn syms(_src: &Path, _dst: impl AsRef<OsStr>) {
+    unimplemented!()
+}
+
 /// Unpack an xz compressed file.
 #[cfg(feature = "xz2")]
 fn unpack_xz(src: &Path, dst: &Path) {
@@ -382,6 +417,9 @@ fn prepare_test_files(crate_root: &Path) {
     gsym(&src, "test-stable-addresses.gsym");
     dwarf(&src, "test-stable-addresses-dwarf-only.bin");
     strip(&src, "test-stable-addresses-stripped.bin", &[]);
+    if cfg!(feature = "dump_syms") {
+        syms(&src, "test-stable-addresses.sym");
+    }
 
     let src = crate_root.join("data").join("kallsyms.xz");
     let mut dst = src.clone();
