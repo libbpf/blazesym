@@ -61,7 +61,7 @@ gsym = []
 
 # Enable this feature to opt in to the generation of unit test files.
 # Having these test files created is necessary for running tests.
-generate-unit-test-files = ["xz2", "zip"]
+generate-unit-test-files = ["dump_syms", "xz2", "zip"]
 # Enable this feature to opt in to the generation of large benchmark
 # files (also used for regression testing).
 generate-large-test-files = ["reqwest", "xz2"]
@@ -106,6 +106,7 @@ test-log = {version = "0.2", default-features = false, features = ["trace"]}
 tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
 
 [build-dependencies]
+dump_syms = {version = "2.2", optional = true, default-features = false}
 libc = "0.2.137"
 reqwest = {version = "0.11.18", optional = true, features = ["blocking"]}
 xz2 = {version = "0.1.7", optional = true}
