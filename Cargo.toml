@@ -109,5 +109,6 @@ zip = {version = "0.6.4", optional = true, default-features = false}
 
 # https://docs.rs/about/metadata
 [package.metadata.docs.rs]
+features = ["apk", "backtrace", "demangle", "dwarf", "gsym"]
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
