@@ -43,6 +43,9 @@ format supports and whether **blazesym** can currently use this feature:
 
 | Format        | Feature                          | Supported by format?     | Supported by blazesym?   |
 | ------------- | -------------------------------- | ------------------------ | ------------------------ |
+| Breakpad      | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
+|               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
+|               | inlined function information     | :heavy_check_mark:       | :heavy_check_mark:       |
 | ELF           | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
 |               | source code location information | :heavy_multiplication_x: | :heavy_multiplication_x: |
 |               | inlined function information     | :heavy_multiplication_x: | :heavy_multiplication_x: |

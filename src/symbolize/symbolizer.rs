@@ -8,6 +8,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+#[cfg(feature = "breakpad")]
+use crate::breakpad::BreakpadResolver;
 use crate::elf;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
@@ -40,6 +42,8 @@ use crate::SymResolver;
 
 #[cfg(feature = "apk")]
 use super::source::Apk;
+#[cfg(feature = "breakpad")]
+use super::source::Breakpad;
 use super::source::Elf;
 #[cfg(feature = "gsym")]
 use super::source::Gsym;
@@ -183,6 +187,8 @@ impl Builder {
         Symbolizer {
             #[cfg(feature = "apk")]
             apk_cache: FileCache::new(),
+            #[cfg(feature = "breakpad")]
+            breakpad_cache: FileCache::new(),
             elf_cache: FileCache::new(),
             #[cfg(feature = "gsym")]
             gsym_cache: FileCache::new(),
@@ -244,6 +250,8 @@ pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
     #[cfg(feature = "apk")]
     apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Rc<ElfResolver>>)>,
+    #[cfg(feature = "breakpad")]
+    breakpad_cache: FileCache<Rc<BreakpadResolver>>,
     elf_cache: FileCache<ElfResolverData>,
     #[cfg(feature = "gsym")]
     gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
@@ -471,6 +479,19 @@ impl Symbolizer {
         result
     }
 
+    #[cfg(feature = "breakpad")]
+    fn create_breakpad_resolver(&self, path: &Path, file: &File) -> Result<Rc<BreakpadResolver>> {
+        let resolver = BreakpadResolver::from_file(path.to_path_buf(), file)?;
+        Ok(Rc::new(resolver))
+    }
+
+    #[cfg(feature = "breakpad")]
+    fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<BreakpadResolver>> {
+        let (file, cell) = self.breakpad_cache.entry(path)?;
+        let resolver = cell.get_or_try_init(|| self.create_breakpad_resolver(path, file))?;
+        Ok(resolver)
+    }
+
     fn resolve_addr_in_elf(&self, addr: Addr, path: &Path, debug_syms: bool) -> Result<Symbolized> {
         let resolver = self
             .elf_cache
@@ -675,20 +696,23 @@ impl Symbolizer {
     /// is not supported, the corresponding data in the [`Sym`] result will not
     /// be populated.
     ///
-    /// | Format | Feature                          | Supported by format? | Supported by blazesym? |
-    /// |--------|----------------------------------|:--------------------:|:----------------------:|
-    /// | ELF    | symbol size                      | yes                  | yes                    |
-    /// |        | source code location information | no                   | N/A                    |
-    /// |        | inlined function information     | no                   | N/A                    |
-    /// | DWARF  | symbol size                      | yes                  | yes                    |
-    /// |        | source code location information | yes                  | yes                    |
-    /// |        | inlined function information     | yes                  | yes                    |
-    /// | Gsym   | symbol size                      | yes                  | yes                    |
-    /// |        | source code location information | yes                  | yes                    |
-    /// |        | inlined function information     | yes                  | yes                    |
-    /// | Ksym   | symbol size                      | no                   | N/A                    |
-    /// |        | source code location information | no                   | N/A                    |
-    /// |        | inlined function information     | no                   | N/A                    |
+    /// | Format   | Feature                          | Supported by format? | Supported by blazesym? |
+    /// |----------|----------------------------------|:--------------------:|:----------------------:|
+    /// | Breakpad | symbol size                      | yes                  | yes                    |
+    /// |          | source code location information | yes                  | yes                    |
+    /// |          | inlined function information     | yes                  | yes                    |
+    /// | ELF      | symbol size                      | yes                  | yes                    |
+    /// |          | source code location information | no                   | N/A                    |
+    /// |          | inlined function information     | no                   | N/A                    |
+    /// | DWARF    | symbol size                      | yes                  | yes                    |
+    /// |          | source code location information | yes                  | yes                    |
+    /// |          | inlined function information     | yes                  | yes                    |
+    /// | Gsym     | symbol size                      | yes                  | yes                    |
+    /// |          | source code location information | yes                  | yes                    |
+    /// |          | inlined function information     | yes                  | yes                    |
+    /// | Ksym     | symbol size                      | no                   | N/A                    |
+    /// |          | source code location information | no                   | N/A                    |
+    /// |          | inlined function information     | no                   | N/A                    |
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{input:#x?}"))))]
     pub fn symbolize<'slf>(
         &'slf self,
@@ -725,6 +749,29 @@ impl Symbolizer {
                     )
                     .collect(),
             },
+            #[cfg(feature = "breakpad")]
+            Source::Breakpad(Breakpad {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let addrs = match input {
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "Breakpad symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "Breakpad symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(addrs) => addrs,
+                };
+
+                let resolver = self.breakpad_resolver(path)?;
+                let symbols = self.symbolize_addrs(addrs, &Resolver::Uncached(resolver.deref()))?;
+                Ok(symbols)
+            }
             Source::Elf(Elf {
                 path,
                 debug_syms,
@@ -883,6 +930,28 @@ impl Symbolizer {
                     None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                 },
             },
+            #[cfg(feature = "breakpad")]
+            Source::Breakpad(Breakpad {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let addr = match input {
+                    Input::VirtOffset(..) => {
+                        return Err(Error::with_unsupported(
+                            "Breakpad symbolization does not support virtual offset inputs",
+                        ))
+                    }
+                    Input::AbsAddr(..) => {
+                        return Err(Error::with_unsupported(
+                            "Breakpad symbolization does not support absolute address inputs",
+                        ))
+                    }
+                    Input::FileOffset(addr) => addr,
+                };
+
+                let resolver = self.breakpad_resolver(path)?;
+                self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
+            }
             Source::Elf(Elf {
                 path,
                 debug_syms,
@@ -1099,6 +1168,9 @@ mod tests {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.gsym");
+        let test_sym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.sym");
         let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.zip");
@@ -1109,6 +1181,13 @@ mod tests {
                 &[
                     Input::VirtOffset([40].as_slice()),
                     Input::AbsAddr([41].as_slice()),
+                ][..],
+            ),
+            (
+                symbolize::Source::Breakpad(symbolize::Breakpad::new(test_sym)),
+                &[
+                    Input::VirtOffset([50].as_slice()),
+                    Input::AbsAddr([51].as_slice()),
                 ][..],
             ),
             (

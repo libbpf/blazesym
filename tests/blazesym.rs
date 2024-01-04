@@ -137,6 +137,57 @@ fn symbolize_elf_dwarf_gsym() {
     test(src, true);
 }
 
+/// Check that we can symbolize an address using Breakpad.
+#[test]
+fn symbolize_breakpad() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.sym");
+    let src = symbolize::Source::Breakpad(symbolize::Breakpad::new(path));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::FileOffset(0x100))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "factorial");
+    assert_eq!(result.addr, 0x100);
+    assert_eq!(result.offset, 0);
+
+    let code_info = result.code_info.as_ref().unwrap();
+    assert_ne!(code_info.dir, None);
+    assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+    assert_eq!(code_info.line, Some(8));
+
+    let size = result.size.unwrap();
+    assert_ne!(size, 0);
+
+    let offsets = (1..size).collect::<Vec<_>>();
+    let addrs = offsets
+        .iter()
+        .map(|offset| (0x100 + offset) as Addr)
+        .collect::<Vec<_>>();
+    let results = symbolizer
+        .symbolize(&src, symbolize::Input::FileOffset(&addrs))
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), addrs.len());
+
+    for (i, symbolized) in results.into_iter().enumerate() {
+        let result = symbolized.into_sym().unwrap();
+        assert_eq!(result.name, "factorial");
+        assert_eq!(result.addr, 0x100);
+        assert_eq!(result.offset, offsets[i]);
+
+        let code_info = result.code_info.as_ref().unwrap();
+        assert_ne!(code_info.dir, None);
+        assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+        assert!(code_info.line.is_some());
+    }
+}
+
 /// Check that we "fail" symbolization as expected on a stripped ELF
 /// binary.
 #[test]
