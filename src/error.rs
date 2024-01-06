@@ -25,6 +25,9 @@ mod private {
     impl Sealed for Error {}
 
     impl Sealed for io::Error {}
+    #[cfg(feature = "breakpad")]
+    #[allow(clippy::absolute_paths)]
+    impl Sealed for (&[u8], nom::Err<nom::error::VerboseError<&[u8]>>) {}
     #[cfg(feature = "dwarf")]
     impl Sealed for gimli::Error {}
 }

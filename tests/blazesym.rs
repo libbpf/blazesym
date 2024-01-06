@@ -35,6 +35,8 @@ use libc::SIGKILL;
 
 use scopeguard::defer;
 
+use tempfile::NamedTempFile;
+
 use test_log::test;
 
 
@@ -186,6 +188,31 @@ fn symbolize_breakpad() {
         assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
         assert!(code_info.line.is_some());
     }
+}
+
+/// Make sure that Breakpad symbol file errors are reported in a
+/// somewhat decent fashion.
+#[test]
+fn symbolize_breakpad_error() {
+    let content =
+        br#"MODULE Linux x86_64 C00D0279606DFBCD53805DDAD2CA66A30 test-stable-addresses.bin
+FILE 0 data/test-stable-addresses-cu2.c
+PUBLIC 0 0 main
+FUNC 34 11 0 factorial_wrapper
+34 XXX-this-does-not-belong-here-XXX 4 0
+38 a 5 0
+42 3 6 0
+"#;
+
+    let mut tmpfile = NamedTempFile::new().unwrap();
+    let () = tmpfile.write_all(content).unwrap();
+
+    let src = symbolize::Source::Breakpad(symbolize::Breakpad::new(tmpfile.path()));
+    let symbolizer = Symbolizer::new();
+    let err = symbolizer
+        .symbolize_single(&src, symbolize::Input::FileOffset(0x100))
+        .unwrap_err();
+    assert!(format!("{err:?}").contains("34 XXX-this-does-not-belong-here-XXX 4 0"));
 }
 
 /// Check that we "fail" symbolization as expected on a stripped ELF

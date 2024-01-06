@@ -26,6 +26,7 @@
 //!
 //! See <https://github.com/google/breakpad/blob/main/docs/symbol_files.md>
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt::Debug;
@@ -46,20 +47,75 @@ use nom::combinator::cut;
 use nom::combinator::map;
 use nom::combinator::map_res;
 use nom::combinator::opt;
-use nom::error::Error as NomError;
+use nom::error::convert_error as stringify_error;
 use nom::error::ErrorKind;
 use nom::error::ParseError;
+use nom::error::VerboseError;
 use nom::multi::separated_list1;
 use nom::sequence::preceded;
 use nom::sequence::terminated;
 use nom::sequence::tuple;
 use nom::Err;
 use nom::IResult;
+use nom::Needed;
 
 use super::types::*;
 
+use crate::error::IntoCowStr;
 use crate::Error;
+use crate::ErrorExt;
 use crate::Result;
+
+
+fn convert_verbose_nom_error(err: VerboseError<&[u8]>) -> VerboseError<Cow<'_, str>> {
+    let errors = err
+        .errors
+        .into_iter()
+        .map(|(err, kind)| (String::from_utf8_lossy(err), kind))
+        .collect();
+    VerboseError { errors }
+}
+
+fn convert_nom_err(err: Err<VerboseError<&[u8]>>) -> Err<VerboseError<Cow<'_, str>>> {
+    err.map(convert_verbose_nom_error)
+}
+
+fn convert_num_err_to_error((input, err): (&[u8], Err<VerboseError<&[u8]>>)) -> Error {
+    let err = convert_nom_err(err);
+    match err {
+        Err::Incomplete(needed) => match needed {
+            Needed::Unknown => Error::with_invalid_input(
+                "got incomplete input, additional bytes are necessary to parse",
+            ),
+            Needed::Size(num) => Error::with_invalid_input(format!(
+                "got incomplete input, {num} additional bytes are necessary to parse"
+            )),
+        },
+        Err::Error(err) | Err::Failure(err) => {
+            Error::with_invalid_input(stringify_error(String::from_utf8_lossy(input), err))
+        }
+    }
+}
+
+
+impl ErrorExt for (&[u8], Err<VerboseError<&[u8]>>) {
+    type Output = Error;
+
+    fn context<C>(self, context: C) -> Self::Output
+    where
+        C: IntoCowStr,
+    {
+        convert_num_err_to_error(self).context(context)
+    }
+
+    fn with_context<C, F>(self, f: F) -> Self::Output
+    where
+        C: IntoCowStr,
+        F: FnOnce() -> C,
+    {
+        convert_num_err_to_error(self).with_context(f)
+    }
+}
 
 
 #[derive(Debug)]
@@ -77,7 +133,7 @@ enum Line {
 /// Match a hex string, parse it to a u32 or a u64.
 fn hex_str<T: Shl<T, Output = T> + BitOr<T, Output = T> + From<u8>>(
     input: &[u8],
-) -> IResult<&[u8], T> {
+) -> IResult<&[u8], T, VerboseError<&[u8]>> {
     // Consume up to max_len digits. For u32 that's 8 digits and for u64 that's 16
     // digits. Two hex digits form one byte.
     let max_len = mem::size_of::<T>() * 2;
@@ -94,7 +150,7 @@ fn hex_str<T: Shl<T, Output = T> + BitOr<T, Output = T> + From<u8>>(
         k += 1;
     }
     if k == 0 {
-        return Err(Err::Error(NomError::from_error_kind(
+        return Err(Err::Error(VerboseError::from_error_kind(
             input,
             ErrorKind::HexDigit,
         )))
@@ -110,7 +166,7 @@ fn hex_str<T: Shl<T, Output = T> + BitOr<T, Output = T> + From<u8>>(
 /// you might get a slice of acceptable characters from nom, then you might
 /// parse that slice into a str (checking for utf-8 unnecessarily), and then you
 /// might parse that string into a decimal number.
-fn decimal_u32(input: &[u8]) -> IResult<&[u8], u32> {
+fn decimal_u32(input: &[u8]) -> IResult<&[u8], u32, VerboseError<&[u8]>> {
     const MAX_LEN: usize = 10; // u32::MAX has 10 decimal digits
     let mut res: u64 = 0;
     let mut k = 0;
@@ -124,19 +180,19 @@ fn decimal_u32(input: &[u8]) -> IResult<&[u8], u32> {
         k += 1;
     }
     if k == 0 {
-        return Err(Err::Error(NomError::from_error_kind(
+        return Err(Err::Error(VerboseError::from_error_kind(
             input,
             ErrorKind::Digit,
         )))
     }
     let res = u32::try_from(res)
-        .map_err(|_| Err::Error(NomError::from_error_kind(input, ErrorKind::TooLarge)))?;
+        .map_err(|_| Err::Error(VerboseError::from_error_kind(input, ErrorKind::TooLarge)))?;
     let remaining = &input[k..];
     Ok((remaining, res))
 }
 
 /// Take 0 or more non-space bytes.
-fn non_space(input: &[u8]) -> IResult<&[u8], &[u8]> {
+fn non_space(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
     take_while(|c: u8| c != b' ')(input)
 }
 
@@ -144,7 +200,7 @@ fn non_space(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///
 /// This is different from `line_ending` which doesn't accept `\r` if it isn't
 /// followed by `\n`.
-fn my_eol(input: &[u8]) -> IResult<&[u8], &[u8]> {
+fn my_eol(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
     preceded(take_while(|b| b == b'\r'), tag(b"\n"))(input)
 }
 
@@ -152,7 +208,7 @@ fn my_eol(input: &[u8]) -> IResult<&[u8], &[u8]> {
 ///
 /// This is different from `not_line_ending` which rejects its input if it's
 /// followed by a `\r` which is not immediately followed by a `\n`.
-fn not_my_eol(input: &[u8]) -> IResult<&[u8], &[u8]> {
+fn not_my_eol(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
     take_while(|b| b != b'\r' && b != b'\n')(input)
 }
 
@@ -161,15 +217,18 @@ fn not_my_eol(input: &[u8]) -> IResult<&[u8], &[u8]> {
 /// nom has `satisfy`, which is similar. It differs in the argument type of the
 /// predicate: `satisfy`'s predicate takes `char`, whereas `single`'s predicate
 /// takes `u8`.
-fn single(predicate: fn(u8) -> bool) -> impl Fn(&[u8]) -> IResult<&[u8], u8> {
+fn single(predicate: fn(u8) -> bool) -> impl Fn(&[u8]) -> IResult<&[u8], u8, VerboseError<&[u8]>> {
     move |i: &[u8]| match i.split_first() {
         Some((b, rest)) if predicate(*b) => Ok((rest, *b)),
-        _ => Err(Err::Error(NomError::from_error_kind(i, ErrorKind::Satisfy))),
+        _ => Err(Err::Error(VerboseError::from_error_kind(
+            i,
+            ErrorKind::Satisfy,
+        ))),
     }
 }
 
 /// Matches a MODULE record.
-fn module_line(input: &[u8]) -> IResult<&[u8], ()> {
+fn module_line(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("MODULE"), space1)(input)?;
     let (input, _) = cut(tuple((
         terminated(non_space, space1),  // os
@@ -181,20 +240,20 @@ fn module_line(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Matches an INFO URL record.
-fn info_url(input: &[u8]) -> IResult<&[u8], ()> {
+fn info_url(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("INFO URL"), space1)(input)?;
     let (input, _url) = cut(terminated(map_res(not_my_eol, str::from_utf8), my_eol))(input)?;
     Ok((input, ()))
 }
 
 /// Matches other INFO records.
-fn info_line(input: &[u8]) -> IResult<&[u8], &[u8]> {
+fn info_line(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("INFO"), space1)(input)?;
     cut(terminated(not_my_eol, my_eol))(input)
 }
 
 /// Matches a FILE record.
-fn file_line(input: &[u8]) -> IResult<&[u8], (u32, String)> {
+fn file_line(input: &[u8]) -> IResult<&[u8], (u32, String), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("FILE"), space1)(input)?;
     let (input, (id, filename)) = cut(tuple((
         terminated(decimal_u32, space1),
@@ -204,7 +263,7 @@ fn file_line(input: &[u8]) -> IResult<&[u8], (u32, String)> {
 }
 
 /// Matches an INLINE_ORIGIN record.
-fn inline_origin_line(input: &[u8]) -> IResult<&[u8], (u32, String)> {
+fn inline_origin_line(input: &[u8]) -> IResult<&[u8], (u32, String), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("INLINE_ORIGIN"), space1)(input)?;
     let (input, (id, function)) = cut(tuple((
         terminated(decimal_u32, space1),
@@ -214,7 +273,7 @@ fn inline_origin_line(input: &[u8]) -> IResult<&[u8], (u32, String)> {
 }
 
 /// Matches a PUBLIC record.
-fn public_line(input: &[u8]) -> IResult<&[u8], PublicSymbol> {
+fn public_line(input: &[u8]) -> IResult<&[u8], PublicSymbol, VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("PUBLIC"), space1)(input)?;
     let (input, (_multiple, addr, parameter_size, name)) = cut(tuple((
         opt(terminated(tag("m"), space1)),
@@ -233,7 +292,7 @@ fn public_line(input: &[u8]) -> IResult<&[u8], PublicSymbol> {
 }
 
 /// Matches line data after a FUNC record.
-fn func_line_data(input: &[u8]) -> IResult<&[u8], SourceLine> {
+fn func_line_data(input: &[u8]) -> IResult<&[u8], SourceLine, VerboseError<&[u8]>> {
     let (input, (addr, size, line, file)) = tuple((
         terminated(hex_str::<u64>, space1),
         terminated(hex_str::<u32>, space1),
@@ -252,7 +311,7 @@ fn func_line_data(input: &[u8]) -> IResult<&[u8], SourceLine> {
 }
 
 /// Matches a FUNC record.
-fn func_line(input: &[u8]) -> IResult<&[u8], Function> {
+fn func_line(input: &[u8]) -> IResult<&[u8], Function, VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("FUNC"), space1)(input)?;
     let (input, (_multiple, addr, size, parameter_size, name)) = cut(tuple((
         opt(terminated(tag("m"), space1)),
@@ -276,7 +335,7 @@ fn func_line(input: &[u8]) -> IResult<&[u8], Function> {
 
 /// Matches one entry of the form <addr> <size> which is used at the end of
 /// an INLINE record
-fn inline_address_range(input: &[u8]) -> IResult<&[u8], (u64, u32)> {
+fn inline_address_range(input: &[u8]) -> IResult<&[u8], (u64, u32), VerboseError<&[u8]>> {
     tuple((terminated(hex_str::<u64>, space1), hex_str::<u32>))(input)
 }
 
@@ -284,7 +343,7 @@ fn inline_address_range(input: &[u8]) -> IResult<&[u8], (u64, u32)> {
 ///
 /// An INLINE record has the form `INLINE <inline_nest_level> <call_site_line>
 /// <call_site_file_id> <origin_id> [<addr> <size>]+`.
-fn inline_line(input: &[u8]) -> IResult<&[u8], impl Iterator<Item = Inlinee>> {
+fn inline_line(input: &[u8]) -> IResult<&[u8], impl Iterator<Item = Inlinee>, VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("INLINE"), space1)(input)?;
     let (input, (depth, call_line, call_file, origin_id)) = cut(tuple((
         terminated(decimal_u32, space1),
@@ -310,7 +369,7 @@ fn inline_line(input: &[u8]) -> IResult<&[u8], impl Iterator<Item = Inlinee>> {
 }
 
 /// Matches a STACK WIN record.
-fn stack_win_line(input: &[u8]) -> IResult<&[u8], ()> {
+fn stack_win_line(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("STACK WIN"), space1)(input)?;
     let (
         input,
@@ -345,7 +404,7 @@ fn stack_win_line(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Matches a STACK CFI record.
-fn stack_cfi(input: &[u8]) -> IResult<&[u8], ()> {
+fn stack_cfi(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("STACK CFI"), space1)(input)?;
     let (input, (_address, _rules)) = cut(tuple((
         terminated(hex_str::<u64>, space1),
@@ -356,7 +415,7 @@ fn stack_cfi(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Matches a STACK CFI INIT record.
-fn stack_cfi_init(input: &[u8]) -> IResult<&[u8], ()> {
+fn stack_cfi_init(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("STACK CFI INIT"), space1)(input)?;
     let (input, (_address, _size, _rules)) = cut(tuple((
         terminated(hex_str::<u64>, space1),
@@ -368,7 +427,7 @@ fn stack_cfi_init(input: &[u8]) -> IResult<&[u8], ()> {
 }
 
 /// Parse any of the line data that can occur in the body of a symbol file.
-fn line(input: &[u8]) -> IResult<&[u8], Line> {
+fn line(input: &[u8]) -> IResult<&[u8], Line, VerboseError<&[u8]>> {
     terminated(
         alt((
             map(info_url, Line::Info),
@@ -487,13 +546,9 @@ impl SymbolParser {
                     line
                 }
                 Err(err) => {
-                    // The file has a completely corrupt line,
-                    // conservatively reject the entire parse.
-                    // TODO: Should probably have a `ErrorExt` style conversion
-                    //       for everything `nom`.
-                    return Err(Error::with_invalid_input(format!(
-                        "failed to parse line: {err}"
-                    )))
+                    // The file has a completely corrupt line, conservatively
+                    // reject the entire parse.
+                    return Err((input, err)).context("failed to parse input")
                 }
             };
 
@@ -540,7 +595,7 @@ impl SymbolParser {
         input: &'a [u8],
         lines: &mut Vec<SourceLine>,
         inlinees: &mut Vec<Inlinee>,
-    ) -> IResult<&'a [u8], ()> {
+    ) -> IResult<&'a [u8], (), VerboseError<&'a [u8]>> {
         // We can have three different types of sublines: INLINE_ORIGIN, INLINE, or line
         // records. Check them one by one.
         // We're not using nom's `alt()` here because we'd need to find a common return
@@ -605,6 +660,8 @@ impl SymbolParser {
 
 #[cfg(test)]
 mod tests {
+    use nom::error::VerboseErrorKind;
+
     use super::*;
 
     #[test]
@@ -731,9 +788,8 @@ mod tests {
         let line = b"FUNC 1000\n1000 10 42 7\n";
         assert_eq!(
             func_line(line),
-            Err(Err::Failure(NomError {
-                input: &line[9..],
-                code: ErrorKind::Space
+            Err(Err::Failure(VerboseError {
+                errors: vec![(&line[9..], VerboseErrorKind::Nom(ErrorKind::Space)),],
             }))
         );
     }
