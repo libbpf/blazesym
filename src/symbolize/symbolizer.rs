@@ -1088,8 +1088,18 @@ mod tests {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.gsym");
+        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
 
         let unsupported = [
+            (
+                symbolize::Source::Apk(symbolize::Apk::new(test_zip)),
+                &[
+                    Input::VirtOffset([40].as_slice()),
+                    Input::AbsAddr([41].as_slice()),
+                ][..],
+            ),
             (
                 symbolize::Source::Process(symbolize::Process::new(Pid::Slf)),
                 &[
