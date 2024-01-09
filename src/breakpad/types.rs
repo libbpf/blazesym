@@ -119,13 +119,31 @@ impl Function {
 
     /// Returns `(call_file_id, call_line, address, inline_origin)` of the
     /// inlinee record that covers the given address at the given depth.
+    #[cfg(test)]
+    pub(super) fn get_inlinee_at_depth(
+        &self,
+        depth: u32,
+        addr: u64,
+    ) -> Option<(u32, u32, u64, u32)> {
+        self.find_inlinee_at_depth(depth, addr).map(|inlinee| {
+            (
+                inlinee.call_file,
+                inlinee.call_line,
+                inlinee.addr,
+                inlinee.origin_id,
+            )
+        })
+    }
+
+    /// Find an inlinee record record that covers the given address at the given
+    /// depth.
     ///
     /// We start at depth zero. For example, if we have an "inline call stack"
     /// A -> B -> C at an address, i.e. both the call to B and the call to C
     /// have been inlined all the way into A (A being the "outer function"),
     /// then the call A -> B is at level zero, and the call B -> C is at
     /// level one.
-    pub fn get_inlinee_at_depth(&self, depth: u32, addr: u64) -> Option<(u32, u32, u64, u32)> {
+    pub fn find_inlinee_at_depth(&self, depth: u32, addr: u64) -> Option<&Inlinee> {
         let inlinee = match self
             .inlinees
             .binary_search_by_key(&(depth, addr), |inlinee| (inlinee.depth, inlinee.addr))
@@ -143,15 +161,18 @@ impl Function {
         }
         let end_address = inlinee.addr.checked_add(inlinee.size as u64)?;
         if addr < end_address {
-            Some((
-                inlinee.call_file,
-                inlinee.call_line,
-                inlinee.addr,
-                inlinee.origin_id,
-            ))
+            Some(inlinee)
         } else {
             None
         }
+    }
+
+    pub fn find_inlinees(&self, addr: u64) -> Vec<&Inlinee> {
+        let mut inlinees = Vec::new();
+        while let Some(inlinee) = self.find_inlinee_at_depth(inlinees.len() as _, addr) {
+            let () = inlinees.push(inlinee);
+        }
+        inlinees
     }
 }
 

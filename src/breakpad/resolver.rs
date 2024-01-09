@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
+use std::mem::swap;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -123,9 +124,37 @@ impl SymResolver for BreakpadResolver {
                     column: None,
                     _non_exhaustive: (),
                 };
+
+                let inlined = if inlined_fns {
+                    let inline_stack = func.find_inlinees(addr);
+                    let mut inlined = Vec::with_capacity(inline_stack.len());
+                    for inlinee in inline_stack {
+                        let name = self.find_inlinee_name(inlinee.origin_id)?;
+                        let (dir, file) = self.find_source_location(inlinee.call_file)?;
+                        let mut code_info = Some(CodeInfo {
+                            dir: dir.map(Cow::Borrowed),
+                            file: Cow::Borrowed(file),
+                            line: Some(inlinee.call_line),
+                            column: None,
+                            _non_exhaustive: (),
+                        });
+
+                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                            let () = swap(&mut code_info, last_code_info);
+                        } else if let Some(code_info) = &mut code_info {
+                            let () = swap(code_info, &mut direct_code_info);
+                        }
+
+                        let () = inlined.push((name, code_info));
+                    }
+                    inlined
+                } else {
+                    Vec::new()
+                };
+
                 let code_info = AddrCodeInfo {
                     direct: (None, direct_code_info),
-                    inlined: Vec::new(),
+                    inlined,
                 };
                 Ok(Some(code_info))
             } else {
