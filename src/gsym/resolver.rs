@@ -18,6 +18,7 @@ use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
 use crate::Addr;
+use crate::Error;
 use crate::IntoError as _;
 use crate::Result;
 use crate::SymResolver;
@@ -204,7 +205,9 @@ impl SymResolver for GsymResolver<'_> {
     ) -> Result<Vec<SymInfo<'slf>>> {
         // It is inefficient to find the address of a symbol with
         // Gsym. We may support it in the future if needed.
-        Ok(Vec::new())
+        Err(Error::with_unsupported(
+            "Gsym resolver does not currently support lookup by name",
+        ))
     }
 
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
@@ -340,6 +343,8 @@ mod tests {
 
     use test_log::test;
 
+    use crate::ErrorKind;
+
 
     /// Exercise the `Debug` representation of various types.
     #[test]
@@ -429,9 +434,9 @@ mod tests {
             .join("data")
             .join("test-stable-addresses.gsym");
         let resolver = GsymResolver::new(test_gsym).unwrap();
-        let syms = resolver
+        let err = resolver
             .find_addr("factorial", &FindAddrOpts::default())
-            .unwrap();
-        assert_eq!(syms, Vec::new());
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }
