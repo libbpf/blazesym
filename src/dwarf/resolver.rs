@@ -14,6 +14,7 @@ use std::rc::Rc;
 use gimli::Dwarf;
 
 use crate::elf::ElfParser;
+use crate::error::IntoCowStr;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::inspect::SymType;
@@ -23,11 +24,32 @@ use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
 use crate::Addr;
 use crate::Error;
+use crate::ErrorExt;
 use crate::Result;
 
 use super::location::Location;
 use super::reader;
 use super::units::Units;
+
+
+impl ErrorExt for gimli::Error {
+    type Output = Error;
+
+    fn context<C>(self, context: C) -> Self::Output
+    where
+        C: IntoCowStr,
+    {
+        Error::from(self).context(context)
+    }
+
+    fn with_context<C, F>(self, f: F) -> Self::Output
+    where
+        C: IntoCowStr,
+        F: FnOnce() -> C,
+    {
+        Error::from(self).with_context(f)
+    }
+}
 
 
 impl From<Option<gimli::DwLang>> for SrcLang {
@@ -284,6 +306,21 @@ mod tests {
         let bin_name = current_exe().unwrap();
         let resolver = DwarfResolver::open(&bin_name, true).unwrap();
         assert_ne!(format!("{resolver:?}"), "");
+    }
+
+    /// Check that we can convert a `gimli::Error` into our own error type.
+    #[test]
+    fn error_conversion() {
+        let inner = gimli::Error::Io;
+        let err = Result::<(), _>::Err(inner)
+            .context("failed to read")
+            .unwrap_err();
+        assert_eq!(format!("{err:#}"), format!("failed to read: {inner}"));
+
+        let err = Result::<(), _>::Err(inner)
+            .with_context(|| "failed to read")
+            .unwrap_err();
+        assert_eq!(format!("{err:#}"), format!("failed to read: {inner}"));
     }
 
     /// Check that we can find the source code location of an address.
