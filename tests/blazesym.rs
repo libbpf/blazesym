@@ -245,6 +245,7 @@ fn symbolize_dwarf_gsym_inlined() {
             .into_sym()
             .unwrap();
 
+        assert_eq!(result.name, "factorial_inline_test");
         let code_info = result.code_info.as_ref().unwrap();
         assert_ne!(code_info.dir, None);
         assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
@@ -285,6 +286,53 @@ fn symbolize_dwarf_gsym_inlined() {
         .join("data")
         .join("test-stable-addresses-dwarf-only.bin");
     let src = symbolize::Source::from(symbolize::Elf::new(path));
+    test(src.clone(), true);
+    test(src, false);
+}
+
+/// Make sure that we report (enabled) or don't report (disabled) inlined
+/// functions with Breakpad sources.
+#[test]
+fn symbolize_breakpad_inlined() {
+    fn test(src: symbolize::Source, inlined_fns: bool) {
+        let symbolizer = Symbolizer::builder()
+            .enable_inlined_fns(inlined_fns)
+            .build();
+        let result = symbolizer
+            .symbolize_single(&src, symbolize::Input::FileOffset(0x20a))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(result.name, "factorial_inline_test");
+        let code_info = result.code_info.as_ref().unwrap();
+        assert_ne!(code_info.dir, None);
+        assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(code_info.line, Some(if inlined_fns { 32 } else { 21 }));
+
+        if inlined_fns {
+            assert_eq!(result.inlined.len(), 2);
+
+            let name = &result.inlined[0].name;
+            assert_eq!(*name, "factorial_inline_wrapper");
+            let frame = result.inlined[0].code_info.as_ref().unwrap();
+            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(frame.line, Some(26));
+
+            let name = &result.inlined[1].name;
+            assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
+            let frame = result.inlined[1].code_info.as_ref().unwrap();
+            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(frame.line, Some(21));
+        } else {
+            assert!(result.inlined.is_empty(), "{:#?}", result.inlined);
+        }
+    }
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.sym");
+    let src = symbolize::Source::from(symbolize::Breakpad::new(path));
     test(src.clone(), true);
     test(src, false);
 }
