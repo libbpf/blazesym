@@ -34,10 +34,12 @@ use super::types::INFO_TYPE_LINE_TABLE_INFO;
 use crate::log::warn;
 
 
+#[allow(dead_code)]
 enum Data<'dat> {
     Mmap(Mmap),
     Slice(&'dat [u8]),
 }
+
 
 /// The symbol resolver for the GSYM format.
 pub struct GsymResolver<'dat> {

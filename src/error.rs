@@ -578,26 +578,6 @@ impl ErrorExt for io::Error {
     }
 }
 
-#[cfg(feature = "dwarf")]
-impl ErrorExt for gimli::Error {
-    type Output = Error;
-
-    fn context<C>(self, context: C) -> Self::Output
-    where
-        C: IntoCowStr,
-    {
-        Error::from(self).context(context)
-    }
-
-    fn with_context<C, F>(self, f: F) -> Self::Output
-    where
-        C: IntoCowStr,
-        F: FnOnce() -> C,
-    {
-        Error::from(self).with_context(f)
-    }
-}
-
 
 /// A trait providing conversion shortcuts for creating `Error`
 /// instances.
