@@ -157,8 +157,11 @@ jobs:
           cat Cargo.toml
     - name: cargo test -Zsanitizer=${{ matrix.sanitizer }}
       env:
-        CFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
-        CXXFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
+        # TODO: Ideally we'd set CFLAGS and CXXFLAGS as well, but some
+        #       of our transitive dependencies don't play nice with
+        #       ASAN.
+        #CFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
+        #CXXFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
         RUSTFLAGS: "-Zsanitizer=${{ matrix.sanitizer }}"
         ASAN_OPTIONS: "detect_odr_violation=0:detect_leaks=0"
         LSAN_OPTIONS: ""
