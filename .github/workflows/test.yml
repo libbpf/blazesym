@@ -28,15 +28,23 @@ jobs:
             # Make sure to build *without* `--workspace` or feature
             # unification may mean that `--no-default-features` goes
             # without effect.
-            args: "--no-default-features"
+            args: "--lib --no-default-features"
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
-            args: "--no-default-features --features=apk"
+            args: "--lib --no-default-features --features=apk"
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
-            args: "--no-default-features --features=gsym"
+            args: "--lib --no-default-features --features=gsym"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
+            args: "--package=blazecli"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
+            args: "--package=blazesym-c"
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@master
@@ -47,7 +55,7 @@ jobs:
         key: ${{ matrix.runs-on }}-${{ matrix.rust }}-${{ matrix.profile }}
     - name: Build ${{ matrix.profile }}
       run: |
-        cargo build --profile=${{ matrix.profile }} ${{ matrix.args }} --lib
+        cargo build --profile=${{ matrix.profile }} ${{ matrix.args }}
   build-cross:
     name: Cross-compile [${{ matrix.target }}]
     runs-on: ubuntu-latest
