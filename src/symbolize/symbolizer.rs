@@ -1031,6 +1031,14 @@ mod tests {
 
         let symbolizer = builder.build();
         assert_ne!(format!("{symbolizer:?}"), "");
+
+        let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.bin");
+        let parser = Rc::new(ElfParser::open(&test_elf).unwrap());
+        let resolver = ElfResolver::from_parser(&test_elf, parser, false, false).unwrap();
+        let resolver = Resolver::Cached(&resolver);
+        assert_ne!(format!("{resolver:?}"), "");
     }
 
     /// Check that we can create a path to an ELF inside an APK as expected.
