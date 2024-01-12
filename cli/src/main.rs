@@ -111,6 +111,12 @@ fn print_frame(
 fn symbolize(symbolize: args::Symbolize) -> Result<()> {
     let symbolizer = Symbolizer::new();
     let (src, input, addrs) = match symbolize {
+        args::Symbolize::Breakpad(args::Breakpad { path, ref addrs }) => {
+            let src = symbolize::Source::from(symbolize::Breakpad::new(path));
+            let addrs = addrs.as_slice();
+            let input = symbolize::Input::FileOffset(addrs);
+            (src, input, addrs)
+        }
         args::Symbolize::Elf(args::Elf { path, ref addrs }) => {
             let src = symbolize::Source::from(symbolize::Elf::new(path));
             let addrs = addrs.as_slice();

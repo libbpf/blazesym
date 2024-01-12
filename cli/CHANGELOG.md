@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added support for symbolization using Breakpad (`*.sym`) files
+
+
 0.1.2
 -----
 - Bumped `blazesym` dependency to `0.2.0-alpha.10`
