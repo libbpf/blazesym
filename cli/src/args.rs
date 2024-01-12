@@ -78,9 +78,23 @@ pub struct User {
 /// A type representing the `symbolize` command.
 #[derive(Debug, Subcommand)]
 pub enum Symbolize {
+    Breakpad(Breakpad),
     Elf(Elf),
     Gsym(Gsym),
     Process(Process),
+}
+
+#[derive(Debug, Arguments)]
+pub struct Breakpad {
+    /// The path to the Breakpad (*.sym) file.
+    #[clap(short, long)]
+    pub path: PathBuf,
+    /// The addresses to symbolize.
+    ///
+    /// Addresses are assumed to be file offsets as they would be used on the
+    /// original (ELF/DWARF/...) source file.
+    #[arg(value_parser = parse_addr)]
+    pub addrs: Vec<Addr>,
 }
 
 #[derive(Debug, Arguments)]
