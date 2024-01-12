@@ -18,7 +18,7 @@ jobs:
       fail-fast: false
       matrix:
         runs-on: [ubuntu-latest, macos-latest]
-        rust: [1.65.0, stable]
+        rust: [stable]
         profile: [dev, release]
         args: ["--workspace"]
         include:
@@ -67,6 +67,20 @@ jobs:
           target: ${{ matrix.target }}
       - run: |
           cargo build --lib
+  build-minimum:
+    name: Build using minimum versions of dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo +nightly -Z minimal-versions update
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          # Please adjust README and rust-version field in Cargo.toml files when
+          # bumping version.
+          toolchain: 1.65.0
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --features="apk,backtrace,demangle,dwarf,gsym,tracing"
   nop-rebuilds:
     name: No-op rebuilds
     runs-on: ubuntu-22.04
