@@ -156,7 +156,8 @@ where
 /// This functionality is useful for cases where we compare elements with a
 /// size, such as ranges, and an address to search for can be covered by a range
 /// whose start is before the item to search for.
-pub(crate) fn find_match_or_lower_bound<T>(slice: &[T], item: T) -> Option<usize>
+#[cfg(test)]
+fn find_match_or_lower_bound<T>(slice: &[T], item: T) -> Option<usize>
 where
     T: Copy + Ord,
 {
