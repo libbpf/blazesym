@@ -1,6 +1,6 @@
 Unreleased
 ----------
-- Bumped `blazesym` dependency to `0.2.0-alpha.9`
+- Bumped `blazesym` dependency to `0.2.0-alpha.10`
 
 
 0.1.1
