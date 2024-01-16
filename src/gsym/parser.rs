@@ -40,7 +40,7 @@ use std::iter;
 use std::mem::align_of;
 use std::os::unix::ffi::OsStrExt as _;
 
-use crate::util::find_match_or_lower_bound;
+use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -149,11 +149,10 @@ impl GsymContext<'_> {
     pub fn find_addr(&self, addr: Addr) -> Option<usize> {
         fn find_addr_impl<T>(mut addr_tab: &[u8], num_addrs: usize, addr: Addr) -> Option<usize>
         where
-            T: Copy + Ord + TryFrom<Addr> + Pod + 'static,
+            T: Copy + Ord + Into<Addr> + Pod + 'static,
         {
-            let addr = T::try_from(addr).ok()?;
             let table = addr_tab.read_pod_slice_ref::<T>(num_addrs)?;
-            find_match_or_lower_bound(table, addr)
+            find_match_or_lower_bound_by_key(table, addr, |x| Into::<Addr>::into(*x))
         }
 
 
@@ -253,6 +252,11 @@ mod tests {
     use test_log::test;
 
 
+    /// A fake address table that is guaranteed to be sufficiently aligned.
+    #[repr(align(64))]
+    struct AddrTab<const N: usize>([u8; N]);
+
+
     #[test]
     fn test_parse_context() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -346,5 +350,46 @@ mod tests {
 
             gen_values(&mut values);
         }
+    }
+
+    /// Check that we can correctly find an address table entry even if the
+    /// address does not fit into `addr_off_size` bytes.
+    #[test]
+    fn overly_large_addr_finding() {
+        let addr_tab = AddrTab([
+            156, 96, 180, 96, 192, 96, 240, 96, 48, 97, 112, 97, 128, 97, 160, 97, 224, 100, 48,
+            107, 32, 110, 128, 112, 208, 118, 80, 120, 160, 121, 144, 133, 48, 135, 160, 138, 224,
+            140, 0, 244, 208, 245, 48, 247, 240, 248, 64, 250, 240, 251, 160, 252, 128, 255,
+        ]);
+
+        let context = GsymContext {
+            header: Header {
+                magic: 1196644685,
+                version: 1,
+                addr_off_size: 2,
+                uuid_size: 20,
+                base_address: 0,
+                num_addrs: 27,
+                strtab_offset: 224,
+                strtab_size: 697,
+                uuid: [
+                    120, 151, 243, 48, 221, 52, 78, 164, 192, 149, 35, 25, 172, 82, 70, 123, 125,
+                    239, 78, 50,
+                ],
+            },
+            addr_tab: &addr_tab.0,
+            addr_data_off_tab: &[
+                924, 940, 956, 972, 988, 1004, 1020, 1036, 1052, 1068, 1084, 1100, 1116, 1132,
+                1148, 1164, 1180, 1196, 1212, 1228, 1244, 1260, 1276, 1292, 1308, 1324, 1340,
+            ],
+            file_tab: &[],
+            str_tab: &[],
+            raw_data: &[],
+        };
+
+        // The address we are looking for (0x10635) does not fit into a `u16`.
+        // Yet, it is valid (because the represented function's start address
+        // fits into a `u16`) and should not cause a lookup failure.
+        assert_eq!(context.find_addr(0x10635), Some(26));
     }
 }
