@@ -236,6 +236,9 @@ enum Resolver<'tmp, 'slf> {
 /// [`symbolize_single`][Symbolizer::symbolize_single] calls) for the same
 /// symbolization source, you may want to consider creating a new `Symbolizer`
 /// instance regularly.
+///
+/// # Notes
+/// Please note that demangling results are not cached.
 #[derive(Debug)]
 pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
