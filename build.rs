@@ -512,10 +512,15 @@ fn prepare_bench_files(crate_root: &Path) {
     let dst = dst.file_name().unwrap();
     gsym(&vmlinux, dst);
 
-    let mut dst = vmlinux_xz;
+    let mut dst = vmlinux_xz.clone();
     assert!(dst.set_extension("dwarf"));
     let dst = dst.file_name().unwrap();
     dwarf(&vmlinux, dst);
+
+    let mut dst = vmlinux_xz;
+    assert!(dst.set_extension("sym"));
+    let dst = dst.file_name().unwrap();
+    syms(&vmlinux, dst);
 }
 
 fn main() {
