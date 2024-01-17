@@ -3,6 +3,7 @@
 use std::hint::black_box;
 use std::path::Path;
 
+use blazesym::symbolize::Breakpad;
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::GsymFile;
 use blazesym::symbolize::Input;
@@ -33,6 +34,25 @@ fn symbolize_process() {
         .symbolize(black_box(&src), black_box(Input::AbsAddr(&addrs)))
         .unwrap();
     assert_eq!(results.len(), addrs.len());
+}
+
+/// Symbolize an address in a Breakpad (*.sym) file, end-to-end, i.e.,
+/// including all necessary setup.
+fn symbolize_breakpad() {
+    let sym_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("vmlinux-5.17.12-100.fc34.x86_64.sym");
+    let src = Source::from(Breakpad::new(sym_vmlinux));
+    let symbolizer = Symbolizer::new();
+
+    let result = symbolizer
+        .symbolize_single(black_box(&src), black_box(Input::FileOffset(0x10ecb0)))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "abort_creds");
+    assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
 }
 
 /// Symbolize an address in an ELF file, end-to-end, i.e., including all
@@ -161,6 +181,7 @@ where
     M: Measurement,
 {
     bench_fn!(group, symbolize_process);
+    bench_fn!(group, symbolize_breakpad);
     bench_fn!(group, symbolize_elf);
     bench_fn!(group, symbolize_dwarf_no_lines);
     bench_fn!(group, symbolize_dwarf);

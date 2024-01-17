@@ -64,7 +64,7 @@ gsym = []
 generate-unit-test-files = ["dump_syms", "xz2", "zip"]
 # Enable this feature to opt in to the generation of large benchmark
 # files (also used for regression testing).
-generate-large-test-files = ["reqwest", "xz2"]
+generate-large-test-files = ["dump_syms", "reqwest", "xz2"]
 # Disable generation of test files. This feature takes preference over
 # `generate-unit-test-files`.
 dont-generate-unit-test-files = []
