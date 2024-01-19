@@ -64,16 +64,13 @@ mod maps;
 mod mmap;
 pub mod normalize;
 mod once;
+mod pid;
 mod resolver;
 pub mod symbolize;
 mod util;
 #[cfg(feature = "apk")]
 mod zip;
 
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::num::NonZeroU32;
 use std::result;
 
 use resolver::SymResolver;
@@ -83,6 +80,7 @@ pub use crate::error::Error;
 pub use crate::error::ErrorExt;
 pub use crate::error::ErrorKind;
 pub use crate::error::IntoError;
+pub use crate::pid::Pid;
 
 /// A result type using our [`Error`] by default.
 pub type Result<T, E = Error> = result::Result<T, E>;
@@ -95,31 +93,6 @@ pub type Addr = u64;
 /// Utility functionality not specific to any overarching theme.
 pub mod helper {
     pub use crate::normalize::buildid::read_elf_build_id;
-}
-
-
-/// An enumeration identifying a process.
-#[derive(Clone, Copy, Debug)]
-pub enum Pid {
-    /// The current process.
-    Slf,
-    /// The process identified by the provided ID.
-    Pid(NonZeroU32),
-}
-
-impl Display for Pid {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self {
-            Self::Slf => write!(f, "self"),
-            Self::Pid(pid) => write!(f, "{pid}"),
-        }
-    }
-}
-
-impl From<u32> for Pid {
-    fn from(pid: u32) -> Self {
-        NonZeroU32::new(pid).map(Pid::Pid).unwrap_or(Pid::Slf)
-    }
 }
 
 
