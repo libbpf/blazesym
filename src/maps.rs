@@ -223,10 +223,6 @@ where
 
 
 /// Parse a proc maps file from the provided reader.
-///
-/// `filter` is a filter function (similar to those usable on iterators)
-/// that determines which entries we keep (those for which it returned
-/// `true`) and which we discard (anything `false`).
 pub(crate) fn parse_file<R>(reader: R, pid: Pid) -> impl Iterator<Item = Result<MapsEntry>>
 where
     R: Read,
@@ -416,6 +412,11 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
                 .maps_file,
             Path::new("/proc/self/map_files/7f2321e00000-7f2321e37000")
         );
+
+        let entry = parse_maps_line(lines.lines().nth(24).unwrap(), Pid::Slf).unwrap();
+        assert_eq!(entry.range.start, 0x7fa7bb5fa000);
+        assert_eq!(entry.range.end, 0x7fa7bb602000);
+        assert_eq!(entry.path_name, None);
     }
 
     /// Check that we error out as expected on malformed proc maps lines.
