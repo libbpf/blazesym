@@ -96,6 +96,7 @@
 //! }
 //! ```
 
+mod perf_map;
 mod source;
 mod symbolizer;
 
