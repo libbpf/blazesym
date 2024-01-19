@@ -117,14 +117,22 @@ pub struct blaze_symbolize_src_process {
     /// Whether or not to consult debug symbols to satisfy the request
     /// (if present).
     pub debug_syms: bool,
+    /// Whether to incorporate a process' perf map file into the symbolization
+    /// procedure.
+    pub perf_map: bool,
 }
 
 impl From<&blaze_symbolize_src_process> for Process {
     fn from(process: &blaze_symbolize_src_process) -> Self {
-        let blaze_symbolize_src_process { pid, debug_syms } = process;
+        let blaze_symbolize_src_process {
+            pid,
+            debug_syms,
+            perf_map,
+        } = process;
         Self {
             pid: (*pid).into(),
             debug_syms: *debug_syms,
+            perf_map: *perf_map,
             _non_exhaustive: (),
         }
     }
@@ -719,10 +727,11 @@ mod tests {
         let process = blaze_symbolize_src_process {
             pid: 1337,
             debug_syms: true,
+            perf_map: false,
         };
         assert_eq!(
             format!("{process:?}"),
-            "blaze_symbolize_src_process { pid: 1337, debug_syms: true }"
+            "blaze_symbolize_src_process { pid: 1337, debug_syms: true, perf_map: false }"
         );
 
         let gsym_data = blaze_symbolize_src_gsym_data {
@@ -1174,6 +1183,7 @@ mod tests {
         let process_src = blaze_symbolize_src_process {
             pid: 0,
             debug_syms: true,
+            perf_map: true,
         };
 
         let symbolizer = blaze_symbolizer_new();

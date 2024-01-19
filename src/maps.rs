@@ -243,7 +243,7 @@ pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<MapsEntry> {
     match entry.path_name {
         Some(PathName::Path(..)) => Some(entry),
         Some(PathName::Component(..)) => None,
-        None => None,
+        None => Some(entry),
     }
 }
 
