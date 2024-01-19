@@ -232,6 +232,15 @@ pub struct Process {
     /// built with the `dwarf` feature to actually consult debug
     /// symbols. If neither is satisfied, ELF symbols will be used.
     pub debug_syms: bool,
+    /// Whether to incorporate a process' [perf map][] file into the
+    /// symbolization procedure.
+    ///
+    /// Perf map files mostly have relevance in just-in-time compiled languages,
+    /// where they provide an interface for the runtime to expose addresses of
+    /// dynamic symbols to profiling tools.
+    ///
+    /// [perf map]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/perf/Documentation/jit-interface.txt
+    pub perf_map: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -240,12 +249,14 @@ pub struct Process {
 impl Process {
     /// Create a new [`Process`] object using the provided `pid`.
     ///
-    /// `debug_syms` defaults to `true` when using this constructor.
+    /// `debug_syms` and `perf_map` default to `true` when using this
+    /// constructor.
     #[inline]
     pub fn new(pid: Pid) -> Self {
         Self {
             pid,
             debug_syms: true,
+            perf_map: true,
             _non_exhaustive: (),
         }
     }
@@ -256,6 +267,7 @@ impl Debug for Process {
         let Self {
             pid,
             debug_syms: _,
+            perf_map: _,
             _non_exhaustive: (),
         } = self;
 

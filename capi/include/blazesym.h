@@ -372,6 +372,11 @@ typedef struct blaze_symbolize_src_process {
    * (if present).
    */
   bool debug_syms;
+  /**
+   * Whether to incorporate a process' perf map file into the symbolization
+   * procedure.
+   */
+  bool perf_map;
 } blaze_symbolize_src_process;
 
 /**

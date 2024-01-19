@@ -37,11 +37,13 @@ use crate::zip;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
+use crate::ErrorKind;
 use crate::IntoError as _;
 use crate::Pid;
 use crate::Result;
 use crate::SymResolver;
 
+use super::perf_map::PerfMap;
 #[cfg(feature = "apk")]
 use super::source::Apk;
 #[cfg(feature = "breakpad")]
@@ -195,6 +197,7 @@ impl Builder {
             #[cfg(feature = "gsym")]
             gsym_cache: FileCache::new(),
             ksym_cache: FileCache::new(),
+            perf_map_cache: FileCache::new(),
             code_info,
             inlined_fns,
             demangle,
@@ -258,6 +261,7 @@ pub struct Symbolizer {
     #[cfg(feature = "gsym")]
     gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
     ksym_cache: FileCache<Rc<KSymResolver>>,
+    perf_map_cache: FileCache<PerfMap>,
     code_info: bool,
     inlined_fns: bool,
     demangle: bool,
@@ -502,6 +506,24 @@ impl Symbolizer {
         Ok(symbolized)
     }
 
+    fn create_perf_map(&self, path: &Path, file: &File) -> Result<PerfMap> {
+        let perf_map = PerfMap::from_file(path, file)?;
+        Ok(perf_map)
+    }
+
+    fn perf_map(&self, pid: Pid) -> Result<Option<&PerfMap>> {
+        let path = PerfMap::path(pid);
+
+        match self.perf_map_cache.entry(&path) {
+            Ok((file, cell)) => {
+                let perf_map = cell.get_or_try_init(|| self.create_perf_map(&path, file))?;
+                Ok(Some(perf_map))
+            }
+            Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
+            Err(err) => Err(err).with_context(|| format!("failed to open perf map `{path:?}`")),
+        }
+    }
+
     /// Symbolize the given list of user space addresses in the provided
     /// process.
     fn symbolize_user_addrs(
@@ -509,13 +531,19 @@ impl Symbolizer {
         addrs: &[Addr],
         pid: Pid,
         debug_syms: bool,
+        perf_map: bool,
     ) -> Result<Vec<Symbolized>> {
         struct SymbolizeHandler<'sym> {
             /// The "outer" `Symbolizer` instance.
             symbolizer: &'sym Symbolizer,
+            /// The PID of the process in which we symbolize.
+            pid: Pid,
             /// Whether or not to consult debug symbols to satisfy the request
             /// (if present).
             debug_syms: bool,
+            /// Whether or not to consult the process' perf map (if any) to
+            /// satisfy the request.
+            perf_map: bool,
             /// Symbols representing the symbolized addresses.
             all_symbols: Vec<Symbolized<'sym>>,
         }
@@ -573,6 +601,18 @@ impl Symbolizer {
                     None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
                 }
             }
+
+            fn handle_perf_map_addr(&mut self, addr: Addr) -> Result<()> {
+                if let Some(perf_map) = self.symbolizer.perf_map(self.pid)? {
+                    let symbolized = self
+                        .symbolizer
+                        .symbolize_with_resolver(addr, &Resolver::Cached(perf_map))?;
+                    let () = self.all_symbols.push(symbolized);
+                    Ok(())
+                } else {
+                    self.handle_unknown_addr(addr, Reason::UnknownAddr)
+                }
+            }
         }
 
         impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
@@ -601,7 +641,14 @@ impl Symbolizer {
                     Some(PathName::Component(..)) => {
                         self.handle_unknown_addr(addr, Reason::Unsupported)
                     }
-                    None => self.handle_unknown_addr(addr, Reason::Unsupported),
+                    // If there is no path associated with this entry, we don't
+                    // really have any idea what the address may belong to. But
+                    // there is a chance that the address is part of the perf
+                    // map, so check that.
+                    // TODO: It's not entirely clear if a perf map could also
+                    //       cover addresses belonging to entries with a path.
+                    None if self.perf_map => self.handle_perf_map_addr(addr),
+                    None => self.handle_unknown_addr(addr, Reason::UnknownAddr),
                 }
             }
         }
@@ -609,7 +656,9 @@ impl Symbolizer {
         let entries = maps::parse(pid)?;
         let handler = SymbolizeHandler {
             symbolizer: self,
+            pid,
             debug_syms,
+            perf_map,
             all_symbols: Vec::with_capacity(addrs.len()),
         };
 
@@ -848,6 +897,7 @@ impl Symbolizer {
             Source::Process(Process {
                 pid,
                 debug_syms,
+                perf_map,
                 _non_exhaustive: (),
             }) => {
                 let addrs = match input {
@@ -864,7 +914,7 @@ impl Symbolizer {
                     }
                 };
 
-                self.symbolize_user_addrs(addrs, *pid, *debug_syms)
+                self.symbolize_user_addrs(addrs, *pid, *debug_syms, *perf_map)
             }
             #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
@@ -1018,6 +1068,7 @@ impl Symbolizer {
             Source::Process(Process {
                 pid,
                 debug_syms,
+                perf_map,
                 _non_exhaustive: (),
             }) => {
                 let addr = match input {
@@ -1034,7 +1085,8 @@ impl Symbolizer {
                     }
                 };
 
-                let mut symbols = self.symbolize_user_addrs(&[addr], *pid, *debug_syms)?;
+                let mut symbols =
+                    self.symbolize_user_addrs(&[addr], *pid, *debug_syms, *perf_map)?;
                 debug_assert!(symbols.len() == 1, "{symbols:#?}");
                 // SANITY: `symbolize_user_addrs` should *always* return
                 //         one result for one input (except on error
@@ -1110,7 +1162,6 @@ mod tests {
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::symbolize::Symbolizer;
-    use crate::ErrorKind;
 
     use test_log::test;
 
