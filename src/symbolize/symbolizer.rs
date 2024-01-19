@@ -23,6 +23,7 @@ use crate::ksym::KSymResolver;
 use crate::ksym::KALLSYMS;
 use crate::log;
 use crate::maps;
+use crate::maps::EntryPath;
 use crate::maps::PathMapsEntry;
 use crate::mmap::Mmap;
 use crate::normalize;
@@ -520,9 +521,13 @@ impl Symbolizer {
 
         impl SymbolizeHandler<'_> {
             #[cfg(feature = "apk")]
-            fn handle_apk_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-                let file_off = addr - entry.range.start + entry.offset;
-                let apk_path = &entry.path.symbolic_path;
+            fn handle_apk_addr(
+                &mut self,
+                addr: Addr,
+                file_off: u64,
+                entry_path: &EntryPath,
+            ) -> Result<()> {
+                let apk_path = &entry_path.symbolic_path;
                 match self
                     .symbolizer
                     .apk_resolver(apk_path, file_off, self.debug_syms)?
@@ -539,11 +544,15 @@ impl Symbolizer {
                 }
             }
 
-            fn handle_elf_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-                let path = &entry.path.maps_file;
-                let file_off = addr - entry.range.start + entry.offset;
-                let parser = ElfParser::open(&entry.path.maps_file).with_context(|| {
-                    format!("failed to open map file {}", entry.path.maps_file.display())
+            fn handle_elf_addr(
+                &mut self,
+                addr: Addr,
+                file_off: u64,
+                entry_path: &EntryPath,
+            ) -> Result<()> {
+                let path = &entry_path.maps_file;
+                let parser = ElfParser::open(&entry_path.maps_file).with_context(|| {
+                    format!("failed to open map file {}", entry_path.maps_file.display())
                 })?;
 
                 match elf_offset_to_address(file_off, &parser)? {
@@ -573,6 +582,7 @@ impl Symbolizer {
             }
 
             fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
+                let file_off = addr - entry.range.start + entry.offset;
                 let ext = entry
                     .path
                     .symbolic_path
@@ -580,8 +590,8 @@ impl Symbolizer {
                     .unwrap_or_else(|| OsStr::new(""));
                 match ext.to_str() {
                     #[cfg(feature = "apk")]
-                    Some("apk") | Some("zip") => self.handle_apk_addr(addr, entry),
-                    _ => self.handle_elf_addr(addr, entry),
+                    Some("apk") | Some("zip") => self.handle_apk_addr(addr, file_off, &entry.path),
+                    _ => self.handle_elf_addr(addr, file_off, &entry.path),
                 }
             }
         }
