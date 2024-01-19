@@ -8,7 +8,8 @@ use std::path::PathBuf;
 
 use crate::maps;
 use crate::maps::EntryPath;
-use crate::maps::PathMapsEntry;
+use crate::maps::MapsEntry;
+use crate::maps::PathName;
 use crate::Addr;
 use crate::Pid;
 use crate::Result;
@@ -106,8 +107,8 @@ pub(crate) trait Handler<D = ()> {
     /// Handle an unknown address.
     fn handle_unknown_addr(&mut self, addr: Addr, data: D) -> Result<()>;
 
-    /// Handle an address residing in the provided [`PathMapsEntry`].
-    fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()>;
+    /// Handle an address residing in the provided [`MapsEntry`].
+    fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()>;
 }
 
 
@@ -149,26 +150,33 @@ where
         Ok(())
     }
 
-    fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-        let file_off = addr - entry.range.start + entry.offset;
-        let ext = entry
-            .path
-            .symbolic_path
-            .extension()
-            .unwrap_or_else(|| OsStr::new(""));
-        match ext.to_str() {
-            Some("apk") | Some("zip") => self.normalized.add_normalized_offset(
-                file_off,
-                &entry.path.symbolic_path,
-                &mut self.meta_lookup,
-                || make_apk_meta(&entry.path),
-            ),
-            _ => self.normalized.add_normalized_offset(
-                file_off,
-                &entry.path.symbolic_path,
-                &mut self.meta_lookup,
-                || make_elf_meta(&entry.path, &R::read_build_id_from_elf),
-            ),
+    fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
+        match &entry.path_name {
+            Some(PathName::Path(entry_path)) => {
+                let file_off = addr - entry.range.start + entry.offset;
+                let ext = entry_path
+                    .symbolic_path
+                    .extension()
+                    .unwrap_or_else(|| OsStr::new(""));
+                match ext.to_str() {
+                    Some("apk") | Some("zip") => self.normalized.add_normalized_offset(
+                        file_off,
+                        &entry_path.symbolic_path,
+                        &mut self.meta_lookup,
+                        || make_apk_meta(entry_path),
+                    ),
+                    _ => self.normalized.add_normalized_offset(
+                        file_off,
+                        &entry_path.symbolic_path,
+                        &mut self.meta_lookup,
+                        || make_elf_meta(entry_path, &R::read_build_id_from_elf),
+                    ),
+                }
+            }
+            Some(PathName::Component(..)) => self.handle_unknown_addr(addr, ()),
+            // We could still normalize the address and report it, but without a
+            // path nobody could really do anything with it.
+            None => self.handle_unknown_addr(addr, ()),
         }
     }
 }

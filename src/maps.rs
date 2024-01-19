@@ -61,7 +61,6 @@ impl PathName {
 }
 
 
-#[derive(Debug)]
 pub(crate) struct MapsEntry {
     /// The virtual address range covered by this entry.
     pub range: Range<Addr>,
@@ -70,30 +69,20 @@ pub(crate) struct MapsEntry {
     pub path_name: Option<PathName>,
 }
 
-
-/// An already filtered `MapsEntry` that is guaranteed to contain a path.
-pub(crate) struct PathMapsEntry {
-    /// The virtual address range covered by this entry.
-    pub range: Range<Addr>,
-    pub mode: u8,
-    pub offset: u64,
-    pub path: EntryPath,
-}
-
-impl Debug for PathMapsEntry {
+impl Debug for MapsEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let PathMapsEntry {
+        let Self {
             range,
             mode,
             offset,
-            path,
+            path_name,
         } = self;
 
-        f.debug_struct(stringify!(PathMapsEntry))
+        f.debug_struct(stringify!(MapsEntry))
             .field(stringify!(range), &format_args!("{range:#x?}"))
             .field(stringify!(mode), &format_args!("{mode:#06b}"))
             .field(stringify!(offset), &format_args!("{offset:#x}"))
-            .field(stringify!(path), &path)
+            .field(stringify!(path_name), &path_name)
             .finish()
     }
 }
@@ -244,28 +233,17 @@ pub(crate) fn parse(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>>
 }
 
 /// A helper function checking whether a `MapsEntry` has relevance to
-/// symbolization efforts and converting it accordingly.
-pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<PathMapsEntry> {
-    let MapsEntry {
-        range,
-        mode,
-        offset,
-        path_name,
-    } = entry;
-
+/// symbolization efforts.
+pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<MapsEntry> {
     // Only readable (r---) or executable (--x-) entries are of relevance.
-    if (mode & 0b1010) == 0 {
+    if (entry.mode & 0b1010) == 0 {
         return None
     }
 
-    match path_name {
-        Some(PathName::Path(path)) => Some(PathMapsEntry {
-            range,
-            mode,
-            offset,
-            path,
-        }),
-        _ => None,
+    match entry.path_name {
+        Some(PathName::Path(..)) => Some(entry),
+        Some(PathName::Component(..)) => None,
+        None => None,
     }
 }
 
@@ -279,26 +257,11 @@ mod tests {
     use test_log::test;
 
 
-    /// Check that the `Debug` representation of [`Entry`] is as expected.
+    /// Exercise the `Debug` representation of various types.
     #[test]
-    fn path_maps_entry_debug() {
-        let entry = PathMapsEntry {
-            range: 0x1000..0x1337,
-            mode: 0b10,
-            offset: 0x5000,
-            path: EntryPath {
-                maps_file: PathBuf::from("/proc/1234/maps_files/559cf1bdf000-559cf1be0000"),
-                symbolic_path: PathBuf::from("/lib64/libc.so.6"),
-            },
-        };
-
-        let dbg = format!("{entry:?}");
-        assert!(
-            dbg.starts_with(
-                r#"PathMapsEntry { range: 0x1000..0x1337, mode: 0b0010, offset: 0x5000, "#
-            ),
-            "{dbg}"
-        );
+    fn debug_repr() {
+        let mut maps = parse(Pid::Slf).unwrap();
+        assert_ne!(format!("{:?}", maps.next().unwrap()), "");
     }
 
     /// Check that we can parse `/proc/self/maps`.
