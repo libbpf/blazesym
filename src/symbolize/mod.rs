@@ -343,6 +343,8 @@ pub enum Reason {
     /// This reason could for instance be used if a shared object only
     /// has dynamic symbols, but appears to be stripped aside from that.
     MissingSyms,
+    /// The address belonged to an entity that is currently unsupported.
+    Unsupported,
     /// The address could not be found in the symbolization source.
     UnknownAddr,
 }
@@ -353,6 +355,7 @@ impl Display for Reason {
             Self::Unmapped => "absolute address not found in virtual memory map of process",
             Self::InvalidFileOffset => "file offset does not map to a valid piece of code/data",
             Self::MissingSyms => "symbolization source has no or no relevant symbols",
+            Self::Unsupported => "address belongs to unsupprted entity",
             Self::UnknownAddr => "address not found in symbolization source",
         };
 

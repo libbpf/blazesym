@@ -24,7 +24,8 @@ use crate::ksym::KALLSYMS;
 use crate::log;
 use crate::maps;
 use crate::maps::EntryPath;
-use crate::maps::PathMapsEntry;
+use crate::maps::MapsEntry;
+use crate::maps::PathName;
 use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
@@ -581,17 +582,26 @@ impl Symbolizer {
                 Ok(())
             }
 
-            fn handle_entry_addr(&mut self, addr: Addr, entry: &PathMapsEntry) -> Result<()> {
-                let file_off = addr - entry.range.start + entry.offset;
-                let ext = entry
-                    .path
-                    .symbolic_path
-                    .extension()
-                    .unwrap_or_else(|| OsStr::new(""));
-                match ext.to_str() {
-                    #[cfg(feature = "apk")]
-                    Some("apk") | Some("zip") => self.handle_apk_addr(addr, file_off, &entry.path),
-                    _ => self.handle_elf_addr(addr, file_off, &entry.path),
+            fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
+                match &entry.path_name {
+                    Some(PathName::Path(entry_path)) => {
+                        let file_off = addr - entry.range.start + entry.offset;
+                        let ext = entry_path
+                            .symbolic_path
+                            .extension()
+                            .unwrap_or_else(|| OsStr::new(""));
+                        match ext.to_str() {
+                            #[cfg(feature = "apk")]
+                            Some("apk") | Some("zip") => {
+                                self.handle_apk_addr(addr, file_off, entry_path)
+                            }
+                            _ => self.handle_elf_addr(addr, file_off, entry_path),
+                        }
+                    }
+                    Some(PathName::Component(..)) => {
+                        self.handle_unknown_addr(addr, Reason::Unsupported)
+                    }
+                    None => self.handle_unknown_addr(addr, Reason::Unsupported),
                 }
             }
         }
