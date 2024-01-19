@@ -7,6 +7,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::maps;
+use crate::maps::EntryPath;
 use crate::maps::PathMapsEntry;
 use crate::Addr;
 use crate::Pid;
@@ -24,10 +25,10 @@ use super::normalizer::Output;
 
 
 /// Make a [`UserMeta::Elf`] variant.
-fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<UserMeta> {
+fn make_elf_meta(entry_path: &EntryPath, get_build_id: &BuildIdFn) -> Result<UserMeta> {
     let elf = Elf {
-        path: entry.path.symbolic_path.to_path_buf(),
-        build_id: get_build_id(&entry.path.maps_file)?,
+        path: entry_path.symbolic_path.to_path_buf(),
+        build_id: get_build_id(&entry_path.maps_file)?,
         _non_exhaustive: (),
     };
     let meta = UserMeta::Elf(elf);
@@ -36,9 +37,9 @@ fn make_elf_meta(entry: &PathMapsEntry, get_build_id: &BuildIdFn) -> Result<User
 
 
 /// Make a [`UserMeta::Apk`] variant.
-fn make_apk_meta(entry: &PathMapsEntry) -> Result<UserMeta> {
+fn make_apk_meta(entry_path: &EntryPath) -> Result<UserMeta> {
     let apk = Apk {
-        path: entry.path.symbolic_path.to_path_buf(),
+        path: entry_path.symbolic_path.to_path_buf(),
         _non_exhaustive: (),
     };
     let meta = UserMeta::Apk(apk);
@@ -160,13 +161,13 @@ where
                 file_off,
                 &entry.path.symbolic_path,
                 &mut self.meta_lookup,
-                || make_apk_meta(entry),
+                || make_apk_meta(&entry.path),
             ),
             _ => self.normalized.add_normalized_offset(
                 file_off,
                 &entry.path.symbolic_path,
                 &mut self.meta_lookup,
-                || make_elf_meta(entry, &R::read_build_id_from_elf),
+                || make_elf_meta(&entry.path, &R::read_build_id_from_elf),
             ),
         }
     }
