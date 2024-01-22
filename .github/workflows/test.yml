@@ -121,11 +121,17 @@ jobs:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - uses: Swatinem/rust-cache@v2
+    - uses: actions/setup-python@v5
+      id: py312
+      with:
+        python-version: '3.12'
     - name: Install required tools
       run: sudo apt-get install -y llvm-14
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
     - name: Test and gather coverage
+      env:
+        PYTHON: ${{ steps.py312.outputs.python-path }}
       run: cargo llvm-cov --workspace --all-targets --features=nightly,generate-large-test-files --ignore-filename-regex=cli/src/ --lcov --output-path lcov.info -- --include-ignored
     - name: Upload code coverage results
       uses: codecov/codecov-action@v3

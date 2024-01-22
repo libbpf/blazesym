@@ -230,10 +230,24 @@ impl Debug for PerfMap {
 mod tests {
     use super::*;
 
+    use std::env;
+    use std::ffi::OsString;
+    use std::io::Read as _;
     use std::io::Write as _;
+    use std::process::Command;
+    use std::process::Stdio;
+
+    use libc::kill;
+    use libc::SIGKILL;
+
+    use scopeguard::defer;
 
     use tempfile::tempfile;
 
+    use crate::symbolize::Input;
+    use crate::symbolize::Process;
+    use crate::symbolize::Source;
+    use crate::symbolize::Symbolizer;
     use crate::ErrorKind;
 
 
@@ -341,5 +355,73 @@ mod tests {
             assert_eq!(sym.addr, 0x7fbf1fc2144c);
             assert_eq!(sym.size, Some(0xb));
         }
+    }
+
+    /// Check that we can symbolize an address using a perf map.
+    #[test]
+    #[ignore = "test requires python 3.12 or higher"]
+    fn symbolize_perf_map() {
+        let script = r#"
+import sys
+
+sys.activate_stack_trampoline("perf")
+
+def main():
+  print()
+  input()
+  return 0
+
+if __name__ == "__main__":
+  main()
+"#;
+
+        let mut child =
+            Command::new(env::var_os("PYTHON").unwrap_or_else(|| OsString::from("python")))
+                .args(["-c", script])
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::inherit())
+                .spawn()
+                .unwrap();
+        let pid = child.id();
+        defer!({
+            let _rc = unsafe { kill(pid as _, SIGKILL) };
+        });
+
+        // Wait for the process to have activated its stack trampoline
+        // functionality.
+        let mut buf = [0u8; 8];
+        let _count = child
+            .stdout
+            .as_mut()
+            .unwrap()
+            .read(&mut buf)
+            .expect("failed to read child output");
+
+        let path = PerfMap::path(Pid::from(pid));
+        let file = File::open(&path).unwrap();
+        let perf_map = PerfMap::from_file(&path, &file).unwrap();
+        let function = &perf_map.functions[perf_map.functions.len() / 2];
+
+        let src = Source::Process(Process::new(Pid::from(child.id())));
+        let symbolizer = Symbolizer::new();
+
+        let addrs = (function.addr..function.addr + function.size as Addr).collect::<Vec<_>>();
+        let results = symbolizer
+            .symbolize(&src, Input::AbsAddr(&addrs))
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), function.size as _);
+        let () = results.into_iter().for_each(|symbolized| {
+            let result = symbolized.into_sym().unwrap();
+            assert_eq!(result.name, function.name);
+            assert_eq!(result.addr, function.addr);
+            assert_eq!(result.size, Some(function.size));
+        });
+
+        // "Signal" the child to terminate gracefully.
+        let () = child.stdin.as_ref().unwrap().write_all(&[b'\n']).unwrap();
+        let _status = child.wait().unwrap();
     }
 }
