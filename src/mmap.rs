@@ -49,28 +49,42 @@ impl Builder {
         let len = libc::size_t::try_from(file.metadata()?.len())
             .map_err(Error::with_invalid_data)
             .context("file is too large to mmap")?;
-        let offset = 0;
 
-        // SAFETY: `mmap` with the provided arguments is always safe to call.
-        let ptr = unsafe {
-            libc::mmap(
-                null_mut(),
-                len,
-                self.protection,
-                libc::MAP_PRIVATE,
-                file.as_raw_fd(),
-                offset,
-            )
-        };
+        // The kernel does not allow mmap'ing a region of size 0. We
+        // want to enable this case transparently, though.
+        let mmap = if len == 0 {
+            let mapping = Mapping {
+                ptr: null_mut(),
+                len: 0,
+            };
+            Mmap {
+                mapping: Rc::new(mapping),
+                view: 0..1,
+            }
+        } else {
+            let offset = 0;
 
-        if ptr == libc::MAP_FAILED {
-            return Err(Error::from(io::Error::last_os_error()))
-        }
+            // SAFETY: `mmap` with the provided arguments is always safe to call.
+            let ptr = unsafe {
+                libc::mmap(
+                    null_mut(),
+                    len,
+                    self.protection,
+                    libc::MAP_PRIVATE,
+                    file.as_raw_fd(),
+                    offset,
+                )
+            };
 
-        let mapping = Mapping { ptr, len };
-        let mmap = Mmap {
-            mapping: Rc::new(mapping),
-            view: 0..len as u64,
+            if ptr == libc::MAP_FAILED {
+                return Err(Error::from(io::Error::last_os_error()))
+            }
+
+            let mapping = Mapping { ptr, len };
+            Mmap {
+                mapping: Rc::new(mapping),
+                view: 0..len as u64,
+            }
         };
         Ok(mmap)
     }
@@ -87,18 +101,24 @@ impl Deref for Mapping {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        // SAFETY: We know that the pointer is valid and represents a region of
-        //         `len` bytes.
-        unsafe { slice::from_raw_parts(self.ptr.cast(), self.len) }
+        if self.ptr.is_null() {
+            &[]
+        } else {
+            // SAFETY: We know that the pointer is valid and represents a region of
+            //         `len` bytes.
+            unsafe { slice::from_raw_parts(self.ptr.cast(), self.len) }
+        }
     }
 }
 
 impl Drop for Mapping {
     fn drop(&mut self) {
-        // SAFETY: The `ptr` is valid.
-        let rc = unsafe { libc::munmap(self.ptr, self.len) };
-        #[rustfmt::skip]
-        assert!(rc == 0, "unable to unmap mmap: {}", io::Error::last_os_error());
+        if !self.ptr.is_null() {
+            // SAFETY: The `ptr` is valid.
+            let rc = unsafe { libc::munmap(self.ptr, self.len) };
+            #[rustfmt::skip]
+            assert!(rc == 0, "unable to unmap mmap: {}", io::Error::last_os_error());
+        }
     }
 }
 
@@ -144,7 +164,7 @@ impl Deref for Mmap {
         self.mapping
             .deref()
             .get(self.view.start as usize..self.view.end as usize)
-            .unwrap()
+            .unwrap_or(&[])
     }
 }
 
@@ -167,6 +187,14 @@ mod tests {
     fn debug_repr() {
         let builder = Builder::new();
         assert_ne!(format!("{builder:?}"), "");
+    }
+
+    /// Check that we can `mmap` an empty file.
+    #[test]
+    fn mmap_empty_file() {
+        let file = tempfile().unwrap();
+        let mmap = Mmap::map(&file).unwrap();
+        assert_eq!(mmap.deref(), &[]);
     }
 
     /// Check that we can `mmap` a file.
