@@ -98,7 +98,8 @@ tracing = {version = "0.1.27", default-features = false, features = ["attributes
 addr2line = "=0.21.0"
 anyhow = "1.0.71"
 blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "breakpad", "gsym", "tracing"]}
-criterion = {version = "0.5.1", default-features = false, features = ["rayon", "cargo_bench_support"]}
+# TODO: Use 0.5.2 once released.
+criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
 env_logger = "0.10"
 scopeguard = "1.2"
 tempfile = "3.4"
