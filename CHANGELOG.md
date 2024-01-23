@@ -4,8 +4,10 @@ Unreleased
   by default)
 - Added support for usage of perf map files as part of process symbolization
   - Added `perf_map` attribute to `symbolize::Process` type
-- Made `SymType` enum non-exhaustive and moved it out of `inspect`
-  module
+- Overhauled `SymType` enum
+  - Made it non-exhaustive
+  - Moved it out of `inspect` module
+  - Renamed `Unknown` variant to `Undefined`
 
 
 0.2.0-alpha.10

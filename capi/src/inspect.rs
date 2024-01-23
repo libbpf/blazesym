@@ -93,9 +93,12 @@ impl From<&blaze_inspect_elf_src> for Elf {
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum blaze_sym_type {
-    /// That type could not be determined (possibly because the source does not
-    /// contains information about the type).
-    BLAZE_SYM_UNKNOWN,
+    /// The symbol type is unspecified or unknown.
+    ///
+    /// In input contexts this variant can be used to encompass all
+    /// other variants (functions and variables), whereas in output
+    /// contexts it means that the type is not known.
+    BLAZE_SYM_UNDEFINED,
     /// The symbol is a function.
     BLAZE_SYM_FUNC,
     /// The symbol is a variable.
@@ -105,7 +108,7 @@ pub enum blaze_sym_type {
 impl From<SymType> for blaze_sym_type {
     fn from(other: SymType) -> Self {
         match other {
-            SymType::Unknown => blaze_sym_type::BLAZE_SYM_UNKNOWN,
+            SymType::Undefined => blaze_sym_type::BLAZE_SYM_UNDEFINED,
             SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
             SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
             _ => unreachable!(),
@@ -209,7 +212,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 name: ptr::null(),
                 addr: 0,
                 size: 0,
-                sym_type: blaze_sym_type::BLAZE_SYM_UNKNOWN,
+                sym_type: blaze_sym_type::BLAZE_SYM_UNDEFINED,
                 file_offset: 0,
                 obj_file_name: ptr::null(),
             }
@@ -420,7 +423,7 @@ mod tests {
                 name: "sym2".into(),
                 addr: 0xdeadbeef + 52,
                 size: 45,
-                sym_type: SymType::Unknown,
+                sym_type: SymType::Undefined,
                 file_offset: Some(1338),
                 obj_file_name: Some(Path::new("other.so").into()),
             },
@@ -441,7 +444,7 @@ mod tests {
                 name: "sym2".into(),
                 addr: 0xdeadbeef + 52,
                 size: 45,
-                sym_type: SymType::Unknown,
+                sym_type: SymType::Undefined,
                 file_offset: Some(1338),
                 obj_file_name: Some(Path::new("other.so").into()),
             }],

@@ -12,10 +12,13 @@
  */
 typedef enum blaze_sym_type {
   /**
-   * That type could not be determined (possibly because the source does not
-   * contains information about the type).
+   * The symbol type is unspecified or unknown.
+   *
+   * In input contexts this variant can be used to encompass all
+   * other variants (functions and variables), whereas in output
+   * contexts it means that the type is not known.
    */
-  BLAZE_SYM_UNKNOWN,
+  BLAZE_SYM_UNDEFINED,
   /**
    * The symbol is a function.
    */

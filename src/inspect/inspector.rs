@@ -48,7 +48,7 @@ impl Inspector {
     ) -> Result<Vec<Vec<SymInfo<'slf>>>> {
         let opts = FindAddrOpts {
             offset_in_file: true,
-            sym_type: SymType::Unknown,
+            sym_type: SymType::Undefined,
         };
 
         match src {
@@ -102,7 +102,7 @@ impl Inspector {
             }) => {
                 let opts = FindAddrOpts {
                     offset_in_file: true,
-                    sym_type: SymType::Unknown,
+                    sym_type: SymType::Undefined,
                 };
                 let code_info = true;
                 let resolver = self.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
