@@ -30,6 +30,7 @@ pub use source::Source;
 
 /// The type of a symbol.
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[non_exhaustive]
 pub enum SymType {
     /// The symbol type is unknown.
     #[default]
