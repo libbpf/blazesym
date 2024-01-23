@@ -1157,11 +1157,11 @@ mod tests {
 
     use crate::elf::ElfParser;
     use crate::inspect::FindAddrOpts;
-    use crate::inspect::SymType;
     use crate::mmap::Mmap;
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::symbolize::Symbolizer;
+    use crate::SymType;
 
     use test_log::test;
 

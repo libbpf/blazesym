@@ -9,7 +9,6 @@ use std::path::Path;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::inspect::SymType;
 use crate::mmap::Mmap;
 use crate::once::OnceCell;
 use crate::symbolize::Reason;
@@ -20,6 +19,7 @@ use crate::Error;
 use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Result;
+use crate::SymType;
 
 use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;

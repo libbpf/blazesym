@@ -22,24 +22,11 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use crate::Addr;
+use crate::SymType;
 
 pub use inspector::Inspector;
 pub use source::Elf;
 pub use source::Source;
-
-
-/// The type of a symbol.
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-#[non_exhaustive]
-pub enum SymType {
-    /// The symbol type is unknown.
-    #[default]
-    Unknown,
-    /// The symbol is a function.
-    Function,
-    /// The symbol is a variable.
-    Variable,
-}
 
 
 /// Information about a symbol.

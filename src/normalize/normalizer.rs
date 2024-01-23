@@ -149,7 +149,6 @@ mod tests {
 
     use crate::elf::ElfParser;
     use crate::inspect::FindAddrOpts;
-    use crate::inspect::SymType;
     use crate::mmap::Mmap;
     use crate::normalize::buildid::read_elf_build_id;
     use crate::normalize::Apk;
@@ -158,6 +157,7 @@ mod tests {
     use crate::normalize::UserMeta;
     use crate::symbolize;
     use crate::symbolize::Symbolizer;
+    use crate::SymType;
 
 
     /// Check that we detect unsorted input addresses.

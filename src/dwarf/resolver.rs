@@ -17,7 +17,6 @@ use crate::elf::ElfParser;
 use crate::error::IntoCowStr;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::inspect::SymType;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::IntSym;
@@ -26,6 +25,7 @@ use crate::Addr;
 use crate::Error;
 use crate::ErrorExt;
 use crate::Result;
+use crate::SymType;
 
 use super::location::Location;
 use super::reader;
