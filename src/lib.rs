@@ -90,6 +90,20 @@ pub type Result<T, E = Error> = result::Result<T, E>;
 pub type Addr = u64;
 
 
+/// The type of a symbol.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum SymType {
+    /// The symbol type is unknown.
+    #[default]
+    Unknown,
+    /// The symbol is a function.
+    Function,
+    /// The symbol is a variable.
+    Variable,
+}
+
+
 /// Utility functionality not specific to any overarching theme.
 pub mod helper {
     pub use crate::normalize::buildid::read_elf_build_id;

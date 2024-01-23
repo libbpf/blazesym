@@ -21,8 +21,8 @@ use blazesym::inspect::Elf;
 use blazesym::inspect::Inspector;
 use blazesym::inspect::Source;
 use blazesym::inspect::SymInfo;
-use blazesym::inspect::SymType;
 use blazesym::Addr;
+use blazesym::SymType;
 
 use crate::from_cstr;
 use crate::slice_from_user_array;

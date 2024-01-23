@@ -10,7 +10,6 @@ use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::inspect::SymType;
 use crate::once::OnceCell;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::IntSym;
@@ -20,6 +19,7 @@ use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 use crate::Result;
 use crate::SymResolver;
+use crate::SymType;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
