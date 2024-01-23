@@ -94,9 +94,13 @@ pub type Addr = u64;
 #[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum SymType {
-    /// The symbol type is unknown.
+    /// The symbol type is unspecified or unknown.
+    ///
+    /// In input contexts this variant can be used to encompass all
+    /// other variants (functions and variables), whereas in output
+    /// contexts it means that the type is not known.
     #[default]
-    Unknown,
+    Undefined,
     /// The symbol is a function.
     Function,
     /// The symbol is a variable.
