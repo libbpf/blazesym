@@ -29,7 +29,6 @@ use super::types::PN_XNUM;
 use super::types::PT_LOAD;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
-use super::types::STT_FUNC;
 
 
 fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str> {
@@ -657,7 +656,7 @@ impl ElfParser {
             let sym = &syms
                 .get(*idx)
                 .ok_or_invalid_input(|| format!("symbol table index ({idx}) out of bounds"))?;
-            if sym.type_() == STT_FUNC && sym.st_shndx != SHN_UNDEF {
+            if sym.matches(opts.sym_type) && sym.st_shndx != SHN_UNDEF {
                 let sym_info = SymInfo {
                     name: Cow::Borrowed(name),
                     addr: sym.st_value as Addr,
@@ -735,7 +734,7 @@ impl ElfParser {
         let symtab = self.cache.ensure_symtab().unwrap();
 
         let mut idx = symtab.len() / 2;
-        while symtab[idx].type_() != STT_FUNC || symtab[idx].st_shndx == SHN_UNDEF {
+        while !symtab[idx].matches(SymType::Function) || symtab[idx].st_shndx == SHN_UNDEF {
             idx += 1;
         }
         let sym = &symtab[idx];
@@ -757,6 +756,7 @@ mod tests {
     use super::*;
 
     use super::super::types::SHN_LORESERVE;
+    use super::super::types::STT_FUNC;
 
     use std::env;
     use std::env::current_exe;

@@ -1,4 +1,5 @@
 use crate::util::Pod;
+use crate::SymType;
 
 const EI_NIDENT: usize = 16;
 
@@ -94,8 +95,24 @@ pub(crate) struct Elf64_Sym {
 
 impl Elf64_Sym {
     /// Extract the symbols type, typically represented by a STT_* constant.
+    #[inline]
     pub fn type_(&self) -> u8 {
         self.st_info & 0xf
+    }
+
+    /// Check whether the symbol's type matches that represented by the
+    /// given [`SymType`].
+    #[inline]
+    pub fn matches(&self, type_: SymType) -> bool {
+        let elf_ty = self.type_();
+        let is_func = elf_ty == STT_FUNC;
+        let is_var = false;
+
+        match type_ {
+            SymType::Undefined => is_func || is_var,
+            SymType::Function => is_func,
+            SymType::Variable => is_var,
+        }
     }
 }
 
