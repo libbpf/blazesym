@@ -108,6 +108,7 @@ impl From<SymType> for blaze_sym_type {
             SymType::Unknown => blaze_sym_type::BLAZE_SYM_UNKNOWN,
             SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
             SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
+            _ => unreachable!(),
         }
     }
 }
@@ -196,11 +197,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                     name: name_ptr,
                     addr,
                     size,
-                    sym_type: match sym_type {
-                        SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
-                        SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
-                        SymType::Unknown => blaze_sym_type::BLAZE_SYM_UNKNOWN,
-                    },
+                    sym_type: sym_type.into(),
                     file_offset: file_offset.unwrap_or(0),
                     obj_file_name,
                 }
