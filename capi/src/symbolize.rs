@@ -988,7 +988,7 @@ mod tests {
                     unsafe { CStr::from_ptr(sym.code_info.file) },
                     CStr::from_bytes_with_nul(b"test-stable-addresses.c\0").unwrap()
                 );
-                assert_eq!(sym.code_info.line, 8);
+                assert_eq!(sym.code_info.line, 10);
             } else {
                 assert!(sym.code_info.dir.is_null());
                 assert!(sym.code_info.file.is_null());

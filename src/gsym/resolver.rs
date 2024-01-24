@@ -383,14 +383,14 @@ mod tests {
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
         let info = resolver.find_code_info(0x2000000, true).unwrap().unwrap();
-        assert_eq!(info.direct.1.line, Some(50));
+        assert_eq!(info.direct.1.line, Some(52));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
         let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
-        assert_eq!(info.direct.1.line, Some(8));
+        assert_eq!(info.direct.1.line, Some(10));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
 
@@ -402,7 +402,7 @@ mod tests {
         assert_eq!(sym.name, "factorial_inline_test");
 
         let info = resolver.find_code_info(addr, true).unwrap().unwrap();
-        assert_eq!(info.direct.1.line, Some(32));
+        assert_eq!(info.direct.1.line, Some(34));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined.len(), 2);
 
@@ -410,19 +410,19 @@ mod tests {
         assert_eq!(*name, "factorial_inline_wrapper");
         let frame = info.inlined[0].1.as_ref().unwrap();
         assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(frame.line, Some(26));
+        assert_eq!(frame.line, Some(28));
 
         let name = &info.inlined[1].0;
         assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
         let frame = info.inlined[1].1.as_ref().unwrap();
         assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(frame.line, Some(21));
+        assert_eq!(frame.line, Some(23));
 
         let info = resolver.find_code_info(addr, false).unwrap().unwrap();
         // Note that the line number reported without inline information is
         // different to that when using inlined function information, because in
         // Gsym this additional data is used to "refine" the result.
-        assert_eq!(info.direct.1.line, Some(21));
+        assert_eq!(info.direct.1.line, Some(23));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
     }

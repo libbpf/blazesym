@@ -4,6 +4,8 @@
  */
 extern void foo(void);
 
+__attribute__((section(".data.var"))) volatile char a_variable[8];
+
 __attribute__((section(".text.factorial"))) unsigned int
 factorial(unsigned int n) {
   if (n == 0)
@@ -52,5 +54,7 @@ main(int argc, const char *argv[]) {
   factorial_inline_test();
   foo();
   dummy();
+
+  a_variable[0] = 42;
   return 0;
 }

@@ -334,7 +334,7 @@ mod tests {
         let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
         assert_ne!(info.direct.1.dir, Some(Cow::Owned(PathBuf::new())));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(info.direct.1.line, Some(8));
+        assert_eq!(info.direct.1.line, Some(10));
         assert!(info.direct.1.column.is_some());
     }
 

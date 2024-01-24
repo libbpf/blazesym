@@ -4,7 +4,7 @@
     clippy::let_unit_value
 )]
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::env;
 use std::ffi::CString;
 use std::ffi::OsStr;
@@ -29,6 +29,7 @@ use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::ErrorKind;
 use blazesym::Pid;
+use blazesym::SymType;
 
 use libc::kill;
 use libc::SIGKILL;
@@ -77,7 +78,7 @@ fn symbolize_elf_dwarf_gsym() {
             let code_info = result.code_info.as_ref().unwrap();
             assert_ne!(code_info.dir, None);
             assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
-            assert_eq!(code_info.line, Some(8));
+            assert_eq!(code_info.line, Some(10));
         } else {
             assert_eq!(result.code_info, None);
         }
@@ -160,7 +161,7 @@ fn symbolize_breakpad() {
     let code_info = result.code_info.as_ref().unwrap();
     assert_ne!(code_info.dir, None);
     assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
-    assert_eq!(code_info.line, Some(8));
+    assert_eq!(code_info.line, Some(10));
 
     let size = result.size.unwrap();
     assert_ne!(size, 0);
@@ -215,6 +216,60 @@ FUNC 34 11 0 factorial_wrapper
     assert!(format!("{err:?}").contains("34 XXX-this-does-not-belong-here-XXX 4 0"));
 }
 
+/// Check that we can symbolize an address mapping to a variable in an
+/// ELF file.
+#[test]
+fn symbolize_elf_variable() {
+    fn test(debug_syms: bool) {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.bin");
+        let mut elf = symbolize::Elf::new(path);
+        elf.debug_syms = debug_syms;
+        let src = symbolize::Source::Elf(elf);
+        let symbolizer = Symbolizer::new();
+        let result = symbolizer
+            .symbolize_single(&src, symbolize::Input::VirtOffset(0x2001100))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(result.name, "a_variable");
+        assert_eq!(result.addr, 0x2001100);
+        assert_eq!(result.offset, 0);
+        // Even when using DWARF we don't currently support variable lookup,
+        // so no matter what, we won't have source code information
+        // available at this point.
+        assert_eq!(result.code_info, None);
+
+        let size = result.size.unwrap();
+        assert_eq!(size, 8);
+
+        let offsets = (1..size).collect::<Vec<_>>();
+        let addrs = offsets
+            .iter()
+            .map(|offset| (0x2001100 + offset) as Addr)
+            .collect::<Vec<_>>();
+        let results = symbolizer
+            .symbolize(&src, symbolize::Input::VirtOffset(&addrs))
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), addrs.len());
+
+        for (i, symbolized) in results.into_iter().enumerate() {
+            let result = symbolized.into_sym().unwrap();
+            assert_eq!(result.name, "a_variable");
+            assert_eq!(result.addr, 0x2001100);
+            assert_eq!(result.offset, offsets[i]);
+            assert_eq!(result.code_info, None);
+        }
+    }
+
+    test(false);
+    test(true);
+}
+
 /// Check that we "fail" symbolization as expected on a stripped ELF
 /// binary.
 #[test]
@@ -254,7 +309,7 @@ fn symbolize_dwarf_gsym_inlined() {
         // when we ignore inline information we may end up with a
         // slightly misleading location, namely that of the deepest
         // inlined caller.
-        assert_eq!(code_info.line, Some(if inlined_fns { 32 } else { 21 }));
+        assert_eq!(code_info.line, Some(if inlined_fns { 34 } else { 23 }));
 
         if inlined_fns {
             assert_eq!(result.inlined.len(), 2);
@@ -263,13 +318,13 @@ fn symbolize_dwarf_gsym_inlined() {
             assert_eq!(*name, "factorial_inline_wrapper");
             let frame = result.inlined[0].code_info.as_ref().unwrap();
             assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
-            assert_eq!(frame.line, Some(26));
+            assert_eq!(frame.line, Some(28));
 
             let name = &result.inlined[1].name;
             assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
             let frame = result.inlined[1].code_info.as_ref().unwrap();
             assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
-            assert_eq!(frame.line, Some(21));
+            assert_eq!(frame.line, Some(23));
         } else {
             assert!(result.inlined.is_empty(), "{:#?}", result.inlined);
         }
@@ -308,7 +363,7 @@ fn symbolize_breakpad_inlined() {
         let code_info = result.code_info.as_ref().unwrap();
         assert_ne!(code_info.dir, None);
         assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(code_info.line, Some(if inlined_fns { 32 } else { 21 }));
+        assert_eq!(code_info.line, Some(if inlined_fns { 34 } else { 23 }));
 
         if inlined_fns {
             assert_eq!(result.inlined.len(), 2);
@@ -317,13 +372,13 @@ fn symbolize_breakpad_inlined() {
             assert_eq!(*name, "factorial_inline_wrapper");
             let frame = result.inlined[0].code_info.as_ref().unwrap();
             assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
-            assert_eq!(frame.line, Some(26));
+            assert_eq!(frame.line, Some(28));
 
             let name = &result.inlined[1].name;
             assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
             let frame = result.inlined[1].code_info.as_ref().unwrap();
             assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
-            assert_eq!(frame.line, Some(21));
+            assert_eq!(frame.line, Some(23));
         } else {
             assert!(result.inlined.is_empty(), "{:#?}", result.inlined);
         }
@@ -638,30 +693,56 @@ fn normalize_build_id_rading() {
 /// Check that we can look up an address.
 #[test]
 fn inspect() {
-    fn test(src: inspect::Source) {
+    fn test(src: inspect::Source, no_vars: bool) {
         let inspector = Inspector::new();
         let results = inspector
-            .lookup(&src, &["factorial"])
-            .unwrap()
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
+            .lookup(&src, &["factorial", "a_variable"])
+            .unwrap();
+        assert_eq!(results.len(), 2);
 
         let result = &results[0];
-        assert_eq!(result.addr, 0x2000100);
-        assert_ne!(result.file_offset, None);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].addr, 0x2000100);
+        assert_eq!(result[0].sym_type, SymType::Function);
+        assert_ne!(result[0].file_offset, None);
         assert_eq!(
-            result.obj_file_name.as_deref().unwrap(),
+            result[0].obj_file_name.as_deref().unwrap(),
             src.path().unwrap()
         );
+
+        let result = &results[1];
+        if no_vars {
+            assert!(result.is_empty(), "{result:#x?}");
+        } else {
+            assert_eq!(result.len(), 1);
+            assert_eq!(result[0].addr, 0x2001100);
+            assert_eq!(result[0].sym_type, SymType::Variable);
+            assert_ne!(result[0].file_offset, None);
+            assert_eq!(
+                result[0].obj_file_name.as_deref().unwrap(),
+                src.path().unwrap()
+            );
+        }
     }
 
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-dwarf-only.bin");
     let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
-    let () = test(src);
+    // Our `DwarfResolver` type does not currently support look up of
+    // variables.
+    let no_vars = true;
+    let () = test(src, no_vars);
+
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.bin");
+    for debug_syms in [true, false] {
+        let mut elf = inspect::Elf::new(&test_elf);
+        elf.debug_syms = debug_syms;
+        let src = inspect::Source::Elf(elf);
+        let () = test(src, false);
+    }
 
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
@@ -670,7 +751,7 @@ fn inspect() {
     assert!(elf.debug_syms);
     elf.debug_syms = false;
     let src = inspect::Source::Elf(elf);
-    let () = test(src);
+    let () = test(src, false);
 }
 
 
@@ -756,16 +837,30 @@ fn inspect_all_symbols() {
 
     let inspector = Inspector::new();
     let syms = inspector
-        .for_each(&src, HashSet::<String>::new(), |mut syms, sym| {
-            let _inserted = syms.insert(sym.name.to_string());
-            syms
-        })
+        .for_each(
+            &src,
+            HashMap::<String, inspect::SymInfo>::new(),
+            |mut syms, sym| {
+                let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
+                syms
+            },
+        )
         .unwrap();
 
-    assert!(syms.contains("main"));
-    assert!(syms.contains("factorial"));
-    assert!(syms.contains("factorial_wrapper"));
-    assert!(syms.contains("factorial_inline_test"));
+    let sym = syms.get("main").unwrap();
+    assert_eq!(sym.sym_type, SymType::Function);
+
+    let sym = syms.get("factorial").unwrap();
+    assert_eq!(sym.sym_type, SymType::Function);
+
+    let sym = syms.get("factorial_wrapper").unwrap();
+    assert_eq!(sym.sym_type, SymType::Function);
+
+    let sym = syms.get("factorial_inline_test").unwrap();
+    assert_eq!(sym.sym_type, SymType::Function);
+
+    let sym = syms.get("a_variable").unwrap();
+    assert_eq!(sym.sym_type, SymType::Variable);
 }
 
 

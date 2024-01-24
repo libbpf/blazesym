@@ -7,8 +7,10 @@ SECTIONS {
     . = ABSOLUTE(0x2000200);
     *(.text.inline)
   }
-  .data : {
+  .data (0x2001000): {
     *(.data)
+    . = ABSOLUTE(0x2001100);
+    *(.data.var)
   }
   .bss : {
     *(.bss)

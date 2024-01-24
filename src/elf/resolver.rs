@@ -20,8 +20,8 @@ use crate::Addr;
 use crate::Error;
 use crate::Result;
 use crate::SymResolver;
+use crate::SymType;
 
-use super::types::STT_FUNC;
 use super::ElfBackend;
 use super::ElfParser;
 
@@ -168,21 +168,23 @@ impl SymResolver for ElfResolver {
         }
 
         let parser = self.parser();
-        let result = parser.find_sym(addr, STT_FUNC)?.map(|(name, addr, size)| {
-            // ELF does not carry any source code language information.
-            let lang = SrcLang::Unknown;
-            // We found the address in ELF.
-            // TODO: Long term we probably want a different heuristic here, as
-            //       there can be valid differences between the two formats
-            //       (e.g., DWARF could contain more symbols).
-            let sym = IntSym {
-                name,
-                addr,
-                size: Some(size),
-                lang,
-            };
-            sym
-        });
+        let result = parser
+            .find_sym(addr, SymType::Undefined)?
+            .map(|(name, addr, size)| {
+                // ELF does not carry any source code language information.
+                let lang = SrcLang::Unknown;
+                // We found the address in ELF.
+                // TODO: Long term we probably want a different heuristic here, as
+                //       there can be valid differences between the two formats
+                //       (e.g., DWARF could contain more symbols).
+                let sym = IntSym {
+                    name,
+                    addr,
+                    size: Some(size),
+                    lang,
+                };
+                sym
+            });
 
         Ok(result)
     }
