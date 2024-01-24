@@ -1,3 +1,5 @@
+use std::convert::TryFrom;
+
 use crate::util::Pod;
 use crate::SymType;
 
@@ -80,6 +82,7 @@ pub(crate) const SHN_XINDEX: u16 = 0xffff;
 
 pub(crate) const SHT_NOTE: Elf64_Word = 7;
 
+pub(crate) const STT_OBJECT: u8 = 1;
 pub(crate) const STT_FUNC: u8 = 2;
 
 #[derive(Clone, Debug)]
@@ -106,12 +109,24 @@ impl Elf64_Sym {
     pub fn matches(&self, type_: SymType) -> bool {
         let elf_ty = self.type_();
         let matches_func = || elf_ty == STT_FUNC;
-        let matches_var = || false;
+        let matches_var = || elf_ty == STT_OBJECT;
 
         match type_ {
             SymType::Undefined => matches_func() || matches_var(),
             SymType::Function => matches_func(),
             SymType::Variable => matches_var(),
+        }
+    }
+}
+
+impl TryFrom<&Elf64_Sym> for SymType {
+    type Error = ();
+
+    fn try_from(other: &Elf64_Sym) -> Result<Self, Self::Error> {
+        match other.type_() {
+            STT_FUNC => Ok(SymType::Function),
+            STT_OBJECT => Ok(SymType::Variable),
+            _ => Err(()),
         }
     }
 }

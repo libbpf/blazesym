@@ -48,7 +48,7 @@ fn find_sym<'mmap>(
     symtab: &[&Elf64_Sym],
     strtab: &'mmap [u8],
     addr: Addr,
-    st_type: u8,
+    type_: SymType,
 ) -> Result<Option<(&'mmap str, Addr, usize)>> {
     match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
         None => Ok(None),
@@ -64,7 +64,7 @@ fn find_sym<'mmap>(
                 // In ELF, a symbol size of 0 indicates "no size or an unknown
                 // size" (see elf(5)). We take our changes and report these on a
                 // best-effort basis.
-                if sym.type_() == st_type
+                if sym.matches(type_)
                     && sym.st_shndx != SHN_UNDEF
                     && (sym.st_size == 0 || addr < sym.st_value + sym.st_size)
                 {
@@ -467,7 +467,14 @@ impl<'mmap> Cache<'mmap> {
         let str2sym = dynsym.ensure_str2sym(|sym| {
             // We filter out all the symbols that already exist in symtab,
             // to prevent any duplicates from showing up.
-            let result = find_sym(&symtab.syms, symtab.strs, sym.st_value, sym.type_());
+            let result = find_sym(
+                &symtab.syms,
+                symtab.strs,
+                sym.st_value,
+                // SANITY: We filter out all unsupported symbol types,
+                //         so this conversion should always succeed.
+                SymType::try_from(sym).unwrap(),
+            );
             !matches!(result, Ok(Some(_)))
         })?;
         Ok(str2sym)
@@ -537,14 +544,18 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_sym(&self, addr: Addr, st_type: u8) -> Result<Result<(&str, Addr, usize), Reason>> {
+    pub fn find_sym(
+        &self,
+        addr: Addr,
+        type_: SymType,
+    ) -> Result<Result<(&str, Addr, usize), Reason>> {
         let symtab_cache = self.cache.ensure_symtab_cache()?;
-        if let Some(sym) = find_sym(&symtab_cache.syms, symtab_cache.strs, addr, st_type)? {
+        if let Some(sym) = find_sym(&symtab_cache.syms, symtab_cache.strs, addr, type_)? {
             return Ok(Ok(sym))
         }
 
         let dynsym_cache = self.cache.ensure_dynsym_cache()?;
-        if let Some(sym) = find_sym(&dynsym_cache.syms, dynsym_cache.strs, addr, st_type)? {
+        if let Some(sym) = find_sym(&dynsym_cache.syms, dynsym_cache.strs, addr, type_)? {
             return Ok(Ok(sym))
         }
 
@@ -603,7 +614,10 @@ impl ElfParser {
                             name: Cow::Borrowed(name_visit),
                             addr: sym_ref.st_value as Addr,
                             size: sym_ref.st_size as usize,
-                            sym_type: SymType::Function,
+                            // SANITY: We filter out all unsupported symbol
+                            //         types, so this conversion should always
+                            //         succeed.
+                            sym_type: SymType::try_from(**sym_ref).unwrap(),
                             file_offset: opts
                                 .offset_in_file
                                 .then(|| self.file_offset(shdrs, sym_ref))
@@ -623,10 +637,6 @@ impl ElfParser {
         name: &str,
         opts: &FindAddrOpts,
     ) -> Result<Vec<SymInfo<'slf>>> {
-        if let SymType::Variable = opts.sym_type {
-            return Err(Error::with_unsupported("Not implemented"))
-        }
-
         let shdrs = self.cache.ensure_shdrs()?;
         let symtab = self.cache.ensure_symtab()?;
         let str2symtab = self.cache.ensure_str2symtab()?;
@@ -663,7 +673,10 @@ impl ElfParser {
                     name: Cow::Borrowed(name),
                     addr: sym.st_value as Addr,
                     size: sym.st_size as usize,
-                    sym_type: SymType::Function,
+                    // SANITY: We filter out all unsupported symbol
+                    //         types, so this conversion should always
+                    //         succeed.
+                    sym_type: SymType::try_from(**sym).unwrap(),
                     file_offset: opts
                         .offset_in_file
                         .then(|| self.file_offset(shdrs, sym))
@@ -758,7 +771,6 @@ mod tests {
     use super::*;
 
     use super::super::types::SHN_LORESERVE;
-    use super::super::types::STT_FUNC;
 
     use std::env;
     use std::env::current_exe;
@@ -957,7 +969,7 @@ mod tests {
 
         let (name, addr, size) = parser.pick_symtab_addr();
 
-        let sym = parser.find_sym(addr, STT_FUNC).unwrap().unwrap();
+        let sym = parser.find_sym(addr, SymType::Function).unwrap().unwrap();
         let (name_ret, addr_ret, size_ret) = sym;
         assert_eq!(addr_ret, addr);
         assert_eq!(name_ret, name);
@@ -1055,7 +1067,7 @@ mod tests {
             },
         ];
 
-        let result = find_sym(&symtab, strtab, 0x10d20, STT_FUNC).unwrap();
+        let result = find_sym(&symtab, strtab, 0x10d20, SymType::Function).unwrap();
         assert_eq!(result, None);
     }
 
@@ -1065,7 +1077,7 @@ mod tests {
     fn lookup_symbol_with_unknown_size() {
         fn test(symtab: &[&Elf64_Sym]) {
             let strtab = b"\x00__libc_init_first\x00versionsort64\x00";
-            let result = find_sym(symtab, strtab, 0x29d00, STT_FUNC)
+            let result = find_sym(symtab, strtab, 0x29d00, SymType::Function)
                 .unwrap()
                 .unwrap();
             assert_eq!(result, ("__libc_init_first", 0x29d00, 0x0));
@@ -1073,7 +1085,7 @@ mod tests {
             // Because the symbol has a size of 0 and is the only conceivable
             // match, we report it on the basis that ELF reserves these for "no
             // size or an unknown size" cases.
-            let result = find_sym(symtab, strtab, 0x29d90, STT_FUNC)
+            let result = find_sym(symtab, strtab, 0x29d90, SymType::Function)
                 .unwrap()
                 .unwrap();
             assert_eq!(result, ("__libc_init_first", 0x29d00, 0x0));
@@ -1081,7 +1093,7 @@ mod tests {
             // Note that despite of the first symbol (the invalid one; present
             // by default and reserved by ELF), is not being reported here
             // because it has an `st_shndx` value of `SHN_UNDEF`.
-            let result = find_sym(symtab, strtab, 0x1, STT_FUNC).unwrap();
+            let result = find_sym(symtab, strtab, 0x1, SymType::Function).unwrap();
             assert_eq!(result, None);
         }
 
