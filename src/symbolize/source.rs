@@ -452,7 +452,6 @@ mod tests {
 
     /// Exercise the `Debug` representation of various types.
     #[test]
-    #[cfg(all(feature = "apk", feature = "breakpad", feature = "gsym"))]
     fn debug_repr() {
         let apk = Apk::new("/a-path/with/components.apk");
         assert_eq!(format!("{apk:?}"), "Apk(\"/a-path/with/components.apk\")");
