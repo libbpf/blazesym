@@ -74,7 +74,8 @@ pub(crate) struct FindAddrOpts {
     /// Return the offset of the symbol from the first byte of the
     /// object file if it is true. (False by default)
     pub offset_in_file: bool,
-    /// Return the symbol(s) matching a given type. Unknown, by default,
-    /// means all types.
+    /// Return the symbol(s) matching a given type.
+    /// [`Undefined`][SymType::Undefined] indicates that all supported
+    /// symbols are of interest.
     pub sym_type: SymType,
 }

@@ -401,6 +401,8 @@ impl<'mmap> Cache<'mmap> {
             .read_pod_slice_ref::<Elf64_Sym>(count)
             .ok_or_invalid_data(|| "failed to read symbol table contents")?
             .iter()
+            // Filter out any symbols that we do not support.
+            .filter(|sym| sym.matches(SymType::Undefined))
             .collect::<Vec<&Elf64_Sym>>();
         // Order symbols by address and those with equal address descending by
         // size.
