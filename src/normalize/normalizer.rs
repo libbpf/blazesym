@@ -286,7 +286,6 @@ mod tests {
 
     /// Check that we can normalize addresses in our own shared object inside a
     /// zip archive.
-    #[cfg(feature = "apk")]
     #[test]
     fn normalize_custom_so_in_zip() {
         use crate::zip;

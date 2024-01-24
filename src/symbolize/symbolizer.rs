@@ -1185,7 +1185,6 @@ mod tests {
     }
 
     /// Check that we can create a path to an ELF inside an APK as expected.
-    #[cfg(feature = "apk")]
     #[test]
     fn elf_apk_path_creation() {
         let apk = Path::new("/root/test.apk");
@@ -1213,10 +1212,6 @@ mod tests {
     /// Make sure that we can demangle symbols.
     #[test]
     fn demangle() {
-        if !cfg!(feature = "demangle") {
-            return
-        }
-
         let symbol = Cow::Borrowed("_ZN4core9panicking9panic_fmt17h5f1a6fd39197ad62E");
         let name = maybe_demangle(symbol, SrcLang::Rust);
         assert_eq!(name, "core::panicking::panic_fmt");
@@ -1302,7 +1297,6 @@ mod tests {
     }
 
     /// Check that we can symbolize an address residing in a zip archive.
-    #[cfg(feature = "apk")]
     #[test]
     fn symbolize_zip() {
         use crate::zip;
