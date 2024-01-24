@@ -6,6 +6,7 @@ Unreleased
   - Added `perf_map` attribute to `symbolize::Process` type
 - Added support for symbolizing addresses mapping to ELF variables and
   for looking them up using `inspect` APIs
+- Added support for GNU indirect functions to ELF logic
 - Overhauled `SymType` enum
   - Made it non-exhaustive
   - Moved it out of `inspect` module

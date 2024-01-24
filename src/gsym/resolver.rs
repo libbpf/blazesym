@@ -383,7 +383,7 @@ mod tests {
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
         let info = resolver.find_code_info(0x2000000, true).unwrap().unwrap();
-        assert_eq!(info.direct.1.line, Some(52));
+        assert_eq!(info.direct.1.line, Some(61));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
 

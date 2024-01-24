@@ -84,6 +84,7 @@ pub(crate) const SHT_NOTE: Elf64_Word = 7;
 
 pub(crate) const STT_OBJECT: u8 = 1;
 pub(crate) const STT_FUNC: u8 = 2;
+pub(crate) const STT_GNU_IFUNC: u8 = 10;
 
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -108,7 +109,7 @@ impl Elf64_Sym {
     #[inline]
     pub fn matches(&self, type_: SymType) -> bool {
         let elf_ty = self.type_();
-        let is_func = elf_ty == STT_FUNC;
+        let is_func = elf_ty == STT_FUNC || elf_ty == STT_GNU_IFUNC;
         let is_var = elf_ty == STT_OBJECT;
 
         match type_ {
@@ -124,7 +125,7 @@ impl TryFrom<&Elf64_Sym> for SymType {
 
     fn try_from(other: &Elf64_Sym) -> Result<Self, Self::Error> {
         match other.type_() {
-            STT_FUNC => Ok(SymType::Function),
+            STT_FUNC | STT_GNU_IFUNC => Ok(SymType::Function),
             STT_OBJECT => Ok(SymType::Variable),
             _ => Err(()),
         }
