@@ -34,6 +34,15 @@ factorial_inline_test() {
   factorial_inline_wrapper();
 }
 
+void my_indirect_func(void) {
+}
+
+static void (*resolve_indirect_func(void))(void) {
+  return my_indirect_func;
+}
+
+void indirect_func(void) __attribute__ ((ifunc ("resolve_indirect_func")));
+
 // A dummy function that should not actually be called. It just contains a bunch
 // of signature bytes that we use for offset verification later on.
 asm(

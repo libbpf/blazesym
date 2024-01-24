@@ -12,6 +12,7 @@ use std::fs::read as read_file;
 use std::io::Error;
 use std::io::Read as _;
 use std::io::Write as _;
+use std::ops::Deref as _;
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 use std::process::Command;
@@ -791,6 +792,36 @@ fn inspect_dynamic_symbol() {
     test("libtest-so-partly-stripped.so");
 }
 
+/// Make sure that we can look up an indirect in an ELF file.
+#[test]
+fn inspect_indirect_function() {
+    let bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses-no-dwarf.bin");
+
+    let src = inspect::Source::Elf(inspect::Elf::new(&bin));
+    let inspector = Inspector::new();
+    let results = inspector
+        .lookup(&src, &["indirect_func"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let src = symbolize::Source::Elf(symbolize::Elf::new(&bin));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(results[0].addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    // Both functions may legitimately have the same address.
+    assert!(["indirect_func", "resolve_indirect_func"].contains(&result.name.deref()));
+    assert_eq!(result.addr, results[0].addr);
+}
+
 
 /// Read four bytes at the given `offset` in the file identified by `path`.
 fn read_4bytes_at(path: &Path, offset: u64) -> [u8; 4] {
@@ -857,6 +888,15 @@ fn inspect_all_symbols() {
     assert_eq!(sym.sym_type, SymType::Function);
 
     let sym = syms.get("factorial_inline_test").unwrap();
+    assert_eq!(sym.sym_type, SymType::Function);
+
+    let sym = syms.get("indirect_func").unwrap();
+    assert_eq!(sym.sym_type, SymType::Function);
+
+    let sym = syms.get("my_indirect_func").unwrap();
+    assert_eq!(sym.sym_type, SymType::Function);
+
+    let sym = syms.get("resolve_indirect_func").unwrap();
     assert_eq!(sym.sym_type, SymType::Function);
 
     let sym = syms.get("a_variable").unwrap();
