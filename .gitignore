@@ -1,6 +1,9 @@
 /data/*.bin
 /data/*.dbg
+/data/*.dwo
+/data/*.dwp
 /data/*.gsym
+/data/*.o
 /data/*.so
 /data/*.sym
 /data/*.zip
