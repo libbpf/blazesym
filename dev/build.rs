@@ -1,5 +1,6 @@
 //! Build script for `blazesym-dev`.
 
+use std::borrow::Cow;
 use std::env;
 use std::env::consts::ARCH;
 use std::ffi::OsStr;
@@ -206,6 +207,18 @@ fn cc(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("cc", src, dst, options)
 }
 
+fn ld<'p, S, I>(srcs: S, dst: &Path, options: &[&str])
+where
+    S: IntoIterator<IntoIter = I>,
+    I: Iterator<Item = &'p Path> + Clone,
+{
+    println!("cargo:rerun-if-env-changed=LD");
+    let ld = env::var("LD")
+        .map(Cow::Owned)
+        .unwrap_or_else(|_| Cow::Borrowed("ld"));
+    toolize_impl(&ld, ArgSpec::SrcDashODst, srcs, dst, options)
+}
+
 /// Compile `src` into `dst` using `rustc`.
 fn rustc(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("rustc", src, dst, options)
@@ -233,6 +246,89 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
 /// Invoke `strip` on a copy of `src` placed at `dst`.
 fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("strip", src, dst, options)
+}
+
+/// Create a DWARF package for a list of DWO files.
+#[cfg(feature = "thorin_dwp")]
+fn dwp<'p, D, P>(dwos: D, dst: &Path)
+where
+    D: IntoIterator<IntoIter = P>,
+    P: Iterator<Item = &'p Path> + Clone,
+{
+    use std::cell::RefCell;
+    use std::fs::read;
+
+    use thorin_dwp::DwarfPackage;
+    use thorin_dwp::Session;
+
+
+    /// A poor man's session implementation.
+    #[derive(Default)]
+    struct Context<Relocs> {
+        datas: RefCell<Vec<Vec<u8>>>,
+        relocs: RefCell<Vec<Box<Relocs>>>,
+    }
+
+    impl<Relocs> Session<Relocs> for Context<Relocs> {
+        fn alloc_data(&self, data: Vec<u8>) -> &[u8] {
+            let slice_ptr = data.as_slice() as *const [u8];
+
+            // Allocate space for `data` inside our session, ensuring
+            // that it stays alive for the duration of the session.
+            let mut datas = self.datas.borrow_mut();
+            let () = datas.push(data);
+            // SAFETY: The original data was heap allocated and will
+            //         stay alive in unmodified form until session
+            //         destruction.
+            unsafe { slice_ptr.as_ref().unwrap() }
+        }
+
+        fn alloc_relocation(&self, data: Relocs) -> &Relocs {
+            let data = Box::new(data);
+            let data_ptr = data.deref() as *const Relocs;
+
+            let mut relocs = self.relocs.borrow_mut();
+            let () = relocs.push(data);
+            // SAFETY: The original data was heap allocated and will
+            //         stay alive in unmodified form until session
+            //         destruction.
+            unsafe { data_ptr.as_ref().unwrap() }
+        }
+
+        fn read_input<'session>(&'session self, path: &Path) -> Result<&'session [u8]> {
+            let data = read(path)?;
+            let data = self.alloc_data(data);
+            Ok(data)
+        }
+    }
+
+    let ctx = Context::default();
+    let mut pkg = DwarfPackage::new(&ctx);
+    for dwo in dwos {
+        let () = pkg.add_input_object(dwo).unwrap();
+    }
+
+    // We double buffer here because we can't emit into a file directly
+    // without going through `object` stuff. Let's avoid yet another
+    // dependency...
+    let mut data = Vec::new();
+    let () = pkg.finish().unwrap().emit(&mut data).unwrap();
+    let () = write(dst, data).unwrap();
+}
+
+#[cfg(not(feature = "thorin_dwp"))]
+fn dwp<'p, D, P>(_dwos: D, _dst: &Path)
+where
+    D: IntoIterator<IntoIter = P>,
+    P: Iterator<Item = &'p Path> + Clone,
+{
+    // We could reasonably rely on `dwp` being present ala
+    // ```rust
+    // toolize_impl("dwp", ArgSpec::SrcDashODst, dwos, dst, &[])
+    // ```
+    // but then again, we don't really want configurability to begin with
+    // here.
+    unimplemented!()
 }
 
 /// Strip all DWARF information from an ELF binary, in an attempt to
@@ -373,6 +469,46 @@ fn cc_stable_addrs(dst: impl AsRef<OsStr>, options: &[&str]) {
     cc(&src, dst, &args)
 }
 
+/// Compile the stable-addrs program with split DWARF support enabled.
+fn cc_stable_addrs_dwp(dst: impl AsRef<OsStr>, options: &[&str]) {
+    let bin = dst.as_ref();
+    let data_dir = data_dir();
+    let srcs = ["test-stable-addrs.c", "test-stable-addrs-cu2.c"];
+    let mut dwos = Vec::with_capacity(srcs.len());
+    let mut objs = Vec::with_capacity(srcs.len());
+
+    // Some toolchains only do split DWARF properly when using the
+    // compile-to-object-file-and-then-manually-link dance. So we have
+    // to do just that.
+    for src in srcs {
+        // Make sure that no two invocations create the same object
+        // files, so prefix them with the destination file name. That's
+        // not strictly necessary, because there is no concurrent
+        // building and compile options don't change, but it seems
+        // cleaner and perhaps more obvious what belongs to what.
+        let dst = format!("{}.{}", bin.to_str().unwrap(), src);
+        let dst = change_ext(&data_dir.join(dst), "o");
+        let src = data_dir.join(src);
+        let () = cc(&src, &dst, &["-O0", "-g", "-c", "-gsplit-dwarf"]);
+        let () = dwos.push(change_ext(&dst, "dwo"));
+        let () = objs.push(dst);
+    }
+
+    let dst = data_dir.join(dst.as_ref());
+
+    let ld_script = data_dir.join("test-stable-addrs.ld");
+    println!("cargo:rerun-if-changed={}", ld_script.display());
+    let args = ["-T", ld_script.to_str().unwrap(), "-O0", "-nostdlib"]
+        .into_iter()
+        .chain(options.iter().map(Deref::deref))
+        .collect::<Vec<_>>();
+
+    let () = ld(objs.iter().map(PathBuf::deref), &dst, &args);
+
+    let dst = data_dir.join("test-stable-addrs-split-dwarf.bin.dwp");
+    let () = dwp(dwos.iter().map(PathBuf::deref), &dst);
+}
+
 fn cc_test_so(dst: impl AsRef<OsStr>, options: &[&str]) {
     let data_dir = data_dir();
     let src = data_dir.join("test-so.c");
@@ -431,6 +567,28 @@ fn prepare_test_files() {
             "symbol-mangling-version=v0",
         ],
     );
+
+    rustc(
+        &src,
+        "test-rs-split-dwarf.bin",
+        &[
+            "--crate-type=bin",
+            "-C",
+            "panic=abort",
+            "-C",
+            "link-arg=-nostartfiles",
+            "-C",
+            "opt-level=0",
+            "-C",
+            "debuginfo=2",
+            "-C",
+            "symbol-mangling-version=v0",
+            "-Csplit-debuginfo=packed",
+        ],
+    );
+    let dwp = data_dir.join("test-rs-split-dwarf.bin.dwp");
+    let () = adjust_mtime(&dwp).unwrap();
+    println!("cargo:rerun-if-changed={}", dwp.display());
 
     cc_test_so("libtest-so.so", &["-Wl,--build-id=sha1"]);
     cc_test_so("libtest-so-32.so", &["-m32", "-Wl,--build-id=sha1"]);
@@ -514,6 +672,7 @@ fn prepare_test_files() {
         ],
     );
     cc_stable_addrs("test-stable-addrs-32-no-dwarf.bin", &["-m32", "-g0"]);
+    cc_stable_addrs_dwp("test-stable-addrs-split-dwarf.bin", &[]);
 
     let src = data_dir.join("test-stable-addrs.bin");
     gsym(&src, "test-stable-addrs.gsym");
