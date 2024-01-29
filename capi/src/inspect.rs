@@ -98,7 +98,7 @@ pub enum blaze_sym_type {
     /// In input contexts this variant can be used to encompass all
     /// other variants (functions and variables), whereas in output
     /// contexts it means that the type is not known.
-    BLAZE_SYM_UNDEFINED,
+    BLAZE_SYM_UNDEF,
     /// The symbol is a function.
     BLAZE_SYM_FUNC,
     /// The symbol is a variable.
@@ -108,7 +108,7 @@ pub enum blaze_sym_type {
 impl From<SymType> for blaze_sym_type {
     fn from(other: SymType) -> Self {
         match other {
-            SymType::Undefined => blaze_sym_type::BLAZE_SYM_UNDEFINED,
+            SymType::Undefined => blaze_sym_type::BLAZE_SYM_UNDEF,
             SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
             SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
             _ => unreachable!(),
@@ -212,7 +212,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 name: ptr::null(),
                 addr: 0,
                 size: 0,
-                sym_type: blaze_sym_type::BLAZE_SYM_UNDEFINED,
+                sym_type: blaze_sym_type::BLAZE_SYM_UNDEF,
                 file_offset: 0,
                 obj_file_name: ptr::null(),
             }

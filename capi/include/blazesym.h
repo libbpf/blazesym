@@ -18,7 +18,7 @@ typedef enum blaze_sym_type {
    * other variants (functions and variables), whereas in output
    * contexts it means that the type is not known.
    */
-  BLAZE_SYM_UNDEFINED,
+  BLAZE_SYM_UNDEF,
   /**
    * The symbol is a function.
    */
