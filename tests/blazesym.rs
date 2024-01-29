@@ -650,7 +650,7 @@ fn normalize_elf_addr() {
 
 /// Check that we can enable/disable the reading of build IDs.
 #[test]
-fn normalize_build_id_rading() {
+fn normalize_build_id_reading() {
     fn test(read_build_ids: bool) {
         let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")

@@ -25,13 +25,45 @@ use crate::slice_from_user_array;
 pub type blaze_normalizer = Normalizer;
 
 
+/// Options for configuring [`blaze_normalizer`] objects.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_normalizer_opts {
+    /// Whether to read and report build IDs as part of the normalization
+    /// process.
+    pub build_ids: bool,
+}
+
+
 /// Create an instance of a blazesym normalizer.
 ///
-/// The returned pointer should be released using
-/// [`blaze_normalizer_free`] once it is no longer needed.
+/// The returned pointer should be released using [`blaze_normalizer_free`] once
+/// it is no longer needed.
 #[no_mangle]
 pub extern "C" fn blaze_normalizer_new() -> *mut blaze_normalizer {
     let normalizer = Normalizer::new();
+    let normalizer_box = Box::new(normalizer);
+    Box::into_raw(normalizer_box)
+}
+
+
+/// Create an instance of a blazesym normalizer.
+///
+/// The returned pointer should be released using [`blaze_normalizer_free`] once
+/// it is no longer needed.
+///
+/// # Safety
+/// The provided pointer needs to point to a valid [`blaze_normalizer_opts`]
+/// instance.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_normalizer_new_opts(
+    opts: *const blaze_normalizer_opts,
+) -> *mut blaze_normalizer {
+    // SAFETY: The caller ensures that the pointer is valid.
+    let opts = unsafe { &*opts };
+    let blaze_normalizer_opts { build_ids } = opts;
+
+    let normalizer = Normalizer::builder().enable_build_ids(*build_ids).build();
     let normalizer_box = Box::new(normalizer);
     Box::into_raw(normalizer_box)
 }
@@ -76,7 +108,7 @@ impl From<(u64, usize)> for blaze_normalized_output {
 
 /// The valid variant kind in [`blaze_user_meta`].
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum blaze_user_meta_kind {
     /// [`blaze_user_meta_variant::unknown`] is valid.
     BLAZE_USER_META_UNKNOWN,
@@ -453,6 +485,12 @@ pub unsafe extern "C" fn blaze_user_output_free(output: *mut blaze_normalized_us
 mod tests {
     use super::*;
 
+    use std::ffi::CStr;
+    use std::io;
+    use std::path::Path;
+
+    use blazesym::helper::read_elf_build_id;
+
 
     /// Exercise the `Debug` representation of various types.
     #[test]
@@ -624,5 +662,72 @@ mod tests {
 
         let () = unsafe { blaze_user_output_free(result) };
         let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
+
+    /// Check that we can enable/disable the reading of build IDs.
+    #[test]
+    fn normalize_build_id_reading() {
+        fn test(read_build_ids: bool) {
+            let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("data")
+                .join("libtest-so.so")
+                .canonicalize()
+                .unwrap();
+            let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
+            let handle = unsafe { libc::dlopen(so_cstr.as_ptr(), libc::RTLD_NOW) };
+            assert!(!handle.is_null());
+
+            let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
+            assert!(!the_answer_addr.is_null());
+
+            let opts = blaze_normalizer_opts {
+                build_ids: read_build_ids,
+            };
+            let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };
+            assert!(!normalizer.is_null());
+
+            let addrs = [the_answer_addr as Addr];
+            let result = unsafe {
+                blaze_normalize_user_addrs_sorted(
+                    normalizer,
+                    0,
+                    addrs.as_slice().as_ptr(),
+                    addrs.len(),
+                )
+            };
+            assert!(!result.is_null());
+
+            let normalized = unsafe { &*result };
+            assert_eq!(normalized.meta_cnt, 1);
+            assert_eq!(normalized.output_cnt, 1);
+
+            let rc = unsafe { libc::dlclose(handle) };
+            assert_eq!(rc, 0, "{}", io::Error::last_os_error());
+
+            let output = unsafe { &*normalized.outputs.add(0) };
+            let meta = unsafe { &*normalized.metas.add(output.meta_idx) };
+            assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_ELF);
+
+            let elf = unsafe { &meta.variant.elf };
+
+            assert!(!elf.path.is_null());
+            let path = unsafe { CStr::from_ptr(elf.path) };
+            assert_eq!(path, so_cstr.as_ref());
+
+            if read_build_ids {
+                let expected = read_elf_build_id(&test_so).unwrap().unwrap();
+                let build_id = unsafe { slice_from_user_array(elf.build_id, elf.build_id_len) };
+                assert_eq!(build_id, &expected);
+            } else {
+                assert!(elf.build_id.is_null());
+            }
+
+            let () = unsafe { blaze_user_output_free(result) };
+            let () = unsafe { blaze_normalizer_free(normalizer) };
+        }
+
+        test(true);
+        test(false);
     }
 }
