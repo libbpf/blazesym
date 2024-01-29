@@ -105,6 +105,17 @@ typedef struct blaze_inspect_elf_src {
 typedef struct blaze_normalizer blaze_normalizer;
 
 /**
+ * Options for configuring [`blaze_normalizer`] objects.
+ */
+typedef struct blaze_normalizer_opts {
+  /**
+   * Whether to read and report build IDs as part of the normalization
+   * process.
+   */
+  bool build_ids;
+} blaze_normalizer_opts;
+
+/**
  * C compatible version of [`Apk`].
  */
 typedef struct blaze_user_meta_apk {
@@ -224,7 +235,7 @@ typedef struct blaze_normalized_user_output {
 typedef struct blaze_symbolizer blaze_symbolizer;
 
 /**
- * Options for configuring `blaze_symbolizer` objects.
+ * Options for configuring [`blaze_symbolizer`] objects.
  */
 typedef struct blaze_symbolizer_opts {
   /**
@@ -519,10 +530,22 @@ void blaze_inspector_free(blaze_inspector *inspector);
 /**
  * Create an instance of a blazesym normalizer.
  *
- * The returned pointer should be released using
- * [`blaze_normalizer_free`] once it is no longer needed.
+ * The returned pointer should be released using [`blaze_normalizer_free`] once
+ * it is no longer needed.
  */
 blaze_normalizer *blaze_normalizer_new(void);
+
+/**
+ * Create an instance of a blazesym normalizer.
+ *
+ * The returned pointer should be released using [`blaze_normalizer_free`] once
+ * it is no longer needed.
+ *
+ * # Safety
+ * The provided pointer needs to point to a valid [`blaze_normalizer_opts`]
+ * instance.
+ */
+blaze_normalizer *blaze_normalizer_new_opts(const struct blaze_normalizer_opts *opts);
 
 /**
  * Free a blazesym normalizer.

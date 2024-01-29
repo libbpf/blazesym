@@ -281,7 +281,7 @@ pub(crate) unsafe fn from_cstr(cstr: *const c_char) -> PathBuf {
 }
 
 
-/// Options for configuring `blaze_symbolizer` objects.
+/// Options for configuring [`blaze_symbolizer`] objects.
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_symbolizer_opts {

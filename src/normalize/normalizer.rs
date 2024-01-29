@@ -37,8 +37,8 @@ pub struct Output<M> {
 /// By default all features are enabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    /// Whether to read and report build IDs as part of the
-    /// normalization process.
+    /// Whether to read and report build IDs as part of the normalization
+    /// process.
     build_ids: bool,
 }
 
