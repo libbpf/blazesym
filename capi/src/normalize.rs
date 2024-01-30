@@ -300,12 +300,12 @@ impl blaze_user_meta {
 
     unsafe fn free(self) {
         match self.kind {
-            blaze_user_meta_kind::BLAZE_USER_META_APK => {
-                ManuallyDrop::into_inner(unsafe { self.variant.apk }).free()
-            }
-            blaze_user_meta_kind::BLAZE_USER_META_ELF => {
-                ManuallyDrop::into_inner(unsafe { self.variant.elf }).free()
-            }
+            blaze_user_meta_kind::BLAZE_USER_META_APK => unsafe {
+                ManuallyDrop::into_inner(self.variant.apk).free()
+            },
+            blaze_user_meta_kind::BLAZE_USER_META_ELF => unsafe {
+                ManuallyDrop::into_inner(self.variant.elf).free()
+            },
             blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN => {
                 ManuallyDrop::into_inner(unsafe { self.variant.unknown }).free()
             }

@@ -6,6 +6,8 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
+#![deny(unsafe_op_in_unsafe_fn)]
+
 
 #[allow(non_camel_case_types)]
 mod inspect;
