@@ -136,7 +136,7 @@ jobs:
         PYTHON: ${{ steps.py312.outputs.python-path }}
       run: cargo llvm-cov --workspace --all-targets --features=nightly,generate-large-test-files --ignore-filename-regex=cli/src/ --lcov --output-path lcov.info -- --include-ignored
     - name: Upload code coverage results
-      uses: codecov/codecov-action@v3
+      uses: codecov/codecov-action@v4
       with:
         files: lcov.info
   test-sanitizers:
