@@ -117,8 +117,14 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
             let input = symbolize::Input::FileOffset(addrs);
             (src, input, addrs)
         }
-        args::Symbolize::Elf(args::Elf { path, ref addrs }) => {
-            let src = symbolize::Source::from(symbolize::Elf::new(path));
+        args::Symbolize::Elf(args::Elf {
+            path,
+            no_debug_syms,
+            ref addrs,
+        }) => {
+            let mut elf = symbolize::Elf::new(path);
+            elf.debug_syms = !no_debug_syms;
+            let src = symbolize::Source::from(elf);
             let addrs = addrs.as_slice();
             let input = symbolize::Input::VirtOffset(addrs);
             (src, input, addrs)
