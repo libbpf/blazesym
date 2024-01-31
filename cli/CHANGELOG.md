@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Added support for symbolization using Breakpad (`*.sym`) files
+- Added `--no-debug-syms` option to `symbolize elf` sub-command
 
 
 0.1.2

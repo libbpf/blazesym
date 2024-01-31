@@ -102,6 +102,9 @@ pub struct Elf {
     /// The path to the ELF file.
     #[clap(short, long)]
     pub path: PathBuf,
+    /// Disable the use of debug symbols.
+    #[clap(long)]
+    pub no_debug_syms: bool,
     /// The addresses to symbolize.
     ///
     /// Addresses are assumed to already be normalized to the file
