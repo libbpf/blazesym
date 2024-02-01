@@ -11,6 +11,8 @@ Unreleased
   - Made it non-exhaustive
   - Moved it out of `inspect` module
   - Renamed `Unknown` variant to `Undefined`
+- Fixed DWARF symbolization in the presence of cross compilation unit
+  references
 
 
 0.2.0-alpha.10

@@ -229,6 +229,33 @@ impl<'dwarf> Units<'dwarf> {
         Ok(slf)
     }
 
+    /// Find the unit containing the given offset, and convert the
+    /// offset into a unit offset.
+    pub(super) fn find_unit(
+        &self,
+        offset: gimli::DebugInfoOffset<<R<'_> as gimli::Reader>::Offset>,
+    ) -> Result<
+        (
+            &gimli::Unit<R<'dwarf>>,
+            gimli::UnitOffset<<R<'dwarf> as gimli::Reader>::Offset>,
+        ),
+        gimli::Error,
+    > {
+        let unit = match self
+            .units
+            .binary_search_by_key(&offset.0, |unit| unit.offset().0)
+        {
+            // There is never a DIE at the unit offset or before the first unit.
+            Ok(_) | Err(0) => return Err(gimli::Error::NoEntryAtGivenOffset),
+            Err(i) => self.units[i - 1].dw_unit(),
+        };
+
+        let unit_offset = offset
+            .to_unit_offset(&unit.header)
+            .ok_or(gimli::Error::NoEntryAtGivenOffset)?;
+        Ok((unit, unit_offset))
+    }
+
     /// Finds the CUs for the function address given.
     ///
     /// There might be multiple CUs whose range contains this address.
