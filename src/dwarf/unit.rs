@@ -44,6 +44,7 @@ pub(super) struct UnitRange {
 
 
 pub(super) struct Unit<'dwarf> {
+    offset: gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset>,
     dw_unit: gimli::Unit<R<'dwarf>>,
     lang: Option<gimli::DwLang>,
     lines: OnceCell<Lines<'dwarf>>,
@@ -52,11 +53,13 @@ pub(super) struct Unit<'dwarf> {
 
 impl<'dwarf> Unit<'dwarf> {
     pub(super) fn new(
+        offset: gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset>,
         unit: gimli::Unit<R<'dwarf>>,
         lang: Option<gimli::DwLang>,
         lines: OnceCell<Lines<'dwarf>>,
     ) -> Self {
         Self {
+            offset,
             dw_unit: unit,
             lang,
             lines,
