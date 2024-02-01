@@ -301,7 +301,7 @@ impl<'dwarf> Units<'dwarf> {
         probe: u64,
     ) -> Result<Option<(&Function<'dwarf>, Option<gimli::DwLang>)>, gimli::Error> {
         for unit in self.find_units(probe) {
-            if let Some(function) = unit.find_function(probe, &self.dwarf)? {
+            if let Some(function) = unit.find_function(probe, self)? {
                 return Ok(Some((function, unit.language())))
             }
         }
@@ -321,8 +321,8 @@ impl<'dwarf> Units<'dwarf> {
         gimli::Error,
     > {
         for unit in self.find_units(probe) {
-            if let Some(function) = unit.find_function(probe, &self.dwarf)? {
-                let inlined_fns = function.parse_inlined_functions(unit.dw_unit(), &self.dwarf)?;
+            if let Some(function) = unit.find_function(probe, self)? {
+                let inlined_fns = function.parse_inlined_functions(unit.dw_unit(), self)?;
                 let iter = inlined_fns.find_inlined_functions(probe).map(|inlined_fn| {
                     let name = inlined_fn
                         .name
@@ -331,7 +331,7 @@ impl<'dwarf> Units<'dwarf> {
                         .unwrap_or("");
 
                     let code_info = if let Some(call_file) = inlined_fn.call_file {
-                        if let Some(lines) = unit.parse_lines(&self.dwarf)? {
+                        if let Some(lines) = unit.parse_lines(self)? {
                             if let Some((dir, file)) = lines.files.get(call_file as usize) {
                                 let code_info = Location {
                                     dir,
@@ -364,7 +364,7 @@ impl<'dwarf> Units<'dwarf> {
     /// address.
     pub fn find_location(&self, probe: u64) -> Result<Option<Location<'_>>, gimli::Error> {
         for unit in self.find_units(probe) {
-            if let Some(location) = unit.find_location(probe, &self.dwarf)? {
+            if let Some(location) = unit.find_location(probe, self)? {
                 return Ok(Some(location))
             }
         }
@@ -377,7 +377,7 @@ impl<'dwarf> Units<'dwarf> {
     ) -> impl Iterator<Item = Result<&Function<'dwarf>, gimli::Error>> + 's {
         self.units
             .iter()
-            .filter_map(move |unit| unit.find_name(name, &self.dwarf).transpose())
+            .filter_map(move |unit| unit.find_name(name, self).transpose())
     }
 
     /// Initialize all function data structures. This is used for benchmarks.
@@ -385,7 +385,7 @@ impl<'dwarf> Units<'dwarf> {
     #[cfg(feature = "nightly")]
     fn parse_functions(&self) -> Result<(), gimli::Error> {
         for unit in self.units.iter() {
-            let _functions = unit.parse_functions(&self.dwarf)?;
+            let _functions = unit.parse_functions(self)?;
         }
         Ok(())
     }
@@ -396,7 +396,7 @@ impl<'dwarf> Units<'dwarf> {
     #[cfg(feature = "nightly")]
     fn parse_inlined_functions(&self) -> Result<(), gimli::Error> {
         for unit in self.units.iter() {
-            let _functions = unit.parse_inlined_functions(&self.dwarf)?;
+            let _functions = unit.parse_inlined_functions(self)?;
         }
         Ok(())
     }
@@ -406,9 +406,15 @@ impl<'dwarf> Units<'dwarf> {
     #[cfg(feature = "nightly")]
     fn parse_lines(&self) -> Result<(), gimli::Error> {
         for unit in self.units.iter() {
-            let _lines = unit.parse_lines(&self.dwarf)?;
+            let _lines = unit.parse_lines(self)?;
         }
         Ok(())
+    }
+
+    /// Retrieve the underlying [`gimli::Dwarf`] object.
+    #[inline]
+    pub(super) fn dwarf(&self) -> &gimli::Dwarf<R<'dwarf>> {
+        &self.dwarf
     }
 }
 
