@@ -207,7 +207,7 @@ impl<'dwarf> Units<'dwarf> {
                 }
             }
 
-            res_units.push(Unit::new(dw_unit, lang, lines))
+            res_units.push(Unit::new(offset, dw_unit, lang, lines))
         }
 
         // Sort this for faster lookups.
