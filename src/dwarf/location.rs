@@ -31,8 +31,8 @@ use std::path::Path;
 
 use super::lines::LineSequence;
 use super::lines::Lines;
-use super::reader::R;
 use super::unit::Unit;
+use super::units::Units;
 
 
 /// A source location.
@@ -60,11 +60,11 @@ pub(super) struct LocationRangeUnitIter<'unit, 'dwarf> {
 impl<'unit, 'dwarf> LocationRangeUnitIter<'unit, 'dwarf> {
     pub(super) fn new(
         unit: &'unit Unit<'dwarf>,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
         probe_low: u64,
         probe_high: u64,
     ) -> Result<Option<Self>, gimli::Error> {
-        let lines = unit.parse_lines(sections)?;
+        let lines = unit.parse_lines(units)?;
 
         if let Some(lines) = lines {
             // Find index for probe_low.

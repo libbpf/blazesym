@@ -33,6 +33,7 @@ use super::lines::Lines;
 use super::location::Location;
 use super::location::LocationRangeUnitIter;
 use super::reader::R;
+use super::units::Units;
 
 
 pub(super) struct UnitRange {
@@ -67,10 +68,10 @@ impl<'dwarf> Unit<'dwarf> {
     #[cfg(feature = "nightly")]
     pub(super) fn parse_functions<'unit>(
         &'unit self,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> Result<&'unit Functions<'dwarf>, gimli::Error> {
         let unit = &self.dw_unit;
-        let functions = self.parse_functions_dwarf_and_unit(unit, sections)?;
+        let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         Ok(functions)
     }
 
@@ -78,20 +79,20 @@ impl<'dwarf> Unit<'dwarf> {
     #[cfg(feature = "nightly")]
     pub(super) fn parse_inlined_functions<'unit>(
         &'unit self,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> Result<&'unit Functions<'dwarf>, gimli::Error> {
         let unit = &self.dw_unit;
 
         self.funcs.get_or_try_init(|| {
-            let funcs = Functions::parse(unit, sections)?;
-            let () = funcs.parse_inlined_functions(unit, sections)?;
+            let funcs = Functions::parse(unit, units)?;
+            let () = funcs.parse_inlined_functions(unit, units)?;
             Ok(funcs)
         })
     }
 
     pub(super) fn parse_lines(
         &self,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> Result<Option<&Lines<'dwarf>>, gimli::Error> {
         // NB: line information is always stored in the main debug file so this does not
         // need to handle DWOs.
@@ -100,16 +101,16 @@ impl<'dwarf> Unit<'dwarf> {
             None => return Ok(None),
         };
         self.lines
-            .get_or_try_init(|| Lines::parse(&self.dw_unit, ilnp.clone(), sections))
+            .get_or_try_init(|| Lines::parse(&self.dw_unit, ilnp.clone(), units.dwarf()))
             .map(Some)
     }
 
     pub(super) fn find_location(
         &self,
         probe: u64,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> Result<Option<Location<'_>>, gimli::Error> {
-        if let Some(mut iter) = LocationRangeUnitIter::new(self, sections, probe, probe + 1)? {
+        if let Some(mut iter) = LocationRangeUnitIter::new(self, units, probe, probe + 1)? {
             match iter.next() {
                 None => Ok(None),
                 Some((_addr, _len, loc)) => Ok(Some(loc)),
@@ -122,19 +123,18 @@ impl<'dwarf> Unit<'dwarf> {
     fn parse_functions_dwarf_and_unit(
         &self,
         unit: &gimli::Unit<R<'dwarf>>,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> Result<&Functions<'dwarf>, gimli::Error> {
-        self.funcs
-            .get_or_try_init(|| Functions::parse(unit, sections))
+        self.funcs.get_or_try_init(|| Functions::parse(unit, units))
     }
 
     pub(super) fn find_function(
         &self,
         probe: u64,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> Result<Option<&Function<'dwarf>>, gimli::Error> {
         let unit = &self.dw_unit;
-        let functions = self.parse_functions_dwarf_and_unit(unit, sections)?;
+        let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         let function = match functions.find_address(probe) {
             Some(address) => {
                 let function_index = functions.addresses[address].function;
@@ -149,10 +149,10 @@ impl<'dwarf> Unit<'dwarf> {
     pub(super) fn find_name<'slf>(
         &'slf self,
         name: &str,
-        sections: &gimli::Dwarf<R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> Result<Option<&'slf Function<'dwarf>>, gimli::Error> {
         let unit = &self.dw_unit;
-        let functions = self.parse_functions_dwarf_and_unit(unit, sections)?;
+        let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         for func in functions.functions.iter() {
             let name = Some(name.as_bytes());
             if func.name.as_ref().map(|r| r.slice()) == name {
