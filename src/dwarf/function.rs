@@ -101,8 +101,11 @@ fn name_attr<'dwarf>(
 
     match attr {
         gimli::AttributeValue::UnitRef(offset) => name_entry(unit, offset, units, recursion_limit),
-        // TODO: Need to handle `AttributeValue::DebugInfoRef` and
-        //       `AttributeValue::DebugInfoRefSup`.
+        gimli::AttributeValue::DebugInfoRef(offset) => {
+            let (unit, offset) = units.find_unit(offset)?;
+            name_entry(unit, offset, units, recursion_limit)
+        }
+        // TODO: Need to handle `AttributeValue::DebugInfoRefSup`.
         _ => Ok(None),
     }
 }

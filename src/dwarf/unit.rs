@@ -165,7 +165,13 @@ impl<'dwarf> Unit<'dwarf> {
         Ok(None)
     }
 
-    /// Attempt to retrieve the compilation unit's source code language.
+    /// Retrieve the unit's debug info offset.
+    #[inline]
+    pub(super) fn offset(&self) -> gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset> {
+        self.offset
+    }
+
+    /// Retrieve the underlying [`gimli::Unit`] object.
     #[inline]
     pub(super) fn dw_unit(&self) -> &gimli::Unit<R<'dwarf>> {
         &self.dw_unit
