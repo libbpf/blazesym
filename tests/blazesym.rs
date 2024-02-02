@@ -132,6 +132,12 @@ fn symbolize_elf_dwarf_gsym() {
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
+        .join("test-stable-addresses-lto.bin");
+    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+    test(src, true);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
         .join("test-stable-addresses.gsym");
     let src = symbolize::Source::from(symbolize::GsymFile::new(&path));
     test(src, true);

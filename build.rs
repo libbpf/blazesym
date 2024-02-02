@@ -412,6 +412,22 @@ fn prepare_test_files(crate_root: &Path) {
             src_cu2,
         ],
     );
+    cc(
+        &src,
+        "test-stable-addresses-lto.bin",
+        &[
+            // NB: Keep DWARF 4 for this binary. Cross unit references
+            //     as this binary aims to produce only seem to appear in
+            //     this version.
+            "-gdwarf-4",
+            "-T",
+            ld_script,
+            "-O0",
+            "-nostdlib",
+            "-flto",
+            src_cu2,
+        ],
+    );
 
     let src = crate_root.join("data").join("test-stable-addresses.bin");
     gsym(&src, "test-stable-addresses.gsym");
