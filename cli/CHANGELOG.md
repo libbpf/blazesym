@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added `inspect` command
+
+
 0.1.3
 -----
 - Added support for symbolization using Breakpad (`*.sym`) files

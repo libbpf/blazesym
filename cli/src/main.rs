@@ -2,14 +2,19 @@
 
 mod args;
 
+use std::cmp::max;
+
 use anyhow::Context;
 use anyhow::Result;
 
+use blazesym::inspect;
+use blazesym::inspect::Inspector;
 use blazesym::normalize;
 use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
+use blazesym::SymType;
 
 use clap::Parser as _;
 
@@ -20,6 +25,61 @@ use tracing_subscriber::fmt::time::SystemTime;
 use tracing_subscriber::FmtSubscriber;
 
 const ADDR_WIDTH: usize = 16;
+
+
+fn print_sym_infos(sym_infos: &[inspect::SymInfo]) {
+    let name_width = sym_infos
+        .iter()
+        .map(|sym| sym.name.len())
+        .reduce(max)
+        .map(|w| w + 1)
+        .unwrap_or(0);
+    for sym in sym_infos {
+        let name = format!("{}:", sym.name);
+        let addr = sym.addr;
+        let size = sym.size;
+        let type_ = match sym.sym_type {
+            SymType::Function => " [FUNC]",
+            SymType::Variable => " [VAR]",
+            _ => " [UNDEF]",
+        };
+        println!("{name:<name_width$} {addr:#0ADDR_WIDTH$x}+{size:<4}{type_}");
+    }
+}
+
+fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
+    let inspector = Inspector::new();
+    match inspect {
+        args::inspect::Inspect::Lookup(args::inspect::Lookup::Elf(args::inspect::ElfLookup {
+            path,
+            ref names,
+        })) => {
+            let src = inspect::Source::from(inspect::Elf::new(path));
+            let names = names.iter().map(|s| s.as_ref()).collect::<Vec<&str>>();
+            let result = inspector.lookup(&src, &names)?;
+            let sym_infos = result
+                .into_iter()
+                .flat_map(|mut sym_infos| {
+                    let () = sym_infos.sort_by_key(|sym| sym.addr);
+                    sym_infos
+                })
+                .collect::<Vec<_>>();
+
+            let () = print_sym_infos(&sym_infos);
+            Ok(())
+        }
+        args::inspect::Inspect::Dump(args::inspect::Dump::Elf(args::inspect::ElfDump { path })) => {
+            let src = inspect::Source::from(inspect::Elf::new(path));
+            let mut sym_infos = inspector.for_each(&src, Vec::new(), |mut vec, sym| {
+                let () = vec.push(sym.to_owned());
+                vec
+            })?;
+            let () = sym_infos.sort_by_key(|sym| sym.addr);
+            let () = print_sym_infos(&sym_infos);
+            Ok(())
+        }
+    }
+}
 
 
 fn format_build_id_bytes(build_id: &[u8]) -> String {
@@ -202,6 +262,7 @@ fn main() -> Result<()> {
         set_global_subscriber(subscriber).with_context(|| "failed to set tracing subscriber")?;
 
     match args.command {
+        args::Command::Inspect(inspect) => self::inspect(inspect),
         args::Command::Normalize(normalize) => self::normalize(normalize),
         args::Command::Symbolize(symbolize) => self::symbolize(symbolize),
     }
