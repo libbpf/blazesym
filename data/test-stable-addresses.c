@@ -43,6 +43,10 @@ static void (*resolve_indirect_func(void))(void) {
 
 void indirect_func(void) __attribute__ ((ifunc ("resolve_indirect_func")));
 
+__attribute__((noinline)) static void i_exist_twice(void) {
+  a_variable[1] = '\0';
+}
+
 // A dummy function that should not actually be called. It just contains a bunch
 // of signature bytes that we use for offset verification later on.
 asm(
@@ -63,6 +67,7 @@ main(int argc, const char *argv[]) {
   factorial_inline_test();
   foo();
   dummy();
+  i_exist_twice();
 
   a_variable[0] = 42;
   return 0;

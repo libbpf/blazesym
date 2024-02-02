@@ -47,12 +47,61 @@ pub struct Args {
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// Inspect a symbol source.
+    #[command(subcommand)]
+    Inspect(inspect::Inspect),
     /// Normalize one or more addresses.
     #[command(subcommand)]
     Normalize(normalize::Normalize),
     /// Symbolize one or more addresses.
     #[command(subcommand)]
     Symbolize(symbolize::Symbolize),
+}
+
+
+pub mod inspect {
+    use super::*;
+
+
+    /// A type representing the `inspect` command.
+    #[derive(Debug, Subcommand)]
+    pub enum Inspect {
+        #[command(subcommand)]
+        Dump(Dump),
+        #[command(subcommand)]
+        Lookup(Lookup),
+    }
+
+    /// A type representing the `inspect lookup` sub-command.
+    #[derive(Debug, Subcommand)]
+    pub enum Lookup {
+        /// Lookup symbols in a ELF file by name.
+        Elf(ElfLookup),
+    }
+
+
+    /// A type representing the `inspect dump` sub-command.
+    #[derive(Debug, Subcommand)]
+    pub enum Dump {
+        /// Dump all symbols in an ELF file.
+        Elf(ElfDump),
+    }
+
+    #[derive(Debug, Arguments)]
+    pub struct ElfLookup {
+        /// The path to the ELF file.
+        #[clap(short, long)]
+        pub path: PathBuf,
+        /// A list of names of symbols.
+        pub names: Vec<String>,
+    }
+
+    #[derive(Debug, Arguments)]
+    pub struct ElfDump {
+        /// The path to the ELF file.
+        #[clap(short, long)]
+        pub path: PathBuf,
+    }
 }
 
 
