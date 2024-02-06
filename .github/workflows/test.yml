@@ -100,7 +100,9 @@ jobs:
        LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly-2024-02-04
     - name: Install required tools
       run: sudo apt-get install -y llvm-14
     - name: Check incremental rebuilds
@@ -121,7 +123,9 @@ jobs:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly-2024-02-04
     - uses: Swatinem/rust-cache@v2
     - uses: actions/setup-python@v5
       id: py312
@@ -152,7 +156,9 @@ jobs:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly-2024-02-04
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ matrix.sanitizer }}
@@ -193,8 +199,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@master
       with:
+        toolchain: nightly-2024-02-04
         components: miri
     # Miri would honor our custom test runner, but doesn't work with it. We
     # could conceivably override that by specifying
@@ -226,7 +233,9 @@ jobs:
        LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: nightly-2024-02-04
     - name: Install required tools
       run: sudo apt-get install -y llvm-14
     - uses: Swatinem/rust-cache@v2
