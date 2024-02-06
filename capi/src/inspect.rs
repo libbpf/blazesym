@@ -365,6 +365,7 @@ mod tests {
     use std::mem::MaybeUninit;
     use std::path::Path;
     use std::ptr;
+    use std::ptr::addr_of;
     use std::slice;
 
     use test_log::test;
@@ -436,7 +437,7 @@ mod tests {
         src.type_size = mem::size_of::<elf_src_with_ext>();
         src.debug_syms = true;
 
-        let src_ptr = &src as *const _ as *const blaze_inspect_elf_src;
+        let src_ptr = addr_of!(src).cast::<blaze_inspect_elf_src>();
         assert!(input_zeroed!(src_ptr, blaze_inspect_elf_src));
 
         src.reserved[0] = 1;
