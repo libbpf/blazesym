@@ -498,14 +498,6 @@ impl Symbolizer {
         Ok(resolver)
     }
 
-    fn resolve_addr_in_elf(&self, addr: Addr, path: &Path, debug_syms: bool) -> Result<Symbolized> {
-        let resolver = self
-            .elf_cache
-            .elf_resolver(path, debug_syms, self.code_info)?;
-        let symbolized = self.symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))?;
-        Ok(symbolized)
-    }
-
     fn create_perf_map(&self, path: &Path, file: &File) -> Result<PerfMap> {
         let perf_map = PerfMap::from_file(path, file)?;
         Ok(perf_map)
@@ -580,21 +572,17 @@ impl Symbolizer {
                 entry_path: &EntryPath,
             ) -> Result<()> {
                 let path = &entry_path.maps_file;
-                let parser = ElfParser::open(&entry_path.maps_file).with_context(|| {
-                    format!("failed to open map file {}", entry_path.maps_file.display())
-                })?;
+                let resolver = self.symbolizer.elf_cache.elf_resolver(
+                    path,
+                    self.debug_syms,
+                    self.symbolizer.code_info,
+                )?;
 
-                match elf_offset_to_address(file_off, &parser)? {
-                    Some(norm_addr) => {
+                match elf_offset_to_address(file_off, resolver.parser())? {
+                    Some(addr) => {
                         let symbol = self
                             .symbolizer
-                            .resolve_addr_in_elf(norm_addr, path, self.debug_syms)
-                            .with_context(|| {
-                                format!(
-                                    "failed to symbolize normalized address {norm_addr:#x} in ELF file {}",
-                                    path.display()
-                                )
-                            })?;
+                            .symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))?;
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
