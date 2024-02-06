@@ -197,6 +197,9 @@ jobs:
   test-miri:
     name: Test with Miri
     runs-on: ubuntu-latest
+    env:
+      # Stack borrows are very experimental. Disable for now.
+      MIRIFLAGS: '-Zmiri-disable-stacked-borrows'
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@master
@@ -211,7 +214,7 @@ jobs:
     - name: Remove .cargo/config
       run: rm .cargo/config
     - name: Run tests
-      run: cargo miri test --features=dont-generate-unit-test-files -- "insert_map::" "util::" "::elf_src_validity"
+      run: cargo miri test --workspace --features=dont-generate-unit-test-files -- "insert_map::" "util::" "::elf_src_validity"
   c-header:
     name: Check generated C header
     runs-on: ubuntu-latest
