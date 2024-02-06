@@ -211,8 +211,8 @@ jobs:
     # CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER, except it appears as if Miri
     # uses the runner itself. In short, it's a mess. Just remove any
     # such custom configuration when running Miri.
-    - name: Remove .cargo/config
-      run: rm .cargo/config
+    - name: Remove .cargo/config.toml
+      run: rm .cargo/config.toml
     - name: Run tests
       run: cargo miri test --workspace --features=dont-generate-unit-test-files -- "insert_map::" "util::" "::elf_src_validity"
   c-header:
