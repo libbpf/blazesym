@@ -408,6 +408,10 @@ pub struct blaze_symbolizer_opts {
     /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
     /// ensure compatibility in the presence of member additions.
     pub type_size: usize,
+    /// Whether or not to automatically reload file system based
+    /// symbolization sources that were updated since the last
+    /// symbolization operation.
+    pub auto_reload: bool,
     /// Whether to attempt to gather source code location information.
     ///
     /// This setting implies `debug_syms` (and forces it to `true`).
@@ -422,17 +426,18 @@ pub struct blaze_symbolizer_opts {
     pub demangle: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 5],
+    pub reserved: [u8; 4],
 }
 
 impl Default for blaze_symbolizer_opts {
     fn default() -> Self {
         Self {
             type_size: mem::size_of::<Self>(),
+            auto_reload: false,
             code_info: false,
             inlined_fns: false,
             demangle: false,
-            reserved: [0; 5],
+            reserved: [0; 4],
         }
     }
 }
@@ -461,6 +466,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
 
     let blaze_symbolizer_opts {
         type_size: _,
+        auto_reload,
         code_info,
         inlined_fns,
         demangle,
@@ -468,6 +474,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     } = opts;
 
     let symbolizer = Symbolizer::builder()
+        .enable_auto_reload(auto_reload)
         .enable_code_info(code_info)
         .enable_inlined_fns(inlined_fns)
         .enable_demangling(demangle)
@@ -977,7 +984,7 @@ mod tests {
         };
         assert_eq!(
             format!("{opts:?}"),
-            "blaze_symbolizer_opts { type_size: 16, code_info: false, inlined_fns: false, demangle: true, reserved: [0, 0, 0, 0, 0] }"
+            "blaze_symbolizer_opts { type_size: 16, auto_reload: false, code_info: false, inlined_fns: false, demangle: true, reserved: [0, 0, 0, 0] }"
         );
     }
 

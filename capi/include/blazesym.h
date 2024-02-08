@@ -305,6 +305,12 @@ typedef struct blaze_symbolizer_opts {
    */
   size_t type_size;
   /**
+   * Whether or not to automatically reload file system based
+   * symbolization sources that were updated since the last
+   * symbolization operation.
+   */
+  bool auto_reload;
+  /**
    * Whether to attempt to gather source code location information.
    *
    * This setting implies `debug_syms` (and forces it to `true`).
@@ -326,7 +332,7 @@ typedef struct blaze_symbolizer_opts {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[5];
+  uint8_t reserved[4];
 } blaze_symbolizer_opts;
 
 /**
