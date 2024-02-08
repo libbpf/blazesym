@@ -32,7 +32,8 @@ impl Inspector {
     /// Create a new `Inspector`.
     pub fn new() -> Self {
         Self {
-            elf_cache: FileCache::builder().build(),
+            // TODO: Make auto reloading configurable by clients.
+            elf_cache: FileCache::builder().enable_auto_reload(true).build(),
         }
     }
 

@@ -141,6 +141,10 @@ fn elf_offset_to_address(offset: u64, parser: &ElfParser) -> Result<Option<Addr>
 /// By default all features are enabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
+    /// Whether or not to automatically reload file system based
+    /// symbolization sources that were updated since the last
+    /// symbolization operation.
+    auto_reload: bool,
     /// Whether to attempt to gather source code location information.
     ///
     /// This setting implies usage of debug symbols and forces the corresponding
@@ -157,15 +161,22 @@ pub struct Builder {
 }
 
 impl Builder {
+    /// Enable/disable auto reloading of symbolization sources in the
+    /// presence of updates.
+    pub fn enable_auto_reload(mut self, enable: bool) -> Self {
+        self.auto_reload = enable;
+        self
+    }
+
     /// Enable/disable source code location information (line numbers,
     /// file names etc.).
-    pub fn enable_code_info(mut self, enable: bool) -> Builder {
+    pub fn enable_code_info(mut self, enable: bool) -> Self {
         self.code_info = enable;
         self
     }
 
     /// Enable/disable inlined function reporting.
-    pub fn enable_inlined_fns(mut self, enable: bool) -> Builder {
+    pub fn enable_inlined_fns(mut self, enable: bool) -> Self {
         self.inlined_fns = enable;
         self
     }
@@ -175,14 +186,15 @@ impl Builder {
     /// Demangling happens on a best-effort basis. Currently supported languages
     /// are Rust and C++ and the flag will have no effect if the underlying
     /// language does not mangle symbols (such as C).
-    pub fn enable_demangling(mut self, enable: bool) -> Builder {
+    pub fn enable_demangling(mut self, enable: bool) -> Self {
         self.demangle = enable;
         self
     }
 
     /// Create the [`Symbolizer`] object.
     pub fn build(self) -> Symbolizer {
-        let Builder {
+        let Self {
+            auto_reload,
             code_info,
             inlined_fns,
             demangle,
@@ -190,14 +202,14 @@ impl Builder {
 
         Symbolizer {
             #[cfg(feature = "apk")]
-            apk_cache: FileCache::builder().build(),
+            apk_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             #[cfg(feature = "breakpad")]
-            breakpad_cache: FileCache::builder().build(),
-            elf_cache: FileCache::builder().build(),
+            breakpad_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
+            elf_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             #[cfg(feature = "gsym")]
-            gsym_cache: FileCache::builder().build(),
-            ksym_cache: FileCache::builder().build(),
-            perf_map_cache: FileCache::builder().build(),
+            gsym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
+            ksym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
+            perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             code_info,
             inlined_fns,
             demangle,
@@ -208,6 +220,7 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
+            auto_reload: true,
             code_info: true,
             inlined_fns: true,
             demangle: true,

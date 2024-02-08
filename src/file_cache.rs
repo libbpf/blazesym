@@ -77,17 +77,32 @@ impl<T> Entry<T> {
 /// By default all features are enabled.
 #[derive(Clone, Debug)]
 pub(crate) struct Builder<T> {
+    /// Whether to attempt to gather source code location information.
+    ///
+    /// This setting implies usage of debug symbols and forces the corresponding
+    /// flag to `true`.
+    auto_reload: bool,
     /// Phantom data for our otherwise "unused" generic argument.
     _phantom: PhantomData<T>,
 }
 
 impl<T> Builder<T> {
+    /// Enable/disable auto reloading of files when stale.
+    pub fn enable_auto_reload(mut self, enable: bool) -> Self {
+        self.auto_reload = enable;
+        self
+    }
+
     /// Create the [`FileCache`] object.
     pub fn build(self) -> FileCache<T> {
-        let Builder { _phantom: _ } = self;
+        let Builder {
+            auto_reload,
+            _phantom: _,
+        } = self;
 
         FileCache {
             cache: InsertMap::new(),
+            auto_reload,
         }
     }
 }
@@ -95,6 +110,7 @@ impl<T> Builder<T> {
 impl<T> Default for Builder<T> {
     fn default() -> Self {
         Self {
+            auto_reload: true,
             _phantom: PhantomData,
         }
     }
@@ -112,6 +128,9 @@ pub(crate) struct FileCache<T> {
     /// The map we use for associating file meta data with user-defined
     /// data.
     cache: InsertMap<EntryMeta, Entry<T>>,
+    /// Whether or not to automatically reload files that were updated
+    /// since the last open.
+    auto_reload: bool,
 }
 
 impl<T> FileCache<T> {
@@ -123,12 +142,23 @@ impl<T> FileCache<T> {
 
     /// Retrieve an entry for the file at the given `path`.
     pub fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
-        let file =
-            File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
-        let stat = fstat(file.as_raw_fd())?;
-        let meta = EntryMeta::new(path.to_path_buf(), Some(&stat));
+        let entry = if self.auto_reload {
+            let file = File::open(path)
+                .with_context(|| format!("failed to open file {}", path.display()))?;
+            let stat = fstat(file.as_raw_fd())?;
+            let meta = EntryMeta::new(path.to_path_buf(), Some(&stat));
 
-        let entry = self.cache.get_or_insert(meta, || Entry::new(file));
+            self.cache.get_or_insert(meta, || Entry::new(file))
+        } else {
+            let meta = EntryMeta::new(path.to_path_buf(), None);
+            self.cache.get_or_try_insert(meta, || {
+                let file = File::open(path)
+                    .with_context(|| format!("failed to open file {}", path.display()))?;
+                let entry = Entry::new(file);
+                Ok(entry)
+            })?
+        };
+
         Ok((&entry.file, &entry.value))
     }
 }
