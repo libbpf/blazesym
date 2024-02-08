@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::marker::PhantomData;
 use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::path::PathBuf;
@@ -71,6 +72,35 @@ impl<T> Entry<T> {
 }
 
 
+/// A builder for configurable construction of [`FileCache`] objects.
+///
+/// By default all features are enabled.
+#[derive(Clone, Debug)]
+pub(crate) struct Builder<T> {
+    /// Phantom data for our otherwise "unused" generic argument.
+    _phantom: PhantomData<T>,
+}
+
+impl<T> Builder<T> {
+    /// Create the [`FileCache`] object.
+    pub fn build(self) -> FileCache<T> {
+        let Builder { _phantom: _ } = self;
+
+        FileCache {
+            cache: InsertMap::new(),
+        }
+    }
+}
+
+impl<T> Default for Builder<T> {
+    fn default() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
+
+
 /// A lookup cache for data associated with a file, looked up by path.
 ///
 /// The cache transparently checks whether the file contents have
@@ -85,11 +115,10 @@ pub(crate) struct FileCache<T> {
 }
 
 impl<T> FileCache<T> {
-    /// Create a new [`FileCache`] object.
-    pub fn new() -> Self {
-        Self {
-            cache: InsertMap::new(),
-        }
+    /// Retrieve a [`Builder`] object for configurable construction of a
+    /// [`FileCache`].
+    pub fn builder() -> Builder<T> {
+        Builder::<T>::default()
     }
 
     /// Retrieve an entry for the file at the given `path`.
@@ -101,6 +130,12 @@ impl<T> FileCache<T> {
 
         let entry = self.cache.get_or_insert(meta, || Entry::new(file));
         Ok((&entry.file, &entry.value))
+    }
+}
+
+impl<T> Default for FileCache<T> {
+    fn default() -> Self {
+        Self::builder().build()
     }
 }
 
@@ -121,7 +156,7 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let cache = FileCache::<()>::new();
+        let cache = FileCache::<()>::default();
         assert_ne!(format!("{cache:?}"), "");
 
         let tmpfile = tempfile().unwrap();
@@ -132,7 +167,7 @@ mod tests {
     /// Check that we can associate data with a file.
     #[test]
     fn lookup() {
-        let cache = FileCache::<usize>::new();
+        let cache = FileCache::<usize>::default();
         let tmpfile = NamedTempFile::new().unwrap();
 
         {
@@ -151,7 +186,7 @@ mod tests {
     /// Make sure that a changed file purges the cache entry.
     #[test]
     fn outdated() {
-        let cache = FileCache::<usize>::new();
+        let cache = FileCache::<usize>::default();
         let tmpfile = NamedTempFile::new().unwrap();
         let modified = {
             let (file, cell) = cache.entry(tmpfile.path()).unwrap();

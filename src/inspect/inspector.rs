@@ -32,7 +32,7 @@ impl Inspector {
     /// Create a new `Inspector`.
     pub fn new() -> Self {
         Self {
-            elf_cache: FileCache::new(),
+            elf_cache: FileCache::builder().build(),
         }
     }
 
