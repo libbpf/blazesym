@@ -190,14 +190,14 @@ impl Builder {
 
         Symbolizer {
             #[cfg(feature = "apk")]
-            apk_cache: FileCache::new(),
+            apk_cache: FileCache::builder().build(),
             #[cfg(feature = "breakpad")]
-            breakpad_cache: FileCache::new(),
-            elf_cache: FileCache::new(),
+            breakpad_cache: FileCache::builder().build(),
+            elf_cache: FileCache::builder().build(),
             #[cfg(feature = "gsym")]
-            gsym_cache: FileCache::new(),
-            ksym_cache: FileCache::new(),
-            perf_map_cache: FileCache::new(),
+            gsym_cache: FileCache::builder().build(),
+            ksym_cache: FileCache::builder().build(),
+            perf_map_cache: FileCache::builder().build(),
             code_info,
             inlined_fns,
             demangle,
