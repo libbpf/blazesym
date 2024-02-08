@@ -11,6 +11,7 @@ Unreleased
   - Made it non-exhaustive
   - Moved it out of `inspect` module
   - Renamed `Unknown` variant to `Undefined`
+- Made auto reloading of symbolization sources on change configurable
 - Fixed DWARF symbolization in the presence of cross compilation unit
   references
 
