@@ -15,6 +15,7 @@ pub(crate) struct InsertMap<K, V> {
     /// A proxy member used for making sure that we do not borrow `map` mutably
     /// multiple times.
     refcell: RefCell<()>,
+    /// The actual map containing key-value pairs.
     map: RefCell<HashMap<K, V>>,
 }
 

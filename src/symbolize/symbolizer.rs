@@ -220,13 +220,13 @@ impl Default for Builder {
 /// symbol resolvers.
 ///
 /// An "uncached" resolver is one that is created on the spot. We do so for
-/// cases when we keep the input data, for example (e.g., when we have no
-/// control over its lifetime).
+/// cases when we cannot keep the input data, for example (e.g., when we
+/// have no control over its lifetime).
 /// A "cached" resolver is one that ultimately lives in one of our internal
 /// caches. These caches have the same lifetime as the `Symbolizer` object
 /// itself (represented here as `'slf`).
 ///
-/// Object of this type are at the core of our logic determining whether to
+/// Objects of this type are at the core of our logic determining whether to
 /// heap allocate certain data such as paths or symbol names or whether to just
 /// hand out references to mmap'ed data.
 #[derive(Debug)]

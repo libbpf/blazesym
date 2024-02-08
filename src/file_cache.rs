@@ -14,8 +14,7 @@ use crate::Result;
 // `libc` has deprecated `time_t` usage on `musl`. See
 // https://github.com/rust-lang/libc/issues/1848
 #[cfg_attr(target_env = "musl", allow(deprecated))]
-struct EntryMeta {
-    path: PathBuf,
+struct FileMeta {
     dev: libc::dev_t,
     inode: libc::ino_t,
     size: libc::off_t,
@@ -23,17 +22,32 @@ struct EntryMeta {
     mtime_nsec: i64,
 }
 
-impl EntryMeta {
-    fn new(path: PathBuf, stat: &libc::stat) -> Self {
+impl From<&libc::stat> for FileMeta {
+    fn from(other: &libc::stat) -> Self {
         // Casts are necessary because on Android some libc types do not
         // use proper typedefs. https://github.com/rust-lang/libc/issues/3285
         Self {
+            dev: other.st_dev as _,
+            inode: other.st_ino as _,
+            size: other.st_size as _,
+            mtime_sec: other.st_mtime,
+            mtime_nsec: other.st_mtime_nsec as _,
+        }
+    }
+}
+
+
+#[derive(Debug, Eq, Hash, PartialEq)]
+struct EntryMeta {
+    path: PathBuf,
+    meta: FileMeta,
+}
+
+impl EntryMeta {
+    fn new(path: PathBuf, stat: &libc::stat) -> Self {
+        Self {
             path,
-            dev: stat.st_dev as _,
-            inode: stat.st_ino as _,
-            size: stat.st_size as _,
-            mtime_sec: stat.st_mtime,
-            mtime_nsec: stat.st_mtime_nsec as _,
+            meta: FileMeta::from(stat),
         }
     }
 }
@@ -61,12 +75,14 @@ pub(crate) struct FileCache<T> {
 }
 
 impl<T> FileCache<T> {
+    /// Create a new [`FileCache`] object.
     pub fn new() -> Self {
         Self {
             cache: InsertMap::new(),
         }
     }
 
+    /// Retrieve an entry for the file at the given `path`.
     pub fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
         let file =
             File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
