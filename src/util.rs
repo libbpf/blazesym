@@ -259,22 +259,10 @@ pub(crate) trait ReadRaw<'data> {
         self.read_pod::<u8>()
     }
 
-    /// Read a `i16` value.
-    #[inline]
-    fn read_i16(&mut self) -> Option<i16> {
-        self.read_pod::<i16>()
-    }
-
     /// Read a `u16` value.
     #[inline]
     fn read_u16(&mut self) -> Option<u16> {
         self.read_pod::<u16>()
-    }
-
-    /// Read a `i32` value.
-    #[inline]
-    fn read_i32(&mut self) -> Option<i32> {
-        self.read_pod::<i32>()
     }
 
     /// Read a `u32` value.
@@ -578,9 +566,7 @@ mod tests {
     fn word_reading() {
         let data = 0xf936857fu32.to_ne_bytes();
         assert_eq!(data.as_slice().read_u16().unwrap(), 0x857f);
-        assert_eq!(data.as_slice().read_i16().unwrap(), -31361);
         assert_eq!(data.as_slice().read_u32().unwrap(), 0xf936857f);
-        assert_eq!(data.as_slice().read_i32().unwrap(), -113867393);
     }
 
     /// Make sure that we can read leb128 encoded values.
