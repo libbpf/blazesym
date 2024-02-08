@@ -40,14 +40,16 @@ impl From<&libc::stat> for FileMeta {
 #[derive(Debug, Eq, Hash, PartialEq)]
 struct EntryMeta {
     path: PathBuf,
-    meta: FileMeta,
+    meta: Option<FileMeta>,
 }
 
 impl EntryMeta {
-    fn new(path: PathBuf, stat: &libc::stat) -> Self {
+    /// Create a new [`EntryMeta`] object. If `stat` is [`None`] file
+    /// modification times and other meta data are effectively ignored.
+    fn new(path: PathBuf, stat: Option<&libc::stat>) -> Self {
         Self {
             path,
-            meta: FileMeta::from(stat),
+            meta: stat.map(FileMeta::from),
         }
     }
 }
@@ -69,8 +71,16 @@ impl<T> Entry<T> {
 }
 
 
+/// A lookup cache for data associated with a file, looked up by path.
+///
+/// The cache transparently checks whether the file contents have
+/// changed based on file system meta data and creates and hands out a
+/// new entry if so.
+/// Note that stale/old entries are never evicted.
 #[derive(Debug)]
 pub(crate) struct FileCache<T> {
+    /// The map we use for associating file meta data with user-defined
+    /// data.
     cache: InsertMap<EntryMeta, Entry<T>>,
 }
 
@@ -87,7 +97,7 @@ impl<T> FileCache<T> {
         let file =
             File::open(path).with_context(|| format!("failed to open file {}", path.display()))?;
         let stat = fstat(file.as_raw_fd())?;
-        let meta = EntryMeta::new(path.to_path_buf(), &stat);
+        let meta = EntryMeta::new(path.to_path_buf(), Some(&stat));
 
         let entry = self.cache.get_or_insert(meta, || Entry::new(file));
         Ok((&entry.file, &entry.value))
