@@ -375,6 +375,9 @@ fn prepare_test_files(crate_root: &Path) {
     cc(&src, "test-dwarf-v4.bin", &["-gstrict-dwarf", "-gdwarf-4"]);
     cc(&src, "test-dwarf-v5.bin", &["-gstrict-dwarf", "-gdwarf-5"]);
 
+    let src = crate_root.join("data").join("test-wait.c");
+    cc(&src, "test-wait.bin", &[]);
+
     let src = crate_root.join("data").join("test-mnt-ns.c");
     cc(&src, "test-mnt-ns.bin", &[]);
 
