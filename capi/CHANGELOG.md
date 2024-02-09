@@ -11,4 +11,5 @@ Unreleased
 - Renamed various symbolization functions to closer reflect Rust
   terminology
 - Renamed `BLAZE_SYM_UNKNOWN` enum variant to `BLAZE_SYM_UNDEF`
-- Added `perf_map` member to `blaze_symbolize_src_process` function
+- Added `perf_map` and `map_files` members to
+  `blaze_symbolize_src_process` type
