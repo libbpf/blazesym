@@ -537,6 +537,7 @@ impl Symbolizer {
         pid: Pid,
         debug_syms: bool,
         perf_map: bool,
+        map_files: bool,
     ) -> Result<Vec<Symbolized>> {
         struct SymbolizeHandler<'sym> {
             /// The "outer" `Symbolizer` instance.
@@ -549,6 +550,9 @@ impl Symbolizer {
             /// Whether or not to consult the process' perf map (if any) to
             /// satisfy the request.
             perf_map: bool,
+            /// Whether to work with `/proc/<pid>/map_files/` entries or with
+            /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
+            map_files: bool,
             /// Symbols representing the symbolized addresses.
             all_symbols: Vec<Symbolized<'sym>>,
         }
@@ -561,7 +565,12 @@ impl Symbolizer {
                 file_off: u64,
                 entry_path: &EntryPath,
             ) -> Result<()> {
-                let apk_path = &entry_path.maps_file;
+                let apk_path = if self.map_files {
+                    &entry_path.maps_file
+                } else {
+                    &entry_path.symbolic_path
+                };
+
                 match self
                     .symbolizer
                     .apk_resolver(apk_path, file_off, self.debug_syms)?
@@ -584,7 +593,12 @@ impl Symbolizer {
                 file_off: u64,
                 entry_path: &EntryPath,
             ) -> Result<()> {
-                let path = &entry_path.maps_file;
+                let path = if self.map_files {
+                    &entry_path.maps_file
+                } else {
+                    &entry_path.symbolic_path
+                };
+
                 let resolver = self.symbolizer.elf_cache.elf_resolver(
                     path,
                     self.debug_syms,
@@ -660,6 +674,7 @@ impl Symbolizer {
             pid,
             debug_syms,
             perf_map,
+            map_files,
             all_symbols: Vec::with_capacity(addrs.len()),
         };
 
@@ -899,6 +914,7 @@ impl Symbolizer {
                 pid,
                 debug_syms,
                 perf_map,
+                map_files,
                 _non_exhaustive: (),
             }) => {
                 let addrs = match input {
@@ -915,7 +931,7 @@ impl Symbolizer {
                     }
                 };
 
-                self.symbolize_user_addrs(addrs, *pid, *debug_syms, *perf_map)
+                self.symbolize_user_addrs(addrs, *pid, *debug_syms, *perf_map, *map_files)
             }
             #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
@@ -1070,6 +1086,7 @@ impl Symbolizer {
                 pid,
                 debug_syms,
                 perf_map,
+                map_files,
                 _non_exhaustive: (),
             }) => {
                 let addr = match input {
@@ -1087,7 +1104,7 @@ impl Symbolizer {
                 };
 
                 let mut symbols =
-                    self.symbolize_user_addrs(&[addr], *pid, *debug_syms, *perf_map)?;
+                    self.symbolize_user_addrs(&[addr], *pid, *debug_syms, *perf_map, *map_files)?;
                 debug_assert!(symbols.len() == 1, "{symbols:#?}");
                 // SANITY: `symbolize_user_addrs` should *always* return
                 //         one result for one input (except on error

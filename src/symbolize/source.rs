@@ -241,6 +241,14 @@ pub struct Process {
     ///
     /// [perf map]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/perf/Documentation/jit-interface.txt
     pub perf_map: bool,
+    /// Whether to work with `/proc/<pid>/map_files/` entries or with
+    /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
+    /// `map_files` usage is generally strongly encouraged, as symbolic
+    /// path usage is unlikely to work reliably in mount namespace
+    /// contexts or when files have been deleted from the file system.
+    /// However, by using symbolic paths the need for requiring the
+    /// `SYS_ADMIN` capability is eliminated.
+    pub map_files: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -257,6 +265,7 @@ impl Process {
             pid,
             debug_syms: true,
             perf_map: true,
+            map_files: true,
             _non_exhaustive: (),
         }
     }
@@ -268,6 +277,7 @@ impl Debug for Process {
             pid,
             debug_syms: _,
             perf_map: _,
+            map_files: _,
             _non_exhaustive: (),
         } = self;
 
