@@ -488,10 +488,20 @@ typedef struct blaze_symbolize_src_process {
    */
   bool perf_map;
   /**
+   * Whether to work with `/proc/<pid>/map_files/` entries or with
+   * symbolic paths mentioned in `/proc/<pid>/maps` instead.
+   * `map_files` usage is generally strongly encouraged, as symbolic
+   * path usage is unlikely to work reliably in mount namespace
+   * contexts or when files have been deleted from the file system.
+   * However, by using symbolic paths the need for requiring the
+   * `SYS_ADMIN` capability is eliminated.
+   */
+  bool map_files;
+  /**
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[2];
+  uint8_t reserved[1];
 } blaze_symbolize_src_process;
 
 /**
