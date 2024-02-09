@@ -6,7 +6,9 @@ use std::iter;
 use std::mem::align_of;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
+use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::io::RawFd;
+use std::path::Path;
 use std::slice;
 
 
@@ -54,6 +56,21 @@ where
 }
 
 
+pub(crate) fn stat(path: &Path) -> io::Result<libc::stat> {
+    let mut dst = MaybeUninit::uninit();
+    let mut path = path.as_os_str().as_bytes().to_vec();
+    let () = path.push(b'\0');
+
+    let rc = unsafe { libc::stat(path.as_ptr().cast::<libc::c_char>(), dst.as_mut_ptr()) };
+    if rc < 0 {
+        return Err(io::Error::last_os_error())
+    }
+
+    // SAFETY: The object is initialized on success of `stat`.
+    Ok(unsafe { dst.assume_init() })
+}
+
+
 pub(crate) fn fstat(fd: RawFd) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
@@ -64,6 +81,7 @@ pub(crate) fn fstat(fd: RawFd) -> io::Result<libc::stat> {
     // SAFETY: The object is initialized on success of `fstat`.
     Ok(unsafe { dst.assume_init() })
 }
+
 
 pub(crate) fn uname_release() -> io::Result<CString> {
     let mut dst = MaybeUninit::uninit();
@@ -351,7 +369,9 @@ mod tests {
     use std::cmp::Ordering;
     #[cfg(feature = "nightly")]
     use std::hint::black_box;
+    use std::os::fd::AsRawFd as _;
 
+    use tempfile::NamedTempFile;
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
@@ -436,6 +456,22 @@ mod tests {
         )
         .unwrap();
         assert_eq!(result, vec.into_iter().map(|x| x + 2).collect::<Vec<_>>());
+    }
+
+    /// Check that we can retrieve meta-data about a file using `stat`
+    /// and `fstat`.
+    #[test]
+    #[cfg_attr(miri, ignore)]
+    fn file_stating() {
+        let tmpfile = NamedTempFile::new().unwrap();
+        let stat1 = stat(tmpfile.path()).unwrap();
+        let stat2 = fstat(tmpfile.as_file().as_raw_fd()).unwrap();
+
+        assert_eq!(stat1.st_dev, stat2.st_dev);
+        assert_eq!(stat1.st_ino, stat2.st_ino);
+        assert_eq!(stat1.st_mode, stat2.st_mode);
+        assert_eq!(stat1.st_size, stat2.st_size);
+        assert_eq!(stat1.st_ctime, stat2.st_ctime);
     }
 
     /// Make sure that `[u8]::ensure` works as expected.
