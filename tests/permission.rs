@@ -24,7 +24,7 @@ use tempfile::NamedTempFile;
 use test_log::test;
 
 use common::as_user;
-use common::NOBODY;
+use common::non_root_uid;
 
 
 fn symbolize_no_permission_impl(path: &Path) {
@@ -40,15 +40,6 @@ fn symbolize_no_permission_impl(path: &Path) {
 /// Check that we fail symbolization as expected when we don't have the
 /// permission to open the symbolization source.
 #[test]
-// This test relies on a nobody user with UID 65534 being present, which
-// is not guaranteed. The cfg_attr dance is necessary because the
-// bencher benchmarking infrastructure doesn't work properly with the
-// --include-ignored argument, at least not when invoked via
-// cargo-llvm-cov.
-#[cfg_attr(
-    not(feature = "nightly"),
-    ignore = "test assumes nobody user with UID 65534"
-)]
 fn symbolize_no_permission() {
     // We run as root. Even if we limit permissions for a root-owned file we can
     // still access it (unlike the behavior for regular users). As such, we have
@@ -76,6 +67,7 @@ fn symbolize_no_permission() {
     // Clear all permissions.
     let () = permissions.set_mode(0o0);
     let () = set_permissions(path, permissions).unwrap();
+    let uid = non_root_uid();
 
-    as_user(ruid, NOBODY, || symbolize_no_permission_impl(path))
+    as_user(ruid, uid, || symbolize_no_permission_impl(path))
 }

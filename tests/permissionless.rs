@@ -30,7 +30,7 @@ use scopeguard::defer;
 use test_log::test;
 
 use common::as_user;
-use common::NOBODY;
+use common::non_root_uid;
 
 
 fn symbolize_permissionless_impl(pid: Pid, addr: Addr) {
@@ -61,16 +61,8 @@ fn symbolize_permissionless_impl(pid: Pid, addr: Addr) {
 /// Check that we can symbolize an address in a process using only
 /// symbolic paths.
 #[test]
-// This test relies on a nobody user with UID 65534 being present, which
-// is not guaranteed. The cfg_attr dance is necessary because the
-// bencher benchmarking infrastructure doesn't work properly with the
-// --include-ignored argument, at least not when invoked via
-// cargo-llvm-cov.
-#[cfg_attr(
-    not(feature = "nightly"),
-    ignore = "test assumes nobody user with UID 65534"
-)]
 fn symbolize_process_symbolic_paths() {
+    let uid = non_root_uid();
     // We run as root. Even if we limit permissions for a root-owned file we can
     // still access it (unlike the behavior for regular users). As such, we have
     // to work as a different user to check handling of permission denied
@@ -97,7 +89,7 @@ fn symbolize_process_symbolic_paths() {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
-        .uid(NOBODY)
+        .uid(uid)
         .spawn()
         .unwrap();
     let pid = child.id();
@@ -119,7 +111,7 @@ fn symbolize_process_symbolic_paths() {
     let addr_str = str::from_utf8(&buf[0..count]).unwrap().trim_end();
     let addr = Addr::from_str_radix(addr_str.trim_start_matches("0x"), 16).unwrap();
     let pid = Pid::from(child.id());
-    let () = as_user(ruid, NOBODY, || symbolize_permissionless_impl(pid, addr));
+    let () = as_user(ruid, uid, || symbolize_permissionless_impl(pid, addr));
 
     // "Signal" the child to terminate gracefully.
     let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
