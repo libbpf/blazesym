@@ -4,13 +4,13 @@
     clippy::let_unit_value
 )]
 
+mod common;
+
 use std::fs::copy;
 use std::fs::metadata;
 use std::fs::set_permissions;
 use std::io::Error;
 use std::os::unix::fs::PermissionsExt as _;
-use std::panic::catch_unwind;
-use std::panic::UnwindSafe;
 use std::path::Path;
 
 use blazesym::symbolize;
@@ -18,43 +18,13 @@ use blazesym::symbolize::Symbolizer;
 use blazesym::ErrorKind;
 
 use libc::getresuid;
-use libc::seteuid;
-use libc::uid_t;
 
 use tempfile::NamedTempFile;
 
 use test_log::test;
 
-
-const NOBODY: uid_t = 65534;
-
-
-/// Run a function with a different effective user ID.
-fn as_user<F, R>(ruid: uid_t, euid: uid_t, f: F) -> R
-where
-    F: FnOnce() -> R + UnwindSafe,
-{
-    if unsafe { seteuid(euid) } == -1 {
-        panic!(
-            "failed to set effective user ID to {euid}: {}",
-            Error::last_os_error()
-        )
-    }
-
-    let result = catch_unwind(f);
-
-    // Make sure that we restore the real user before tearing down,
-    // because shut down code may need the original permissions (e.g., for
-    // writing down code coverage files or similar.
-    if unsafe { seteuid(ruid) } == -1 {
-        panic!(
-            "failed to restore effective user ID to {ruid}: {}",
-            Error::last_os_error()
-        )
-    }
-
-    result.unwrap()
-}
+use common::as_user;
+use common::NOBODY;
 
 
 fn symbolize_no_permission_impl(path: &Path) {
