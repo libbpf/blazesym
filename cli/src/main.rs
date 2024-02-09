@@ -135,8 +135,14 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
             let input = symbolize::Input::VirtOffset(addrs);
             (src, input, addrs)
         }
-        args::Symbolize::Process(args::Process { pid, ref addrs }) => {
-            let src = symbolize::Source::from(symbolize::Process::new(pid));
+        args::Symbolize::Process(args::Process {
+            pid,
+            ref addrs,
+            no_map_files,
+        }) => {
+            let mut process = symbolize::Process::new(pid);
+            process.map_files = !no_map_files;
+            let src = symbolize::Source::from(process);
             let addrs = addrs.as_slice();
             let input = symbolize::Input::AbsAddr(addrs);
             (src, input, addrs)
