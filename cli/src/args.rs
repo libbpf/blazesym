@@ -137,4 +137,8 @@ pub struct Process {
     /// The addresses to symbolize.
     #[arg(value_parser = parse_addr)]
     pub addrs: Vec<Addr>,
+    /// Disable the use of `/proc/<pid>/map_files/` entries and use
+    /// symbolic paths instead.
+    #[clap(long)]
+    pub no_map_files: bool,
 }
