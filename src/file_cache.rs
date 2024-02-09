@@ -1,12 +1,11 @@
 use std::fs::File;
 use std::marker::PhantomData;
-use std::os::unix::io::AsRawFd;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::insert_map::InsertMap;
 use crate::once::OnceCell;
-use crate::util::fstat;
+use crate::util::stat;
 use crate::ErrorExt as _;
 use crate::Result;
 
@@ -142,22 +141,24 @@ impl<T> FileCache<T> {
 
     /// Retrieve an entry for the file at the given `path`.
     pub fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
-        let entry = if self.auto_reload {
+        let stat = if self.auto_reload {
+            let stat = stat(path).with_context(|| format!("failed to stat {}", path.display()))?;
+            Some(stat)
+        } else {
+            None
+        };
+
+        let meta = EntryMeta::new(path.to_path_buf(), stat.as_ref());
+        let entry = self.cache.get_or_try_insert(meta, || {
+            // We may end up associating this file with a potentially
+            // outdated `stat` (which could have change), but the only
+            // consequence is that we'd create a new entry again in the
+            // future. On the bright side, we save one `stat` call.
             let file = File::open(path)
                 .with_context(|| format!("failed to open file {}", path.display()))?;
-            let stat = fstat(file.as_raw_fd())?;
-            let meta = EntryMeta::new(path.to_path_buf(), Some(&stat));
-
-            self.cache.get_or_insert(meta, || Entry::new(file))
-        } else {
-            let meta = EntryMeta::new(path.to_path_buf(), None);
-            self.cache.get_or_try_insert(meta, || {
-                let file = File::open(path)
-                    .with_context(|| format!("failed to open file {}", path.display()))?;
-                let entry = Entry::new(file);
-                Ok(entry)
-            })?
-        };
+            let entry = Entry::new(file);
+            Ok(entry)
+        })?;
 
         Ok((&entry.file, &entry.value))
     }

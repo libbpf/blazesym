@@ -7,6 +7,7 @@ use std::mem::align_of;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
 use std::os::unix::ffi::OsStrExt as _;
+#[cfg(test)]
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::slice;
@@ -71,7 +72,8 @@ pub(crate) fn stat(path: &Path) -> io::Result<libc::stat> {
 }
 
 
-pub(crate) fn fstat(fd: RawFd) -> io::Result<libc::stat> {
+#[cfg(test)]
+fn fstat(fd: RawFd) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
     if rc < 0 {
