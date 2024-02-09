@@ -4,6 +4,7 @@ Unreleased
   by default)
 - Added support for usage of perf map files as part of process symbolization
   - Added `perf_map` attribute to `symbolize::Process` type
+- Added `map_files` attribute to `symbolize::Process` type
 - Added support for symbolizing addresses mapping to ELF variables and
   for looking them up using `inspect` APIs
 - Added support for GNU indirect functions to ELF logic
