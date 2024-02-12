@@ -561,7 +561,7 @@ impl Symbolizer {
                 file_off: u64,
                 entry_path: &EntryPath,
             ) -> Result<()> {
-                let apk_path = &entry_path.symbolic_path;
+                let apk_path = &entry_path.maps_file;
                 match self
                     .symbolizer
                     .apk_resolver(apk_path, file_off, self.debug_syms)?
