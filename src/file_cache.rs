@@ -214,34 +214,53 @@ mod tests {
         }
     }
 
-    /// Make sure that a changed file purges the cache entry.
+    /// Make sure that a changed file purges the cache entry .
     #[test]
     fn outdated() {
-        let cache = FileCache::<usize>::default();
-        let tmpfile = NamedTempFile::new().unwrap();
-        let modified = {
-            let (file, cell) = cache.entry(tmpfile.path()).unwrap();
-            assert_eq!(cell.get(), None);
+        fn test(auto_reload: bool) {
+            let cache = FileCache::<usize>::builder()
+                .enable_auto_reload(auto_reload)
+                .build();
+            let tmpfile = NamedTempFile::new().unwrap();
+            let modified = {
+                let (file, cell) = cache.entry(tmpfile.path()).unwrap();
+                assert_eq!(cell.get(), None);
 
-            let () = cell.set(42).unwrap();
-            file.metadata().unwrap().modified().unwrap()
-        };
+                let () = cell.set(42).unwrap();
+                file.metadata().unwrap().modified().unwrap()
+            };
 
-        // Sleep briefly to make sure that file times will end up being
-        // different.
-        let () = sleep(Duration::from_millis(10));
+            // Sleep briefly to make sure that file times will end up being
+            // different.
+            let () = sleep(Duration::from_millis(10));
 
-        let mut file = File::create(tmpfile.path()).unwrap();
-        let () = file.write_all(b"foobar").unwrap();
+            let path = tmpfile.path().to_path_buf();
+            let () = drop(tmpfile);
 
-        {
-            let (mut file, entry) = cache.entry(tmpfile.path()).unwrap();
-            assert_eq!(entry.get(), None);
-            assert_ne!(file.metadata().unwrap().modified().unwrap(), modified);
+            {
+                let mut _file = File::create(&path).unwrap();
+                let () = _file.write_all(b"foobar").unwrap();
+            }
 
-            let mut content = Vec::new();
-            let _count = file.read_to_end(&mut content);
-            assert_eq!(content, b"foobar");
+            {
+                let (mut file, entry) = cache.entry(&path).unwrap();
+
+                if auto_reload {
+                    assert_eq!(entry.get(), None);
+                    assert_ne!(file.metadata().unwrap().modified().unwrap(), modified);
+
+                    let mut content = Vec::new();
+                    let _count = file.read_to_end(&mut content);
+                    assert_eq!(content, b"foobar");
+                } else {
+                    assert_eq!(entry.get(), Some(&42));
+                    assert_eq!(file.metadata().unwrap().modified().unwrap(), modified);
+                }
+            }
+        }
+
+        for auto_reload in [false, true] {
+            let () = test(auto_reload);
         }
     }
 }
