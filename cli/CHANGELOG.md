@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Added support for symbolization using Breakpad (`*.sym`) files
 - Added `--no-debug-syms` option to `symbolize elf` sub-command
+- Added `--no-build-ids` option to `normalize user` sub-command
 
 
 0.1.2
