@@ -72,6 +72,9 @@ pub struct User {
     /// The addresses to normalize.
     #[arg(value_parser = parse_addr)]
     pub addrs: Vec<Addr>,
+    /// Disable the reading of build IDs of the corresponding binaries.
+    #[clap(long)]
+    pub no_build_ids: bool,
 }
 
 

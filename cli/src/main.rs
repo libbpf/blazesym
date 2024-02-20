@@ -40,9 +40,15 @@ fn format_build_id(build_id: Option<&[u8]>) -> String {
 }
 
 fn normalize(normalize: args::Normalize) -> Result<()> {
-    let normalizer = Normalizer::new();
     match normalize {
-        args::Normalize::User(args::User { pid, addrs }) => {
+        args::Normalize::User(args::User {
+            pid,
+            addrs,
+            no_build_ids,
+        }) => {
+            let normalizer = Normalizer::builder()
+                .enable_build_ids(!no_build_ids)
+                .build();
             let normalized = normalizer
                 .normalize_user_addrs(pid, addrs.as_slice())
                 .context("failed to normalize addresses")?;
