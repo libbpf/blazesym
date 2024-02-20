@@ -118,9 +118,12 @@ impl BuildIdReader for DefaultBuildIdReader {
 pub(super) struct NoBuildIdReader;
 
 impl BuildIdReader for NoBuildIdReader {
+    #[inline]
     fn read_build_id_from_elf(_path: &Path) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
+
+    #[inline]
     fn read_build_id(_parser: &ElfParser) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
