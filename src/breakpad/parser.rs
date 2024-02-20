@@ -28,7 +28,6 @@
 
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::fmt::Debug;
 use std::mem;
 use std::ops::BitOr;

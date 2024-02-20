@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use crate::util::Pod;
 use crate::SymType;
 
