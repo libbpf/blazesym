@@ -10,6 +10,11 @@ use std::io::Read;
 use std::ops::Range;
 use std::path::PathBuf;
 
+use crate::util;
+use crate::util::bytes_to_path;
+use crate::util::from_radix_16;
+use crate::util::split_bytes;
+use crate::util::trim_ascii;
 use crate::Addr;
 use crate::ErrorExt as _;
 use crate::IntoError as _;
@@ -97,55 +102,72 @@ impl Debug for MapsEntry {
 
 
 /// Parse a line of a proc maps file.
-fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
+fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
     let full_line = line;
 
-    let split_once_opt = |line: &'line str| -> Option<(&'line str, &'line str)> {
-        line.split_once(|c: char| c.is_ascii_whitespace())
+    let split_once_opt = |line: &'line [u8]| -> Option<(&'line [u8], &'line [u8])> {
+        split_bytes(line, |b| b.is_ascii_whitespace())
     };
 
-    let split_once = |line: &'line str, component| -> Result<(&'line str, &'line str)> {
+    let split_once = |line: &'line [u8], component| -> Result<(&'line [u8], &'line [u8])> {
         split_once_opt(line).ok_or_invalid_data(|| {
-            format!("failed to find {component} in proc maps line: {line}\n{full_line}")
+            format!(
+                "failed to find {component} in perf map line: {}\n{}",
+                String::from_utf8_lossy(line),
+                String::from_utf8_lossy(full_line)
+            )
         })
     };
 
     // Lines have the following format:
-    // address           perms offset  dev   inode      pathname
-    // 08048000-08049000 r-xp 00000000 03:00 8312       /opt/test
-    // 0804a000-0806b000 rw-p 00000000 00:00 0          [heap]
-    // a7cb1000-a7cb2000 ---p 00000000 00:00 0
-    // a7ed5000-a8008000 r-xp 00000000 03:00 4222       /lib/libc.so.6
+    // address           perms offset   dev   inode      pathname
+    // 08048000-08049000 r-xp  00000000 03:00 8312       /opt/test
+    // 0804a000-0806b000 rw-p  00000000 00:00 0          [heap]
+    // a7cb1000-a7cb2000 ---p  00000000 00:00 0
+    // a7ed5000-a8008000 r-xp  00000000 03:00 4222       /lib/libc.so.6
     let (address_str, line) = split_once(line, "address range")?;
-    let (loaded_str, end_str) = address_str.split_once('-').ok_or_else(|| {
+    // TODO: Use `<[u8]>::split_once` once stabilized.
+    let (loaded_str, end_str) = util::split_once(address_str, |b| *b == b'-').ok_or_else(|| {
         Error::new(
             ErrorKind::InvalidData,
-            format!("encountered malformed address range in proc maps line: {full_line}"),
+            format!(
+                "encountered malformed address range in proc maps line: {}",
+                String::from_utf8_lossy(full_line)
+            ),
         )
     })?;
-    let loaded_addr = Addr::from_str_radix(loaded_str, 16).map_err(|err| {
+    let loaded_addr = from_radix_16(loaded_str).ok_or_else(|| {
         Error::new(
             ErrorKind::InvalidData,
-            format!("encountered malformed start address in proc maps line: {full_line}: {err}"),
+            format!(
+                "encountered malformed start address in proc maps line: {}",
+                String::from_utf8_lossy(full_line)
+            ),
         )
     })?;
-    let end_addr = Addr::from_str_radix(end_str, 16).map_err(|err| {
+    let end_addr = from_radix_16(end_str).ok_or_else(|| {
         Error::new(
             ErrorKind::InvalidData,
-            format!("encountered malformed end address in proc maps line: {full_line}: {err}"),
+            format!(
+                "encountered malformed end address in proc maps line: {}",
+                String::from_utf8_lossy(full_line)
+            ),
         )
     })?;
 
     let (mode_str, line) = split_once(line, "permissions component")?;
     let mode = mode_str
-        .chars()
-        .fold(0, |mode, c| (mode << 1) | u8::from(c != '-'));
+        .iter()
+        .fold(0, |mode, b| (mode << 1) | u8::from(*b != b'-'));
 
     let (offset_str, line) = split_once(line, "offset component")?;
-    let offset = u64::from_str_radix(offset_str, 16).map_err(|err| {
+    let offset = from_radix_16(offset_str).ok_or_else(|| {
         Error::new(
             ErrorKind::InvalidData,
-            format!("encountered malformed offset component in proc maps line: {full_line}: {err}"),
+            format!(
+                "encountered malformed offset component in proc maps line: {}",
+                String::from_utf8_lossy(full_line)
+            ),
         )
     })?;
 
@@ -153,14 +175,15 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     // Note that by design, a path may not be present and so we may not be able
     // to successfully split.
     let path_str = split_once_opt(line)
-        .map(|(_inode, line)| line.trim())
-        .unwrap_or("");
+        .map(|(_inode, line)| trim_ascii(line))
+        .unwrap_or(b"");
 
-    let path_name = match path_str.as_bytes() {
+    let path_name = match path_str {
         [] => None,
         [b'/', ..] => {
             let symbolic_path =
-                PathBuf::from(path_str.strip_suffix(" (deleted)").unwrap_or(path_str));
+                bytes_to_path(path_str.strip_suffix(b" (deleted)").unwrap_or(path_str))
+                    .to_path_buf();
             // TODO: May have to resolve the symbolic link in case of
             //       `Pid::Slf` here for remote symbolization use cases.
             let maps_file = PathBuf::from(format!(
@@ -175,7 +198,9 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
         // `[heap]`, but we can't rely on square brackets being present
         // unconditionally, as variants such as `anon_inode:bpf-map` are also
         // possible.
-        [..] => Some(PathName::Component(path_str.to_string())),
+        [..] => Some(PathName::Component(
+            String::from_utf8_lossy(path_str).to_string(),
+        )),
     };
 
     let entry = MapsEntry {
@@ -191,7 +216,7 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
 #[derive(Debug)]
 struct MapsEntryIter<R> {
     reader: R,
-    line: String,
+    line: Vec<u8>,
     pid: Pid,
 }
 
@@ -204,15 +229,15 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let () = self.line.clear();
-            match self.reader.read_line(&mut self.line) {
+            match self.reader.read_until(b'\n', &mut self.line) {
                 Err(err) => return Some(Err(err.into())),
                 Ok(0) => break None,
                 Ok(_) => {
-                    let line_str = self.line.trim();
+                    let line = trim_ascii(&self.line);
                     // There shouldn't be any empty lines, but we'd just ignore them. We
                     // need to trim anyway.
-                    if !line_str.is_empty() {
-                        let result = parse_maps_line(line_str, self.pid);
+                    if !line.is_empty() {
+                        let result = parse_maps_line(line, self.pid);
                         break Some(result)
                     }
                 }
@@ -231,7 +256,7 @@ where
         // No real rationale for the buffer capacity, other than fixing it to a
         // certain value and not making it too small to cause too many reads.
         reader: BufReader::with_capacity(16 * 1024, reader),
-        line: String::new(),
+        line: Vec::new(),
         pid,
     }
 }
@@ -350,7 +375,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         });
 
         // Parse the first (actual) line.
-        let entry = parse_maps_line(lines.lines().nth(1).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(1).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x400000);
         assert_eq!(entry.range.end, 0x401000);
         assert_eq!(
@@ -364,7 +389,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
             Path::new("/proc/self/map_files/400000-401000")
         );
 
-        let entry = parse_maps_line(lines.lines().nth(7).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(7).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4a95cb000);
         assert_eq!(entry.range.end, 0x55f4a95cf000);
         assert_eq!(entry.mode, 0b1011);
@@ -380,7 +405,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         );
         assert_eq!(entry.path_name.as_ref().unwrap().as_component(), None);
 
-        let entry = parse_maps_line(lines.lines().nth(11).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(11).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4aa379000);
         assert_eq!(entry.range.end, 0x55f4aa39a000);
         assert_eq!(entry.mode, 0b1101);
@@ -390,7 +415,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         );
         assert_eq!(entry.path_name.as_ref().unwrap().as_path(), None);
 
-        let entry = parse_maps_line(lines.lines().nth(13).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(13).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.mode, 0b1001);
         assert_eq!(
             entry
@@ -403,7 +428,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
             Path::new("/proc/self/map_files/7f2321e00000-7f2321e37000")
         );
 
-        let entry = parse_maps_line(lines.lines().nth(24).unwrap(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(24).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x7fa7bb5fa000);
         assert_eq!(entry.range.end, 0x7fa7bb602000);
         assert_eq!(entry.path_name, None);
@@ -413,17 +438,17 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
     #[test]
     fn malformed_proc_maps_lines() {
         let lines = [
-            "7fa7bb75a000+7fa7bb75c000",
-            "7fa7bb75a000-7fa7bb75c000",
-            "7fa7b$#5a000-7fa7bb75c000",
-            "7fa7bb75a000-7fa7@%@5c000",
-            "7fa7bb75a000+7fa7bb75c000 r--p",
-            "7fa7bb75a000-7fa7bb75c000 r--p",
-            "7fa7b$#5a000-7fa7bb75c000 r--p",
-            "7fa7bb75a000-7fa7@%@5c000 r--p",
-            "7fa7bb75a000-7fa7bb75c000 r--p",
-            "7fa7bb75a000-7fa7bb75c000 r--p 00000000",
-            "7fa7bb75a000-7fa7bb75c000 r--p 000zz000 00:20",
+            b"7fa7bb75a000+7fa7bb75c000".as_slice(),
+            b"7fa7bb75a000-7fa7bb75c000".as_slice(),
+            b"7fa7b$#5a000-7fa7bb75c000".as_slice(),
+            b"7fa7bb75a000-7fa7@%@5c000".as_slice(),
+            b"7fa7bb75a000+7fa7bb75c000 r--p".as_slice(),
+            b"7fa7bb75a000-7fa7bb75c000 r--p".as_slice(),
+            b"7fa7b$#5a000-7fa7bb75c000 r--p".as_slice(),
+            b"7fa7bb75a000-7fa7@%@5c000 r--p".as_slice(),
+            b"7fa7bb75a000-7fa7bb75c000 r--p".as_slice(),
+            b"7fa7bb75a000-7fa7bb75c000 r--p 00000000".as_slice(),
+            b"7fa7bb75a000-7fa7bb75c000 r--p 000zz000 00:20".as_slice(),
         ];
 
         let () = lines.iter().for_each(|line| {

@@ -18,6 +18,7 @@ use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
+use crate::util::split_bytes;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
@@ -34,22 +35,6 @@ struct Function<'mmap> {
     addr: Addr,
     /// The size of the function.
     size: usize,
-}
-
-
-/// Split a byte slice at the first byte for which `check` returns
-/// `true`.
-///
-/// # Notes
-/// The byte at which the split happens is not included in either of the
-/// returned sliced.
-fn split_bytes<F>(bytes: &[u8], mut check: F) -> Option<(&[u8], &[u8])>
-where
-    F: FnMut(u8) -> bool,
-{
-    let (idx, _) = bytes.iter().enumerate().find(|(_idx, b)| check(**b))?;
-    let (left, right) = bytes.split_at(idx);
-    Some((left, &right[1..]))
 }
 
 

@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::ffi::CString;
+use std::ffi::OsStr;
 use std::io;
 use std::iter;
 use std::mem::align_of;
@@ -36,6 +37,114 @@ where
     }
 }
 
+
+/// Split a byte slice at the first byte for which `check` returns
+/// `true`.
+///
+/// # Notes
+/// The byte at which the split happens is not included in either of the
+/// returned sliced.
+pub(crate) fn split_bytes<F>(bytes: &[u8], mut check: F) -> Option<(&[u8], &[u8])>
+where
+    F: FnMut(u8) -> bool,
+{
+    let (idx, _) = bytes.iter().enumerate().find(|(_idx, b)| check(**b))?;
+    let (left, right) = bytes.split_at(idx);
+    Some((left, &right[1..]))
+}
+
+// TODO: This is a copy of unstable `trim_ascii_start` from std. Once
+//       stabilized, we should remove this functionality in favor of the std
+//       version.
+#[inline]
+pub(crate) fn trim_ascii_start(mut bytes: &[u8]) -> &[u8] {
+    while let [first, rest @ ..] = bytes {
+        if first.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
+// TODO: This is a copy of unstable `trim_ascii_end` from std. Once stabilized,
+//       we should remove this functionality in favor of the std version.
+#[inline]
+pub(crate) fn trim_ascii_end(mut bytes: &[u8]) -> &[u8] {
+    while let [rest @ .., last] = bytes {
+        if last.is_ascii_whitespace() {
+            bytes = rest;
+        } else {
+            break;
+        }
+    }
+    bytes
+}
+
+// TODO: This is a copy of unstable `trim_ascii` from std. Once stabilized,
+//       we should remove this functionality in favor of the std version.
+#[inline]
+pub(crate) fn trim_ascii(bytes: &[u8]) -> &[u8] {
+    trim_ascii_end(trim_ascii_start(bytes))
+}
+
+/// Splits the slice on the first element that matches the specified predicate.
+// TODO: This is a copy of unstable `<[u8]>::split_once` from std. Once
+//       stabilized, we should remove this functionality in favor of the std
+//       version.
+#[inline]
+pub fn split_once<F>(bytes: &[u8], pred: F) -> Option<(&[u8], &[u8])>
+where
+    F: FnMut(&u8) -> bool,
+{
+    let index = bytes.iter().position(pred)?;
+    Some((&bytes[..index], &bytes[index + 1..]))
+}
+
+/// Converts an ascii character to digit
+fn ascii_to_hexdigit(character: u8) -> Option<u64> {
+    match character {
+        b'0' => Some(0),
+        b'1' => Some(1),
+        b'2' => Some(2),
+        b'3' => Some(3),
+        b'4' => Some(4),
+        b'5' => Some(5),
+        b'6' => Some(6),
+        b'7' => Some(7),
+        b'8' => Some(8),
+        b'9' => Some(9),
+        b'a' | b'A' => Some(10),
+        b'b' | b'B' => Some(11),
+        b'c' | b'C' => Some(12),
+        b'd' | b'D' => Some(13),
+        b'e' | b'E' => Some(14),
+        b'f' | b'F' => Some(15),
+        _ => None,
+    }
+}
+
+pub(crate) fn from_radix_16(text: &[u8]) -> Option<u64> {
+    let mut index = 0;
+    let mut number = 0;
+    while index != text.len() {
+        if let Some(digit) = ascii_to_hexdigit(text[index]) {
+            number *= 16;
+            number += digit;
+            index += 1;
+        } else {
+            return None
+        }
+    }
+    Some(number)
+}
+
+/// Convert a byte slice into a [`Path`].
+#[inline]
+pub(crate) fn bytes_to_path(bytes: &[u8]) -> &Path {
+    AsRef::<Path>::as_ref(OsStr::from_bytes(bytes))
+}
 
 /// Reorder elements of `array` based on index information in `indices`.
 fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
