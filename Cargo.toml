@@ -100,11 +100,9 @@ anyhow = "1.0.71"
 blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "breakpad", "gsym", "tracing"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
-env_logger = "0.10"
 scopeguard = "1.2"
 tempfile = "3.4"
-test-log = {version = "0.2", default-features = false, features = ["trace"]}
-tracing-subscriber = {version = "0.3", default-features = false, features = ["env-filter", "fmt"]}
+test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
 
 [build-dependencies]
 dump_syms = {version = "2.2", optional = true, default-features = false}
