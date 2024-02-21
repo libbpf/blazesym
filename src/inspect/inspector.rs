@@ -1,3 +1,5 @@
+use std::ops::Deref as _;
+
 use crate::elf::ElfResolverData;
 use crate::file_cache::FileCache;
 use crate::Result;
@@ -52,7 +54,7 @@ impl Inspector {
             sym_type: SymType::Undefined,
         };
 
-        match src {
+        let resolver = match src {
             Source::Elf(Elf {
                 path,
                 debug_syms,
@@ -60,22 +62,24 @@ impl Inspector {
             }) => {
                 let code_info = true;
                 let resolver = self.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
-                let syms = names
-                    .iter()
-                    .map(|name| {
-                        resolver.find_addr(name, &opts).map(|syms| {
-                            // This dance including reallocation of the vector
-                            // is very unfortunate, but it's unclear how else to
-                            // make the borrow checker accept this code (modulo
-                            // `transmute`).
-                            syms.into_iter().map(|sym| sym.to_owned()).collect()
-                        })
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-
-                Ok(syms)
+                resolver.deref() as &dyn SymResolver
             }
-        }
+        };
+
+        let syms = names
+            .iter()
+            .map(|name| {
+                resolver.find_addr(name, &opts).map(|syms| {
+                    // This dance including reallocation of the vector
+                    // is very unfortunate, but it's unclear how else to
+                    // make the borrow checker accept this code (modulo
+                    // `transmute`).
+                    syms.into_iter().map(|sym| sym.to_owned()).collect()
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        Ok(syms)
     }
 
     /// Perform an operation on each symbol in the source.
