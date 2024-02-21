@@ -1,10 +1,20 @@
+#[cfg(feature = "breakpad")]
+use std::fs::File;
 use std::ops::Deref as _;
+#[cfg(feature = "breakpad")]
+use std::path::Path;
+#[cfg(feature = "breakpad")]
+use std::rc::Rc;
 
+#[cfg(feature = "breakpad")]
+use crate::breakpad::BreakpadResolver;
 use crate::elf::ElfResolverData;
 use crate::file_cache::FileCache;
 use crate::Result;
 use crate::SymResolver;
 
+#[cfg(feature = "breakpad")]
+use super::source::Breakpad;
 use super::source::Elf;
 use super::source::Source;
 use super::FindAddrOpts;
@@ -27,6 +37,8 @@ use super::SymType;
 /// to consider creating a new `Inspector` instance regularly.
 #[derive(Debug)]
 pub struct Inspector {
+    #[cfg(feature = "breakpad")]
+    breakpad_cache: FileCache<Rc<BreakpadResolver>>,
     elf_cache: FileCache<ElfResolverData>,
 }
 
@@ -34,9 +46,24 @@ impl Inspector {
     /// Create a new `Inspector`.
     pub fn new() -> Self {
         Self {
+            #[cfg(feature = "breakpad")]
+            breakpad_cache: FileCache::builder().enable_auto_reload(true).build(),
             // TODO: Make auto reloading configurable by clients.
             elf_cache: FileCache::builder().enable_auto_reload(true).build(),
         }
+    }
+
+    #[cfg(feature = "breakpad")]
+    fn create_breakpad_resolver(&self, path: &Path, file: &File) -> Result<Rc<BreakpadResolver>> {
+        let resolver = BreakpadResolver::from_file(path.to_path_buf(), file)?;
+        Ok(Rc::new(resolver))
+    }
+
+    #[cfg(feature = "breakpad")]
+    fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<BreakpadResolver>> {
+        let (file, cell) = self.breakpad_cache.entry(path)?;
+        let resolver = cell.get_or_try_init(|| self.create_breakpad_resolver(path, file))?;
+        Ok(resolver)
     }
 
     /// Look up information (address etc.) about a list of symbols,
@@ -44,6 +71,10 @@ impl Inspector {
     ///
     /// # Notes
     /// - no symbol name demangling is performed currently
+    /// - for the [`Breakpad`](Source::Breakpad) source:
+    ///   - no variable support is present
+    ///   - file offsets won't be reported
+    ///   - addresses are reported as they appear in the symbol source
     pub fn lookup<'slf>(
         &'slf self,
         src: &Source,
@@ -55,6 +86,14 @@ impl Inspector {
         };
 
         let resolver = match src {
+            #[cfg(feature = "breakpad")]
+            Source::Breakpad(Breakpad {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let resolver = self.breakpad_resolver(path)?;
+                resolver.deref() as &dyn SymResolver
+            }
             Source::Elf(Elf {
                 path,
                 debug_syms,
@@ -95,11 +134,28 @@ impl Inspector {
     /// - for the [`Elf`](Source::Elf) source, at present DWARF symbols are
     ///   ignored (irrespective of the [`debug_syms`][Elf::debug_syms]
     ///   configuration)
+    /// - for the [`Breakpad`](Source::Breakpad) source:
+    ///   - no variable support is present
+    ///   - file offsets won't be reported
+    ///   - addresses are reported as they appear in the symbol source
     pub fn for_each<F, R>(&self, src: &Source, r: R, f: F) -> Result<R>
     where
         F: FnMut(R, &SymInfo<'_>) -> R,
     {
         match src {
+            #[cfg(feature = "breakpad")]
+            Source::Breakpad(Breakpad {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let opts = FindAddrOpts {
+                    // Breakpad logic doesn't support file offsets.
+                    offset_in_file: false,
+                    sym_type: SymType::Undefined,
+                };
+                let resolver = self.breakpad_resolver(path)?;
+                resolver.for_each_sym(&opts, r, f)
+            }
             Source::Elf(Elf {
                 path,
                 debug_syms,

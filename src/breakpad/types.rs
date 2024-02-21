@@ -24,7 +24,10 @@
 
 use std::collections::HashMap;
 
+use crate::once::OnceCell;
+use crate::util::find_lowest_match_by_key;
 use crate::util::find_match_or_lower_bound_by_key;
+use crate::util::Either;
 
 
 /// A publicly visible linker symbol.
@@ -182,8 +185,10 @@ impl Function {
 pub(crate) struct SymbolFile {
     /// The set of source files involved in compilation.
     pub files: HashMap<u32, String>,
-    /// Functions.
+    /// Functions, sorted by start address.
     pub functions: Vec<Function>,
+    /// An index on top of `functions` sorted by name.
+    pub by_name_idx: OnceCell<Box<[usize]>>,
     /// Function names for inlined functions.
     pub inline_origins: HashMap<u32, String>,
 }
@@ -204,6 +209,50 @@ impl SymbolFile {
         }
         None
     }
+
+    fn create_by_name_idx(funcs: &[Function]) -> Vec<usize> {
+        let mut by_name_idx = (0..funcs.len()).collect::<Vec<_>>();
+        let () = by_name_idx.sort_by(|idx1, idx2| {
+            let sym1 = &funcs[*idx1];
+            let sym2 = &funcs[*idx2];
+            sym1.name
+                .cmp(&sym2.name)
+                .then_with(|| sym1.addr.cmp(&sym2.addr))
+        });
+
+        by_name_idx
+    }
+
+    /// Find a function symbol based on its name.
+    pub fn find_addr<'s, 'slf: 's>(
+        &'slf self,
+        name: &'s str,
+    ) -> impl Iterator<Item = &'slf Function> + 's {
+        let by_name_idx = self.by_name_idx.get_or_init(|| {
+            let by_name_idx = Self::create_by_name_idx(&self.functions);
+            let by_name_idx = by_name_idx.into_boxed_slice();
+            by_name_idx
+        });
+
+        let idx = if let Some(idx) =
+            find_lowest_match_by_key(by_name_idx, &name, |idx| &self.functions[*idx].name)
+        {
+            idx
+        } else {
+            return Either::A([].into_iter())
+        };
+
+        let funcs = by_name_idx[idx..].iter().map_while(move |idx| {
+            let sym = &self.functions[*idx];
+            if sym.name == name {
+                Some(sym)
+            } else {
+                None
+            }
+        });
+
+        Either::B(funcs)
+    }
 }
 
 
@@ -218,6 +267,7 @@ mod tests {
         let file = SymbolFile {
             files: HashMap::new(),
             functions: Vec::new(),
+            by_name_idx: OnceCell::new(),
             inline_origins: HashMap::new(),
         };
         assert_ne!(format!("{file:?}"), "");

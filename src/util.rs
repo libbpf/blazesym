@@ -13,6 +13,30 @@ use std::path::Path;
 use std::slice;
 
 
+#[cfg(feature = "breakpad")]
+#[derive(Clone, Debug)]
+pub(crate) enum Either<A, B> {
+    A(A),
+    B(B),
+}
+
+#[cfg(feature = "breakpad")]
+impl<A, B, T> Iterator for Either<A, B>
+where
+    A: Iterator<Item = T>,
+    B: Iterator<Item = T>,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::A(a) => a.next(),
+            Self::B(b) => b.next(),
+        }
+    }
+}
+
+
 /// Reorder elements of `array` based on index information in `indices`.
 fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {
     debug_assert_eq!(array.len(), indices.len());
