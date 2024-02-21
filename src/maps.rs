@@ -217,7 +217,9 @@ where
     R: Read,
 {
     MapsEntryIter {
-        reader: BufReader::new(reader),
+        // No real rationale for the buffer capacity, other than fixing it to a
+        // certain value and not making it too small to cause too many reads.
+        reader: BufReader::with_capacity(16 * 1024, reader),
         line: String::new(),
         pid,
     }
