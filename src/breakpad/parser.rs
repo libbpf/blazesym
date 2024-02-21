@@ -61,6 +61,7 @@ use nom::Needed;
 use super::types::*;
 
 use crate::error::IntoCowStr;
+use crate::once::OnceCell;
 use crate::Error;
 use crate::ErrorExt;
 use crate::Result;
@@ -651,6 +652,7 @@ impl SymbolParser {
         SymbolFile {
             files: self.files,
             functions: self.functions,
+            by_name_idx: OnceCell::new(),
             inline_origins: self.inline_origins,
         }
     }

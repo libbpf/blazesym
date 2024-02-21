@@ -762,6 +762,33 @@ fn inspect_elf() {
 }
 
 
+/// Check that we can look up a symbol by name in a Breakpad file.
+#[test]
+fn inspect_breakpad() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.sym");
+    let breakpad = inspect::Breakpad::new(path);
+    let src = inspect::Source::from(breakpad);
+
+    let inspector = Inspector::new();
+    let results = inspector
+        .lookup(&src, &["factorial"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let sym = &results[0];
+    assert_eq!(sym.name, "factorial");
+    assert_eq!(sym.addr, 0x100);
+    assert_eq!(sym.sym_type, SymType::Function);
+    assert_eq!(sym.file_offset, None);
+    assert_eq!(sym.obj_file_name, None);
+}
+
+
 /// Make sure that we can look up a dynamic symbol in an ELF file.
 #[test]
 fn inspect_elf_dynamic_symbol() {
@@ -865,48 +892,67 @@ fn inspect_elf_file_offset() {
 
 /// Check that we can iterate over all symbols in an ELF file.
 #[test]
-fn inspect_elf_all_symbols() {
+fn inspect_elf_breakpad_all_symbols() {
+    fn test(src: &inspect::Source) {
+        let breakpad = matches!(src, inspect::Source::Breakpad(..));
+        let inspector = Inspector::new();
+        let syms = inspector
+            .for_each(
+                src,
+                HashMap::<String, inspect::SymInfo>::new(),
+                |mut syms, sym| {
+                    let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
+                    syms
+                },
+            )
+            .unwrap();
+
+        // Breakpad doesn't contain any or any reasonable information for
+        // some symbols.
+        if !breakpad {
+            let sym = syms.get("main").unwrap();
+            assert_eq!(sym.sym_type, SymType::Function);
+        }
+
+        let sym = syms.get("factorial").unwrap();
+        assert_eq!(sym.sym_type, SymType::Function);
+
+        let sym = syms.get("factorial_wrapper").unwrap();
+        assert_eq!(sym.sym_type, SymType::Function);
+
+        let sym = syms.get("factorial_inline_test").unwrap();
+        assert_eq!(sym.sym_type, SymType::Function);
+
+        if !breakpad {
+            let sym = syms.get("indirect_func").unwrap();
+            assert_eq!(sym.sym_type, SymType::Function);
+        }
+
+        let sym = syms.get("my_indirect_func").unwrap();
+        assert_eq!(sym.sym_type, SymType::Function);
+
+        let sym = syms.get("resolve_indirect_func").unwrap();
+        assert_eq!(sym.sym_type, SymType::Function);
+
+        if !breakpad {
+            let sym = syms.get("a_variable").unwrap();
+            assert_eq!(sym.sym_type, SymType::Variable);
+        }
+    }
+
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
     let elf = inspect::Elf::new(test_elf);
     let src = inspect::Source::Elf(elf);
+    test(&src);
 
-    let inspector = Inspector::new();
-    let syms = inspector
-        .for_each(
-            &src,
-            HashMap::<String, inspect::SymInfo>::new(),
-            |mut syms, sym| {
-                let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
-                syms
-            },
-        )
-        .unwrap();
-
-    let sym = syms.get("main").unwrap();
-    assert_eq!(sym.sym_type, SymType::Function);
-
-    let sym = syms.get("factorial").unwrap();
-    assert_eq!(sym.sym_type, SymType::Function);
-
-    let sym = syms.get("factorial_wrapper").unwrap();
-    assert_eq!(sym.sym_type, SymType::Function);
-
-    let sym = syms.get("factorial_inline_test").unwrap();
-    assert_eq!(sym.sym_type, SymType::Function);
-
-    let sym = syms.get("indirect_func").unwrap();
-    assert_eq!(sym.sym_type, SymType::Function);
-
-    let sym = syms.get("my_indirect_func").unwrap();
-    assert_eq!(sym.sym_type, SymType::Function);
-
-    let sym = syms.get("resolve_indirect_func").unwrap();
-    assert_eq!(sym.sym_type, SymType::Function);
-
-    let sym = syms.get("a_variable").unwrap();
-    assert_eq!(sym.sym_type, SymType::Variable);
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addresses.sym");
+    let breakpad = inspect::Breakpad::new(path);
+    let src = inspect::Source::Breakpad(breakpad);
+    test(&src);
 }
 
 

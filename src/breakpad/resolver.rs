@@ -21,8 +21,25 @@ use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Result;
 use crate::SymResolver;
+use crate::SymType;
 
+use super::types::Function;
 use super::types::SymbolFile;
+
+
+impl<'func> From<&'func Function> for SymInfo<'func> {
+    #[inline]
+    fn from(func: &'func Function) -> Self {
+        Self {
+            name: Cow::Borrowed(&func.name),
+            addr: func.addr,
+            size: func.size as _,
+            sym_type: SymType::Function,
+            file_offset: None,
+            obj_file_name: None,
+        }
+    }
+}
 
 
 /// A symbol resolver for a single Breakpad file.
@@ -76,6 +93,24 @@ impl BreakpadResolver {
 
         Ok(name)
     }
+
+    /// Perform an operation on each symbol.
+    pub(crate) fn for_each_sym<F, R>(&self, opts: &FindAddrOpts, mut r: R, mut f: F) -> Result<R>
+    where
+        F: FnMut(R, &SymInfo<'_>) -> R,
+    {
+        if let SymType::Variable = opts.sym_type {
+            return Err(Error::with_unsupported(
+                "breakpad logic does not currently support variable iteration",
+            ))
+        }
+
+        for func in &self.symbol_file.functions {
+            let sym = SymInfo::from(func);
+            r = f(r, &sym);
+        }
+        Ok(r)
+    }
 }
 
 impl SymResolver for BreakpadResolver {
@@ -99,14 +134,20 @@ impl SymResolver for BreakpadResolver {
         }
     }
 
-    fn find_addr<'slf>(
-        &'slf self,
-        _name: &str,
-        _opts: &FindAddrOpts,
-    ) -> Result<Vec<SymInfo<'slf>>> {
-        Err(Error::with_unsupported(
-            "Breakpad resolver does not currently support lookup by name",
-        ))
+    fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
+        if let SymType::Variable = opts.sym_type {
+            return Err(Error::with_unsupported(
+                "breakpad logic does not currently support variable lookup",
+            ))
+        }
+
+        let syms = self
+            .symbol_file
+            .find_addr(name)
+            .map(SymInfo::from)
+            .collect::<Vec<_>>();
+
+        Ok(syms)
     }
 
     fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
@@ -198,18 +239,24 @@ mod tests {
         assert!(dbg.ends_with("test-stable-addresses.sym"), "{dbg}");
     }
 
-    /// Check that [`BreakpadResolver::find_addr`] behaves as expected.
+    /// Check that [`BreakpadResolver::find_addr`] and
+    /// [`BreakpadResolver::for_each_sym`] behave as expected.
     #[test]
-    fn unsupported_find_addr() {
+    fn unsupported_ops() {
         let sym_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.sym");
         let sym_file = File::open(&sym_path).unwrap();
 
         let resolver = BreakpadResolver::from_file(sym_path, &sym_file).unwrap();
-        let err = resolver
-            .find_addr("factorial", &FindAddrOpts::default())
-            .unwrap_err();
+        let opts = FindAddrOpts {
+            sym_type: SymType::Variable,
+            ..Default::default()
+        };
+        let err = resolver.find_addr("a_variable", &opts).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = resolver.for_each_sym(&opts, (), |(), _| ()).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }
