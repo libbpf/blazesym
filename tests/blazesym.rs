@@ -699,7 +699,7 @@ fn normalize_build_id_reading() {
 
 /// Check that we can look up an address.
 #[test]
-fn inspect() {
+fn inspect_elf() {
     fn test(src: inspect::Source, no_vars: bool) {
         let inspector = Inspector::new();
         let results = inspector
@@ -764,7 +764,7 @@ fn inspect() {
 
 /// Make sure that we can look up a dynamic symbol in an ELF file.
 #[test]
-fn inspect_dynamic_symbol() {
+fn inspect_elf_dynamic_symbol() {
     #[track_caller]
     fn test(bin: &str) {
         let bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -800,7 +800,7 @@ fn inspect_dynamic_symbol() {
 
 /// Make sure that we can look up an indirect in an ELF file.
 #[test]
-fn inspect_indirect_function() {
+fn inspect_elf_indirect_function() {
     let bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
@@ -840,7 +840,7 @@ fn read_4bytes_at(path: &Path, offset: u64) -> [u8; 4] {
 
 /// Check that we can correctly retrieve the file offset in an ELF file.
 #[test]
-fn inspect_file_offset_elf() {
+fn inspect_elf_file_offset() {
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
@@ -865,7 +865,7 @@ fn inspect_file_offset_elf() {
 
 /// Check that we can iterate over all symbols in an ELF file.
 #[test]
-fn inspect_all_symbols() {
+fn inspect_elf_all_symbols() {
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addresses-no-dwarf.bin");
@@ -913,7 +913,7 @@ fn inspect_all_symbols() {
 /// Check that we can iterate over all symbols in an ELF file, without
 /// encountering duplicates caused by dynamic/static symbol overlap.
 #[test]
-fn inspect_all_symbols_without_duplicates() {
+fn inspect_elf_all_symbols_without_duplicates() {
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
