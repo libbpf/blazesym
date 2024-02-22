@@ -25,6 +25,7 @@ fn normalize_process_impl(read_build_ids: bool) {
     let normalized = normalizer
         .normalize_user_addrs_sorted(black_box(0.into()), black_box(addrs.as_slice()))
         .unwrap();
+    assert_eq!(normalized.meta.len(), 2);
     assert_eq!(normalized.outputs.len(), 5);
 }
 
