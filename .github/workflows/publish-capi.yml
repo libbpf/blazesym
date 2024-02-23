@@ -4,15 +4,53 @@ on:
   workflow_dispatch:
 
 jobs:
+  version:
+    name: Retrieve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+    - uses: actions/checkout@v4
+    - id: version
+      shell: bash
+      run: |
+        cd cli
+        cargo generate-lockfile
+        version="$(cargo pkgid | cut -d '#' -f2 | cut -d '@' -f2 | grep -o '[^:]*$')"
+
+        if [ -z "${version}" ]; then
+          echo "Invalid version number"
+          exit 1
+        fi
+        echo "version=${version}" >> $GITHUB_OUTPUT
   test:
     uses: ./.github/workflows/test.yml
     secrets: inherit
   publish:
-    needs: [test]
+    needs: [test, version]
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
+    - name: Create git tag
+      env:
+        version: ${{ needs.version.outputs.version }}
+      run: |
+        curl --location \
+          --request POST \
+          --url https://api.github.com/repos/${{ github.repository }}/releases \
+          --header "Accept: application/vnd.github+json" \
+          --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
+          --header "X-GitHub-Api-Version: 2022-11-28" \
+          --data "{
+              \"tag_name\":\"capi-v${version}\",
+              \"target_commitish\":\"${{ github.ref }}\",
+              \"name\":\"capi-v${version}\",
+              \"draft\":false,
+              \"prerelease\":false,
+              \"generate_release_notes\":false,
+              \"make_latest\":\"false\"
+            }"
     - name: Publish
       run: cargo publish --package blazesym-c --token "${CARGO_REGISTRY_TOKEN}"
       env:
