@@ -1,8 +1,28 @@
 [package]
 name = "blazesym-c"
-version = "0.0.0"
+description = "C bindings for blazesym"
+version = "0.1.0-alpha.0"
 edition = "2021"
 rust-version = "1.65"
+authors = ["Daniel Müller <deso@posteo.net>"]
+license = "BSD-3-Clause"
+repository = "https://github.com/libbpf/blazesym"
+readme = "README.md"
+categories = [
+  "algorithms",
+  "api-bindings",
+  "development-tools::debugging",
+  "os::unix-apis",
+  "value-formatting",
+]
+keywords = [
+  "dwarf",
+  "elf",
+  "gsym",
+  "stacktrace",
+  "tracing",
+]
+include = ["src/**/*", "!**/examples/**/*", "README.md", "CHANGELOG.md", "examples/input-struct-init.c", "build.rs"]
 autobenches = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
