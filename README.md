@@ -76,6 +76,12 @@ Here is rough roadmap of currently planned features (in no particular order):
   - [x] Add APIs for address normalization (https://github.com/libbpf/blazesym/pull/114, https://github.com/libbpf/blazesym/pull/128, ...)
 - [ ] Support advanced symbolization use cases involving [`debuginfod`](https://sourceware.org/elfutils/Debuginfod.html) (https://github.com/libbpf/blazesym/issues/203)
 
+### OS Support
+The library's primary target operating system is Linux (it should work on all
+semi-recent kernel versions and distributions). MacOS is not actively supported
+at this point (though it may work), but we would be happy to incorporate pull
+requests to fix any potential short comings.
+
 
 ## Build & Use
 **blazesym** requires a standard Rust toolchain and can be built using the Cargo
