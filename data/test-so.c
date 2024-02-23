@@ -1,5 +1,4 @@
 #include <stdio.h>
-#include <time.h>
 
 #include "test-so.h"
 
@@ -12,8 +11,6 @@ int the_ignored_answer(void) {
 }
 
 int await_input(void) {
-  struct timespec ts = {.tv_sec = 60};
-
   fprintf(stdout, "%p\n", &await_input);
   fflush(stdout);
 
