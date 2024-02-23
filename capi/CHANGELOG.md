@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Included `blazesym.h` header file in release package
+
+
 0.1.0-alpha.0
 -------------
 - Added constructs for forward & backward compatibility:
