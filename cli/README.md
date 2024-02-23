@@ -40,6 +40,9 @@ Similarly, to symbolize an address inside a process the `symbolize
 process` sub-command can be used. Please refer to the program's help
 text for additional details.
 
+Pre-built, statically linked binaries for various target triples are available
+on-demand [here][blazecli-bins].
+
 
 ### Shell Completion
 **blazecli** comes with shell completion support (for various shells). A
@@ -58,6 +61,7 @@ Completion scripts for other shells work in a similar manner. Please
 refer to the help text (`--help`) of the `shell-complete` program for
 the list of supported shells.
 
+[blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build.yml
 [blazesym]: https://crates.io/crates/blazesym
 [blazesym-sym]: https://docs.rs/blazesym/0.2.0-alpha.11/blazesym/symbolize/struct.Symbolizer.html
 [blazesym-elf-src]: https://docs.rs/blazesym/0.2.0-alpha.11/blazesym/symbolize/enum.Source.html#variant.Elf

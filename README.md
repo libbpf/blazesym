@@ -110,5 +110,9 @@ cargo run -p blazecli -- symbolize elf --path /lib64/libc.so.6 00000000000caee1
 Please refer to its [`README`](cli/README.md) as well as the help text
 for additional information and usage instructions.
 
+Statically linked binaries for various target triples are available on-demand
+[here][blazecli-bins].
 
+
+[blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build.yml
 [cargo-semver]: https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility
