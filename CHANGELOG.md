@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.11
+--------------
 - Added support for Breakpad format behind `breakpad` feature (disabled
   by default)
 - Added support for usage of perf map files as part of process symbolization
