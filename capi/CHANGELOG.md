@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.0-alpha.1
+-------------
 - Included `blazesym.h` header file in release package
 
 
