@@ -185,9 +185,9 @@ where
 pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, H, D>(
     addrs: A,
     entries: E,
-    mut handler: H,
+    handler: &mut H,
     data: D,
-) -> Result<H>
+) -> Result<()>
 where
     A: Iterator<Item = Addr> + Clone,
     E: Iterator<Item = Result<maps::MapsEntry>>,
@@ -246,7 +246,7 @@ where
         let () = handler.handle_entry_addr(addr, &entry)?;
     }
 
-    Ok(handler)
+    Ok(())
 }
 
 /// Normalize all `addrs` in a given process to the corresponding file offsets,
@@ -278,13 +278,13 @@ where
     let entries = maps::parse(pid)?;
 
     if read_build_ids {
-        let handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler, ())?;
+        let mut handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
+        let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     } else {
-        let handler = NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
-        let handler = normalize_sorted_user_addrs_with_entries(addrs, entries, handler, ())?;
+        let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
+        let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     }
@@ -334,15 +334,16 @@ mod tests {
             let entries = maps::parse_file(maps.as_bytes(), pid);
             let addrs = [unknown_addr as Addr];
 
-            let handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
-            let normalized = normalize_sorted_user_addrs_with_entries(
+            let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
+            let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
-                handler,
+                &mut handler,
                 (),
             )
-            .unwrap()
-            .normalized;
+            .unwrap();
+
+            let normalized = handler.normalized;
             assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
             assert_eq!(normalized.meta[0], Unknown::default().into());
