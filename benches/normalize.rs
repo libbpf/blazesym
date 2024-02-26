@@ -52,10 +52,24 @@ where
     normalize_process_impl(&normalizer, b)
 }
 
+/// Normalize addresses in the current process, read and parse the
+/// `/proc/self/maps` file only once, and don't read build IDs.
+fn normalize_process_no_build_ids_cached<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    let normalizer = Normalizer::builder()
+        .enable_maps_caching(true)
+        .enable_build_ids(false)
+        .build();
+    normalize_process_impl(&normalizer, b)
+}
+
 pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
 where
     M: Measurement,
 {
     bench_sub_fn!(group, normalize_process);
     bench_sub_fn!(group, normalize_process_no_build_ids);
+    bench_sub_fn!(group, normalize_process_no_build_ids_cached);
 }

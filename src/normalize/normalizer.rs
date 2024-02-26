@@ -1,3 +1,4 @@
+use crate::insert_map::InsertMap;
 use crate::maps;
 use crate::util;
 use crate::Addr;
@@ -77,6 +78,7 @@ impl Builder {
         Normalizer {
             cache_maps,
             build_ids,
+            cached_entries: InsertMap::new(),
         }
     }
 }
@@ -116,6 +118,9 @@ pub struct Normalizer {
     /// Flag indicating whether or not to read build IDs as part of the
     /// normalization process.
     build_ids: bool,
+    /// If `cache_maps` is `true`, the cached parsed
+    /// [`MapsEntry`][maps::MapsEntry] objects.
+    cached_entries: InsertMap<Pid, Box<[maps::MapsEntry]>>,
 }
 
 impl Normalizer {
@@ -157,9 +162,40 @@ impl Normalizer {
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
-        let addrs_cnt = addrs.len();
-        let mut entries = maps::parse(pid)?;
+        let mut iter1;
+        let mut iter2;
+        let mut entries = if self.cache_maps {
+            iter1 = maps::parse(pid)?.filter_map(|result| match result {
+                Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
+                Err(err) => Some(Err(err)),
+            });
+            &mut iter1 as &mut dyn Iterator<Item = _>
+        } else {
+            let parsed = self.cached_entries.get_or_try_insert(pid, || {
+                // If we use the cached maps entries but don't have anything
+                // cached yet, then just parse the file eagerly and take it from
+                // there.
+                let parsed = maps::parse(pid)?
+                    .filter_map(|result| match result {
+                        Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
+                        Err(err) => Some(Err(err)),
+                    })
+                    .collect::<Result<Vec<_>>>()?
+                    .into_boxed_slice();
+                Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
+            })?;
 
+            // TODO: Ideally we wouldn't clone here. Conceptually we could work
+            //       with `Cow` everywhere, but that complicates and slightly
+            //       penalizes the uncached case, and a cleaner approach would
+            //       be to abstract over ownership generically. Practically, the
+            //       code seemed sufficiently fast to make this a non-issue for
+            //       the time being.
+            iter2 = parsed.iter().cloned().map(Ok);
+            &mut iter2 as &mut dyn Iterator<Item = _>
+        };
+
+        let addrs_cnt = addrs.len();
         if self.build_ids {
             let mut handler = user::NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
             let () =
@@ -283,40 +319,47 @@ mod tests {
     /// Check that we can normalize user addresses.
     #[test]
     fn user_address_normalization() {
-        let addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
-            libc::fopen as Addr,
-            user_address_normalization_unknown as Addr,
-            user_address_normalization as Addr,
-            Mmap::map as Addr,
-        ];
+        fn test(normalizer: &Normalizer) {
+            let addrs = [
+                libc::__errno_location as Addr,
+                libc::dlopen as Addr,
+                libc::fopen as Addr,
+                user_address_normalization_unknown as Addr,
+                user_address_normalization as Addr,
+                Mmap::map as Addr,
+            ];
 
-        let (errno_idx, _) = addrs
-            .iter()
-            .enumerate()
-            .find(|(_idx, addr)| **addr == libc::__errno_location as Addr)
-            .unwrap();
+            let (errno_idx, _) = addrs
+                .iter()
+                .enumerate()
+                .find(|(_idx, addr)| **addr == libc::__errno_location as Addr)
+                .unwrap();
+
+            let normalized = normalizer
+                .normalize_user_addrs(Pid::Slf, addrs.as_slice())
+                .unwrap();
+            assert_eq!(normalized.outputs.len(), 6);
+
+            let outputs = &normalized.outputs;
+            let meta = &normalized.meta;
+            assert_eq!(meta.len(), 2);
+
+            let errno_meta_idx = outputs[errno_idx].1;
+            assert!(meta[errno_meta_idx]
+                .elf()
+                .unwrap()
+                .path
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .contains("libc.so"));
+        }
 
         let normalizer = Normalizer::new();
-        let normalized = normalizer
-            .normalize_user_addrs(Pid::Slf, addrs.as_slice())
-            .unwrap();
-        assert_eq!(normalized.outputs.len(), 6);
+        test(&normalizer);
 
-        let outputs = &normalized.outputs;
-        let meta = &normalized.meta;
-        assert_eq!(meta.len(), 2);
-
-        let errno_meta_idx = outputs[errno_idx].1;
-        assert!(meta[errno_meta_idx]
-            .elf()
-            .unwrap()
-            .path
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .contains("libc.so"));
+        let normalizer = Normalizer::builder().enable_maps_caching(true).build();
+        test(&normalizer);
     }
 
     /// Check that we can normalize user addresses in our own shared object.

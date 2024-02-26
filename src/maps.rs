@@ -17,7 +17,7 @@ use crate::Pid;
 use crate::Result;
 
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct EntryPath {
     /// The path of the file backing the maps entry via a
     /// `/proc/<xxx>/map_files/` component.
@@ -36,7 +36,7 @@ pub(crate) struct EntryPath {
 
 /// The "pathname" component in a proc maps entry. See `proc(5)` section
 /// `/proc/[pid]/maps`.
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) enum PathName {
     Path(EntryPath),
     Component(String),
@@ -61,6 +61,7 @@ impl PathName {
 }
 
 
+#[derive(Clone)]
 pub(crate) struct MapsEntry {
     /// The virtual address range covered by this entry.
     pub range: Range<Addr>,
