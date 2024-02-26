@@ -182,15 +182,14 @@ where
 }
 
 
-pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, D>(
+pub(crate) fn normalize_sorted_user_addrs_with_entries<A, D>(
     addrs: A,
-    entries: E,
+    entries: &mut dyn Iterator<Item = Result<maps::MapsEntry>>,
     handler: &mut dyn Handler<D>,
     data: D,
 ) -> Result<()>
 where
     A: Iterator<Item = Addr> + Clone,
-    E: Iterator<Item = Result<maps::MapsEntry>>,
     D: Clone,
 {
     let mut entries = entries.filter_map(|result| match result {
@@ -274,16 +273,16 @@ where
     A: ExactSizeIterator<Item = Addr> + Clone,
 {
     let addrs_cnt = addrs.len();
-    let entries = maps::parse(pid)?;
+    let mut entries = maps::parse(pid)?;
 
     if read_build_ids {
         let mut handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-        let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
+        let () = normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     } else {
         let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
-        let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
+        let () = normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     }
@@ -330,13 +329,13 @@ mod tests {
 "#;
 
             let pid = Pid::Slf;
-            let entries = maps::parse_file(maps.as_bytes(), pid);
             let addrs = [unknown_addr as Addr];
 
+            let mut entries = maps::parse_file(maps.as_bytes(), pid);
             let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
-                entries,
+                &mut entries,
                 &mut handler,
                 (),
             )
