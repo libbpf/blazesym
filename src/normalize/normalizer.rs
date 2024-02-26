@@ -38,15 +38,29 @@ pub struct Output<M> {
 
 /// A builder for configurable construction of [`Normalizer`] objects.
 ///
-/// By default all features are enabled.
+/// By default reading of build IDs is enabled, while caching of
+/// `/proc/<pid>/maps` entries is disabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
+    /// Whether or not to cache `/proc/<pid>/maps` contents.
+    ///
+    /// Setting this flag to `true` is not generally recommended, because it
+    /// could result in addresses corresponding to mappings added after caching
+    /// may not be normalized successfully, as there is no reasonable way of
+    /// detecting staleness.
+    cache_maps: bool,
     /// Whether to read and report build IDs as part of the normalization
     /// process.
     build_ids: bool,
 }
 
 impl Builder {
+    /// Enable/disable the caching of `/proc/<pid>/maps` entries.
+    pub fn enable_maps_caching(mut self, enable: bool) -> Builder {
+        self.cache_maps = enable;
+        self
+    }
+
     /// Enable/disable the reading of build IDs.
     pub fn enable_build_ids(mut self, enable: bool) -> Builder {
         self.build_ids = enable;
@@ -55,15 +69,24 @@ impl Builder {
 
     /// Create the [`Normalizer`] object.
     pub fn build(self) -> Normalizer {
-        let Builder { build_ids } = self;
+        let Builder {
+            cache_maps,
+            build_ids,
+        } = self;
 
-        Normalizer { build_ids }
+        Normalizer {
+            cache_maps,
+            build_ids,
+        }
     }
 }
 
 impl Default for Builder {
     fn default() -> Self {
-        Self { build_ids: true }
+        Self {
+            cache_maps: true,
+            build_ids: true,
+        }
     }
 }
 
@@ -76,8 +99,20 @@ impl Default for Builder {
 /// things) and converting them to "normalized" virtual addresses as
 /// they are present in, say, an ELF binary or a DWARF debug info file,
 /// and one would be able to see them using tools such as readelf(1).
+///
+/// If caching of `/proc/<pid>/maps` is enabled, an instance of this type is the
+/// unit at which caching happens. If you are normalizing address in a large
+/// number of processes over time, you may want to consider creating a new
+/// `Normalizer` instance regularly to free up cached data.
 #[derive(Debug, Default)]
 pub struct Normalizer {
+    /// Whether or not to cache `/proc/<pid>/maps` contents.
+    ///
+    /// Setting this flag to `true` is not generally recommended, because it
+    /// could result in addresses corresponding to mappings added after caching
+    /// may not be normalized successfully, as there is no reasonable way of
+    /// detecting staleness.
+    cache_maps: bool,
     /// Flag indicating whether or not to read build IDs as part of the
     /// normalization process.
     build_ids: bool,
@@ -85,12 +120,17 @@ pub struct Normalizer {
 
 impl Normalizer {
     /// Create a new [`Normalizer`].
+    ///
+    /// This method is just a short hand for instantiating a `Normalizer` from
+    /// the default [`Builder`].
+    #[inline]
     pub fn new() -> Self {
         Builder::default().build()
     }
 
     /// Retrieve a [`Builder`] object for configurable construction of a
     /// [`Normalizer`].
+    #[inline]
     pub fn builder() -> Builder {
         Builder::default()
     }
