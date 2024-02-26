@@ -9,7 +9,7 @@ use criterion::measurement::Measurement;
 use criterion::BenchmarkGroup;
 
 
-fn normalize_process_impl(read_build_ids: bool) {
+fn normalize_process_impl(normalizer: &Normalizer) {
     let mut addrs = [
         libc::__errno_location as Addr,
         libc::dlopen as Addr,
@@ -19,9 +19,6 @@ fn normalize_process_impl(read_build_ids: bool) {
     ];
     let () = addrs.sort();
 
-    let normalizer = Normalizer::builder()
-        .enable_build_ids(read_build_ids)
-        .build();
     let normalized = normalizer
         .normalize_user_addrs_sorted(black_box(0.into()), black_box(addrs.as_slice()))
         .unwrap();
@@ -33,12 +30,14 @@ fn normalize_process_impl(read_build_ids: bool) {
 /// Normalize addresses in the current process, and read build IDs as part of
 /// the normalization.
 fn normalize_process() {
-    normalize_process_impl(true)
+    let normalizer = Normalizer::builder().enable_build_ids(true).build();
+    normalize_process_impl(&normalizer)
 }
 
 /// Normalize addresses in the current process, but don't read build IDs.
 fn normalize_process_no_build_ids() {
-    normalize_process_impl(false)
+    let normalizer = Normalizer::builder().enable_build_ids(false).build();
+    normalize_process_impl(&normalizer)
 }
 
 pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
