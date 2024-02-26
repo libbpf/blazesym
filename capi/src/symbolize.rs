@@ -584,7 +584,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
 
     let result_ptr = raw_buf as *mut blaze_result;
-    let mut syms_last = unsafe { &mut (*result_ptr).syms as *mut blaze_sym };
+    let mut syms_last = unsafe { (*result_ptr).syms.as_mut_slice().as_mut_ptr() };
     let mut inlined_last = unsafe {
         raw_buf.add(mem::size_of::<blaze_result>() + mem::size_of::<blaze_sym>() * results.len())
     } as *mut blaze_symbolize_inlined_fn;
