@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added `cache_maps` property to `normalize::Normalizer` type
 - Reduced number of allocations performed on address normalization and
   process symbolization paths
 
