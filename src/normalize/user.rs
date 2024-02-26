@@ -182,16 +182,15 @@ where
 }
 
 
-pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, H, D>(
+pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, D>(
     addrs: A,
     entries: E,
-    handler: &mut H,
+    handler: &mut dyn Handler<D>,
     data: D,
 ) -> Result<()>
 where
     A: Iterator<Item = Addr> + Clone,
     E: Iterator<Item = Result<maps::MapsEntry>>,
-    H: Handler<D>,
     D: Clone,
 {
     let mut entries = entries.filter_map(|result| match result {
