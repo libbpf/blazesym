@@ -392,7 +392,6 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
 mod tests {
     use super::*;
 
-    use std::cmp::Ordering;
     #[cfg(feature = "nightly")]
     use std::hint::black_box;
     use std::os::fd::AsRawFd as _;

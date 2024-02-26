@@ -1173,12 +1173,9 @@ mod tests {
 
     use std::mem::transmute;
 
-    use crate::elf::ElfParser;
     use crate::inspect::FindAddrOpts;
-    use crate::mmap::Mmap;
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
-    use crate::symbolize::Symbolizer;
     use crate::SymType;
 
     use test_log::test;

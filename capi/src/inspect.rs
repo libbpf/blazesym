@@ -360,11 +360,8 @@ pub unsafe extern "C" fn blaze_inspector_free(inspector: *mut blaze_inspector) {
 mod tests {
     use super::*;
 
-    use std::ffi::CStr;
-    use std::ffi::CString;
     use std::mem::MaybeUninit;
     use std::path::Path;
-    use std::ptr;
     use std::ptr::addr_of;
     use std::slice;
 

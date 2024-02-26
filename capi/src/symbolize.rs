@@ -868,12 +868,9 @@ pub unsafe extern "C" fn blaze_result_free(results: *const blaze_result) {
 mod tests {
     use super::*;
 
-    use std::ffi::CStr;
     use std::ffi::CString;
     use std::fs::read as read_file;
     use std::hint::black_box;
-    use std::path::Path;
-    use std::ptr;
     use std::slice;
 
     use blazesym::inspect;

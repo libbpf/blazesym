@@ -37,7 +37,12 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(test))]
 #![cfg_attr(
-    not(all(feature = "apk", feature = "dwarf", feature = "gsym")),
+    not(all(
+        feature = "apk",
+        feature = "breakpad",
+        feature = "dwarf",
+        feature = "gsym"
+    )),
     allow(dead_code, unused_imports)
 )]
 
