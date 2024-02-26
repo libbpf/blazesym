@@ -189,11 +189,6 @@ where
     A: Iterator<Item = Addr> + Clone,
     D: Clone,
 {
-    let mut entries = entries.filter_map(|result| match result {
-        Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
-        Err(err) => Some(Err(err)),
-    });
-
     let mut entry = entries.next().ok_or_else(|| {
         Error::new(
             ErrorKind::UnexpectedEof,
@@ -290,7 +285,11 @@ mod tests {
             let pid = Pid::Slf;
             let addrs = [unknown_addr as Addr];
 
-            let mut entries = maps::parse_file(maps.as_bytes(), pid);
+            let mut entries =
+                maps::parse_file(maps.as_bytes(), pid).filter_map(|result| match result {
+                    Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
+                    Err(err) => Some(Err(err)),
+                });
             let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),

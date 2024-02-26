@@ -6,7 +6,7 @@ use std::process;
 
 
 /// An enumeration identifying a process.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Pid {
     /// The current process.
     Slf,
