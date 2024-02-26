@@ -218,8 +218,6 @@ impl Debug for BreakpadResolver {
 mod tests {
     use super::*;
 
-    use std::path::Path;
-
     use test_log::test;
 
     use crate::ErrorKind;

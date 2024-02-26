@@ -185,7 +185,9 @@ impl Default for Inspector {
 mod tests {
     use super::*;
 
+    #[cfg(not(feature = "breakpad"))]
     use std::path::Path;
+    #[cfg(not(feature = "breakpad"))]
     use std::rc::Rc;
 
     use crate::ErrorKind;

@@ -245,10 +245,6 @@ impl Debug for ElfResolver {
 mod tests {
     use super::*;
 
-    use std::path::Path;
-
-    use crate::dwarf::DwarfResolver;
-
 
     /// Exercise the `Debug` representation of various types.
     #[test]
