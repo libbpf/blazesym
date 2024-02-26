@@ -189,7 +189,7 @@ pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, H, D>(
     data: D,
 ) -> Result<H>
 where
-    A: ExactSizeIterator<Item = Addr> + Clone,
+    A: Iterator<Item = Addr> + Clone,
     E: Iterator<Item = Result<maps::MapsEntry>>,
     H: Handler<D>,
     D: Clone,
