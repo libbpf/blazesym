@@ -1,9 +1,13 @@
+use crate::maps;
 use crate::util;
 use crate::Addr;
 use crate::Pid;
 use crate::Result;
 
-use super::user::normalize_user_addrs_sorted_impl;
+use super::buildid::DefaultBuildIdReader;
+use super::buildid::NoBuildIdReader;
+use super::user;
+use super::user::normalize_sorted_user_addrs_with_entries;
 use super::user::UserOutput;
 
 
@@ -91,6 +95,46 @@ impl Normalizer {
         Builder::default()
     }
 
+    /// Normalize all `addrs` in a given process to the corresponding file
+    /// offsets, which are suitable for later symbolization. The `addrs`
+    /// array has to be sorted in ascending order or an error will be
+    /// returned.
+    ///
+    /// Unknown addresses are not normalized. They are reported as
+    /// [`Unknown`] meta entries in the returned [`UserOutput`]
+    /// object. The cause of an address to be unknown (and, hence, not
+    /// normalized), could have a few reasons, including, but not limited
+    /// to:
+    /// - user error (if a bogus address was provided)
+    /// - they belonged to an ELF object that has been unmapped since the
+    ///   address was captured
+    ///
+    /// The process' ID should be provided in `pid`.
+    ///
+    /// File offsets are reported in the exact same order in which the
+    /// non-normalized addresses were provided.
+    fn normalize_user_addrs_sorted_impl<A>(&self, addrs: A, pid: Pid) -> Result<UserOutput>
+    where
+        A: ExactSizeIterator<Item = Addr> + Clone,
+    {
+        let addrs_cnt = addrs.len();
+        let mut entries = maps::parse(pid)?;
+
+        if self.build_ids {
+            let mut handler = user::NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
+            let () =
+                normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
+            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
+            Ok(handler.normalized)
+        } else {
+            let mut handler = user::NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
+            let () =
+                normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
+            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
+            Ok(handler.normalized)
+        }
+    }
+
     /// Normalize addresses belonging to a process.
     ///
     /// Normalize all `addrs` in a given process. The `addrs` array has
@@ -115,7 +159,7 @@ impl Normalizer {
     /// non-normalized ones were provided.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     pub fn normalize_user_addrs_sorted(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
-        normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid, self.build_ids)
+        self.normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid)
     }
 
 
@@ -132,7 +176,7 @@ impl Normalizer {
         util::with_ordered_elems(
             addrs,
             |normalized: &mut UserOutput| normalized.outputs.as_mut_slice(),
-            |sorted_addrs| normalize_user_addrs_sorted_impl(sorted_addrs, pid, self.build_ids),
+            |sorted_addrs| self.normalize_user_addrs_sorted_impl(sorted_addrs, pid),
         )
     }
 }

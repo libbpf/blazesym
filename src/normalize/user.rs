@@ -11,13 +11,10 @@ use crate::maps::EntryPath;
 use crate::maps::MapsEntry;
 use crate::maps::PathName;
 use crate::Addr;
-use crate::Pid;
 use crate::Result;
 
 use super::buildid::BuildIdFn;
 use super::buildid::BuildIdReader;
-use super::buildid::DefaultBuildIdReader;
-use super::buildid::NoBuildIdReader;
 use super::meta::Apk;
 use super::meta::Elf;
 use super::meta::Unknown;
@@ -112,9 +109,9 @@ pub(crate) trait Handler<D = ()> {
 }
 
 
-struct NormalizationHandler<R> {
+pub(super) struct NormalizationHandler<R> {
     /// The user output we are building up.
-    normalized: UserOutput,
+    pub normalized: UserOutput,
     /// Lookup table from path (as used in each proc maps entry) to index into
     /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
@@ -127,7 +124,7 @@ struct NormalizationHandler<R> {
 
 impl<R> NormalizationHandler<R> {
     /// Instantiate a new `NormalizationHandler` object.
-    fn new(addr_cnt: usize) -> Self {
+    pub fn new(addr_cnt: usize) -> Self {
         Self {
             normalized: UserOutput {
                 outputs: Vec::with_capacity(addr_cnt),
@@ -247,53 +244,15 @@ where
     Ok(())
 }
 
-/// Normalize all `addrs` in a given process to the corresponding file offsets,
-/// which are suitable for later symbolization. The `addrs` array has to be
-/// sorted in ascending order or an error will be returned.
-///
-/// Unknown addresses are not normalized. They are reported as
-/// [`Unknown`] meta entries in the returned [`UserOutput`]
-/// object. The cause of an address to be unknown (and, hence, not
-/// normalized), could have a few reasons, including, but not limited
-/// to:
-/// - user error (if a bogus address was provided)
-/// - they belonged to an ELF object that has been unmapped since the address
-///   was captured
-///
-/// The process' ID should be provided in `pid`.
-///
-/// File offsets are reported in the exact same order in which the
-/// non-normalized addresses were provided.
-pub(super) fn normalize_user_addrs_sorted_impl<A>(
-    addrs: A,
-    pid: Pid,
-    read_build_ids: bool,
-) -> Result<UserOutput>
-where
-    A: ExactSizeIterator<Item = Addr> + Clone,
-{
-    let addrs_cnt = addrs.len();
-    let mut entries = maps::parse(pid)?;
-
-    if read_build_ids {
-        let mut handler = NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-        let () = normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
-        debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
-        Ok(handler.normalized)
-    } else {
-        let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
-        let () = normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
-        debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
-        Ok(handler.normalized)
-    }
-}
-
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use test_log::test;
+
+    use crate::normalize::buildid::NoBuildIdReader;
+    use crate::Pid;
 
 
     /// Check that we correctly handle normalization of an address not
