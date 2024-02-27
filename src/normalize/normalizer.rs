@@ -1,5 +1,6 @@
 use crate::insert_map::InsertMap;
 use crate::maps;
+use crate::normalize::buildid::BuildIdReader;
 use crate::util;
 use crate::Addr;
 use crate::Pid;
@@ -147,17 +148,16 @@ impl Normalizer {
         M: AsRef<maps::MapsEntry>,
     {
         let addrs_cnt = addrs.len();
-        if self.build_ids {
-            let mut handler = user::NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
-            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
-            Ok(handler.normalized)
+        let reader = if self.build_ids {
+            &DefaultBuildIdReader as &dyn BuildIdReader
         } else {
-            let mut handler = user::NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
-            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
-            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
-            Ok(handler.normalized)
-        }
+            &NoBuildIdReader as &dyn BuildIdReader
+        };
+
+        let mut handler = user::NormalizationHandler::new(reader, addrs_cnt);
+        let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
+        debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
+        Ok(handler.normalized)
     }
 
     /// Normalize all `addrs` in a given process to the corresponding file

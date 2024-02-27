@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::Error;
 use std::io::ErrorKind;
-use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -14,7 +13,6 @@ use crate::maps::PathName;
 use crate::Addr;
 use crate::Result;
 
-use super::buildid::BuildIdFn;
 use super::buildid::BuildIdReader;
 use super::meta::Apk;
 use super::meta::Elf;
@@ -25,10 +23,10 @@ use super::Reason;
 
 
 /// Make a [`UserMeta::Elf`] variant.
-fn make_elf_meta(entry_path: &EntryPath, get_build_id: &BuildIdFn) -> Result<UserMeta> {
+fn make_elf_meta(entry_path: &EntryPath, build_id_reader: &dyn BuildIdReader) -> Result<UserMeta> {
     let elf = Elf {
         path: entry_path.symbolic_path.to_path_buf(),
-        build_id: get_build_id(&entry_path.maps_file)?,
+        build_id: build_id_reader.read_build_id_from_elf(&entry_path.maps_file)?,
         _non_exhaustive: (),
     };
     let meta = UserMeta::Elf(elf);
@@ -120,38 +118,35 @@ pub(crate) trait Handler<D = ()> {
 }
 
 
-pub(super) struct NormalizationHandler<R> {
+pub(super) struct NormalizationHandler<'reader> {
     /// The user output we are building up.
     pub normalized: UserOutput,
+    /// The build ID reader to use.
+    build_id_reader: &'reader dyn BuildIdReader,
     /// Lookup table from path (as used in each proc maps entry) to index into
     /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
     /// A mapping from [`Reason`] to the index of the `Unknown` entry with this
     /// very reason in `meta_lookup`, if any.
     unknown_cache: HashMap<Reason, usize>,
-    #[doc(hidden)]
-    _phanton: PhantomData<R>,
 }
 
-impl<R> NormalizationHandler<R> {
+impl<'reader> NormalizationHandler<'reader> {
     /// Instantiate a new `NormalizationHandler` object.
-    pub fn new(addr_cnt: usize) -> Self {
+    pub fn new(reader: &'reader dyn BuildIdReader, addr_cnt: usize) -> Self {
         Self {
             normalized: UserOutput {
                 outputs: Vec::with_capacity(addr_cnt),
                 meta: Vec::new(),
             },
+            build_id_reader: reader,
             meta_lookup: HashMap::new(),
             unknown_cache: HashMap::new(),
-            _phanton: PhantomData,
         }
     }
 }
 
-impl<R> Handler<Reason> for NormalizationHandler<R>
-where
-    R: BuildIdReader,
-{
+impl Handler<Reason> for NormalizationHandler<'_> {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"))))]
     fn handle_unknown_addr(&mut self, addr: Addr, reason: Reason) -> Result<()> {
         let () = self
@@ -179,7 +174,7 @@ where
                         file_off,
                         &entry_path.symbolic_path,
                         &mut self.meta_lookup,
-                        || make_elf_meta(entry_path, &R::read_build_id_from_elf),
+                        || make_elf_meta(entry_path, self.build_id_reader),
                     ),
                 }
             }
@@ -300,7 +295,8 @@ mod tests {
 
             let entries = maps::parse_file(maps.as_bytes(), pid)
                 .filter(|result| result.as_ref().map(maps::filter_relevant).unwrap_or(true));
-            let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
+            let reader = NoBuildIdReader;
+            let mut handler = NormalizationHandler::new(&reader, addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
