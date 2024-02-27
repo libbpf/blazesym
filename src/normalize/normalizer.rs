@@ -140,6 +140,26 @@ impl Normalizer {
         Builder::default()
     }
 
+    fn normalize_user_addrs_impl<A, E, M>(&self, addrs: A, entries: E) -> Result<UserOutput>
+    where
+        A: ExactSizeIterator<Item = Addr> + Clone,
+        E: Iterator<Item = Result<M>>,
+        M: AsRef<maps::MapsEntry>,
+    {
+        let addrs_cnt = addrs.len();
+        if self.build_ids {
+            let mut handler = user::NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
+            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
+            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
+            Ok(handler.normalized)
+        } else {
+            let mut handler = user::NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
+            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
+            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
+            Ok(handler.normalized)
+        }
+    }
+
     /// Normalize all `addrs` in a given process to the corresponding file
     /// offsets, which are suitable for later symbolization. The `addrs`
     /// array has to be sorted in ascending order or an error will be
@@ -158,18 +178,16 @@ impl Normalizer {
     ///
     /// File offsets are reported in the exact same order in which the
     /// non-normalized addresses were provided.
-    fn normalize_user_addrs_sorted_impl<A>(&self, addrs: A, pid: Pid) -> Result<UserOutput>
+    fn normalize_user_addrs_iter<A>(&self, addrs: A, pid: Pid) -> Result<UserOutput>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
-        let mut iter1;
-        let mut iter2;
-        let mut entries = if self.cache_maps {
-            iter1 = maps::parse(pid)?.filter_map(|result| match result {
+        if !self.cache_maps {
+            let entries = maps::parse(pid)?.filter_map(|result| match result {
                 Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
                 Err(err) => Some(Err(err)),
             });
-            &mut iter1 as &mut dyn Iterator<Item = _>
+            self.normalize_user_addrs_impl(addrs, entries)
         } else {
             let parsed = self.cached_entries.get_or_try_insert(pid, || {
                 // If we use the cached maps entries but don't have anything
@@ -185,29 +203,8 @@ impl Normalizer {
                 Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
             })?;
 
-            // TODO: Ideally we wouldn't clone here. Conceptually we could work
-            //       with `Cow` everywhere, but that complicates and slightly
-            //       penalizes the uncached case, and a cleaner approach would
-            //       be to abstract over ownership generically. Practically, the
-            //       code seemed sufficiently fast to make this a non-issue for
-            //       the time being.
-            iter2 = parsed.iter().cloned().map(Ok);
-            &mut iter2 as &mut dyn Iterator<Item = _>
-        };
-
-        let addrs_cnt = addrs.len();
-        if self.build_ids {
-            let mut handler = user::NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-            let () =
-                normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
-            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
-            Ok(handler.normalized)
-        } else {
-            let mut handler = user::NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
-            let () =
-                normalize_sorted_user_addrs_with_entries(addrs, &mut entries, &mut handler, ())?;
-            debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
-            Ok(handler.normalized)
+            let entries = parsed.iter().map(Ok);
+            self.normalize_user_addrs_impl(addrs, entries)
         }
     }
 
@@ -235,7 +232,7 @@ impl Normalizer {
     /// non-normalized ones were provided.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     pub fn normalize_user_addrs_sorted(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
-        self.normalize_user_addrs_sorted_impl(addrs.iter().copied(), pid)
+        self.normalize_user_addrs_iter(addrs.iter().copied(), pid)
     }
 
 
@@ -252,7 +249,7 @@ impl Normalizer {
         util::with_ordered_elems(
             addrs,
             |normalized: &mut UserOutput| normalized.outputs.as_mut_slice(),
-            |sorted_addrs| self.normalize_user_addrs_sorted_impl(sorted_addrs, pid),
+            |sorted_addrs| self.normalize_user_addrs_iter(sorted_addrs, pid),
         )
     }
 }

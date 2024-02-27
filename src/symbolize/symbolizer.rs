@@ -668,7 +668,7 @@ impl Symbolizer {
             }
         }
 
-        let mut entries = maps::parse(pid)?;
+        let entries = maps::parse(pid)?;
         let mut handler = SymbolizeHandler {
             symbolizer: self,
             pid,
@@ -684,7 +684,7 @@ impl Symbolizer {
             |sorted_addrs| -> Result<SymbolizeHandler<'_>> {
                 let () = normalize_sorted_user_addrs_with_entries(
                     sorted_addrs,
-                    &mut entries,
+                    entries,
                     &mut handler,
                     Reason::Unmapped,
                 )?;

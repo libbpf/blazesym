@@ -179,14 +179,16 @@ where
 }
 
 
-pub(crate) fn normalize_sorted_user_addrs_with_entries<A, D>(
+pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, M, D>(
     addrs: A,
-    entries: &mut dyn Iterator<Item = Result<maps::MapsEntry>>,
+    mut entries: E,
     handler: &mut dyn Handler<D>,
     data: D,
 ) -> Result<()>
 where
     A: Iterator<Item = Addr> + Clone,
+    E: Iterator<Item = Result<M>>,
+    M: AsRef<maps::MapsEntry>,
     D: Clone,
 {
     let mut entry = entries.next().ok_or_else(|| {
@@ -210,7 +212,7 @@ where
         }
         prev_addr = addr;
 
-        while addr >= entry.range.end {
+        while addr >= entry.as_ref().range.end {
             entry = if let Some(entry) = entries.next() {
                 entry?
             } else {
@@ -228,12 +230,12 @@ where
         // that means that we cannot find a suitable entry. This could
         // happen, for example, if an ELF object was unmapped between
         // address capture and normalization.
-        if addr < entry.range.start {
+        if addr < entry.as_ref().range.start {
             let () = handler.handle_unknown_addr(addr, data.clone())?;
             continue 'main
         }
 
-        let () = handler.handle_entry_addr(addr, &entry)?;
+        let () = handler.handle_entry_addr(addr, entry.as_ref())?;
     }
 
     Ok(())
@@ -285,7 +287,7 @@ mod tests {
             let pid = Pid::Slf;
             let addrs = [unknown_addr as Addr];
 
-            let mut entries =
+            let entries =
                 maps::parse_file(maps.as_bytes(), pid).filter_map(|result| match result {
                     Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
                     Err(err) => Some(Err(err)),
@@ -293,7 +295,7 @@ mod tests {
             let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
-                &mut entries,
+                entries,
                 &mut handler,
                 (),
             )

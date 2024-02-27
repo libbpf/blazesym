@@ -70,6 +70,13 @@ pub(crate) struct MapsEntry {
     pub path_name: Option<PathName>,
 }
 
+impl AsRef<MapsEntry> for MapsEntry {
+    #[inline]
+    fn as_ref(&self) -> &MapsEntry {
+        self
+    }
+}
+
 impl Debug for MapsEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let Self {
