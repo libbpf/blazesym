@@ -360,6 +360,7 @@ mod tests {
 
         let normalizer = Normalizer::builder().enable_maps_caching(true).build();
         test(&normalizer);
+        test(&normalizer);
     }
 
     /// Check that we can normalize user addresses in our own shared object.
