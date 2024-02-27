@@ -7,7 +7,9 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  # Enable backtraces for panics but not for "regular" errors.
   RUST_BACKTRACE: 1
+  RUST_LIB_BACKTRACE: 0
   RUSTFLAGS: '-D warnings'
 
 jobs:
