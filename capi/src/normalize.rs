@@ -35,20 +35,28 @@ pub struct blaze_normalizer_opts {
     /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
     /// ensure compatibility in the presence of member additions.
     pub type_size: usize,
+    /// Whether or not to cache `/proc/<pid>/maps` contents.
+    ///
+    /// Setting this flag to `true` is not generally recommended, because it
+    /// could result in addresses corresponding to mappings added after caching
+    /// may not be normalized successfully, as there is no reasonable way of
+    /// detecting staleness.
+    pub cache_maps: bool,
     /// Whether to read and report build IDs as part of the normalization
     /// process.
     pub build_ids: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 7],
+    pub reserved: [u8; 6],
 }
 
 impl Default for blaze_normalizer_opts {
     fn default() -> Self {
         Self {
             type_size: size_of::<Self>(),
+            cache_maps: false,
             build_ids: false,
-            reserved: [0; 7],
+            reserved: [0; 6],
         }
     }
 }
@@ -85,11 +93,15 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
 
     let blaze_normalizer_opts {
         type_size: _,
+        cache_maps,
         build_ids,
         reserved: _,
     } = opts;
 
-    let normalizer = Normalizer::builder().enable_build_ids(build_ids).build();
+    let normalizer = Normalizer::builder()
+        .enable_maps_caching(cache_maps)
+        .enable_build_ids(build_ids)
+        .build();
     let normalizer_box = Box::new(normalizer);
     Box::into_raw(normalizer_box)
 }
@@ -664,27 +676,40 @@ mod tests {
     /// Check that we can normalize user space addresses.
     #[test]
     fn normalize_user_addrs() {
-        let addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
-            libc::fopen as Addr,
-            elf_conversion as Addr,
-            normalize_user_addrs as Addr,
-        ];
+        fn test(normalizer: *const blaze_normalizer) {
+            let addrs = [
+                libc::__errno_location as Addr,
+                libc::dlopen as Addr,
+                libc::fopen as Addr,
+                elf_conversion as Addr,
+                normalize_user_addrs as Addr,
+            ];
+
+            let result = unsafe {
+                blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+            };
+            assert_ne!(result, ptr::null_mut());
+
+            let user_addrs = unsafe { &*result };
+            assert_eq!(user_addrs.meta_cnt, 2);
+            assert_eq!(user_addrs.output_cnt, 5);
+
+            let () = unsafe { blaze_user_output_free(result) };
+        }
 
         let normalizer = blaze_normalizer_new();
         assert_ne!(normalizer, ptr::null_mut());
+        test(normalizer);
+        let () = unsafe { blaze_normalizer_free(normalizer) };
 
-        let result = unsafe {
-            blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+        let opts = blaze_normalizer_opts {
+            cache_maps: true,
+            ..Default::default()
         };
-        assert_ne!(result, ptr::null_mut());
-
-        let user_addrs = unsafe { &*result };
-        assert_eq!(user_addrs.meta_cnt, 2);
-        assert_eq!(user_addrs.output_cnt, 5);
-
-        let () = unsafe { blaze_user_output_free(result) };
+        let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };
+        assert_ne!(normalizer, ptr::null_mut());
+        test(normalizer);
+        test(normalizer);
         let () = unsafe { blaze_normalizer_free(normalizer) };
     }
 

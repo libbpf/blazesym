@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added `cache_maps` attribute to `blaze_normalizer_opts`
+
+
 0.1.0-alpha.1
 -------------
 - Included `blazesym.h` header file in release package

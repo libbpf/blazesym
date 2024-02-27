@@ -151,6 +151,15 @@ typedef struct blaze_normalizer_opts {
    */
   size_t type_size;
   /**
+   * Whether or not to cache `/proc/<pid>/maps` contents.
+   *
+   * Setting this flag to `true` is not generally recommended, because it
+   * could result in addresses corresponding to mappings added after caching
+   * may not be normalized successfully, as there is no reasonable way of
+   * detecting staleness.
+   */
+  bool cache_maps;
+  /**
    * Whether to read and report build IDs as part of the normalization
    * process.
    */
@@ -159,7 +168,7 @@ typedef struct blaze_normalizer_opts {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[7];
+  uint8_t reserved[6];
 } blaze_normalizer_opts;
 
 /**
