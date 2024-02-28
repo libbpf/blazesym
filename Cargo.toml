@@ -77,11 +77,17 @@ nightly = []
 name = "main"
 harness = false
 
-[profile.bench]
+[profile.release]
 debug = true
 opt-level = 3
 lto = true
 codegen-units = 1
+
+# `bench` inherits from `release`, but we overwrite some options that
+# result in excessive build times for faster iteration.
+[profile.bench]
+lto = false
+codegen-units = 256
 
 [dependencies]
 circular = {version = "0.3", optional = true}
