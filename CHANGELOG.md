@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Reduced number of allocations performed on address normalization and
+  process symbolization paths
+
+
 0.2.0-alpha.11
 --------------
 - Added support for Breakpad format behind `breakpad` feature (disabled
