@@ -92,11 +92,14 @@ impl Debug for MapsEntry {
 fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     let full_line = line;
 
-    let split_once = |line: &'line str, component| -> Result<(&'line str, &'line str)> {
+    let split_once_opt = |line: &'line str| -> Option<(&'line str, &'line str)> {
         line.split_once(|c: char| c.is_ascii_whitespace())
-            .ok_or_invalid_data(|| {
-                format!("failed to find {component} in proc maps line: {line}\n{full_line}")
-            })
+    };
+
+    let split_once = |line: &'line str, component| -> Result<(&'line str, &'line str)> {
+        split_once_opt(line).ok_or_invalid_data(|| {
+            format!("failed to find {component} in proc maps line: {line}\n{full_line}")
+        })
     };
 
     // Lines have the following format:
@@ -141,7 +144,7 @@ fn parse_maps_line<'line>(line: &'line str, pid: Pid) -> Result<MapsEntry> {
     let (_dev, line) = split_once(line, "device component")?;
     // Note that by design, a path may not be present and so we may not be able
     // to successfully split.
-    let path_str = split_once(line, "inode component")
+    let path_str = split_once_opt(line)
         .map(|(_inode, line)| line.trim())
         .unwrap_or("");
 
