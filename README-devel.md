@@ -27,7 +27,7 @@ base line. You can check out a different change, re-run the above command, and
 it will print the performance difference.
 
 
-### Profiling
+### CPU Profiling
 To get a CPU profile in the form of a flamegraph, you can use
 [`cargo-flamegraph`][flamegraph] (can be installed via `cargo install
 flamegraph`). The following command will create a profile for the
@@ -41,6 +41,38 @@ For Criterion based benchmarks, use:
 $ cargo flamegraph --bench=main --root --features=nightly -- symbolize_gsym_multi_no_setup --bench
 ```
 
+
+### Allocation Profiling
+The crate comes with custom infrastructure for gathering memory
+allocation statistics and to print backtraces for allocations, in the
+[`allocs`][blazesym-allocs] test. This is not meant as a general purpose
+memory profiler, but it is built-in functionality that does not require
+additional tools to be installed.
+
+It is meant to be used for performance sensitive paths for which we want
+to understand allocation behavior and potentially make assertions about
+the number of allocations performed (if deterministic).
+
+To use it, run:
+```sh
+$ cargo test --test=allocs -- normalize_process --nocapture
+```
+where `normalize_process` is the name of the test you want to run. You
+can conceivably run all tests, but given the multi-threaded nature of
+the test runner, it is generally recommended to just focus on a single
+one. This command will print allocation statistics once the test
+concluded.
+
+To additionally print backtraces, set the `RUST_LIB_BACKTRACE` (or
+`RUST_BACKTRACE`) variable:
+
+```sh
+$ RUST_LIB_BACKTRACE=1 cargo test --test=allocs -- normalize_process --nocapture
+# Loads of backtraces will be reported.
+```
+
+
+[blazesym-allocs]: https://github.com/libbpf/blazesym/blob/main/tests/allocs.rs
 [criterion]: https://crates.io/crates/criterion
 [flamegraph]: https://crates.io/crates/flamegraph
 [libtest]: https://doc.rust-lang.org/1.4.0/book/benchmark-tests.html
