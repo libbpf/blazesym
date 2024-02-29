@@ -591,7 +591,7 @@ impl ErrorExt for io::Error {
 }
 
 
-/// A trait providing conversion shortcuts for creating `Error`
+/// A trait providing conversion shortcuts for creating [`Error`]
 /// instances.
 pub trait IntoError<T>: private::Sealed
 where
