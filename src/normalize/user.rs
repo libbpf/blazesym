@@ -264,11 +264,10 @@ mod tests {
     use crate::Pid;
 
 
-    /// Check that we correctly handle normalization of an address not
-    /// in any executable segment.
+    /// Check that we correctly handle various address normalization errors.
     #[test]
     fn user_address_normalization_static_maps() {
-        fn test(unknown_addr: Addr) {
+        fn test(unknown_addr: Addr, reason: Reason) {
             let maps = r#"
 55d3195b7000-55d3195b9000 r--p 00000000 00:12 2015701                    /bin/cat
 55d3195b9000-55d3195be000 r-xp 00002000 00:12 2015701                    /bin/cat
@@ -312,17 +311,18 @@ mod tests {
             let normalized = handler.normalized;
             assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
-            assert_eq!(normalized.meta[0], Unknown::new(Reason::Unmapped).into());
+            assert_eq!(normalized.meta[0], Unknown::new(reason).into());
         }
 
-        test(0x0);
-        test(0x1);
-        test(0x1000);
-        test(0xa0000);
-        test(0x7fd5ba1fe000);
-        test(0x7fffffff0000);
-        test(0x7fffffff1000);
-        test(0x7fffffff1001);
-        test(0x7fffffffffff);
+        test(0x0, Reason::Unmapped);
+        test(0x1, Reason::Unmapped);
+        test(0x1000, Reason::Unmapped);
+        test(0xa0000, Reason::Unmapped);
+        test(0x7fd5ba1fe000, Reason::Unmapped);
+        test(0x7fd5ba200000, Reason::MissingComponent);
+        test(0x7fffffff0000, Reason::Unmapped);
+        test(0x7fffffff1000, Reason::Unmapped);
+        test(0x7fffffff1001, Reason::Unmapped);
+        test(0x7fffffffffff, Reason::Unmapped);
     }
 }
