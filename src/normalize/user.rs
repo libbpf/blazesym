@@ -1,3 +1,4 @@
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::Error;
@@ -20,6 +21,7 @@ use super::meta::Elf;
 use super::meta::Unknown;
 use super::meta::UserMeta;
 use super::normalizer::Output;
+use super::Reason;
 
 
 /// Make a [`UserMeta::Elf`] variant.
@@ -58,19 +60,28 @@ impl UserOutput {
     /// It returns the index of the inserted [`Unknown`] variant. The
     /// return type is an `Option` only for convenience of callers.
     /// Returned is always a `Some`.
-    fn add_unknown_addr(&mut self, addr: Addr, unknown_idx: Option<usize>) -> Option<usize> {
-        let unknown_idx = if let Some(unknown_idx) = unknown_idx {
-            debug_assert_eq!(self.meta[unknown_idx], Unknown::default().into());
-            unknown_idx
-        } else {
-            let unknown_idx = self.meta.len();
-            let unknown = Unknown::default();
-            let () = self.meta.push(UserMeta::Unknown(unknown));
-            unknown_idx
+    fn add_unknown_addr(
+        &mut self,
+        addr: Addr,
+        reason: Reason,
+        unknown_cache: &mut HashMap<Reason, usize>,
+    ) {
+        let unknown_idx = match unknown_cache.entry(reason) {
+            Entry::Occupied(occupied) => {
+                let unknown_idx = *occupied.get();
+                debug_assert_eq!(self.meta[unknown_idx], Unknown::new(reason).into());
+                unknown_idx
+            }
+            Entry::Vacant(vacancy) => {
+                let unknown_idx = self.meta.len();
+                let unknown = Unknown::new(reason);
+                let () = self.meta.push(UserMeta::Unknown(unknown));
+                let idx = vacancy.insert(unknown_idx);
+                *idx
+            }
         };
 
         let () = self.outputs.push((addr, unknown_idx));
-        Some(unknown_idx)
     }
 
     /// Add a (normalized) file offset to this object.
@@ -115,9 +126,9 @@ pub(super) struct NormalizationHandler<R> {
     /// Lookup table from path (as used in each proc maps entry) to index into
     /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
-    /// The index of the `Unknown` entry in `meta_lookup`, used for all unknown
-    /// addresses.
-    unknown_idx: Option<usize>,
+    /// A mapping from [`Reason`] to the index of the `Unknown` entry with this
+    /// very reason in `meta_lookup`, if any.
+    unknown_cache: HashMap<Reason, usize>,
     #[doc(hidden)]
     _phanton: PhantomData<R>,
 }
@@ -130,20 +141,22 @@ impl<R> NormalizationHandler<R> {
                 outputs: Vec::with_capacity(addr_cnt),
                 meta: Vec::new(),
             },
-            meta_lookup: HashMap::<PathBuf, usize>::new(),
-            unknown_idx: None,
+            meta_lookup: HashMap::new(),
+            unknown_cache: HashMap::new(),
             _phanton: PhantomData,
         }
     }
 }
 
-impl<R> Handler<()> for NormalizationHandler<R>
+impl<R> Handler<Reason> for NormalizationHandler<R>
 where
     R: BuildIdReader,
 {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"))))]
-    fn handle_unknown_addr(&mut self, addr: Addr, (): ()) -> Result<()> {
-        self.unknown_idx = self.normalized.add_unknown_addr(addr, self.unknown_idx);
+    fn handle_unknown_addr(&mut self, addr: Addr, reason: Reason) -> Result<()> {
+        let () = self
+            .normalized
+            .add_unknown_addr(addr, reason, &mut self.unknown_cache);
         Ok(())
     }
 
@@ -170,26 +183,25 @@ where
                     ),
                 }
             }
-            Some(PathName::Component(..)) => self.handle_unknown_addr(addr, ()),
+            Some(PathName::Component(..)) => self.handle_unknown_addr(addr, Reason::Unsupported),
             // We could still normalize the address and report it, but without a
             // path nobody could really do anything with it.
-            None => self.handle_unknown_addr(addr, ()),
+            None => self.handle_unknown_addr(addr, Reason::MissingComponent),
         }
     }
 }
 
 
-pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, M, D>(
+pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, M, R>(
     addrs: A,
     mut entries: E,
-    handler: &mut dyn Handler<D>,
-    data: D,
+    handler: &mut dyn Handler<R>,
 ) -> Result<()>
 where
     A: Iterator<Item = Addr> + Clone,
     E: Iterator<Item = Result<M>>,
     M: AsRef<maps::MapsEntry>,
-    D: Clone,
+    R: From<Reason>,
 {
     let mut entry = entries.next().ok_or_else(|| {
         Error::new(
@@ -220,7 +232,7 @@ where
                 // cannot normalize. We have to assume that addresses
                 // were valid and the ELF object was just unmapped,
                 // similar to above.
-                let () = handler.handle_unknown_addr(addr, data.clone())?;
+                let () = handler.handle_unknown_addr(addr, R::from(Reason::Unmapped))?;
                 continue 'main
             };
         }
@@ -231,7 +243,7 @@ where
         // happen, for example, if an ELF object was unmapped between
         // address capture and normalization.
         if addr < entry.as_ref().range.start {
-            let () = handler.handle_unknown_addr(addr, data.clone())?;
+            let () = handler.handle_unknown_addr(addr, R::from(Reason::Unmapped))?;
             continue 'main
         }
 
@@ -294,14 +306,13 @@ mod tests {
                 addrs.as_slice().iter().copied(),
                 entries,
                 &mut handler,
-                (),
             )
             .unwrap();
 
             let normalized = handler.normalized;
             assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
-            assert_eq!(normalized.meta[0], Unknown::default().into());
+            assert_eq!(normalized.meta[0], Unknown::new(Reason::Unmapped).into());
         }
 
         test(0x0);

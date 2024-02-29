@@ -682,12 +682,8 @@ impl Symbolizer {
             addrs,
             |handler: &mut SymbolizeHandler<'_>| handler.all_symbols.as_mut_slice(),
             |sorted_addrs| -> Result<SymbolizeHandler<'_>> {
-                let () = normalize_sorted_user_addrs_with_entries(
-                    sorted_addrs,
-                    entries,
-                    &mut handler,
-                    Reason::Unmapped,
-                )?;
+                let () =
+                    normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, &mut handler)?;
                 Ok(handler)
             },
         )?;

@@ -43,6 +43,10 @@ mod meta;
 mod normalizer;
 mod user;
 
+use std::fmt::Display;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
+
 pub use meta::Apk;
 pub use meta::Elf;
 pub use meta::Unknown;
@@ -57,3 +61,50 @@ pub use user::UserOutput;
 
 pub(crate) use user::normalize_sorted_user_addrs_with_entries;
 pub(crate) use user::Handler;
+
+
+/// The reason why normalization failed.
+///
+/// The reason is generally only meant as a hint. Reasons reported may change
+/// over time and, hence, should not be relied upon for the correctness of the
+/// application.
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum Reason {
+    /// The absolute address was not found in the corresponding process' virtual
+    /// memory map.
+    Unmapped,
+    /// The `/proc/<pid>/maps` entry corresponding to the address does not have
+    /// a component (file system path, object, ...) associated with it.
+    MissingComponent,
+    /// The address belonged to an entity that is currently unsupported.
+    Unsupported,
+}
+
+impl Display for Reason {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let s = match self {
+            Self::Unmapped => "absolute address not found in virtual memory map of process",
+            Self::MissingComponent => "proc maps entry has no component",
+            Self::Unsupported => "address belongs to unsupprted entity",
+        };
+
+        f.write_str(s)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Exercise the `Display` representation of various types.
+    #[test]
+    fn display_repr() {
+        assert_eq!(
+            Reason::Unsupported.to_string(),
+            "address belongs to unsupprted entity"
+        );
+    }
+}

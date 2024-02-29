@@ -149,12 +149,12 @@ impl Normalizer {
         let addrs_cnt = addrs.len();
         if self.build_ids {
             let mut handler = user::NormalizationHandler::<DefaultBuildIdReader>::new(addrs_cnt);
-            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
+            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
             debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
             Ok(handler.normalized)
         } else {
             let mut handler = user::NormalizationHandler::<NoBuildIdReader>::new(addrs_cnt);
-            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler, ())?;
+            let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
             debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
             Ok(handler.normalized)
         }
@@ -263,6 +263,7 @@ mod tests {
     use crate::normalize::buildid::read_elf_build_id;
     use crate::normalize::Apk;
     use crate::normalize::Elf;
+    use crate::normalize::Reason;
     use crate::normalize::Unknown;
     use crate::normalize::UserMeta;
     use crate::symbolize;
@@ -301,7 +302,7 @@ mod tests {
             .unwrap();
         assert_eq!(normalized.outputs.len(), 2);
         assert_eq!(normalized.meta.len(), 1);
-        assert_eq!(normalized.meta[0], Unknown::default().into());
+        assert_eq!(normalized.meta[0], Unknown::new(Reason::Unmapped).into());
         assert_eq!(normalized.outputs[0].1, 0);
         assert_eq!(normalized.outputs[1].1, 0);
     }
