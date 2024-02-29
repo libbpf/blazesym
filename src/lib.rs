@@ -17,8 +17,8 @@
 //! - [`normalize`] exposes address normalization functionality
 //!
 //! C API bindings are defined in a cross-cutting manner as part of the
-//! `cblazesym` crate (note that Rust code should not have to consume
-//! these functions and on the ABI level this module organization has no
+//! `blazesym-c` crate (note that Rust code should not have to consume
+//! these functions and at the ABI level this module organization has no
 //! relevance for C).
 
 #![allow(
