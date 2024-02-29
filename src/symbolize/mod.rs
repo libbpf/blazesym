@@ -124,6 +124,7 @@ pub use source::Source;
 pub use symbolizer::Builder;
 pub use symbolizer::Symbolizer;
 
+use crate::normalize;
 use crate::Addr;
 
 
@@ -339,6 +340,9 @@ pub enum Reason {
     Unmapped,
     /// The file offset does not map to a valid piece of code/data.
     InvalidFileOffset,
+    /// The `/proc/<pid>/maps` entry corresponding to the address does not have
+    /// a component (file system path, object, ...) associated with it.
+    MissingComponent,
     /// The symbolization source has no or no relevant symbols.
     ///
     /// This reason could for instance be used if a shared object only
@@ -355,12 +359,24 @@ impl Display for Reason {
         let s = match self {
             Self::Unmapped => "absolute address not found in virtual memory map of process",
             Self::InvalidFileOffset => "file offset does not map to a valid piece of code/data",
+            Self::MissingComponent => "proc maps entry has no component",
             Self::MissingSyms => "symbolization source has no or no relevant symbols",
             Self::Unsupported => "address belongs to unsupprted entity",
             Self::UnknownAddr => "address not found in symbolization source",
         };
 
         f.write_str(s)
+    }
+}
+
+impl From<normalize::Reason> for Reason {
+    #[inline]
+    fn from(reason: normalize::Reason) -> Self {
+        match reason {
+            normalize::Reason::Unmapped => Self::Unmapped,
+            normalize::Reason::MissingComponent => Self::MissingComponent,
+            normalize::Reason::Unsupported => Self::Unsupported,
+        }
     }
 }
 
@@ -454,6 +470,21 @@ mod tests {
         assert_eq!(
             Reason::MissingSyms.to_string(),
             "symbolization source has no or no relevant symbols"
+        );
+    }
+
+    /// Check that we can convert `normalize::Reason` objects into
+    /// `symbolize::Reason` objects.
+    #[test]
+    fn reason_conversion() {
+        assert_eq!(Reason::from(normalize::Reason::Unmapped), Reason::Unmapped);
+        assert_eq!(
+            Reason::from(normalize::Reason::MissingComponent),
+            Reason::MissingComponent
+        );
+        assert_eq!(
+            Reason::from(normalize::Reason::Unsupported),
+            Reason::Unsupported
         );
     }
 

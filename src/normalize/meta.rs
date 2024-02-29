@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use super::Reason;
+
 
 /// A GNU build ID, as raw bytes.
 type BuildId = Vec<u8>;
@@ -70,11 +72,26 @@ pub struct Elf {
 ///
 /// An unknown address will be reported in non-normalized form (i.e., as
 /// provided as input by the user).
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Unknown {
+    /// The reason why normalization failed.
+    ///
+    /// The provided reason is a best guess, hinting at what ultimately
+    /// prevented the normalization from being successful.
+    pub reason: Reason,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
+}
+
+impl Unknown {
+    #[inline]
+    pub(crate) fn new(reason: Reason) -> Self {
+        Self {
+            reason,
+            _non_exhaustive: (),
+        }
+    }
 }
 
 impl From<Unknown> for UserMeta {
@@ -150,6 +167,7 @@ mod tests {
         assert!(meta.unknown().is_none());
 
         let meta = UserMeta::Unknown(Unknown {
+            reason: Reason::Unsupported,
             _non_exhaustive: (),
         });
         assert!(meta.apk().is_none());

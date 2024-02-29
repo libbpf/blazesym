@@ -276,6 +276,7 @@ pub struct blaze_user_meta_unknown {
 impl blaze_user_meta_unknown {
     fn from(other: Unknown) -> ManuallyDrop<Self> {
         let Unknown {
+            reason: _,
             _non_exhaustive: (),
         } = other;
 
