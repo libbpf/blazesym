@@ -1,6 +1,8 @@
 Unreleased
 ----------
 - Added `cache_maps` attribute to `blaze_normalizer_opts`
+- Introduced `blaze_normalize_reason` type and extended
+  - Added `reason` attribute to `blaze_user_meta_unknown`
 
 
 0.1.0-alpha.1

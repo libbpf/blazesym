@@ -14,6 +14,7 @@ use std::slice;
 use blazesym::normalize::Apk;
 use blazesym::normalize::Elf;
 use blazesym::normalize::Normalizer;
+use blazesym::normalize::Reason;
 use blazesym::normalize::Unknown;
 use blazesym::normalize::UserMeta;
 use blazesym::normalize::UserOutput;
@@ -265,27 +266,70 @@ impl blaze_user_meta_elf {
 }
 
 
+/// The reason why normalization failed.
+///
+/// The reason is generally only meant as a hint. Reasons reported may change
+/// over time and, hence, should not be relied upon for the correctness of the
+/// application.
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum blaze_normalize_reason {
+    /// The absolute address was not found in the corresponding process' virtual
+    /// memory map.
+    BLAZE_NORMALIZE_REASON_UNMAPPED,
+    /// The `/proc/<pid>/maps` entry corresponding to the address does not have
+    /// a component (file system path, object, ...) associated with it.
+    BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
+    /// The address belonged to an entity that is currently unsupported.
+    BLAZE_NORMALIZE_REASON_UNSUPPORTED,
+}
+
+impl From<Reason> for blaze_normalize_reason {
+    fn from(reason: Reason) -> Self {
+        match reason {
+            Reason::Unmapped => blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
+            Reason::MissingComponent => {
+                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_MISSING_COMPONENT
+            }
+            Reason::Unsupported => blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNSUPPORTED,
+            _ => unreachable!(),
+        }
+    }
+}
+
+
 /// C compatible version of [`Unknown`].
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_meta_unknown {
+    /// The reason why normalization failed.
+    ///
+    /// The provided reason is a best guess, hinting at what ultimately
+    /// prevented the normalization from being successful.
+    pub reason: blaze_normalize_reason,
     /// Unused member available for future expansion.
-    pub reserved: [u8; 8],
+    pub reserved: [u8; 7],
 }
 
 impl blaze_user_meta_unknown {
     fn from(other: Unknown) -> ManuallyDrop<Self> {
         let Unknown {
-            reason: _,
+            reason,
             _non_exhaustive: (),
         } = other;
 
-        let slf = Self { reserved: [0u8; 8] };
+        let slf = Self {
+            reason: reason.into(),
+            reserved: [0u8; 7],
+        };
         ManuallyDrop::new(slf)
     }
 
     fn free(self) {
-        let blaze_user_meta_unknown { reserved: _ } = self;
+        let blaze_user_meta_unknown {
+            reason: _,
+            reserved: _,
+        } = self;
     }
 }
 
@@ -586,16 +630,22 @@ mod tests {
             "blaze_user_meta_elf { path: 0x0, build_id_len: 0, build_id: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }",
         );
 
-        let unknown = blaze_user_meta_unknown { reserved: [0u8; 8] };
+        let unknown = blaze_user_meta_unknown {
+            reason: blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
+            reserved: [0u8; 7],
+        };
         assert_eq!(
             format!("{unknown:?}"),
-            "blaze_user_meta_unknown { reserved: [0, 0, 0, 0, 0, 0, 0, 0] }",
+            "blaze_user_meta_unknown { reason: BLAZE_NORMALIZE_REASON_UNMAPPED, reserved: [0, 0, 0, 0, 0, 0, 0] }",
         );
 
         let meta = blaze_user_meta {
             kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
             variant: blaze_user_meta_variant {
-                unknown: ManuallyDrop::new(blaze_user_meta_unknown { reserved: [0u8; 8] }),
+                unknown: ManuallyDrop::new(blaze_user_meta_unknown {
+                    reason: blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
+                    reserved: [0u8; 7],
+                }),
             },
         };
         assert_eq!(
@@ -621,6 +671,7 @@ mod tests {
     #[test]
     fn unknown_conversion() {
         let unknown = Unknown {
+            reason: Reason::Unsupported,
             _non_exhaustive: (),
         };
 
@@ -679,6 +730,7 @@ mod tests {
     fn normalize_user_addrs() {
         fn test(normalizer: *const blaze_normalizer) {
             let addrs = [
+                0x0 as Addr,
                 libc::__errno_location as Addr,
                 libc::dlopen as Addr,
                 libc::fopen as Addr,
@@ -692,8 +744,15 @@ mod tests {
             assert_ne!(result, ptr::null_mut());
 
             let user_addrs = unsafe { &*result };
-            assert_eq!(user_addrs.meta_cnt, 2);
-            assert_eq!(user_addrs.output_cnt, 5);
+            assert_eq!(user_addrs.meta_cnt, 3);
+            assert_eq!(user_addrs.output_cnt, 6);
+
+            let meta = unsafe { user_addrs.metas.read() };
+            assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN);
+            assert_eq!(
+                unsafe { meta.variant.unknown.reason },
+                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED
+            );
 
             let () = unsafe { blaze_user_output_free(result) };
         }

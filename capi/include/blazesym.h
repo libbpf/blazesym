@@ -27,6 +27,37 @@
 
 
 /**
+ * The reason why normalization failed.
+ *
+ * The reason is generally only meant as a hint. Reasons reported may change
+ * over time and, hence, should not be relied upon for the correctness of the
+ * application.
+ */
+enum blaze_normalize_reason
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
+  /**
+   * The absolute address was not found in the corresponding process' virtual
+   * memory map.
+   */
+  BLAZE_NORMALIZE_REASON_UNMAPPED,
+  /**
+   * The `/proc/<pid>/maps` entry corresponding to the address does not have
+   * a component (file system path, object, ...) associated with it.
+   */
+  BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
+  /**
+   * The address belonged to an entity that is currently unsupported.
+   */
+  BLAZE_NORMALIZE_REASON_UNSUPPORTED,
+};
+#ifndef __cplusplus
+typedef uint8_t blaze_normalize_reason;
+#endif // __cplusplus
+
+/**
  * The type of a symbol.
  */
 enum blaze_sym_type
@@ -220,9 +251,16 @@ typedef struct blaze_user_meta_elf {
  */
 typedef struct blaze_user_meta_unknown {
   /**
+   * The reason why normalization failed.
+   *
+   * The provided reason is a best guess, hinting at what ultimately
+   * prevented the normalization from being successful.
+   */
+  blaze_normalize_reason reason;
+  /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[8];
+  uint8_t reserved[7];
 } blaze_user_meta_unknown;
 
 /**
