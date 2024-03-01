@@ -1,6 +1,8 @@
+use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
 use crate::maps;
 use crate::normalize::buildid::BuildIdReader;
+use crate::normalize::buildid::CachingBuildIdReader;
 use crate::util;
 use crate::Addr;
 use crate::Pid;
@@ -40,8 +42,8 @@ pub struct Output<M> {
 
 /// A builder for configurable construction of [`Normalizer`] objects.
 ///
-/// By default reading of build IDs is enabled, while caching of
-/// `/proc/<pid>/maps` entries is disabled.
+/// By default reading of build IDs is enabled but they are not being
+/// cached. The caching of `/proc/<pid>/maps` entries is also disabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
     /// Whether or not to cache `/proc/<pid>/maps` contents.
@@ -54,6 +56,9 @@ pub struct Builder {
     /// Whether to read and report build IDs as part of the normalization
     /// process.
     build_ids: bool,
+    /// Whether or not to cache build IDs. This flag only has an effect
+    /// if build ID reading is enabled in the first place.
+    cache_build_ids: bool,
 }
 
 impl Builder {
@@ -69,17 +74,30 @@ impl Builder {
         self
     }
 
+    /// Enable/disable the caching of build IDs.
+    ///
+    /// # Notes
+    /// This property only has a meaning if reading of build IDs is
+    /// enabled as well.
+    pub fn enable_build_id_caching(mut self, enable: bool) -> Builder {
+        self.cache_build_ids = enable;
+        self
+    }
+
     /// Create the [`Normalizer`] object.
     pub fn build(self) -> Normalizer {
         let Builder {
             cache_maps,
             build_ids,
+            cache_build_ids,
         } = self;
 
         Normalizer {
             cache_maps,
             build_ids,
+            cache_build_ids,
             cached_entries: InsertMap::new(),
+            cached_build_ids: FileCache::default(),
         }
     }
 }
@@ -89,6 +107,7 @@ impl Default for Builder {
         Self {
             cache_maps: false,
             build_ids: true,
+            cache_build_ids: false,
         }
     }
 }
@@ -103,9 +122,10 @@ impl Default for Builder {
 /// they are present in, say, an ELF binary or a DWARF debug info file,
 /// and one would be able to see them using tools such as readelf(1).
 ///
-/// If caching of `/proc/<pid>/maps` is enabled, an instance of this type is the
-/// unit at which caching happens. If you are normalizing address in a large
-/// number of processes over time, you may want to consider creating a new
+/// If caching of data is enabled, an instance of this type is the unit
+/// at which caching happens. If you are normalizing address in a large
+/// number of processes or involving a larger number of binaries with
+/// build IDs over time, you may want to consider creating a new
 /// `Normalizer` instance regularly to free up cached data.
 #[derive(Debug, Default)]
 pub struct Normalizer {
@@ -119,9 +139,14 @@ pub struct Normalizer {
     /// Flag indicating whether or not to read build IDs as part of the
     /// normalization process.
     build_ids: bool,
+    /// Whether or not to cache build IDs. This flag only has an effect
+    /// if build ID reading is enabled in the first place.
+    cache_build_ids: bool,
     /// If `cache_maps` is `true`, the cached parsed
     /// [`MapsEntry`][maps::MapsEntry] objects.
     cached_entries: InsertMap<Pid, Box<[maps::MapsEntry]>>,
+    /// A cache of build IDs.
+    cached_build_ids: FileCache<Option<Vec<u8>>>,
 }
 
 impl Normalizer {
@@ -147,9 +172,15 @@ impl Normalizer {
         E: Iterator<Item = Result<M>>,
         M: AsRef<maps::MapsEntry>,
     {
+        let caching_reader;
         let addrs_cnt = addrs.len();
         let reader = if self.build_ids {
-            &DefaultBuildIdReader as &dyn BuildIdReader
+            if self.cache_build_ids {
+                caching_reader = CachingBuildIdReader::new(&self.cached_build_ids);
+                &caching_reader as &dyn BuildIdReader
+            } else {
+                &DefaultBuildIdReader as &dyn BuildIdReader
+            }
         } else {
             &NoBuildIdReader as &dyn BuildIdReader
         };

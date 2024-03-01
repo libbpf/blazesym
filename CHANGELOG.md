@@ -1,6 +1,7 @@
 Unreleased
 ----------
-- Added `cache_maps` property to `normalize::Normalizer` type
+- Added `cache_maps` and `cache_build_ids` properties to `normalize::Normalizer`
+  type
 - Introduced `normalize::Reason` enum to provide best guess at why normalization
   was not successful as part of the `normalize::UserMeta::Unknown` variant
 - Reduced number of allocations performed on address normalization and
