@@ -1,4 +1,14 @@
-//! C API bindings for the library.
+//! C API bindings for [`blazesym`].
+//!
+//! # Thread-Safety
+//! The library does not perform any synchronization of concurrent
+//! accesses to the same object. However, state is strictly kept at the
+//! object level (no shared global state), meaning that while concurrent
+//! accesses to the *same* object (e.g., multiple
+//! [`blaze_symbolize_process_abs_addrs`] calls on the same
+//! [`blaze_symbolizer`] instance) from multiple threads necessitates
+//! serialization at the call site, it is fine to issue requests to
+//! different objects from multiple threads.
 //!
 //! # Compatibility
 //! The library aims to provide forward compatibility with newer
