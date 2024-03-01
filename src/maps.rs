@@ -260,6 +260,16 @@ pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<MapsEntry> {
     }
 }
 
+/// Parse the maps file for the process with the given PID and make sure
+/// to filter out unnecessary entries by applying `filter_map_relevant`.
+pub(crate) fn parse_filtered(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>> {
+    let entries = parse(pid)?.filter_map(|result| match result {
+        Ok(entry) => filter_map_relevant(entry).map(Ok),
+        Err(err) => Some(Err(err)),
+    });
+    Ok(entries)
+}
+
 
 #[cfg(test)]
 mod tests {
