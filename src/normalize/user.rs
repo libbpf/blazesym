@@ -287,11 +287,8 @@ mod tests {
             let pid = Pid::Slf;
             let addrs = [unknown_addr as Addr];
 
-            let entries =
-                maps::parse_file(maps.as_bytes(), pid).filter_map(|result| match result {
-                    Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
-                    Err(err) => Some(Err(err)),
-                });
+            let entries = maps::parse_file(maps.as_bytes(), pid)
+                .filter(|result| result.as_ref().map(maps::filter_relevant).unwrap_or(true));
             let mut handler = NormalizationHandler::<NoBuildIdReader>::new(addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
