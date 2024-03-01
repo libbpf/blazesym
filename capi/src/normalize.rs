@@ -46,9 +46,12 @@ pub struct blaze_normalizer_opts {
     /// Whether to read and report build IDs as part of the normalization
     /// process.
     pub build_ids: bool,
+    /// Whether or not to cache build IDs. This flag only has an effect
+    /// if build ID reading is enabled in the first place.
+    pub cache_build_ids: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 6],
+    pub reserved: [u8; 5],
 }
 
 impl Default for blaze_normalizer_opts {
@@ -57,7 +60,8 @@ impl Default for blaze_normalizer_opts {
             type_size: size_of::<Self>(),
             cache_maps: false,
             build_ids: false,
-            reserved: [0; 6],
+            cache_build_ids: false,
+            reserved: [0; 5],
         }
     }
 }
@@ -96,12 +100,14 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
         type_size: _,
         cache_maps,
         build_ids,
+        cache_build_ids,
         reserved: _,
     } = opts;
 
     let normalizer = Normalizer::builder()
         .enable_maps_caching(cache_maps)
         .enable_build_ids(build_ids)
+        .enable_build_id_caching(cache_build_ids)
         .build();
     let normalizer_box = Box::new(normalizer);
     Box::into_raw(normalizer_box)

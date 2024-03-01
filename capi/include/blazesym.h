@@ -203,10 +203,15 @@ typedef struct blaze_normalizer_opts {
    */
   bool build_ids;
   /**
+   * Whether or not to cache build IDs. This flag only has an effect
+   * if build ID reading is enabled in the first place.
+   */
+  bool cache_build_ids;
+  /**
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[6];
+  uint8_t reserved[5];
 } blaze_normalizer_opts;
 
 /**
