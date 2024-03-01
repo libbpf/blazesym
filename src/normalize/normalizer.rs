@@ -86,7 +86,7 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
-            cache_maps: true,
+            cache_maps: false,
             build_ids: true,
         }
     }
