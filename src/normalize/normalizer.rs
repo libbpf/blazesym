@@ -183,21 +183,14 @@ impl Normalizer {
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
         if !self.cache_maps {
-            let entries = maps::parse(pid)?.filter_map(|result| match result {
-                Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
-                Err(err) => Some(Err(err)),
-            });
+            let entries = maps::parse_filtered(pid)?;
             self.normalize_user_addrs_impl(addrs, entries)
         } else {
             let parsed = self.cached_entries.get_or_try_insert(pid, || {
                 // If we use the cached maps entries but don't have anything
                 // cached yet, then just parse the file eagerly and take it from
                 // there.
-                let parsed = maps::parse(pid)?
-                    .filter_map(|result| match result {
-                        Ok(entry) => maps::filter_map_relevant(entry).map(Ok),
-                        Err(err) => Some(Err(err)),
-                    })
+                let parsed = maps::parse_filtered(pid)?
                     .collect::<Result<Vec<_>>>()?
                     .into_boxed_slice();
                 Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
