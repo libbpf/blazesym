@@ -93,7 +93,7 @@ fn read_build_id_impl(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
 }
 
 pub(super) trait BuildIdReader {
-    fn read_build_id_from_elf(&self, path: &Path) -> Result<Option<Vec<u8>>>;
+    fn read_build_id(&self, path: &Path) -> Result<Option<Vec<u8>>>;
 }
 
 
@@ -102,7 +102,7 @@ pub(super) struct DefaultBuildIdReader;
 impl BuildIdReader for DefaultBuildIdReader {
     /// Attempt to read an ELF binary's build ID from a file.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    fn read_build_id_from_elf(&self, path: &Path) -> Result<Option<Vec<u8>>> {
+    fn read_build_id(&self, path: &Path) -> Result<Option<Vec<u8>>> {
         let parser = ElfParser::open(path)?;
         read_build_id_impl(&parser)
     }
@@ -113,7 +113,7 @@ pub(super) struct NoBuildIdReader;
 
 impl BuildIdReader for NoBuildIdReader {
     #[inline]
-    fn read_build_id_from_elf(&self, _path: &Path) -> Result<Option<Vec<u8>>> {
+    fn read_build_id(&self, _path: &Path) -> Result<Option<Vec<u8>>> {
         Ok(None)
     }
 }

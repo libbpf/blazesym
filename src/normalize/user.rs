@@ -26,7 +26,7 @@ use super::Reason;
 fn make_elf_meta(entry_path: &EntryPath, build_id_reader: &dyn BuildIdReader) -> Result<UserMeta> {
     let elf = Elf {
         path: entry_path.symbolic_path.to_path_buf(),
-        build_id: build_id_reader.read_build_id_from_elf(&entry_path.maps_file)?,
+        build_id: build_id_reader.read_build_id(&entry_path.maps_file)?,
         _non_exhaustive: (),
     };
     let meta = UserMeta::Elf(elf);
