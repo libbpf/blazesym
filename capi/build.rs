@@ -143,9 +143,21 @@ fn main() {
         use std::fs::copy;
         use std::fs::write;
 
+        let mut config = cbindgen::Config::from_root_or_default(&crate_dir);
+        config.header = Some(format!(
+            r#"/*
+ * Please refer to the documentation hosted at
+ *
+ *   https://docs.rs/{name}/{version}
+ */
+"#,
+            name = env::var("CARGO_PKG_NAME").unwrap(),
+            version = env::var("CARGO_PKG_VERSION").unwrap(),
+        ));
+
         cbindgen::Builder::new()
             .with_crate(&crate_dir)
-            .with_config(cbindgen::Config::from_root_or_default(&crate_dir))
+            .with_config(config)
             .generate()
             .expect("Unable to generate bindings")
             .write_to_file(crate_dir.join("include").join("blazesym.h"));
