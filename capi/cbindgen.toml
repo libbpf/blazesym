@@ -2,6 +2,8 @@
 
 language = "C"
 cpp_compat = true
+# The header attribute is set in the build script.
+#header = "/* ... */"
 include_guard = "__blazesym_h_"
 usize_is_size_t = true
 after_includes = """\
