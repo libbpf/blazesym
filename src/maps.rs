@@ -247,26 +247,23 @@ pub(crate) fn parse(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>>
 
 /// A helper function checking whether a `MapsEntry` has relevance to
 /// symbolization efforts.
-pub(crate) fn filter_map_relevant(entry: MapsEntry) -> Option<MapsEntry> {
+pub(crate) fn filter_relevant(entry: &MapsEntry) -> bool {
     // Only readable (r---) or executable (--x-) entries are of relevance.
     if (entry.mode & 0b1010) == 0 {
-        return None
+        return false
     }
 
     match entry.path_name {
-        Some(PathName::Path(..)) => Some(entry),
-        Some(PathName::Component(..)) => None,
-        None => Some(entry),
+        Some(PathName::Path(..)) => true,
+        Some(PathName::Component(..)) => false,
+        None => true,
     }
 }
 
 /// Parse the maps file for the process with the given PID and make sure
-/// to filter out unnecessary entries by applying `filter_map_relevant`.
+/// to filter out unnecessary entries by applying `filter_relevant`.
 pub(crate) fn parse_filtered(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>> {
-    let entries = parse(pid)?.filter_map(|result| match result {
-        Ok(entry) => filter_map_relevant(entry).map(Ok),
-        Err(err) => Some(Err(err)),
-    });
+    let entries = parse(pid)?.filter(|result| result.as_ref().map(filter_relevant).unwrap_or(true));
     Ok(entries)
 }
 
