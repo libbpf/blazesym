@@ -3,6 +3,7 @@ use std::path::Path;
 use crate::elf;
 use crate::elf::types::Elf64_Nhdr;
 use crate::elf::ElfParser;
+use crate::file_cache::FileCache;
 use crate::log::warn;
 use crate::util::ReadRaw as _;
 use crate::IntoError as _;
@@ -105,6 +106,32 @@ impl BuildIdReader for DefaultBuildIdReader {
     fn read_build_id(&self, path: &Path) -> Result<Option<Vec<u8>>> {
         let parser = ElfParser::open(path)?;
         read_build_id_impl(&parser)
+    }
+}
+
+
+pub(super) struct CachingBuildIdReader<'cache> {
+    /// The build ID cache.
+    cache: &'cache FileCache<Option<Vec<u8>>>,
+}
+
+impl<'cache> CachingBuildIdReader<'cache> {
+    #[inline]
+    pub fn new(cache: &'cache FileCache<Option<Vec<u8>>>) -> Self {
+        Self { cache }
+    }
+}
+
+impl BuildIdReader for CachingBuildIdReader<'_> {
+    /// Attempt to read an ELF binary's build ID from a file.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
+    fn read_build_id(&self, path: &Path) -> Result<Option<Vec<u8>>> {
+        let (file, cell) = self.cache.entry(path)?;
+        let build_id = cell.get_or_try_init(|| {
+            let parser = ElfParser::open_file(file)?;
+            read_build_id_impl(&parser)
+        })?;
+        Ok(build_id.clone())
     }
 }
 
