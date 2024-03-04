@@ -905,10 +905,14 @@ mod tests {
     use std::ffi::CString;
     use std::fs::read as read_file;
     use std::hint::black_box;
+    use std::io::Error;
+    use std::os::unix::ffi::OsStringExt as _;
     use std::slice;
 
     use blazesym::inspect;
+    use blazesym::normalize;
     use blazesym::symbolize::Reason;
+    use blazesym::Pid;
 
 
     /// Check that various types have expected sizes.
@@ -1300,6 +1304,68 @@ mod tests {
             blaze_symbolize_gsym_data_virt_offsets(symbolizer, &gsym_src, addrs, addr_cnt)
         };
         test(symbolize, true);
+    }
+
+
+    /// Check that we can symbolize a file offset in an ELF file.
+    #[test]
+    fn symbolize_elf_file_offset() {
+        let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("libtest-so.so")
+            .canonicalize()
+            .unwrap();
+        let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
+        let handle = unsafe { libc::dlopen(so_cstr.as_ptr(), libc::RTLD_NOW) };
+        assert!(!handle.is_null());
+
+        let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
+        assert!(!the_answer_addr.is_null());
+
+        let normalizer = normalize::Normalizer::new();
+        let normalized = normalizer
+            .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
+            .unwrap();
+        assert_eq!(normalized.outputs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
+
+        let rc = unsafe { libc::dlclose(handle) };
+        assert_eq!(rc, 0, "{}", Error::last_os_error());
+
+        let output = normalized.outputs[0];
+        let meta = &normalized.meta[output.1];
+        assert_eq!(meta.elf().unwrap().path, test_so);
+
+        let symbolizer = blaze_symbolizer_new();
+        let elf_src = blaze_symbolize_src_elf {
+            path: so_cstr.as_ptr(),
+            ..Default::default()
+        };
+        let offsets = [output.0];
+        let result = unsafe {
+            blaze_symbolize_elf_file_offsets(
+                symbolizer,
+                &elf_src,
+                offsets.as_slice().as_ptr(),
+                offsets.len(),
+            )
+        };
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+        assert!(!sym.name.is_null());
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym.name) },
+            CStr::from_bytes_with_nul(b"the_answer\0").unwrap()
+        );
+
+        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 
     /// Symbolize an address inside a DWARF file, with and without
