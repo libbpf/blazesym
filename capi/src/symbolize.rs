@@ -777,6 +777,40 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
     }
 }
 
+/// Symbolize file offsets in an ELF file.
+///
+/// Return an array of [`blaze_result`] with the same size as the number
+/// of input addresses. The caller should free the returned array by
+/// calling [`blaze_result_free`].
+///
+/// # Safety
+/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+/// [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
+/// `addr_cnt` objects.
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
+    symbolizer: *mut blaze_symbolizer,
+    src: *const blaze_symbolize_src_elf,
+    file_offsets: *const Addr,
+    file_offset_cnt: usize,
+) -> *const blaze_result {
+    if !input_zeroed!(src, blaze_symbolize_src_elf) {
+        return ptr::null_mut()
+    }
+    let src = input_sanitize!(src, blaze_symbolize_src_elf);
+    let src = Source::from(Elf::from(src));
+
+    unsafe {
+        blaze_symbolize_impl(
+            symbolizer,
+            src,
+            Input::FileOffset(file_offsets),
+            file_offset_cnt,
+        )
+    }
+}
+
 
 /// Symbolize virtual offsets using "raw" Gsym data.
 ///
