@@ -1,5 +1,17 @@
 # Developer Notes
 
+## C API
+Our [C API header](capi/include/blazesym.h) is version controlled and
+programmatically generated from Rust definitions. If you are introducing
+a new public C API function, you will have to re-generate it to make the
+new function available.
+
+The following command can be used for doing that:
+```sh
+$ cargo check --package blazesym-c --features=generate-c-header
+```
+
+
 ## Testing
 All our testing is `cargo` based and a simple
 ```sh
