@@ -59,6 +59,7 @@ impl<K, V> InsertMap<K, V> {
 }
 
 impl<K, V> Default for InsertMap<K, V> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -101,7 +102,7 @@ mod tests {
     #[test]
     #[should_panic = "already borrowed"]
     fn recursive_access() {
-        let map = InsertMap::<usize, &'static str>::new();
+        let map = InsertMap::<usize, &'static str>::default();
         let _value =
             map.get_or_try_insert(42, || map.get_or_try_insert(42, || Ok("foobar")).copied());
     }
