@@ -901,6 +901,24 @@ const struct blaze_result *blaze_symbolize_elf_virt_offsets(blaze_symbolizer *sy
                                                             size_t virt_offset_cnt);
 
 /**
+ * Symbolize file offsets in an ELF file.
+ *
+ * Return an array of [`blaze_result`] with the same size as the number
+ * of input addresses. The caller should free the returned array by
+ * calling [`blaze_result_free`].
+ *
+ * # Safety
+ * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
+ * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
+ * [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
+ * `addr_cnt` objects.
+ */
+const struct blaze_result *blaze_symbolize_elf_file_offsets(blaze_symbolizer *symbolizer,
+                                                            const struct blaze_symbolize_src_elf *src,
+                                                            const uintptr_t *file_offsets,
+                                                            size_t file_offset_cnt);
+
+/**
  * Symbolize virtual offsets using "raw" Gsym data.
  *
  * Return an array of [`blaze_result`] with the same size as the
