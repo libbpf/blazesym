@@ -15,7 +15,7 @@ $ cargo check --package blazesym-c --features=generate-c-header
 ## Testing
 All our testing is `cargo` based and a simple
 ```sh
-$ cargo test
+$ cargo test --workspace
 ```
 runs the vast majority of tests. Tests require `sudo` to be set up properly, as
 some of the functionality we rely on is privileged. Test artifacts are
