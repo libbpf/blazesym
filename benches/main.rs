@@ -26,7 +26,7 @@ use criterion::criterion_main;
 use criterion::Criterion;
 
 
-const BENCH_NAME_WIDTH: usize = 42;
+const BENCH_NAME_WIDTH: usize = 52;
 
 
 fn bench_fn_name(name: &str) -> String {
