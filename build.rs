@@ -208,8 +208,6 @@ fn dwarf(src: &Path, dst: impl AsRef<OsStr>) {
 /// Generate a Breakpad .sym file for the given source.
 #[cfg(feature = "dump_syms")]
 fn syms(src: &Path, dst: impl AsRef<OsStr>) {
-    use std::env::consts::ARCH;
-
     use dump_syms::dumper;
     use dump_syms::dumper::Config;
     use dump_syms::dumper::FileOutput;
@@ -217,20 +215,9 @@ fn syms(src: &Path, dst: impl AsRef<OsStr>) {
 
     let dst = src.with_file_name(dst);
 
-    let config = Config {
-        output: Output::File(FileOutput::Path(dst)),
-        symbol_server: None,
-        debug_id: None,
-        code_id: None,
-        arch: ARCH,
-        num_jobs: 1,
-        check_cfi: false,
-        emit_inlines: true,
-        mapping_var: None,
-        mapping_src: None,
-        mapping_dest: None,
-        mapping_file: None,
-    };
+    let mut config = Config::with_output(Output::File(FileOutput::Path(dst)));
+    config.check_cfi = false;
+
     let path = src.to_str().unwrap();
     let () = dumper::single_file(&config, path).unwrap();
 }
