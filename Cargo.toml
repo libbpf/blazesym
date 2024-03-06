@@ -112,7 +112,7 @@ tempfile = "3.4"
 test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
 
 [build-dependencies]
-dump_syms = {version = "2.2", optional = true, default-features = false}
+dump_syms = {version = "2.3", optional = true, default-features = false}
 libc = "0.2.137"
 reqwest = {version = "0.11.18", optional = true, features = ["blocking"]}
 xz2 = {version = "0.1.7", optional = true}
