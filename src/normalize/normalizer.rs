@@ -192,24 +192,6 @@ impl Normalizer {
         Ok(handler.normalized)
     }
 
-    /// Normalize all `addrs` in a given process to the corresponding file
-    /// offsets, which are suitable for later symbolization. The `addrs`
-    /// array has to be sorted in ascending order or an error will be
-    /// returned.
-    ///
-    /// Unknown addresses are not normalized. They are reported as
-    /// [`Unknown`] meta entries in the returned [`UserOutput`]
-    /// object. The cause of an address to be unknown (and, hence, not
-    /// normalized), could have a few reasons, including, but not limited
-    /// to:
-    /// - user error (if a bogus address was provided)
-    /// - they belonged to an ELF object that has been unmapped since the
-    ///   address was captured
-    ///
-    /// The process' ID should be provided in `pid`.
-    ///
-    /// File offsets are reported in the exact same order in which the
-    /// non-normalized addresses were provided.
     fn normalize_user_addrs_iter<A>(&self, addrs: A, pid: Pid) -> Result<UserOutput>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
@@ -235,11 +217,12 @@ impl Normalizer {
 
     /// Normalize addresses belonging to a process.
     ///
-    /// Normalize all `addrs` in a given process. The `addrs` array has
-    /// to be sorted in ascending order or an error will be returned. By
-    /// providing a pre-sorted array the library does not have to sort
-    /// internally, which will result in quicker normalization. If you
-    /// don't have sorted addresses, use
+    /// Normalize all `addrs` in a given process to their corresponding
+    /// file offsets, which are suitable for later symbolization. The
+    /// `addrs` array has to be sorted in ascending order or an error
+    /// will be returned. By providing a pre-sorted array the library
+    /// does not have to sort internally, which will result in quicker
+    /// normalization. If you don't have sorted addresses, use
     /// [`Normalizer::normalize_user_addrs`] instead.
     ///
     /// Unknown addresses are not normalized. They are reported as
@@ -253,8 +236,8 @@ impl Normalizer {
     ///
     /// The process' ID should be provided in `pid`.
     ///
-    /// Normalized addresses are reported in the exact same order in which the
-    /// non-normalized ones were provided.
+    /// Normalized outputs are reported in the exact same order (and in
+    /// equal amount) in which the non-normalized ones were provided.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
     pub fn normalize_user_addrs_sorted(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
         self.normalize_user_addrs_iter(addrs.iter().copied(), pid)
