@@ -10,9 +10,13 @@ use crate::IntoError as _;
 use crate::Result;
 
 
+/// A GNU build ID, as raw bytes.
+pub type BuildId = Vec<u8>;
+
+
 /// Iterate over all note sections to find one of type
 /// [`NT_GNU_BUILD_ID`][elf::types::NT_GNU_BUILD_ID].
-fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
+fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId>> {
     let shdrs = parser.section_headers()?;
     for (idx, shdr) in shdrs.iter().enumerate() {
         if shdr.sh_type == elf::types::SHT_NOTE {
@@ -41,7 +45,7 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
 
 /// Attempt to read an ELF binary's build ID from the .note.gnu.build-id
 /// section.
-fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
+fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<BuildId>> {
     let build_id_section = ".note.gnu.build-id";
     // The build ID is contained in the `.note.gnu.build-id` section. See
     // elf(5).
@@ -83,7 +87,7 @@ fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<Vec<u8>>
 }
 
 
-fn read_build_id_impl(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
+fn read_build_id_impl(parser: &ElfParser) -> Result<Option<BuildId>> {
     if let Some(build_id) = read_build_id_from_section_name(parser)? {
         Ok(Some(build_id))
     } else if let Some(build_id) = read_build_id_from_notes(parser)? {
@@ -94,7 +98,7 @@ fn read_build_id_impl(parser: &ElfParser) -> Result<Option<Vec<u8>>> {
 }
 
 pub(super) trait BuildIdReader {
-    fn read_build_id(&self, path: &Path) -> Result<Option<Vec<u8>>>;
+    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId>>;
 }
 
 
@@ -103,7 +107,7 @@ pub(super) struct DefaultBuildIdReader;
 impl BuildIdReader for DefaultBuildIdReader {
     /// Attempt to read an ELF binary's build ID from a file.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    fn read_build_id(&self, path: &Path) -> Result<Option<Vec<u8>>> {
+    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId>> {
         let parser = ElfParser::open(path)?;
         read_build_id_impl(&parser)
     }
@@ -112,12 +116,12 @@ impl BuildIdReader for DefaultBuildIdReader {
 
 pub(super) struct CachingBuildIdReader<'cache> {
     /// The build ID cache.
-    cache: &'cache FileCache<Option<Vec<u8>>>,
+    cache: &'cache FileCache<Option<BuildId>>,
 }
 
 impl<'cache> CachingBuildIdReader<'cache> {
     #[inline]
-    pub fn new(cache: &'cache FileCache<Option<Vec<u8>>>) -> Self {
+    pub fn new(cache: &'cache FileCache<Option<BuildId>>) -> Self {
         Self { cache }
     }
 }
@@ -125,7 +129,7 @@ impl<'cache> CachingBuildIdReader<'cache> {
 impl BuildIdReader for CachingBuildIdReader<'_> {
     /// Attempt to read an ELF binary's build ID from a file.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    fn read_build_id(&self, path: &Path) -> Result<Option<Vec<u8>>> {
+    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId>> {
         let (file, cell) = self.cache.entry(path)?;
         let build_id = cell.get_or_try_init(|| {
             let parser = ElfParser::open_file(file)?;
@@ -140,7 +144,7 @@ pub(super) struct NoBuildIdReader;
 
 impl BuildIdReader for NoBuildIdReader {
     #[inline]
-    fn read_build_id(&self, _path: &Path) -> Result<Option<Vec<u8>>> {
+    fn read_build_id(&self, _path: &Path) -> Result<Option<BuildId>> {
         Ok(None)
     }
 }
@@ -184,7 +188,7 @@ impl BuildIdReader for NoBuildIdReader {
 /// }
 /// ```
 #[inline]
-pub fn read_elf_build_id<P>(path: &P) -> Result<Option<Vec<u8>>>
+pub fn read_elf_build_id<P>(path: &P) -> Result<Option<BuildId>>
 where
     P: AsRef<Path>,
 {
@@ -204,7 +208,7 @@ mod tests {
     /// as well as ELF section type.
     #[test]
     fn build_id_reading_from_name_and_notes() {
-        fn test(f: fn(&ElfParser) -> Result<Option<Vec<u8>>>) {
+        fn test(f: fn(&ElfParser) -> Result<Option<BuildId>>) {
             let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join("libtest-so.so");

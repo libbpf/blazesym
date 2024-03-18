@@ -1,10 +1,7 @@
 use std::path::PathBuf;
 
+use super::buildid::BuildId;
 use super::Reason;
-
-
-/// A GNU build ID, as raw bytes.
-type BuildId = Vec<u8>;
 
 
 /// Meta information about an APK.
