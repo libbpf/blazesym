@@ -23,7 +23,10 @@ use super::Reason;
 
 
 /// Make a [`UserMeta::Elf`] variant.
-fn make_elf_meta(entry_path: &EntryPath, build_id_reader: &dyn BuildIdReader) -> Result<UserMeta> {
+fn make_elf_meta<'src>(
+    entry_path: &EntryPath,
+    build_id_reader: &dyn BuildIdReader<'src>,
+) -> Result<UserMeta<'src>> {
     let elf = Elf {
         path: entry_path.symbolic_path.to_path_buf(),
         build_id: build_id_reader.read_build_id(&entry_path.maps_file)?,
@@ -35,7 +38,7 @@ fn make_elf_meta(entry_path: &EntryPath, build_id_reader: &dyn BuildIdReader) ->
 
 
 /// Make a [`UserMeta::Apk`] variant.
-fn make_apk_meta(entry_path: &EntryPath) -> Result<UserMeta> {
+fn make_apk_meta(entry_path: &EntryPath) -> Result<UserMeta<'static>> {
     let apk = Apk {
         path: entry_path.symbolic_path.to_path_buf(),
         _non_exhaustive: (),
@@ -46,9 +49,9 @@ fn make_apk_meta(entry_path: &EntryPath) -> Result<UserMeta> {
 
 
 /// A type representing the output of user addresses normalization.
-pub type UserOutput = Output<UserMeta>;
+pub type UserOutput<'src> = Output<UserMeta<'src>>;
 
-impl UserOutput {
+impl<'src> UserOutput<'src> {
     /// Add an unknown (non-normalizable) address to this object.
     ///
     /// This function accepts `unknown_idx` which, if not `None`, should
@@ -91,7 +94,7 @@ impl UserOutput {
         create_meta: F,
     ) -> Result<()>
     where
-        F: FnOnce() -> Result<UserMeta>,
+        F: FnOnce() -> Result<UserMeta<'src>>,
     {
         let meta_idx = if let Some(meta_idx) = meta_lookup.get(key) {
             *meta_idx
@@ -118,11 +121,11 @@ pub(crate) trait Handler<D = ()> {
 }
 
 
-pub(super) struct NormalizationHandler<'reader> {
+pub(super) struct NormalizationHandler<'reader, 'src> {
     /// The user output we are building up.
-    pub normalized: UserOutput,
+    pub normalized: UserOutput<'src>,
     /// The build ID reader to use.
-    build_id_reader: &'reader dyn BuildIdReader,
+    build_id_reader: &'reader dyn BuildIdReader<'src>,
     /// Lookup table from path (as used in each proc maps entry) to index into
     /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
@@ -131,9 +134,9 @@ pub(super) struct NormalizationHandler<'reader> {
     unknown_cache: HashMap<Reason, usize>,
 }
 
-impl<'reader> NormalizationHandler<'reader> {
+impl<'reader, 'src> NormalizationHandler<'reader, 'src> {
     /// Instantiate a new `NormalizationHandler` object.
-    pub fn new(reader: &'reader dyn BuildIdReader, addr_cnt: usize) -> Self {
+    pub fn new(reader: &'reader dyn BuildIdReader<'src>, addr_cnt: usize) -> Self {
         Self {
             normalized: UserOutput {
                 outputs: Vec::with_capacity(addr_cnt),
@@ -146,7 +149,7 @@ impl<'reader> NormalizationHandler<'reader> {
     }
 }
 
-impl Handler<Reason> for NormalizationHandler<'_> {
+impl Handler<Reason> for NormalizationHandler<'_, '_> {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"))))]
     fn handle_unknown_addr(&mut self, addr: Addr, reason: Reason) -> Result<()> {
         let () = self
