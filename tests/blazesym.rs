@@ -686,7 +686,7 @@ fn normalize_build_id_reading() {
         assert_eq!(elf.path, test_so);
         if read_build_ids {
             let expected = read_elf_build_id(&test_so).unwrap().unwrap();
-            assert_eq!(elf.build_id.as_deref().unwrap(), &expected);
+            assert_eq!(elf.build_id.as_ref().unwrap(), &expected);
         } else {
             assert_eq!(elf.build_id, None);
         }

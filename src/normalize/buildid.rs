@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::path::Path;
 
 use crate::elf;
@@ -6,17 +7,18 @@ use crate::elf::ElfParser;
 use crate::file_cache::FileCache;
 use crate::log::warn;
 use crate::util::ReadRaw as _;
+use crate::Error;
 use crate::IntoError as _;
 use crate::Result;
 
 
 /// A GNU build ID, as raw bytes.
-pub type BuildId = Vec<u8>;
+pub type BuildId<'src> = Cow<'src, [u8]>;
 
 
 /// Iterate over all note sections to find one of type
 /// [`NT_GNU_BUILD_ID`][elf::types::NT_GNU_BUILD_ID].
-fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId>> {
+fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
     let shdrs = parser.section_headers()?;
     for (idx, shdr) in shdrs.iter().enumerate() {
         if shdr.sh_type == elf::types::SHT_NOTE {
@@ -34,9 +36,8 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId>> {
                     .ok_or_invalid_data(|| "failed to read build ID section name")?;
                 let build_id = bytes
                     .read_slice(header.n_descsz as _)
-                    .ok_or_invalid_data(|| "failed to read build ID section contents")?
-                    .to_vec();
-                return Ok(Some(build_id))
+                    .ok_or_invalid_data(|| "failed to read build ID section contents")?;
+                return Ok(Some(Cow::Borrowed(build_id)))
             }
         }
     }
@@ -45,7 +46,7 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId>> {
 
 /// Attempt to read an ELF binary's build ID from the .note.gnu.build-id
 /// section.
-fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<BuildId>> {
+fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
     let build_id_section = ".note.gnu.build-id";
     // The build ID is contained in the `.note.gnu.build-id` section. See
     // elf(5).
@@ -77,9 +78,8 @@ fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<BuildId>
         } else {
             let build_id = bytes
                 .read_slice(header.n_descsz as _)
-                .ok_or_invalid_data(|| "failed to read build ID section contents")?
-                .to_vec();
-            Ok(Some(build_id))
+                .ok_or_invalid_data(|| "failed to read build ID section contents")?;
+            Ok(Some(Cow::Borrowed(build_id)))
         }
     } else {
         Ok(None)
@@ -97,54 +97,60 @@ fn read_build_id_impl(parser: &ElfParser) -> Result<Option<BuildId>> {
     }
 }
 
-pub(super) trait BuildIdReader {
-    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId>>;
+pub(super) trait BuildIdReader<'src> {
+    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId<'src>>>;
 }
 
 
 pub(super) struct DefaultBuildIdReader;
 
-impl BuildIdReader for DefaultBuildIdReader {
+impl BuildIdReader<'_> for DefaultBuildIdReader {
     /// Attempt to read an ELF binary's build ID from a file.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId>> {
+    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId<'static>>> {
         let parser = ElfParser::open(path)?;
-        read_build_id_impl(&parser)
+        let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+        Ok(buildid)
     }
 }
 
 
 pub(super) struct CachingBuildIdReader<'cache> {
     /// The build ID cache.
-    cache: &'cache FileCache<Option<BuildId>>,
+    cache: &'cache FileCache<Option<BuildId<'static>>>,
 }
 
 impl<'cache> CachingBuildIdReader<'cache> {
     #[inline]
-    pub fn new(cache: &'cache FileCache<Option<BuildId>>) -> Self {
+    pub fn new(cache: &'cache FileCache<Option<BuildId<'static>>>) -> Self {
         Self { cache }
     }
 }
 
-impl BuildIdReader for CachingBuildIdReader<'_> {
+impl<'src> BuildIdReader<'src> for CachingBuildIdReader<'src> {
     /// Attempt to read an ELF binary's build ID from a file.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId>> {
+    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId<'src>>> {
         let (file, cell) = self.cache.entry(path)?;
-        let build_id = cell.get_or_try_init(|| {
-            let parser = ElfParser::open_file(file)?;
-            read_build_id_impl(&parser)
-        })?;
-        Ok(build_id.clone())
+        let build_id = cell
+            .get_or_try_init(|| {
+                let parser = ElfParser::open_file(file)?;
+                let buildid =
+                    read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+                Result::<_, Error>::Ok(buildid)
+            })?
+            .as_deref()
+            .map(Cow::Borrowed);
+        Ok(build_id)
     }
 }
 
 
 pub(super) struct NoBuildIdReader;
 
-impl BuildIdReader for NoBuildIdReader {
+impl BuildIdReader<'_> for NoBuildIdReader {
     #[inline]
-    fn read_build_id(&self, _path: &Path) -> Result<Option<BuildId>> {
+    fn read_build_id(&self, _path: &Path) -> Result<Option<BuildId<'static>>> {
         Ok(None)
     }
 }
@@ -188,12 +194,13 @@ impl BuildIdReader for NoBuildIdReader {
 /// }
 /// ```
 #[inline]
-pub fn read_elf_build_id<P>(path: &P) -> Result<Option<BuildId>>
+pub fn read_elf_build_id<P>(path: &P) -> Result<Option<BuildId<'static>>>
 where
     P: AsRef<Path>,
 {
     let parser = ElfParser::open(path.as_ref())?;
-    read_build_id_impl(&parser)
+    let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+    Ok(buildid)
 }
 
 

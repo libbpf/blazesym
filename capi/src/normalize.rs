@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::ffi::CString;
 use std::ffi::OsString;
 use std::fmt::Debug;
@@ -239,7 +240,7 @@ impl blaze_user_meta_elf {
                     // SAFETY: We know the pointer is valid because it
                     //         came from a `Box`.
                     unsafe {
-                        Box::into_raw(build_id.into_boxed_slice())
+                        Box::into_raw(build_id.to_vec().into_boxed_slice())
                             .as_mut()
                             .unwrap()
                             .as_mut_ptr()
@@ -264,7 +265,10 @@ impl blaze_user_meta_elf {
                 unsafe { CString::from_raw(path) }.into_bytes(),
             )),
             build_id: (!build_id.is_null()).then(|| unsafe {
-                Box::<[u8]>::from_raw(slice::from_raw_parts_mut(build_id, build_id_len)).into_vec()
+                Cow::Owned(
+                    Box::<[u8]>::from_raw(slice::from_raw_parts_mut(build_id, build_id_len))
+                        .into_vec(),
+                )
             }),
             _non_exhaustive: (),
         };
@@ -712,7 +716,7 @@ mod tests {
     fn elf_conversion() {
         let elf = Elf {
             path: PathBuf::from("/tmp/file.so"),
-            build_id: Some(vec![0x01, 0x02, 0x03, 0x04]),
+            build_id: Some(Cow::Borrowed(&[0x01, 0x02, 0x03, 0x04])),
             _non_exhaustive: (),
         };
 
@@ -863,7 +867,7 @@ mod tests {
             if read_build_ids {
                 let expected = read_elf_build_id(&test_so).unwrap().unwrap();
                 let build_id = unsafe { slice_from_user_array(elf.build_id, elf.build_id_len) };
-                assert_eq!(build_id, &expected);
+                assert_eq!(build_id, expected.as_ref());
             } else {
                 assert!(elf.build_id.is_null());
             }

@@ -51,11 +51,11 @@ pub struct Apk {
 ///
 /// This type is used in the [`UserMeta::Elf`] variant.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Elf {
+pub struct Elf<'src> {
     /// The canonical absolute path to the ELF file, including its name.
     pub path: PathBuf,
     /// The ELF file's build ID, if available.
-    pub build_id: Option<BuildId>,
+    pub build_id: Option<BuildId<'src>>,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -91,7 +91,7 @@ impl Unknown {
     }
 }
 
-impl From<Unknown> for UserMeta {
+impl From<Unknown> for UserMeta<'_> {
     fn from(unknown: Unknown) -> Self {
         Self::Unknown(unknown)
     }
@@ -101,16 +101,16 @@ impl From<Unknown> for UserMeta {
 /// Meta information for an address.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub enum UserMeta {
+pub enum UserMeta<'src> {
     /// The address belongs to an APK file.
     Apk(Apk),
     /// The address belongs to an ELF file.
-    Elf(Elf),
+    Elf(Elf<'src>),
     /// The address' origin is unknown.
     Unknown(Unknown),
 }
 
-impl UserMeta {
+impl<'src> UserMeta<'src> {
     /// Retrieve the [`Apk`] of this enum, if this variant is active.
     pub fn apk(&self) -> Option<&Apk> {
         match self {
@@ -120,7 +120,7 @@ impl UserMeta {
     }
 
     /// Retrieve the [`Elf`] of this enum, if this variant is active.
-    pub fn elf(&self) -> Option<&Elf> {
+    pub fn elf(&self) -> Option<&Elf<'src>> {
         match self {
             Self::Elf(elf) => Some(elf),
             _ => None,

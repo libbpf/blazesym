@@ -2,6 +2,8 @@ Unreleased
 ----------
 - Added `cache_maps` and `cache_build_ids` properties to `normalize::Normalizer`
   type
+  - Adjusted normalization logic to return references to cached build
+    IDs if `cache_build_ids` is `true`
 - Introduced `normalize::Reason` enum to provide best guess at why normalization
   was not successful as part of the `normalize::UserMeta::Unknown` variant
 - Reduced number of allocations performed on address normalization and

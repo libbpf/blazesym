@@ -147,7 +147,7 @@ pub struct Normalizer {
     /// [`MapsEntry`][maps::MapsEntry] objects.
     cached_entries: InsertMap<Pid, Box<[maps::MapsEntry]>>,
     /// A cache of build IDs.
-    cached_build_ids: FileCache<Option<BuildId>>,
+    cached_build_ids: FileCache<Option<BuildId<'static>>>,
 }
 
 impl Normalizer {
@@ -167,7 +167,7 @@ impl Normalizer {
         Builder::default()
     }
 
-    fn normalize_user_addrs_impl<A, E, M>(&self, addrs: A, entries: E) -> Result<UserOutput>
+    fn normalize_user_addrs_impl<A, E, M>(&self, addrs: A, entries: E) -> Result<UserOutput<'_>>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
         E: Iterator<Item = Result<M>>,
