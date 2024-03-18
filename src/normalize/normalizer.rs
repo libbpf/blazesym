@@ -8,6 +8,7 @@ use crate::Addr;
 use crate::Pid;
 use crate::Result;
 
+use super::buildid::BuildId;
 use super::buildid::DefaultBuildIdReader;
 use super::buildid::NoBuildIdReader;
 use super::user;
@@ -146,7 +147,7 @@ pub struct Normalizer {
     /// [`MapsEntry`][maps::MapsEntry] objects.
     cached_entries: InsertMap<Pid, Box<[maps::MapsEntry]>>,
     /// A cache of build IDs.
-    cached_build_ids: FileCache<Option<Vec<u8>>>,
+    cached_build_ids: FileCache<Option<BuildId>>,
 }
 
 impl Normalizer {

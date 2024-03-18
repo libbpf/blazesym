@@ -85,6 +85,7 @@ pub use crate::error::Error;
 pub use crate::error::ErrorExt;
 pub use crate::error::ErrorKind;
 pub use crate::error::IntoError;
+pub use crate::normalize::buildid::BuildId;
 pub use crate::pid::Pid;
 
 /// A result type using our [`Error`] by default.
