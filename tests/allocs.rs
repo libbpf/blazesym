@@ -24,7 +24,7 @@ use stats_alloc::StatsAlloc;
 static GLOBAL: StatsAlloc<TracingAlloc> = StatsAlloc::new(TracingAlloc);
 
 thread_local! {
-  static TRACING: AtomicBool = AtomicBool::new(false);
+  static TRACING: AtomicBool = const { AtomicBool::new(false) };
 }
 
 
