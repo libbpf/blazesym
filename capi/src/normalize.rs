@@ -72,6 +72,9 @@ impl Default for blaze_normalizer_opts {
 ///
 /// The returned pointer should be released using [`blaze_normalizer_free`] once
 /// it is no longer needed.
+///
+/// C ABI compatible version of [`blazesym::normalize::Normalizer::new()`].
+/// Please refer to its documentation for the default configuration in use.
 #[no_mangle]
 pub extern "C" fn blaze_normalizer_new() -> *mut blaze_normalizer {
     let normalizer = Normalizer::new();

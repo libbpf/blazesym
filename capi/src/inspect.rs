@@ -330,6 +330,8 @@ pub unsafe extern "C" fn blaze_inspect_syms_free(syms: *const *const blaze_sym_i
 ///
 /// The returned pointer should be released using
 /// [`blaze_inspector_free`] once it is no longer needed.
+///
+/// C ABI compatible version of [`blazesym::inspect::Inspector::new()`].
 #[no_mangle]
 pub extern "C" fn blaze_inspector_new() -> *mut blaze_inspector {
     let inspector = Inspector::new();
