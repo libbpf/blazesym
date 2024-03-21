@@ -720,6 +720,8 @@ void blaze_inspect_syms_free(const struct blaze_sym_info *const *syms);
  *
  * The returned pointer should be released using
  * [`blaze_inspector_free`] once it is no longer needed.
+ *
+ * C ABI compatible version of [`blazesym::inspect::Inspector::new()`].
  */
 blaze_inspector *blaze_inspector_new(void);
 
@@ -740,6 +742,9 @@ void blaze_inspector_free(blaze_inspector *inspector);
  *
  * The returned pointer should be released using [`blaze_normalizer_free`] once
  * it is no longer needed.
+ *
+ * C ABI compatible version of [`blazesym::normalize::Normalizer::new()`].
+ * Please refer to its documentation for the default configuration in use.
  */
 blaze_normalizer *blaze_normalizer_new(void);
 
@@ -825,6 +830,9 @@ void blaze_user_output_free(struct blaze_normalized_user_output *output);
 
 /**
  * Create an instance of a symbolizer.
+ *
+ * C ABI compatible version of [`blazesym::symbolize::Symbolizer::new()`].
+ * Please refer to its documentation for the default configuration in use.
  */
 blaze_symbolizer *blaze_symbolizer_new(void);
 

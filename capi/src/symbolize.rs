@@ -455,6 +455,9 @@ impl Default for blaze_symbolizer_opts {
 
 
 /// Create an instance of a symbolizer.
+///
+/// C ABI compatible version of [`blazesym::symbolize::Symbolizer::new()`].
+/// Please refer to its documentation for the default configuration in use.
 #[no_mangle]
 pub extern "C" fn blaze_symbolizer_new() -> *mut blaze_symbolizer {
     let symbolizer = Symbolizer::new();
