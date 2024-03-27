@@ -118,15 +118,15 @@ impl GsymContext<'_> {
 
             let slf = GsymContext {
                 header: Header {
-                    magic,
-                    version,
+                    _magic: magic,
+                    _version: version,
                     addr_off_size,
-                    uuid_size,
+                    _uuid_size: uuid_size,
                     base_address,
                     num_addrs,
-                    strtab_offset,
-                    strtab_size,
-                    uuid,
+                    _strtab_offset: strtab_offset,
+                    _strtab_size: strtab_size,
+                    _uuid: uuid,
                 },
                 addr_tab,
                 addr_data_off_tab,
@@ -230,11 +230,7 @@ pub fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData> {
         // We don't validate `typ` here, because callers will have to dispatch
         // on it anyway.
 
-        Some(AddrData {
-            typ,
-            length: len,
-            data: d,
-        })
+        Some(AddrData { typ, data: d })
     })
 }
 
@@ -364,15 +360,15 @@ mod tests {
 
         let context = GsymContext {
             header: Header {
-                magic: 1196644685,
-                version: 1,
+                _magic: 1196644685,
+                _version: 1,
                 addr_off_size: 2,
-                uuid_size: 20,
+                _uuid_size: 20,
                 base_address: 0,
                 num_addrs: 27,
-                strtab_offset: 224,
-                strtab_size: 697,
-                uuid: [
+                _strtab_offset: 224,
+                _strtab_size: 697,
+                _uuid: [
                     120, 151, 243, 48, 221, 52, 78, 164, 192, 149, 35, 25, 172, 82, 70, 123, 125,
                     239, 78, 50,
                 ],

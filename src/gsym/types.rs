@@ -6,15 +6,15 @@ pub const GSYM_VERSION: u16 = 1;
 
 /// GSYM File Header
 pub struct Header {
-    pub magic: u32,
-    pub version: u16,
+    pub _magic: u32,
+    pub _version: u16,
     pub addr_off_size: u8,
-    pub uuid_size: u8,
+    pub _uuid_size: u8,
     pub base_address: u64,
     pub num_addrs: u32,
-    pub strtab_offset: u32,
-    pub strtab_size: u32,
-    pub uuid: [u8; 20],
+    pub _strtab_offset: u32,
+    pub _strtab_size: u32,
+    pub _uuid: [u8; 20],
 }
 
 #[repr(C)]
@@ -36,7 +36,6 @@ pub struct AddrInfo<'a> {
 pub struct AddrData<'a> {
     /// The data type. Its value should be one of `INFO_TYPE_*`.
     pub typ: u32,
-    pub length: u32,
     pub data: &'a [u8],
 }
 
