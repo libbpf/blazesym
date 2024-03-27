@@ -5,6 +5,7 @@ Unreleased
   - Added `reason` attribute to `blaze_user_meta_unknown`
 - Added `blaze_symbolize_elf_file_offsets` function for symbolization of
   file offsets
+- Removed `BLAZE_INPUT` macro
 
 
 0.1.0-alpha.1
