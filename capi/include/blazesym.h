@@ -13,18 +13,6 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-/* Helper macro to declare and initialize a blazesym input struct.
- *
- * Inspired by `LIBBPF_OPTS` macro provided by libbpf.
- */
-#define BLAZE_INPUT(TYPE, NAME, ...)        \
-  struct TYPE NAME = ({                     \
-    (struct TYPE) {                         \
-      .type_size = sizeof(struct TYPE),     \
-      __VA_ARGS__                           \
-    };                                      \
-  })
-
 
 /**
  * The reason why normalization failed.

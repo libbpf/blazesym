@@ -6,19 +6,6 @@ cpp_compat = true
 #header = "/* ... */"
 include_guard = "__blazesym_h_"
 usize_is_size_t = true
-after_includes = """\
-/* Helper macro to declare and initialize a blazesym input struct.
- *
- * Inspired by `LIBBPF_OPTS` macro provided by libbpf.
- */
-#define BLAZE_INPUT(TYPE, NAME, ...)        \\
-  struct TYPE NAME = ({                     \\
-    (struct TYPE) {                         \\
-      .type_size = sizeof(struct TYPE),     \\
-      __VA_ARGS__                           \\
-    };                                      \\
-  })
-"""
 
 [export]
 item_types = ["globals", "enums", "structs", "unions", "typedefs", "opaque", "functions"]
