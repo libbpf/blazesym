@@ -21,6 +21,10 @@ use blazesym::normalize::UserMeta;
 use blazesym::normalize::UserOutput;
 use blazesym::Addr;
 
+use crate::blaze_err;
+#[cfg(doc)]
+use crate::blaze_err_last;
+use crate::set_last_err;
 use crate::slice_from_user_array;
 
 
@@ -68,34 +72,46 @@ impl Default for blaze_normalizer_opts {
 }
 
 
-/// Create an instance of a blazesym normalizer.
-///
-/// The returned pointer should be released using [`blaze_normalizer_free`] once
-/// it is no longer needed.
+/// Create an instance of a blazesym normalizer in the default
+/// configuration.
 ///
 /// C ABI compatible version of [`blazesym::normalize::Normalizer::new()`].
 /// Please refer to its documentation for the default configuration in use.
+///
+/// On success, the function creates a new [`blaze_normalizer`] object and
+/// returns it. The resulting object should be released using
+/// [`blaze_normalizer_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 #[no_mangle]
 pub extern "C" fn blaze_normalizer_new() -> *mut blaze_normalizer {
     let normalizer = Normalizer::new();
     let normalizer_box = Box::new(normalizer);
+    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
     Box::into_raw(normalizer_box)
 }
 
 
 /// Create an instance of a blazesym normalizer.
 ///
-/// The returned pointer should be released using [`blaze_normalizer_free`] once
-/// it is no longer needed.
+/// On success, the function creates a new [`blaze_normalizer`] object and
+/// returns it. The resulting object should be released using
+/// [`blaze_normalizer_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// The provided pointer needs to point to a valid [`blaze_normalizer_opts`]
-/// instance.
+/// - `opts` needs to point to a valid [`blaze_normalizer_opts`] object
 #[no_mangle]
 pub unsafe extern "C" fn blaze_normalizer_new_opts(
     opts: *const blaze_normalizer_opts,
 ) -> *mut blaze_normalizer {
     if !input_zeroed!(opts, blaze_normalizer_opts) {
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null_mut()
     }
     let opts = input_sanitize!(opts, blaze_normalizer_opts);
@@ -114,6 +130,7 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
         .enable_build_id_caching(cache_build_ids)
         .build();
     let normalizer_box = Box::new(normalizer);
+    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
     Box::into_raw(normalizer_box)
 }
 
