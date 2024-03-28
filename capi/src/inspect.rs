@@ -24,7 +24,11 @@ use blazesym::inspect::SymInfo;
 use blazesym::Addr;
 use blazesym::SymType;
 
+use crate::blaze_err;
+#[cfg(doc)]
+use crate::blaze_err_last;
 use crate::from_cstr;
+use crate::set_last_err;
 use crate::slice_from_user_array;
 
 
@@ -328,14 +332,22 @@ pub unsafe extern "C" fn blaze_inspect_syms_free(syms: *const *const blaze_sym_i
 
 /// Create an instance of a blazesym inspector.
 ///
-/// The returned pointer should be released using
+/// C ABI compatible version of [`blazesym::inspect::Inspector::new()`].
+/// Please refer to its documentation for the default configuration in
+/// use.
+///
+/// On success, the function creates a new [`blaze_inspector`] object
+/// and returns it. The resulting object should be released using
 /// [`blaze_inspector_free`] once it is no longer needed.
 ///
-/// C ABI compatible version of [`blazesym::inspect::Inspector::new()`].
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 #[no_mangle]
 pub extern "C" fn blaze_inspector_new() -> *mut blaze_inspector {
     let inspector = Inspector::new();
     let inspector_box = Box::new(inspector);
+    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
     Box::into_raw(inspector_box)
 }
 
