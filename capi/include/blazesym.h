@@ -807,25 +807,35 @@ blaze_inspector *blaze_inspector_new(void);
 void blaze_inspector_free(blaze_inspector *inspector);
 
 /**
- * Create an instance of a blazesym normalizer.
- *
- * The returned pointer should be released using [`blaze_normalizer_free`] once
- * it is no longer needed.
+ * Create an instance of a blazesym normalizer in the default
+ * configuration.
  *
  * C ABI compatible version of [`blazesym::normalize::Normalizer::new()`].
  * Please refer to its documentation for the default configuration in use.
+ *
+ * On success, the function creates a new [`blaze_normalizer`] object and
+ * returns it. The resulting object should be released using
+ * [`blaze_normalizer_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  */
 blaze_normalizer *blaze_normalizer_new(void);
 
 /**
  * Create an instance of a blazesym normalizer.
  *
- * The returned pointer should be released using [`blaze_normalizer_free`] once
- * it is no longer needed.
+ * On success, the function creates a new [`blaze_normalizer`] object and
+ * returns it. The resulting object should be released using
+ * [`blaze_normalizer_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * The provided pointer needs to point to a valid [`blaze_normalizer_opts`]
- * instance.
+ * - `opts` needs to point to a valid [`blaze_normalizer_opts`] object
  */
 blaze_normalizer *blaze_normalizer_new_opts(const struct blaze_normalizer_opts *opts);
 
