@@ -854,19 +854,27 @@ void blaze_normalizer_free(blaze_normalizer *normalizer);
 /**
  * Normalize a list of user space addresses.
  *
+ * C ABI compatible version of [`Normalizer::normalize_user_addrs`].
+ *
+ * `pid` should describe the PID of the process to which the addresses
+ * belongs. It may be `0` if they belong to the calling process.
+ *
+ * On success, the function creates a new [`blaze_normalized_user_output`]
+ * object and returns it. The resulting object should be released using
+ * [`blaze_user_output_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
+ *
  * Contrary to [`blaze_normalize_user_addrs_sorted`] the provided
  * `addrs` array does not have to be sorted, but otherwise the
  * functions behave identically. If you happen to know that `addrs` is
  * sorted, using [`blaze_normalize_user_addrs_sorted`] instead will
  * result in slightly faster normalization.
  *
- * C ABI compatible version of [`Normalizer::normalize_user_addrs`].
- * Returns `NULL` on error. The resulting object should be freed using
- * [`blaze_user_output_free`].
- *
  * # Safety
- * Callers need to pass in a valid `addrs` pointer, pointing to memory of
- * `addr_cnt` addresses.
+ * - `addrs` needs to be a valid pointer to `addr_cnt` addresses
  */
 struct blaze_normalized_user_output *blaze_normalize_user_addrs(const blaze_normalizer *normalizer,
                                                                 uint32_t pid,
@@ -876,21 +884,26 @@ struct blaze_normalized_user_output *blaze_normalize_user_addrs(const blaze_norm
 /**
  * Normalize a list of user space addresses.
  *
+ * C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
+ *
+ * `pid` should describe the PID of the process to which the addresses
+ * belongs. It may be `0` if they belong to the calling process.
+ *
  * The `addrs` array has to be sorted in ascending order. By providing
  * a pre-sorted array the library does not have to sort internally,
  * which will result in quicker normalization. If you don't have sorted
  * addresses, use [`blaze_normalize_user_addrs`] instead.
  *
- * `pid` should describe the PID of the process to which the addresses
- * belongs. It may be `0` if they belong to the calling process.
+ * On success, the function creates a new [`blaze_normalized_user_output`]
+ * object and returns it. The resulting object should be released using
+ * [`blaze_user_output_free`] once it is no longer needed.
  *
- * C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
- * Returns `NULL` on error. The resulting object should be freed using
- * [`blaze_user_output_free`].
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * Callers need to pass in a valid `addrs` pointer, pointing to memory of
- * `addr_cnt` addresses.
+ * - `addrs` needs to be a valid pointer to `addr_cnt` addresses
  */
 struct blaze_normalized_user_output *blaze_normalize_user_addrs_sorted(const blaze_normalizer *normalizer,
                                                                        uint32_t pid,

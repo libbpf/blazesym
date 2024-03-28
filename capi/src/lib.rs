@@ -93,6 +93,8 @@ use std::cell::Cell;
 use std::ptr::NonNull;
 use std::slice;
 
+use blazesym::ErrorKind;
+
 pub use inspect::*;
 pub use normalize::*;
 pub use symbolize::*;
@@ -138,6 +140,27 @@ pub enum blaze_err {
     /// A custom error that does not fall under any other I/O error
     /// kind.
     BLAZE_ERR_OTHER = -260,
+}
+
+impl From<ErrorKind> for blaze_err {
+    fn from(other: ErrorKind) -> Self {
+        match other {
+            ErrorKind::NotFound => blaze_err::BLAZE_ERR_NOT_FOUND,
+            ErrorKind::PermissionDenied => blaze_err::BLAZE_ERR_PERMISSION_DENIED,
+            ErrorKind::AlreadyExists => blaze_err::BLAZE_ERR_ALREADY_EXISTS,
+            ErrorKind::WouldBlock => blaze_err::BLAZE_ERR_WOULD_BLOCK,
+            ErrorKind::InvalidInput => blaze_err::BLAZE_ERR_INVALID_INPUT,
+            ErrorKind::InvalidData => blaze_err::BLAZE_ERR_INVALID_DATA,
+            ErrorKind::InvalidDwarf => blaze_err::BLAZE_ERR_INVALID_DWARF,
+            ErrorKind::TimedOut => blaze_err::BLAZE_ERR_TIMED_OUT,
+            ErrorKind::WriteZero => blaze_err::BLAZE_ERR_WRITE_ZERO,
+            ErrorKind::Unsupported => blaze_err::BLAZE_ERR_UNSUPPORTED,
+            ErrorKind::UnexpectedEof => blaze_err::BLAZE_ERR_UNEXPECTED_EOF,
+            ErrorKind::OutOfMemory => blaze_err::BLAZE_ERR_OUT_OF_MEMORY,
+            ErrorKind::Other => blaze_err::BLAZE_ERR_OTHER,
+            _ => unreachable!(),
+        }
+    }
 }
 
 
@@ -224,5 +247,38 @@ mod tests {
         let array = [42u64, 1337];
         let slice = unsafe { slice_from_user_array::<u64>(&array as *const _, array.len()) };
         assert_eq!(slice, &[42, 1337]);
+    }
+
+    /// Check that we can convert `ErrorKind` instances into `blaze_err`.
+    #[test]
+    fn error_conversion() {
+        let data = [
+            (ErrorKind::NotFound, blaze_err::BLAZE_ERR_NOT_FOUND),
+            (
+                ErrorKind::PermissionDenied,
+                blaze_err::BLAZE_ERR_PERMISSION_DENIED,
+            ),
+            (
+                ErrorKind::AlreadyExists,
+                blaze_err::BLAZE_ERR_ALREADY_EXISTS,
+            ),
+            (ErrorKind::WouldBlock, blaze_err::BLAZE_ERR_WOULD_BLOCK),
+            (ErrorKind::InvalidInput, blaze_err::BLAZE_ERR_INVALID_INPUT),
+            (ErrorKind::InvalidData, blaze_err::BLAZE_ERR_INVALID_DATA),
+            (ErrorKind::InvalidDwarf, blaze_err::BLAZE_ERR_INVALID_DWARF),
+            (ErrorKind::TimedOut, blaze_err::BLAZE_ERR_TIMED_OUT),
+            (ErrorKind::WriteZero, blaze_err::BLAZE_ERR_WRITE_ZERO),
+            (ErrorKind::Unsupported, blaze_err::BLAZE_ERR_UNSUPPORTED),
+            (
+                ErrorKind::UnexpectedEof,
+                blaze_err::BLAZE_ERR_UNEXPECTED_EOF,
+            ),
+            (ErrorKind::OutOfMemory, blaze_err::BLAZE_ERR_OUT_OF_MEMORY),
+            (ErrorKind::Other, blaze_err::BLAZE_ERR_OTHER),
+        ];
+
+        for (kind, expected) in data {
+            assert_eq!(blaze_err::from(kind), expected);
+        }
     }
 }
