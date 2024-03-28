@@ -15,6 +15,75 @@
 #include <stdlib.h>
 
 /**
+ * An enum providing a rough classification of errors.
+ *
+ * C ABI compatible version of [`blazesym::ErrorKind`].
+ */
+typedef enum blaze_err {
+  /**
+   * The operation was successful.
+   */
+  BLAZE_ERR_OK = 0,
+  /**
+   * An entity was not found, often a file.
+   */
+  BLAZE_ERR_NOT_FOUND = -2,
+  /**
+   * The operation lacked the necessary privileges to complete.
+   */
+  BLAZE_ERR_PERMISSION_DENIED = -1,
+  /**
+   * An entity already exists, often a file.
+   */
+  BLAZE_ERR_ALREADY_EXISTS = -17,
+  /**
+   * The operation needs to block to complete, but the blocking
+   * operation was requested to not occur.
+   */
+  BLAZE_ERR_WOULD_BLOCK = -11,
+  /**
+   * Data not valid for the operation were encountered.
+   */
+  BLAZE_ERR_INVALID_DATA = -22,
+  /**
+   * The I/O operation's timeout expired, causing it to be canceled.
+   */
+  BLAZE_ERR_TIMED_OUT = -110,
+  /**
+   * This operation is unsupported on this platform.
+   */
+  BLAZE_ERR_UNSUPPORTED = -95,
+  /**
+   * An operation could not be completed, because it failed
+   * to allocate enough memory.
+   */
+  BLAZE_ERR_OUT_OF_MEMORY = -12,
+  /**
+   * A parameter was incorrect.
+   */
+  BLAZE_ERR_INVALID_INPUT = -256,
+  /**
+   * An error returned when an operation could not be completed
+   * because a call to [`write`] returned [`Ok(0)`].
+   */
+  BLAZE_ERR_WRITE_ZERO = -257,
+  /**
+   * An error returned when an operation could not be completed
+   * because an "end of file" was reached prematurely.
+   */
+  BLAZE_ERR_UNEXPECTED_EOF = -258,
+  /**
+   * DWARF input data was invalid.
+   */
+  BLAZE_ERR_INVALID_DWARF = -259,
+  /**
+   * A custom error that does not fall under any other I/O error
+   * kind.
+   */
+  BLAZE_ERR_OTHER = -260,
+} blaze_err;
+
+/**
  * The reason why normalization failed.
  *
  * The reason is generally only meant as a hint. Reasons reported may change
@@ -671,6 +740,11 @@ typedef struct blaze_symbolize_src_gsym_file {
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
+
+/**
+ * Retrieve the error reported by the last fallible API function invoked.
+ */
+enum blaze_err blaze_err_last(void);
 
 /**
  * Lookup symbol information in an ELF file.

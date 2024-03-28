@@ -1,6 +1,9 @@
 Unreleased
 ----------
 - Added `cache_maps` attribute to `blaze_normalizer_opts`
+- Introduced `blaze_err` enum and adjusted all fallible functions to
+  set a thread local error
+  - Introduced `blaze_err_last` to retrieve the last error
 - Introduced `blaze_normalize_reason` type and extended
   - Added `reason` attribute to `blaze_user_meta_unknown`
 - Added `blaze_symbolize_elf_file_offsets` function for symbolization of
