@@ -266,19 +266,19 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
 
 /// Lookup symbol information in an ELF file.
 ///
-/// Return an array with the same size as the input names. The caller should
-/// free the returned array by calling [`blaze_inspect_syms_free`].
+/// On success, returns an array with `name_cnt` elements. Each such element, in
+/// turn, is NULL terminated array comprised of each symbol found. The returned
+/// object should be released using [`blaze_inspect_syms_free`] once it is no
+/// longer needed.
 ///
-/// Every name in the input name list may have more than one address.
-/// The respective entry in the returned array is an array containing
-/// all addresses and ended with a null (0x0).
-///
-/// The returned pointer should be freed by [`blaze_inspect_syms_free`].
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// The `inspector` object should have been created using
-/// [`blaze_inspector_new`], `src` needs to point to a valid object, and `names`
-/// needs to be a valid pointer to `name_cnt` strings.
+/// - `inspector` needs to point to an initialized [`blaze_inspector`] object
+/// - `src` needs to point to an initialized [`blaze_inspect_syms_elf`] object
+/// - `names` needs to be a valid pointer to `name_cnt` NUL terminated strings
 #[no_mangle]
 pub unsafe extern "C" fn blaze_inspect_syms_elf(
     inspector: *const blaze_inspector,
@@ -287,6 +287,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
     name_cnt: usize,
 ) -> *const *const blaze_sym_info {
     if !input_zeroed!(src, blaze_inspect_elf_src) {
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_inspect_elf_src);
@@ -307,8 +308,15 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
         .collect::<Vec<_>>();
     let result = inspector.lookup(&src, &names);
     match result {
-        Ok(syms) => convert_syms_list_to_c(syms),
-        Err(_err) => ptr::null(),
+        Ok(syms) => {
+            let sym_info = convert_syms_list_to_c(syms);
+            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            sym_info
+        }
+        Err(err) => {
+            let () = set_last_err(err.kind().into());
+            ptr::null()
+        }
     }
 }
 
