@@ -1,5 +1,14 @@
 //! C API bindings for [`blazesym`].
 //!
+//! # Error handling
+//! Fallible functions generally return a `NULL` pointer. To provide
+//! users with a better idea of what went wrong, they additionally set a
+//! thread local last [error code][blaze_err]. This error indicates what
+//! kind of issue caused the operation to fall.
+//! A call to a fallible function always overwrites this error code. As
+//! such, please make sure to check the error before making an
+//! additional API call into the library.
+//!
 //! # Thread-Safety
 //! The library does not perform any synchronization of concurrent
 //! accesses to the same object. However, state is strictly kept at the
@@ -80,6 +89,7 @@ mod normalize;
 #[allow(non_camel_case_types)]
 mod symbolize;
 
+use std::cell::Cell;
 use std::ptr::NonNull;
 use std::slice;
 
@@ -87,6 +97,60 @@ pub use inspect::*;
 pub use normalize::*;
 pub use symbolize::*;
 
+
+/// An enum providing a rough classification of errors.
+///
+/// C ABI compatible version of [`blazesym::ErrorKind`].
+#[allow(non_camel_case_types)]
+#[repr(C)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum blaze_err {
+    /// The operation was successful.
+    BLAZE_ERR_OK = 0,
+    /// An entity was not found, often a file.
+    BLAZE_ERR_NOT_FOUND = -2,
+    /// The operation lacked the necessary privileges to complete.
+    BLAZE_ERR_PERMISSION_DENIED = -1,
+    /// An entity already exists, often a file.
+    BLAZE_ERR_ALREADY_EXISTS = -17,
+    /// The operation needs to block to complete, but the blocking
+    /// operation was requested to not occur.
+    BLAZE_ERR_WOULD_BLOCK = -11,
+    /// Data not valid for the operation were encountered.
+    BLAZE_ERR_INVALID_DATA = -22,
+    /// The I/O operation's timeout expired, causing it to be canceled.
+    BLAZE_ERR_TIMED_OUT = -110,
+    /// This operation is unsupported on this platform.
+    BLAZE_ERR_UNSUPPORTED = -95,
+    /// An operation could not be completed, because it failed
+    /// to allocate enough memory.
+    BLAZE_ERR_OUT_OF_MEMORY = -12,
+    /// A parameter was incorrect.
+    BLAZE_ERR_INVALID_INPUT = -256,
+    /// An error returned when an operation could not be completed
+    /// because a call to [`write`] returned [`Ok(0)`].
+    BLAZE_ERR_WRITE_ZERO = -257,
+    /// An error returned when an operation could not be completed
+    /// because an "end of file" was reached prematurely.
+    BLAZE_ERR_UNEXPECTED_EOF = -258,
+    /// DWARF input data was invalid.
+    BLAZE_ERR_INVALID_DWARF = -259,
+    /// A custom error that does not fall under any other I/O error
+    /// kind.
+    BLAZE_ERR_OTHER = -260,
+}
+
+
+thread_local! {
+    /// The error reported by the last fallible API function invoked.
+    static LAST_ERR: Cell<blaze_err> = const { Cell::new(blaze_err::BLAZE_ERR_OK) };
+}
+
+/// Retrieve the error reported by the last fallible API function invoked.
+#[no_mangle]
+pub extern "C" fn blaze_err_last() -> blaze_err {
+    LAST_ERR.with(|cell| cell.get())
+}
 
 /// Check whether the given piece of memory is zeroed out.
 ///
