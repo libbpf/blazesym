@@ -310,6 +310,28 @@ pub enum ErrorKind {
     Other,
 }
 
+impl ErrorKind {
+    #[doc(hidden)]
+    #[inline]
+    pub fn as_bytes(&self) -> &'static [u8] {
+        match self {
+            Self::AlreadyExists => b"entity already exists\0",
+            Self::InvalidData => b"invalid data\0",
+            Self::InvalidInput => b"invalid input parameter\0",
+            Self::NotFound => b"entity not found\0",
+            Self::Other => b"other error\0",
+            Self::OutOfMemory => b"out of memory\0",
+            Self::PermissionDenied => b"permission denied\0",
+            Self::TimedOut => b"timed out\0",
+            Self::UnexpectedEof => b"unexpected end of file\0",
+            Self::Unsupported => b"unsupported\0",
+            Self::WouldBlock => b"operation would block\0",
+            Self::WriteZero => b"write zero\0",
+            Self::InvalidDwarf => b"DWARF data invalid\0",
+        }
+    }
+}
+
 
 /// The error type used by the library.
 ///
