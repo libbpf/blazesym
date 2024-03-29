@@ -590,6 +590,28 @@ mod tests {
         let () = unsafe { blaze_inspector_free(inspector) };
     }
 
+    /// Check that we see the expected error being reported when a source file
+    /// does not exist.
+    #[test]
+    fn non_present_file() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("does-not-exist");
+
+        let src = blaze_inspect_elf_src::from(Elf::new(path));
+        let factorial = CString::new("factorial").unwrap();
+        let names = [factorial.as_ptr()];
+        let inspector = blaze_inspector_new();
+
+        let result =
+            unsafe { blaze_inspect_syms_elf(inspector, &*src, names.as_ptr(), names.len()) };
+        let () = unsafe { ManuallyDrop::into_inner(src).free() };
+        assert_eq!(result, ptr::null());
+
+        let () = unsafe { blaze_inspector_free(inspector) };
+    }
+
     /// Make sure that we can lookup a function's address using DWARF
     /// information.
     #[test]
