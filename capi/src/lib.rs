@@ -90,6 +90,7 @@ mod normalize;
 mod symbolize;
 
 use std::cell::Cell;
+use std::ffi::c_char;
 use std::ptr::NonNull;
 use std::slice;
 
@@ -180,6 +181,53 @@ fn set_last_err(err: blaze_err) {
     LAST_ERR.with(|cell| cell.set(err))
 }
 
+
+/// Retrieve a textual representation of the error code, if any.
+#[no_mangle]
+pub extern "C" fn blaze_err_str(err: blaze_err) -> *const c_char {
+    match err as i32 {
+        e if e == blaze_err::BLAZE_ERR_OK as i32 => "success".as_ptr().cast(),
+        e if e == blaze_err::BLAZE_ERR_NOT_FOUND as i32 => {
+            ErrorKind::NotFound.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_PERMISSION_DENIED as i32 => {
+            ErrorKind::PermissionDenied.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_ALREADY_EXISTS as i32 => {
+            ErrorKind::AlreadyExists.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_WOULD_BLOCK as i32 => {
+            ErrorKind::WouldBlock.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_INVALID_INPUT as i32 => {
+            ErrorKind::InvalidInput.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_INVALID_DATA as i32 => {
+            ErrorKind::InvalidData.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_INVALID_DWARF as i32 => {
+            ErrorKind::InvalidDwarf.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_TIMED_OUT as i32 => {
+            ErrorKind::TimedOut.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_WRITE_ZERO as i32 => {
+            ErrorKind::WriteZero.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_UNSUPPORTED as i32 => {
+            ErrorKind::Unsupported.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_UNEXPECTED_EOF as i32 => {
+            ErrorKind::UnexpectedEof.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_err::BLAZE_ERR_OUT_OF_MEMORY as i32 => {
+            ErrorKind::OutOfMemory.as_bytes().as_ptr().cast()
+        }
+        _ => ErrorKind::Other.as_bytes().as_ptr().cast(),
+    }
+}
+
+
 /// Check whether the given piece of memory is zeroed out.
 ///
 /// # Safety
@@ -214,6 +262,7 @@ pub(crate) unsafe fn slice_from_user_array<'t, T>(items: *const T, num_items: us
 mod tests {
     use super::*;
 
+    use std::ffi::CStr;
     use std::ptr;
 
 
@@ -279,6 +328,9 @@ mod tests {
 
         for (kind, expected) in data {
             assert_eq!(blaze_err::from(kind), expected);
+            let cstr = unsafe { CStr::from_ptr(blaze_err_str(expected)) };
+            let expected = CStr::from_bytes_with_nul(kind.as_bytes()).unwrap();
+            assert_eq!(cstr, expected);
         }
     }
 }

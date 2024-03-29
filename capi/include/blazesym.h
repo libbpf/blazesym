@@ -747,6 +747,11 @@ extern "C" {
 enum blaze_err blaze_err_last(void);
 
 /**
+ * Retrieve a textual representation of the error code, if any.
+ */
+const char *blaze_err_str(enum blaze_err err);
+
+/**
  * Lookup symbol information in an ELF file.
  *
  * On success, returns an array with `name_cnt` elements. Each such element, in
