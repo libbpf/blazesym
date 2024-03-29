@@ -965,15 +965,18 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
 /**
  * Symbolize a list of process absolute addresses.
  *
- * Return an array of [`blaze_result`] with the same size as the number
- * of input addresses. The caller should free the returned array by
- * calling [`blaze_result_free`].
+ * On success, the function returns an array of [`blaze_result`] with
+ * `abs_addr_cnt` elements. The returned object should be released using
+ * [`blaze_result_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
- * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
- * `addr_cnt` objects.
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `src` needs to point to a valid [`blaze_symbolize_src_process`] object
+ * -`abs_addrs` point to an array of `abs_addr_cnt` addresses
  */
 const struct blaze_result *blaze_symbolize_process_abs_addrs(blaze_symbolizer *symbolizer,
                                                              const struct blaze_symbolize_src_process *src,
@@ -983,15 +986,18 @@ const struct blaze_result *blaze_symbolize_process_abs_addrs(blaze_symbolizer *s
 /**
  * Symbolize a list of kernel absolute addresses.
  *
- * Return an array of [`blaze_result`] with the same size as the number
- * of input addresses. The caller should free the returned array by
- * calling [`blaze_result_free`].
+ * On success, the function returns an array of [`blaze_result`] with
+ * `abs_addr_cnt` elements. The returned object should be released using
+ * [`blaze_result_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
- * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
- * `addr_cnt` objects.
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `src` needs to point to a valid [`blaze_symbolize_src_kernel`] object
+ * -`abs_addrs` point to an array of `abs_addr_cnt` addresses
  */
 const struct blaze_result *blaze_symbolize_kernel_abs_addrs(blaze_symbolizer *symbolizer,
                                                             const struct blaze_symbolize_src_kernel *src,
@@ -1001,15 +1007,18 @@ const struct blaze_result *blaze_symbolize_kernel_abs_addrs(blaze_symbolizer *sy
 /**
  * Symbolize virtual offsets in an ELF file.
  *
- * Return an array of [`blaze_result`] with the same size as the number
- * of input addresses. The caller should free the returned array by
- * calling [`blaze_result_free`].
+ * On success, the function returns an array of [`blaze_result`] with
+ * `virt_offset_cnt` elements. The returned object should be released using
+ * [`blaze_result_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
- * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
- * `addr_cnt` objects.
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `src` needs to point to a valid [`blaze_symbolize_src_elf`] object
+ * -`virt_offsets` point to an array of `virt_offset_cnt` addresses
  */
 const struct blaze_result *blaze_symbolize_elf_virt_offsets(blaze_symbolizer *symbolizer,
                                                             const struct blaze_symbolize_src_elf *src,
@@ -1019,15 +1028,18 @@ const struct blaze_result *blaze_symbolize_elf_virt_offsets(blaze_symbolizer *sy
 /**
  * Symbolize file offsets in an ELF file.
  *
- * Return an array of [`blaze_result`] with the same size as the number
- * of input addresses. The caller should free the returned array by
- * calling [`blaze_result_free`].
+ * On success, the function returns an array of [`blaze_result`] with
+ * `file_offset_cnt` elements. The returned object should be released using
+ * [`blaze_result_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
- * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
- * `addr_cnt` objects.
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `src` needs to point to a valid [`blaze_symbolize_src_elf`] object
+ * -`file_offsets` point to an array of `file_offset_cnt` addresses
  */
 const struct blaze_result *blaze_symbolize_elf_file_offsets(blaze_symbolizer *symbolizer,
                                                             const struct blaze_symbolize_src_elf *src,
@@ -1037,15 +1049,18 @@ const struct blaze_result *blaze_symbolize_elf_file_offsets(blaze_symbolizer *sy
 /**
  * Symbolize virtual offsets using "raw" Gsym data.
  *
- * Return an array of [`blaze_result`] with the same size as the
- * number of input addresses. The caller should free the returned array by
- * calling [`blaze_result_free`].
+ * On success, the function returns an array of [`blaze_result`] with
+ * `virt_offset_cnt` elements. The returned object should be released using
+ * [`blaze_result_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
- * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blaze_symbolize_src_gsym_data`] object. `addrs` must represent an array of
- * `addr_cnt` objects.
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `src` needs to point to a valid [`blaze_symbolize_src_gsym_data`] object
+ * -`virt_offsets` point to an array of `virt_offset_cnt` addresses
  */
 const struct blaze_result *blaze_symbolize_gsym_data_virt_offsets(blaze_symbolizer *symbolizer,
                                                                   const struct blaze_symbolize_src_gsym_data *src,
@@ -1055,15 +1070,18 @@ const struct blaze_result *blaze_symbolize_gsym_data_virt_offsets(blaze_symboliz
 /**
  * Symbolize virtual offsets in a Gsym file.
  *
- * Return an array of [`blaze_result`] with the same size as the number
- * of input addresses. The caller should free the returned array by
- * calling [`blaze_result_free`].
+ * On success, the function returns an array of [`blaze_result`] with
+ * `virt_offset_cnt` elements. The returned object should be released using
+ * [`blaze_result_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  *
  * # Safety
- * `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
- * [`blaze_symbolizer_new_opts`]. `src` must point to a valid
- * [`blaze_symbolize_src_gsym_file`] object. `addrs` must represent an array of
- * `addr_cnt` objects.
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `src` needs to point to a valid [`blaze_symbolize_src_gsym_file`] object
+ * -`virt_offsets` point to an array of `virt_offset_cnt` addresses
  */
 const struct blaze_result *blaze_symbolize_gsym_file_virt_offsets(blaze_symbolizer *symbolizer,
                                                                   const struct blaze_symbolize_src_gsym_file *src,

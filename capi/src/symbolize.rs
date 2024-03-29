@@ -704,26 +704,38 @@ unsafe fn blaze_symbolize_impl(
     };
 
     let result = symbolizer.symbolize(&src, input);
-
     match result {
-        Ok(results) if results.is_empty() => ptr::null(),
-        Ok(results) => convert_symbolizedresults_to_c(results),
-        Err(_err) => ptr::null(),
+        Ok(results) if results.is_empty() => {
+            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            ptr::null()
+        }
+        Ok(results) => {
+            let result = convert_symbolizedresults_to_c(results);
+            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            result
+        }
+        Err(err) => {
+            let () = set_last_err(err.kind().into());
+            ptr::null_mut()
+        }
     }
 }
 
 
 /// Symbolize a list of process absolute addresses.
 ///
-/// Return an array of [`blaze_result`] with the same size as the number
-/// of input addresses. The caller should free the returned array by
-/// calling [`blaze_result_free`].
+/// On success, the function returns an array of [`blaze_result`] with
+/// `abs_addr_cnt` elements. The returned object should be released using
+/// [`blaze_result_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
-/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blaze_symbolize_src_process`] object. `addrs` must represent an array of
-/// `addr_cnt` objects.
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_process`] object
+/// -`abs_addrs` point to an array of `abs_addr_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
     symbolizer: *mut blaze_symbolizer,
@@ -732,7 +744,8 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
     abs_addr_cnt: usize,
 ) -> *const blaze_result {
     if !input_zeroed!(src, blaze_symbolize_src_process) {
-        return ptr::null_mut()
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_process);
     let src = Source::from(Process::from(src));
@@ -743,15 +756,18 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
 
 /// Symbolize a list of kernel absolute addresses.
 ///
-/// Return an array of [`blaze_result`] with the same size as the number
-/// of input addresses. The caller should free the returned array by
-/// calling [`blaze_result_free`].
+/// On success, the function returns an array of [`blaze_result`] with
+/// `abs_addr_cnt` elements. The returned object should be released using
+/// [`blaze_result_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
-/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blaze_symbolize_src_kernel`] object. `addrs` must represent an array of
-/// `addr_cnt` objects.
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_kernel`] object
+/// -`abs_addrs` point to an array of `abs_addr_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
     symbolizer: *mut blaze_symbolizer,
@@ -760,7 +776,8 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
     abs_addr_cnt: usize,
 ) -> *const blaze_result {
     if !input_zeroed!(src, blaze_symbolize_src_kernel) {
-        return ptr::null_mut()
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_kernel);
     let src = Source::from(Kernel::from(src));
@@ -771,15 +788,18 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
 
 /// Symbolize virtual offsets in an ELF file.
 ///
-/// Return an array of [`blaze_result`] with the same size as the number
-/// of input addresses. The caller should free the returned array by
-/// calling [`blaze_result_free`].
+/// On success, the function returns an array of [`blaze_result`] with
+/// `virt_offset_cnt` elements. The returned object should be released using
+/// [`blaze_result_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
-/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
-/// `addr_cnt` objects.
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_elf`] object
+/// -`virt_offsets` point to an array of `virt_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
@@ -788,7 +808,8 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
     virt_offset_cnt: usize,
 ) -> *const blaze_result {
     if !input_zeroed!(src, blaze_symbolize_src_elf) {
-        return ptr::null_mut()
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_elf);
     let src = Source::from(Elf::from(src));
@@ -805,15 +826,18 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
 
 /// Symbolize file offsets in an ELF file.
 ///
-/// Return an array of [`blaze_result`] with the same size as the number
-/// of input addresses. The caller should free the returned array by
-/// calling [`blaze_result_free`].
+/// On success, the function returns an array of [`blaze_result`] with
+/// `file_offset_cnt` elements. The returned object should be released using
+/// [`blaze_result_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
-/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blaze_symbolize_src_elf`] object. `addrs` must represent an array of
-/// `addr_cnt` objects.
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_elf`] object
+/// -`file_offsets` point to an array of `file_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
     symbolizer: *mut blaze_symbolizer,
@@ -822,7 +846,8 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
     file_offset_cnt: usize,
 ) -> *const blaze_result {
     if !input_zeroed!(src, blaze_symbolize_src_elf) {
-        return ptr::null_mut()
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_elf);
     let src = Source::from(Elf::from(src));
@@ -840,15 +865,18 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
 
 /// Symbolize virtual offsets using "raw" Gsym data.
 ///
-/// Return an array of [`blaze_result`] with the same size as the
-/// number of input addresses. The caller should free the returned array by
-/// calling [`blaze_result_free`].
+/// On success, the function returns an array of [`blaze_result`] with
+/// `virt_offset_cnt` elements. The returned object should be released using
+/// [`blaze_result_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
-/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blaze_symbolize_src_gsym_data`] object. `addrs` must represent an array of
-/// `addr_cnt` objects.
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_gsym_data`] object
+/// -`virt_offsets` point to an array of `virt_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
@@ -857,7 +885,8 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
     virt_offset_cnt: usize,
 ) -> *const blaze_result {
     if !input_zeroed!(src, blaze_symbolize_src_gsym_data) {
-        return ptr::null_mut()
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_gsym_data);
     let src = Source::from(GsymData::from(src));
@@ -874,15 +903,18 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
 
 /// Symbolize virtual offsets in a Gsym file.
 ///
-/// Return an array of [`blaze_result`] with the same size as the number
-/// of input addresses. The caller should free the returned array by
-/// calling [`blaze_result_free`].
+/// On success, the function returns an array of [`blaze_result`] with
+/// `virt_offset_cnt` elements. The returned object should be released using
+/// [`blaze_result_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 ///
 /// # Safety
-/// `symbolizer` must have been allocated using [`blaze_symbolizer_new`] or
-/// [`blaze_symbolizer_new_opts`]. `src` must point to a valid
-/// [`blaze_symbolize_src_gsym_file`] object. `addrs` must represent an array of
-/// `addr_cnt` objects.
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_gsym_file`] object
+/// -`virt_offsets` point to an array of `virt_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
@@ -891,7 +923,8 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
     virt_offset_cnt: usize,
 ) -> *const blaze_result {
     if !input_zeroed!(src, blaze_symbolize_src_gsym_file) {
-        return ptr::null_mut()
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_gsym_file);
     let src = Source::from(GsymFile::from(src));
