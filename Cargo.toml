@@ -48,11 +48,11 @@ apk = []
 # environment variables.
 backtrace = []
 # Enable this feature to enable Breakpad support.
-breakpad = ["circular", "nom"]
+breakpad = ["dep:circular", "dep:nom"]
 # Enable this feature to get transparent symbol demangling.
-demangle = ["cpp_demangle", "rustc-demangle"]
+demangle = ["dep:cpp_demangle", "dep:rustc-demangle"]
 # Enable this feature to enable DWARF support.
-dwarf = ["gimli"]
+dwarf = ["dep:gimli"]
 # Enable this feature to enable Gsym support.
 gsym = []
 
