@@ -486,6 +486,7 @@ mod tests {
             "test-dwarf-v3.bin",
             "test-dwarf-v4.bin",
             "test-dwarf-v5.bin",
+            "test-dwarf-v5-zlib.bin",
         ];
 
         for binary in binaries {
@@ -524,6 +525,7 @@ mod tests {
             "test-dwarf-v3.bin",
             "test-dwarf-v4.bin",
             "test-dwarf-v5.bin",
+            "test-dwarf-v5-zlib.bin",
         ];
 
         for binary in binaries {
