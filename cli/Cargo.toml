@@ -21,7 +21,7 @@ grev = "0.1.3"
 
 [dependencies]
 anyhow = "1.0.68"
-blazesym = {version = "=0.2.0-alpha.11", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing"]}
+blazesym = {version = "=0.2.0-alpha.11", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
 clap = {version = "4.1.7", features = ["derive"]}
 clap_complete = {version = "4.1.1", optional = true}
 tracing = "0.1"

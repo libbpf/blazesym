@@ -75,7 +75,7 @@ Here is rough roadmap of currently planned features (in no particular order):
     - [x] Support inlined function lookup for DWARF (https://github.com/libbpf/blazesym/issues/192)
 - [x] Support symbolization of addresses in APKs (relevant for Android) (https://github.com/libbpf/blazesym/pull/222 & https://github.com/libbpf/blazesym/pull/227)
 - [ ] Support ELF32 binaries (https://github.com/libbpf/blazesym/issues/53)
-- [ ] Support handling of compressed debug information (https://github.com/libbpf/blazesym/issues/581)
+- [x] Support handling of compressed debug information (https://github.com/libbpf/blazesym/issues/581)
 - [x] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)
 - [x] Support remote symbolization (https://github.com/libbpf/blazesym/issues/61)
   - [x] Add APIs for address normalization (https://github.com/libbpf/blazesym/pull/114, https://github.com/libbpf/blazesym/pull/128, ...)

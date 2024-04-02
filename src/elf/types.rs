@@ -74,6 +74,8 @@ pub(crate) struct Elf64_Shdr {
 // SAFETY: `Elf64_Shdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Shdr {}
 
+pub(crate) const SHF_COMPRESSED: u64 = 0x800;
+
 pub(crate) const SHN_UNDEF: u16 = 0;
 pub(crate) const SHN_LORESERVE: u16 = 0xff00;
 pub(crate) const SHN_XINDEX: u16 = 0xffff;
@@ -145,6 +147,30 @@ pub(crate) struct Elf64_Nhdr {
 
 // SAFETY: `Elf64_Nhdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Nhdr {}
+
+
+#[derive(Debug)]
+#[repr(C)]
+pub(crate) struct Elf64_Chdr {
+    /// Compression format.
+    ///
+    /// See `ELFCOMPRESS_*` constants for supported values.
+    pub ch_type: Elf64_Word,
+    pub ch_reserved: Elf64_Word,
+    /// Uncompressed data size.
+    pub ch_size: Elf64_Xword,
+    /// Uncompressed data alignment.
+    pub ch_addralign: Elf64_Xword,
+}
+
+// SAFETY: `Elf64_Chdr` is valid for any bit pattern.
+unsafe impl Pod for Elf64_Chdr {}
+
+
+/// zlib/deflate algorithm.
+pub(crate) const ELFCOMPRESS_ZLIB: u32 = 1;
+/// zstd algorithm.
+pub(crate) const ELFCOMPRESS_ZSTD: u32 = 2;
 
 
 #[cfg(test)]
