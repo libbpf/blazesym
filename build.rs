@@ -177,8 +177,8 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
     let () = adjust_mtime(&dst).unwrap();
 }
 
-/// Invoke `strip` on a copy of `src` placed at `dst`.
-fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+/// Run the provided command on a copy of `src` placed at `dst`.
+fn run_on_copy(command: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
@@ -186,11 +186,16 @@ fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let _bytes = copy(src, &dst).expect("failed to copy file");
 
     let () = run(
-        "strip",
+        OsStr::new(command),
         options.iter().map(OsStr::new).chain([dst.as_os_str()]),
     )
-    .expect("failed to run `strip`");
+    .unwrap_or_else(|_| panic!("failed to run `{command}`"));
     let () = adjust_mtime(&dst).unwrap();
+}
+
+/// Invoke `strip` on a copy of `src` placed at `dst`.
+fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+    run_on_copy("strip", src, dst, options)
 }
 
 /// Strip all DWARF information from an ELF binary, in an attempt to
@@ -361,6 +366,11 @@ fn prepare_test_files(crate_root: &Path) {
     cc(&src, "test-dwarf-v3.bin", &["-gstrict-dwarf", "-gdwarf-3"]);
     cc(&src, "test-dwarf-v4.bin", &["-gstrict-dwarf", "-gdwarf-4"]);
     cc(&src, "test-dwarf-v5.bin", &["-gstrict-dwarf", "-gdwarf-5"]);
+    cc(
+        &src,
+        "test-dwarf-v5-zlib.bin",
+        &["-gstrict-dwarf", "-gdwarf-5", "-gz=zlib"],
+    );
 
     let src = crate_root.join("data").join("test-wait.c");
     cc(&src, "test-wait.bin", &[]);
@@ -384,6 +394,21 @@ fn prepare_test_files(crate_root: &Path) {
             "-Wl,--build-id=none",
             "-O0",
             "-nostdlib",
+            // TODO: Eventually we may want to make `cc` multi-input-file aware.
+            src_cu2,
+        ],
+    );
+    cc(
+        &src,
+        "test-stable-addresses-compressed-debug-zlib.bin",
+        &[
+            "-gdwarf-4",
+            "-T",
+            ld_script,
+            "-Wl,--build-id=none",
+            "-O0",
+            "-nostdlib",
+            "-gz=zlib",
             // TODO: Eventually we may want to make `cc` multi-input-file aware.
             src_cu2,
         ],

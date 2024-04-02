@@ -124,17 +124,17 @@ fn symbolize_elf_dwarf_gsym() {
     let src = symbolize::Source::Elf(symbolize::Elf::new(path));
     test(src, false);
 
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses-dwarf-only.bin");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
-    test(src, true);
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses-lto.bin");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
-    test(src, true);
+    for file in [
+        "test-stable-addresses-dwarf-only.bin",
+        "test-stable-addresses-lto.bin",
+        "test-stable-addresses-compressed-debug-zlib.bin",
+    ] {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(file);
+        let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+        test(src, true);
+    }
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
@@ -344,12 +344,17 @@ fn symbolize_dwarf_gsym_inlined() {
     test(src.clone(), true);
     test(src, false);
 
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addresses-dwarf-only.bin");
-    let src = symbolize::Source::from(symbolize::Elf::new(path));
-    test(src.clone(), true);
-    test(src, false);
+    for file in [
+        "test-stable-addresses-dwarf-only.bin",
+        "test-stable-addresses-compressed-debug-zlib.bin",
+    ] {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(file);
+        let src = symbolize::Source::from(symbolize::Elf::new(path));
+        test(src.clone(), true);
+        test(src, false);
+    }
 }
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined
