@@ -23,8 +23,8 @@ it tries to do the expected thing by default. When offering such convenience
 comes at the cost of performance, we aim to provide advanced APIs that allow for
 runtime configuration of the corresponding features.
 
-**blazesym** supports a variety of formats, such as DWARF, ELF, and Gsym (see
-below for an up-to-date list).
+**blazesym** supports a variety of formats, such as DWARF, ELF, Breakpad, and
+Gsym (see below for an up-to-date list).
 
 The library is written in Rust and provides a first class C API. This crate
 adheres to Cargo's [semantic versioning rules][cargo-semver]. At a minimum, it
@@ -34,8 +34,12 @@ guaranteed to build with `1.63` and higher.
 
 
 ## Status
-**blazesym** is being actively worked on. Feel free to contribute with
-discussions, feature suggestions, or code contributions!
+**blazesym** is at the core of Meta's internal continuous profiling solution,
+where it handles billions of symbolization requests per day.
+
+The library is being actively worked on, with a major goal being stabilization
+of the API surface. Feel free to contribute with discussions, feature
+suggestions, or code contributions!
 
 As alluded to above, the library provides support for a variety of formats. For
 symbolization specifically, the following table lays out what features each
@@ -71,6 +75,7 @@ Here is rough roadmap of currently planned features (in no particular order):
     - [x] Support inlined function lookup for DWARF (https://github.com/libbpf/blazesym/issues/192)
 - [x] Support symbolization of addresses in APKs (relevant for Android) (https://github.com/libbpf/blazesym/pull/222 & https://github.com/libbpf/blazesym/pull/227)
 - [ ] Support ELF32 binaries (https://github.com/libbpf/blazesym/issues/53)
+- [ ] Support handling of compressed debug information (https://github.com/libbpf/blazesym/issues/581)
 - [x] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)
 - [x] Support remote symbolization (https://github.com/libbpf/blazesym/issues/61)
   - [x] Add APIs for address normalization (https://github.com/libbpf/blazesym/pull/114, https://github.com/libbpf/blazesym/pull/128, ...)
