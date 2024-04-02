@@ -39,6 +39,7 @@ default = [
   "backtrace",
   "demangle",
   "dwarf",
+  "zlib",
 ]
 # Enable this feature to enable APK support (mostly relevant for
 # Android).
@@ -55,6 +56,9 @@ demangle = ["dep:cpp_demangle", "dep:rustc-demangle"]
 dwarf = ["dep:gimli"]
 # Enable this feature to enable Gsym support.
 gsym = []
+# Enable this feature to enable support for zlib decompression. This is
+# currently only used for handling compressed debug information.
+zlib = ["dep:miniz_oxide"]
 
 # Below here are dev-mostly features that should not be needed by
 # regular users.
@@ -89,10 +93,18 @@ codegen-units = 1
 lto = false
 codegen-units = 256
 
+[build-dependencies]
+dump_syms = {version = "2.3", optional = true, default-features = false}
+libc = "0.2.137"
+reqwest = {version = "0.12.0", optional = true, features = ["blocking"]}
+xz2 = {version = "0.1.7", optional = true}
+zip = {version = "0.6.4", optional = true, default-features = false}
+
 [dependencies]
 cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.28", optional = true}
 libc = "0.2.137"
+miniz_oxide = {version = "0.7", default-features = false, features = ["simd", "with-alloc"], optional = true}
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1.4", optional = true}
 tracing = {version = "0.1.27", default-features = false, features = ["attributes"], optional = true}
@@ -110,12 +122,12 @@ stats_alloc = {version = "0.1.1", features = ["nightly"]}
 tempfile = "3.4"
 test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
 
-[build-dependencies]
-dump_syms = {version = "2.3", optional = true, default-features = false}
-libc = "0.2.137"
-reqwest = {version = "0.12.0", optional = true, features = ["blocking"]}
-xz2 = {version = "0.1.7", optional = true}
-zip = {version = "0.6.4", optional = true, default-features = false}
+# A set of unused dependencies that we require to force correct minimum versions
+# of transitive dependencies, for cases where our dependencies have incorrect
+# dependency specifications themselves.
+# > 22 |     let mut hash = simd_adler32::Adler32::from_checksum(adler);
+# >    |                                           ^^^^^^^^^^^^^ function or associated item not found in `Adler32`
+_simd-adler32_unused = { package = "simd-adler32", version = "0.3.3" }
 
 # https://docs.rs/about/metadata
 [package.metadata.docs.rs]

@@ -7,6 +7,7 @@ use std::mem;
 use std::ops::Deref as _;
 use std::path::Path;
 
+use crate::insert_map::InsertMap;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
@@ -21,12 +22,16 @@ use crate::IntoError as _;
 use crate::Result;
 use crate::SymType;
 
+use super::types::Elf64_Chdr;
 use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
+use super::types::ELFCOMPRESS_ZLIB;
+use super::types::ELFCOMPRESS_ZSTD;
 use super::types::PN_XNUM;
 use super::types::PT_LOAD;
+use super::types::SHF_COMPRESSED;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
 
@@ -77,6 +82,32 @@ fn find_sym<'mmap>(
             Ok(None)
         }
     }
+}
+
+
+#[cfg(feature = "zlib")]
+fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
+    use miniz_oxide::inflate::decompress_to_vec_zlib;
+
+    match decompress_to_vec_zlib(data) {
+        Ok(data) => Ok(data),
+        Err(err) => Err(Error::with_invalid_data(format!(
+            "zlib decompression failed: {err}"
+        ))),
+    }
+}
+
+#[cfg(not(feature = "zlib"))]
+fn decompress_zlib(_data: &[u8]) -> Result<Vec<u8>> {
+    Err(Error::with_unsupported(
+        "ELF section is zlib compressed but zlib compression support is not enabled",
+    ))
+}
+
+fn decompress_zstd(_data: &[u8]) -> Result<Vec<u8>> {
+    Err(Error::with_unsupported(
+        "ELF section is zstd compressed but zstd compression is currently not supported",
+    ))
 }
 
 
@@ -188,20 +219,26 @@ impl<'mmap> Cache<'mmap> {
     }
 
     /// Retrieve the raw section data for the ELF section at index
-    /// `idx`.
-    fn section_data(&self, idx: usize) -> Result<&'mmap [u8]> {
+    /// `idx`, along with it's section header.
+    fn section_data_raw(&self, idx: usize) -> Result<(&'mmap Elf64_Shdr, &'mmap [u8])> {
         let shdrs = self.ensure_shdrs()?;
-        let section = shdrs
+        let shdr = shdrs
             .get(idx)
             .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?;
 
         let data = self
             .elf_data
-            .get(section.sh_offset as usize..)
+            .get(shdr.sh_offset as usize..)
             .ok_or_invalid_data(|| "failed to read section data: invalid offset")?
-            .read_slice(section.sh_size as usize)
+            .read_slice(shdr.sh_size as usize)
             .ok_or_invalid_data(|| "failed to read section data: invalid size")?;
-        Ok(data)
+        Ok((shdr, data))
+    }
+
+    /// Retrieve the raw section data for the ELF section at index
+    /// `idx`.
+    fn section_data(&self, idx: usize) -> Result<&'mmap [u8]> {
+        self.section_data_raw(idx).map(|(_section, data)| data)
     }
 
     /// Read the very first section header.
@@ -497,6 +534,12 @@ pub(crate) struct ElfParser {
     //         Furthermore, this member has to be listed before `_mmap`
     //         to make sure we never end up with a dangling reference.
     cache: Cache<'static>,
+    /// A mapping from section index to decompressed section data.
+    // Note that conceptually this member would be best contained in the
+    // `Cache` type, however, lifetimes get very hairy once we move it
+    // in there. Given that it is an implementation detail, we can live
+    // with this slightly counter-intuitive split.
+    decompressed: InsertMap<usize, Vec<u8>>,
     /// The memory mapped file.
     _mmap: Mmap,
 }
@@ -519,6 +562,7 @@ impl ElfParser {
 
         let parser = ElfParser {
             _mmap: mmap,
+            decompressed: InsertMap::new(),
             cache: Cache::new(elf_data),
         };
         parser
@@ -531,9 +575,41 @@ impl ElfParser {
         Self::open_file(&file)
     }
 
-    /// Retrieve the data corresponding to the ELF section at index `idx`.
+    /// Retrieve the data corresponding to the ELF section at index
+    /// `idx`, optionally decompressing it if it is compressed.
+    ///
+    /// If the section is compressed the resulting decompressed data
+    /// will be cached for the life time of this object.
     pub fn section_data(&self, idx: usize) -> Result<&[u8]> {
-        self.cache.section_data(idx)
+        let (shdr, mut data) = self.cache.section_data_raw(idx)?;
+
+        if shdr.sh_flags & SHF_COMPRESSED != 0 {
+            let data = self.decompressed.get_or_try_insert(idx, || {
+                // Compression header is contained in the actual section
+                // data.
+                let chdr = data
+                    .read_pod_ref::<Elf64_Chdr>()
+                    .ok_or_invalid_data(|| "failed to read Elf64_Chdr")?;
+
+                let decompressed = match chdr.ch_type {
+                    t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data),
+                    t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data),
+                    _ => Err(Error::with_unsupported(format!(
+                        "ELF section is compressed with unknown compression algorithm ({})",
+                        chdr.ch_type
+                    ))),
+                }?;
+                debug_assert_eq!(
+                    decompressed.len(),
+                    chdr.ch_size as _,
+                    "decompressed ELF section data does not have expected length"
+                );
+                Ok(decompressed)
+            })?;
+            Ok(data.as_slice())
+        } else {
+            Ok(data)
+        }
     }
 
     /// Find the section of a given name.
