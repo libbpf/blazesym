@@ -70,6 +70,8 @@ pub mod inspect {
         Dump(Dump),
         #[command(subcommand)]
         Lookup(Lookup),
+        #[command(subcommand, name = "buildid")]
+        BuildId(BuildId),
     }
 
     /// A type representing the `inspect lookup` sub-command.
@@ -81,7 +83,6 @@ pub mod inspect {
         Elf(ElfLookup),
     }
 
-
     /// A type representing the `inspect dump` sub-command.
     #[derive(Debug, Subcommand)]
     pub enum Dump {
@@ -89,6 +90,13 @@ pub mod inspect {
         Breakpad(BreakpadDump),
         /// Dump all symbols in an ELF file.
         Elf(ElfDump),
+    }
+
+    /// A type representing the `inspect buildid` sub-command.
+    #[derive(Debug, Subcommand)]
+    pub enum BuildId {
+        /// Read the build ID of an ELF file.
+        Elf { path: PathBuf },
     }
 
     #[derive(Debug, Arguments)]

@@ -7,6 +7,7 @@ use std::cmp::max;
 use anyhow::Context;
 use anyhow::Result;
 
+use blazesym::helper::read_elf_build_id;
 use blazesym::inspect;
 use blazesym::inspect::Inspector;
 use blazesym::normalize;
@@ -25,6 +26,24 @@ use tracing_subscriber::fmt::time::SystemTime;
 use tracing_subscriber::FmtSubscriber;
 
 const ADDR_WIDTH: usize = 16;
+
+
+fn format_build_id_bytes(build_id: &[u8]) -> String {
+    build_id
+        .iter()
+        .fold(String::with_capacity(build_id.len() * 2), |mut s, b| {
+            let () = s.push_str(&format!("{b:02x}"));
+            s
+        })
+}
+
+fn format_build_id(build_id: Option<&[u8]>) -> String {
+    if let Some(build_id) = build_id {
+        format!(" (build ID: {})", format_build_id_bytes(build_id))
+    } else {
+        String::new()
+    }
+}
 
 
 fn print_sym_infos(sym_infos: &[inspect::SymInfo]) {
@@ -95,26 +114,18 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
             let () = print_sym_infos(&sym_infos);
             Ok(())
         }
+        args::inspect::Inspect::BuildId(args::inspect::BuildId::Elf { path }) => {
+            let build_id = read_elf_build_id(&path)?;
+            if let Some(build_id) = build_id {
+                println!("{}", format_build_id_bytes(&build_id));
+            } else {
+                println!("N/A");
+            }
+            Ok(())
+        }
     }
 }
 
-
-fn format_build_id_bytes(build_id: &[u8]) -> String {
-    build_id
-        .iter()
-        .fold(String::with_capacity(build_id.len() * 2), |mut s, b| {
-            let () = s.push_str(&format!("{b:02x}"));
-            s
-        })
-}
-
-fn format_build_id(build_id: Option<&[u8]>) -> String {
-    if let Some(build_id) = build_id {
-        format!(" (build ID: {})", format_build_id_bytes(build_id))
-    } else {
-        String::new()
-    }
-}
 
 fn normalize(normalize: args::normalize::Normalize) -> Result<()> {
     match normalize {
