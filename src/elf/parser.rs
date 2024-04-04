@@ -104,9 +104,16 @@ fn decompress_zlib(_data: &[u8]) -> Result<Vec<u8>> {
     ))
 }
 
+#[cfg(feature = "zstd")]
+fn decompress_zstd(data: &[u8]) -> Result<Vec<u8>> {
+    use zstd::stream::decode_all;
+    decode_all(data).context("zstd decompression failed")
+}
+
+#[cfg(not(feature = "zstd"))]
 fn decompress_zstd(_data: &[u8]) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
-        "ELF section is zstd compressed but zstd compression is currently not supported",
+        "ELF section is zstd compressed but zstd compression support is not enabled",
     ))
 }
 

@@ -59,6 +59,9 @@ gsym = []
 # Enable this feature to enable support for zlib decompression. This is
 # currently only used for handling compressed debug information.
 zlib = ["dep:miniz_oxide"]
+# Enable this feature to enable support for zstd decompression. This is
+# currently only used for handling compressed debug information.
+zstd = ["dep:zstd"]
 
 # Below here are dev-mostly features that should not be needed by
 # regular users.
@@ -108,12 +111,16 @@ miniz_oxide = {version = "0.7", default-features = false, features = ["simd", "w
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1.4", optional = true}
 tracing = {version = "0.1.27", default-features = false, features = ["attributes"], optional = true}
+zstd = {version = "0.13.1", default-features = false, optional = true}
 
 [dev-dependencies]
 # For performance comparison; pinned, because we use #[doc(hidden)]
 # APIs.
 addr2line = "=0.21.0"
 anyhow = "1.0.71"
+# TODO: Enable `zstd` feature once toolchain support for it is more
+#       widespread (enabled by default in `ld`). Remove conditionals in
+#       test code alongside.
 blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "breakpad", "gsym", "tracing"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}

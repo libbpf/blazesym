@@ -50,6 +50,10 @@ jobs:
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
+            args: "--lib --no-default-features --features=zstd"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
             args: "--package=blazecli"
           - runs-on: ubuntu-latest
             rust: stable
