@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
+use crate::mmap::Mmap;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::IntSym;
@@ -52,9 +53,11 @@ pub(crate) struct BreakpadResolver {
 
 impl BreakpadResolver {
     pub(crate) fn from_file(path: PathBuf, file: &File) -> Result<Self> {
+        let mmap = Mmap::map(file)
+            .with_context(|| format!("failed to memory map breakpad file `{}`", path.display()))?;
         let slf = Self {
-            symbol_file: SymbolFile::from_file(file)
-                .with_context(|| format!("failed to parse Breakpad file `{path:?}`"))?,
+            symbol_file: SymbolFile::from_bytes(&mmap)
+                .with_context(|| format!("failed to parse Breakpad file `{}`", path.display()))?,
             path,
         };
         Ok(slf)

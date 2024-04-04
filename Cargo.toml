@@ -48,7 +48,7 @@ apk = []
 # environment variables.
 backtrace = []
 # Enable this feature to enable Breakpad support.
-breakpad = ["dep:circular", "dep:nom"]
+breakpad = ["dep:nom"]
 # Enable this feature to get transparent symbol demangling.
 demangle = ["dep:cpp_demangle", "dep:rustc-demangle"]
 # Enable this feature to enable DWARF support.
@@ -90,7 +90,6 @@ lto = false
 codegen-units = 256
 
 [dependencies]
-circular = {version = "0.3", optional = true}
 cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.28", optional = true}
 libc = "0.2.137"
