@@ -128,6 +128,8 @@ fn symbolize_elf_dwarf_gsym() {
         "test-stable-addresses-dwarf-only.bin",
         "test-stable-addresses-lto.bin",
         "test-stable-addresses-compressed-debug-zlib.bin",
+        #[cfg(feature = "zstd")]
+        "test-stable-addresses-compressed-debug-zstd.bin",
     ] {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -347,6 +349,8 @@ fn symbolize_dwarf_gsym_inlined() {
     for file in [
         "test-stable-addresses-dwarf-only.bin",
         "test-stable-addresses-compressed-debug-zlib.bin",
+        #[cfg(feature = "zstd")]
+        "test-stable-addresses-compressed-debug-zstd.bin",
     ] {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")

@@ -50,6 +50,8 @@ which = {version = "6.0.0", optional = true}
 
 [dependencies]
 # Pinned, because we use #[doc(hidden)] APIs.
+# TODO: Enable `zstd` feature once we enabled it for testing in the main
+#       crate.
 blazesym = {version = "=0.2.0-alpha.11", path = "../", features = ["apk", "demangle", "dwarf", "gsym", "zlib"]}
 # TODO: Remove dependency one MSRV is 1.77.
 memoffset = "0.9"
