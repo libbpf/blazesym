@@ -98,9 +98,9 @@ impl BreakpadResolver {
     }
 
     /// Perform an operation on each symbol.
-    pub(crate) fn for_each_sym<F, R>(&self, opts: &FindAddrOpts, mut r: R, mut f: F) -> Result<R>
+    pub(crate) fn for_each_sym<F>(&self, opts: &FindAddrOpts, mut f: F) -> Result<()>
     where
-        F: FnMut(R, &SymInfo<'_>) -> R,
+        F: FnMut(&SymInfo<'_>),
     {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::with_unsupported(
@@ -110,9 +110,9 @@ impl BreakpadResolver {
 
         for func in &self.symbol_file.functions {
             let sym = SymInfo::from(func);
-            r = f(r, &sym);
+            let () = f(&sym);
         }
-        Ok(r)
+        Ok(())
     }
 }
 
@@ -257,7 +257,7 @@ mod tests {
         let err = resolver.find_addr("a_variable", &opts).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
 
-        let err = resolver.for_each_sym(&opts, (), |(), _| ()).unwrap_err();
+        let err = resolver.for_each_sym(&opts, |_| ()).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }
