@@ -138,39 +138,47 @@ impl Inspector {
     ///   - no variable support is present
     ///   - file offsets won't be reported
     ///   - addresses are reported as they appear in the symbol source
-    pub fn for_each<F>(&self, src: &Source, f: F) -> Result<()>
+    pub fn for_each<F>(&self, src: &Source, mut f: F) -> Result<()>
     where
         F: FnMut(&SymInfo<'_>),
     {
-        match src {
-            #[cfg(feature = "breakpad")]
-            Source::Breakpad(Breakpad {
-                path,
-                _non_exhaustive: (),
-            }) => {
-                let opts = FindAddrOpts {
-                    // Breakpad logic doesn't support file offsets.
-                    offset_in_file: false,
-                    sym_type: SymType::Undefined,
-                };
-                let resolver = self.breakpad_resolver(path)?;
-                resolver.for_each_sym(&opts, f)
-            }
-            Source::Elf(Elf {
-                path,
-                debug_syms,
-                _non_exhaustive: (),
-            }) => {
-                let opts = FindAddrOpts {
-                    offset_in_file: true,
-                    sym_type: SymType::Undefined,
-                };
-                let code_info = true;
-                let resolver = self.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
-                let parser = resolver.parser();
-                parser.for_each_sym(&opts, f)
+        fn for_each_impl(
+            slf: &Inspector,
+            src: &Source,
+            f: &mut dyn FnMut(&SymInfo<'_>),
+        ) -> Result<()> {
+            match src {
+                #[cfg(feature = "breakpad")]
+                Source::Breakpad(Breakpad {
+                    path,
+                    _non_exhaustive: (),
+                }) => {
+                    let opts = FindAddrOpts {
+                        // Breakpad logic doesn't support file offsets.
+                        offset_in_file: false,
+                        sym_type: SymType::Undefined,
+                    };
+                    let resolver = slf.breakpad_resolver(path)?;
+                    resolver.for_each_sym(&opts, f)
+                }
+                Source::Elf(Elf {
+                    path,
+                    debug_syms,
+                    _non_exhaustive: (),
+                }) => {
+                    let opts = FindAddrOpts {
+                        offset_in_file: true,
+                        sym_type: SymType::Undefined,
+                    };
+                    let code_info = true;
+                    let resolver = slf.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
+                    let parser = resolver.parser();
+                    parser.for_each_sym(&opts, f)
+                }
             }
         }
+
+        for_each_impl(self, src, &mut f)
     }
 }
 
