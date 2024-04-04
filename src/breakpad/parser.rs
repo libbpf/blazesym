@@ -446,11 +446,7 @@ fn line(input: &[u8]) -> IResult<&[u8], Line, VerboseError<&[u8]>> {
 
 /// A parser for Breakpad symbol files.
 ///
-/// This is basically just a [`SymbolFile`] but with some extra state to handle
-/// streaming parsing.
-///
-/// Use this by repeatedly calling [`parse_more`] until the
-/// whole input is consumed. Then call [`finish`].
+/// This is basically just a [`SymbolFile`] but with some extra state.
 #[derive(Debug, Default)]
 pub struct SymbolParser {
     files: HashMap<u32, String>,
@@ -467,11 +463,8 @@ impl SymbolParser {
         Self::default()
     }
 
-    /// Parses as much of the input as it can, and then returns
-    /// how many bytes of the input was used. The *unused* portion of the
-    /// input must be resubmitted on subsequent calls to parse_more
-    /// (along with more data so we can make progress on the parse).
-    pub fn parse_more(&mut self, mut input: &[u8]) -> Result<usize> {
+    /// Parses and then returns how many bytes of the input was used.
+    pub fn parse(&mut self, mut input: &[u8]) -> Result<usize> {
         // We parse the input line-by-line, so trim away any part of the input
         // that comes after the last newline (this is necessary for streaming
         // parsing, as it can otherwise be impossible to tell if a line is
