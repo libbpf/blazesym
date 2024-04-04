@@ -75,6 +75,8 @@ pub mod inspect {
     /// A type representing the `inspect lookup` sub-command.
     #[derive(Debug, Subcommand)]
     pub enum Lookup {
+        /// Lookup symbols in a Breakpad file by name.
+        Breakpad(BreakpadLookup),
         /// Lookup symbols in a ELF file by name.
         Elf(ElfLookup),
     }
@@ -83,8 +85,26 @@ pub mod inspect {
     /// A type representing the `inspect dump` sub-command.
     #[derive(Debug, Subcommand)]
     pub enum Dump {
+        /// Dump all symbols in a Breakpad file.
+        Breakpad(BreakpadDump),
         /// Dump all symbols in an ELF file.
         Elf(ElfDump),
+    }
+
+    #[derive(Debug, Arguments)]
+    pub struct BreakpadLookup {
+        /// The path to the Breakpad (*.sym) file.
+        #[clap(short, long)]
+        pub path: PathBuf,
+        /// A list of names of symbols.
+        pub names: Vec<String>,
+    }
+
+    #[derive(Debug, Arguments)]
+    pub struct BreakpadDump {
+        /// The path to the Breakpad (*.sym) file.
+        #[clap(short, long)]
+        pub path: PathBuf,
     }
 
     #[derive(Debug, Arguments)]

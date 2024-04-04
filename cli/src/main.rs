@@ -50,11 +50,21 @@ fn print_sym_infos(sym_infos: &[inspect::SymInfo]) {
 fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
     let inspector = Inspector::new();
     match inspect {
-        args::inspect::Inspect::Lookup(args::inspect::Lookup::Elf(args::inspect::ElfLookup {
-            path,
-            ref names,
-        })) => {
-            let src = inspect::Source::from(inspect::Elf::new(path));
+        args::inspect::Inspect::Lookup(lookup) => {
+            let (src, names) = match lookup {
+                args::inspect::Lookup::Breakpad(args::inspect::BreakpadLookup {
+                    path,
+                    ref names,
+                }) => {
+                    let src = inspect::Source::from(inspect::Breakpad::new(path));
+                    (src, names)
+                }
+                args::inspect::Lookup::Elf(args::inspect::ElfLookup { path, ref names }) => {
+                    let src = inspect::Source::from(inspect::Elf::new(path));
+                    (src, names)
+                }
+            };
+
             let names = names.iter().map(|s| s.as_ref()).collect::<Vec<&str>>();
             let result = inspector.lookup(&src, &names)?;
             let sym_infos = result
@@ -68,8 +78,15 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
             let () = print_sym_infos(&sym_infos);
             Ok(())
         }
-        args::inspect::Inspect::Dump(args::inspect::Dump::Elf(args::inspect::ElfDump { path })) => {
-            let src = inspect::Source::from(inspect::Elf::new(path));
+        args::inspect::Inspect::Dump(dump) => {
+            let src = match dump {
+                args::inspect::Dump::Breakpad(args::inspect::BreakpadDump { path }) => {
+                    inspect::Source::from(inspect::Breakpad::new(path))
+                }
+                args::inspect::Dump::Elf(args::inspect::ElfDump { path }) => {
+                    inspect::Source::from(inspect::Elf::new(path))
+                }
+            };
             let mut sym_infos = inspector.for_each(&src, Vec::new(), |mut vec, sym| {
                 let () = vec.push(sym.to_owned());
                 vec
