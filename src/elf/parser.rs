@@ -727,16 +727,15 @@ impl ElfParser {
         Ok(syms)
     }
 
-    fn for_each_sym_impl<F, R>(
+    fn for_each_sym_impl<F>(
         &self,
         opts: &FindAddrOpts,
         syms: &[&Elf64_Sym],
         str2sym: &[(&str, usize)],
-        mut r: R,
         mut f: F,
-    ) -> Result<R>
+    ) -> Result<()>
     where
-        F: FnMut(R, &SymInfo<'_>) -> R,
+        F: FnMut(&SymInfo<'_>),
     {
         let shdrs = self.cache.ensure_shdrs()?;
 
@@ -759,27 +758,27 @@ impl ElfParser {
                         .transpose()?,
                     obj_file_name: None,
                 };
-                r = f(r, &sym_info)
+                let () = f(&sym_info);
             }
         }
 
-        Ok(r)
+        Ok(())
     }
 
     /// Perform an operation on each symbol.
-    pub(crate) fn for_each_sym<F, R>(&self, opts: &FindAddrOpts, r: R, mut f: F) -> Result<R>
+    pub(crate) fn for_each_sym<F>(&self, opts: &FindAddrOpts, mut f: F) -> Result<()>
     where
-        F: FnMut(R, &SymInfo<'_>) -> R,
+        F: FnMut(&SymInfo<'_>),
     {
         let symtab = self.cache.ensure_symtab()?;
         let str2symtab = self.cache.ensure_str2symtab()?;
-        let r = self.for_each_sym_impl(opts, symtab, str2symtab, r, &mut f)?;
+        let () = self.for_each_sym_impl(opts, symtab, str2symtab, &mut f)?;
 
         let dynsym = self.cache.ensure_dynsym()?;
         let str2dynsym = self.cache.ensure_str2dynsym()?;
-        let r = self.for_each_sym_impl(opts, dynsym, str2dynsym, r, &mut f)?;
+        let () = self.for_each_sym_impl(opts, dynsym, str2dynsym, &mut f)?;
 
-        Ok(r)
+        Ok(())
     }
 
     /// Find the file offset of the symbol at address `addr`.
@@ -1077,7 +1076,7 @@ mod tests {
         };
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let () = parser
-            .for_each_sym(&opts, (), |(), sym| {
+            .for_each_sym(&opts, |sym| {
                 let file_offset = parser.find_file_offset(sym.addr).unwrap();
                 assert_eq!(file_offset, sym.file_offset);
             })

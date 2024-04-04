@@ -901,15 +901,11 @@ fn inspect_elf_breakpad_all_symbols() {
     fn test(src: &inspect::Source) {
         let breakpad = matches!(src, inspect::Source::Breakpad(..));
         let inspector = Inspector::new();
-        let syms = inspector
-            .for_each(
-                src,
-                HashMap::<String, inspect::SymInfo>::new(),
-                |mut syms, sym| {
-                    let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
-                    syms
-                },
-            )
+        let mut syms = HashMap::<String, inspect::SymInfo>::new();
+        let () = inspector
+            .for_each(src, |sym| {
+                let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
+            })
             .unwrap();
 
         // Breakpad doesn't contain any or any reasonable information for
@@ -972,10 +968,10 @@ fn inspect_elf_all_symbols_without_duplicates() {
     let src = inspect::Source::Elf(elf);
 
     let inspector = Inspector::new();
-    let syms = inspector
-        .for_each(&src, Vec::<String>::new(), |mut syms, sym| {
+    let mut syms = Vec::<String>::new();
+    let () = inspector
+        .for_each(&src, |sym| {
             let () = syms.push(sym.name.to_string());
-            syms
         })
         .unwrap();
 

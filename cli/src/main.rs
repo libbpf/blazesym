@@ -109,9 +109,9 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
                     inspect::Source::from(inspect::Elf::new(path))
                 }
             };
-            let mut sym_infos = inspector.for_each(&src, Vec::new(), |mut vec, sym| {
-                let () = vec.push(sym.to_owned());
-                vec
+            let mut sym_infos = Vec::new();
+            let () = inspector.for_each(&src, |sym| {
+                let () = sym_infos.push(sym.to_owned());
             })?;
             let () = sym_infos.sort_by_key(|sym| sym.addr);
             let () = print_sym_infos(&sym_infos);

@@ -6,6 +6,8 @@ Unreleased
     IDs if `cache_build_ids` is `true`
 - Added support for compressed debug information
   - Added default enabled `zlib` feature
+- Adjusted `Inspector::for_each` signature to no longer carry explicit state
+  around
 - Introduced `normalize::Reason` enum to provide best guess at why normalization
   was not successful as part of the `normalize::UserMeta::Unknown` variant
 - Reduced number of allocations performed on address normalization and

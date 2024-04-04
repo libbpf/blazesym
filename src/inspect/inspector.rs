@@ -138,9 +138,9 @@ impl Inspector {
     ///   - no variable support is present
     ///   - file offsets won't be reported
     ///   - addresses are reported as they appear in the symbol source
-    pub fn for_each<F, R>(&self, src: &Source, r: R, f: F) -> Result<R>
+    pub fn for_each<F>(&self, src: &Source, f: F) -> Result<()>
     where
-        F: FnMut(R, &SymInfo<'_>) -> R,
+        F: FnMut(&SymInfo<'_>),
     {
         match src {
             #[cfg(feature = "breakpad")]
@@ -154,7 +154,7 @@ impl Inspector {
                     sym_type: SymType::Undefined,
                 };
                 let resolver = self.breakpad_resolver(path)?;
-                resolver.for_each_sym(&opts, r, f)
+                resolver.for_each_sym(&opts, f)
             }
             Source::Elf(Elf {
                 path,
@@ -168,7 +168,7 @@ impl Inspector {
                 let code_info = true;
                 let resolver = self.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
                 let parser = resolver.parser();
-                parser.for_each_sym(&opts, r, f)
+                parser.for_each_sym(&opts, f)
             }
         }
     }
