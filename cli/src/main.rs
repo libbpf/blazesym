@@ -39,9 +39,9 @@ fn format_build_id(build_id: Option<&[u8]>) -> String {
     }
 }
 
-fn normalize(normalize: args::Normalize) -> Result<()> {
+fn normalize(normalize: args::normalize::Normalize) -> Result<()> {
     match normalize {
-        args::Normalize::User(args::User {
+        args::normalize::Normalize::User(args::normalize::User {
             pid,
             addrs,
             no_build_ids,
@@ -114,16 +114,16 @@ fn print_frame(
 }
 
 /// The handler for the 'symbolize' command.
-fn symbolize(symbolize: args::Symbolize) -> Result<()> {
+fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
     let symbolizer = Symbolizer::new();
     let (src, input, addrs) = match symbolize {
-        args::Symbolize::Breakpad(args::Breakpad { path, ref addrs }) => {
+        args::symbolize::Symbolize::Breakpad(args::symbolize::Breakpad { path, ref addrs }) => {
             let src = symbolize::Source::from(symbolize::Breakpad::new(path));
             let addrs = addrs.as_slice();
             let input = symbolize::Input::FileOffset(addrs);
             (src, input, addrs)
         }
-        args::Symbolize::Elf(args::Elf {
+        args::symbolize::Symbolize::Elf(args::symbolize::Elf {
             path,
             no_debug_syms,
             ref addrs,
@@ -135,13 +135,13 @@ fn symbolize(symbolize: args::Symbolize) -> Result<()> {
             let input = symbolize::Input::VirtOffset(addrs);
             (src, input, addrs)
         }
-        args::Symbolize::Gsym(args::Gsym { path, ref addrs }) => {
+        args::symbolize::Symbolize::Gsym(args::symbolize::Gsym { path, ref addrs }) => {
             let src = symbolize::Source::from(symbolize::GsymFile::new(path));
             let addrs = addrs.as_slice();
             let input = symbolize::Input::VirtOffset(addrs);
             (src, input, addrs)
         }
-        args::Symbolize::Process(args::Process {
+        args::symbolize::Symbolize::Process(args::symbolize::Process {
             pid,
             ref addrs,
             no_map_files,

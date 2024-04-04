@@ -49,99 +49,109 @@ pub struct Args {
 pub enum Command {
     /// Normalize one or more addresses.
     #[command(subcommand)]
-    Normalize(Normalize),
+    Normalize(normalize::Normalize),
     /// Symbolize one or more addresses.
     #[command(subcommand)]
-    Symbolize(Symbolize),
+    Symbolize(symbolize::Symbolize),
 }
 
 
-/// A type representing the `normalize` command.
-#[derive(Debug, Subcommand)]
-pub enum Normalize {
-    /// Normalize user space addresses.
-    User(User),
+pub mod normalize {
+    use super::*;
+
+
+    /// A type representing the `normalize` command.
+    #[derive(Debug, Subcommand)]
+    pub enum Normalize {
+        /// Normalize user space addresses.
+        User(User),
+    }
+
+    #[derive(Debug, Arguments)]
+    pub struct User {
+        /// The PID of the process the provided addresses belong to.
+        #[clap(short, long)]
+        #[arg(value_parser = parse_pid)]
+        pub pid: Pid,
+        /// The addresses to normalize.
+        #[arg(value_parser = parse_addr)]
+        pub addrs: Vec<Addr>,
+        /// Disable the reading of build IDs of the corresponding binaries.
+        #[clap(long)]
+        pub no_build_ids: bool,
+    }
 }
 
-#[derive(Debug, Arguments)]
-pub struct User {
-    /// The PID of the process the provided addresses belong to.
-    #[clap(short, long)]
-    #[arg(value_parser = parse_pid)]
-    pub pid: Pid,
-    /// The addresses to normalize.
-    #[arg(value_parser = parse_addr)]
-    pub addrs: Vec<Addr>,
-    /// Disable the reading of build IDs of the corresponding binaries.
-    #[clap(long)]
-    pub no_build_ids: bool,
-}
+
+pub mod symbolize {
+    use super::*;
 
 
-/// A type representing the `symbolize` command.
-#[derive(Debug, Subcommand)]
-pub enum Symbolize {
-    Breakpad(Breakpad),
-    Elf(Elf),
-    Gsym(Gsym),
-    Process(Process),
-}
+    /// A type representing the `symbolize` command.
+    #[derive(Debug, Subcommand)]
+    pub enum Symbolize {
+        Breakpad(Breakpad),
+        Elf(Elf),
+        Gsym(Gsym),
+        Process(Process),
+    }
 
-#[derive(Debug, Arguments)]
-pub struct Breakpad {
-    /// The path to the Breakpad (*.sym) file.
-    #[clap(short, long)]
-    pub path: PathBuf,
-    /// The addresses to symbolize.
-    ///
-    /// Addresses are assumed to be file offsets as they would be used on the
-    /// original (ELF/DWARF/...) source file.
-    #[arg(value_parser = parse_addr)]
-    pub addrs: Vec<Addr>,
-}
+    #[derive(Debug, Arguments)]
+    pub struct Breakpad {
+        /// The path to the Breakpad (*.sym) file.
+        #[clap(short, long)]
+        pub path: PathBuf,
+        /// The addresses to symbolize.
+        ///
+        /// Addresses are assumed to be file offsets as they would be used on
+        /// the original (ELF/DWARF/...) source file.
+        #[arg(value_parser = parse_addr)]
+        pub addrs: Vec<Addr>,
+    }
 
-#[derive(Debug, Arguments)]
-pub struct Elf {
-    /// The path to the ELF file.
-    #[clap(short, long)]
-    pub path: PathBuf,
-    /// Disable the use of debug symbols.
-    #[clap(long)]
-    pub no_debug_syms: bool,
-    /// The addresses to symbolize.
-    ///
-    /// Addresses are assumed to already be normalized to the file
-    /// itself (i.e., with relocation and address randomization effects
-    /// removed).
-    #[arg(value_parser = parse_addr)]
-    pub addrs: Vec<Addr>,
-}
+    #[derive(Debug, Arguments)]
+    pub struct Elf {
+        /// The path to the ELF file.
+        #[clap(short, long)]
+        pub path: PathBuf,
+        /// Disable the use of debug symbols.
+        #[clap(long)]
+        pub no_debug_syms: bool,
+        /// The addresses to symbolize.
+        ///
+        /// Addresses are assumed to already be normalized to the file
+        /// itself (i.e., with relocation and address randomization effects
+        /// removed).
+        #[arg(value_parser = parse_addr)]
+        pub addrs: Vec<Addr>,
+    }
 
-#[derive(Debug, Arguments)]
-pub struct Gsym {
-    /// The path to the Gsym file.
-    #[clap(short, long)]
-    pub path: PathBuf,
-    /// The addresses to symbolize.
-    ///
-    /// Addresses are assumed to already be normalized to the file
-    /// itself (i.e., with relocation and address randomization effects
-    /// removed).
-    #[arg(value_parser = parse_addr)]
-    pub addrs: Vec<Addr>,
-}
+    #[derive(Debug, Arguments)]
+    pub struct Gsym {
+        /// The path to the Gsym file.
+        #[clap(short, long)]
+        pub path: PathBuf,
+        /// The addresses to symbolize.
+        ///
+        /// Addresses are assumed to already be normalized to the file
+        /// itself (i.e., with relocation and address randomization effects
+        /// removed).
+        #[arg(value_parser = parse_addr)]
+        pub addrs: Vec<Addr>,
+    }
 
-#[derive(Debug, Arguments)]
-pub struct Process {
-    /// The PID of the process the provided addresses belong to.
-    #[clap(short, long)]
-    #[arg(value_parser = parse_pid)]
-    pub pid: Pid,
-    /// The addresses to symbolize.
-    #[arg(value_parser = parse_addr)]
-    pub addrs: Vec<Addr>,
-    /// Disable the use of `/proc/<pid>/map_files/` entries and use
-    /// symbolic paths instead.
-    #[clap(long)]
-    pub no_map_files: bool,
+    #[derive(Debug, Arguments)]
+    pub struct Process {
+        /// The PID of the process the provided addresses belong to.
+        #[clap(short, long)]
+        #[arg(value_parser = parse_pid)]
+        pub pid: Pid,
+        /// The addresses to symbolize.
+        #[arg(value_parser = parse_addr)]
+        pub addrs: Vec<Addr>,
+        /// Disable the use of `/proc/<pid>/map_files/` entries and use
+        /// symbolic paths instead.
+        #[clap(long)]
+        pub no_map_files: bool,
+    }
 }
