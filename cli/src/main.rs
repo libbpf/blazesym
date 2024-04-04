@@ -62,7 +62,10 @@ fn print_sym_infos(sym_infos: &[inspect::SymInfo]) {
             SymType::Variable => " [VAR]",
             _ => " [UNDEF]",
         };
-        println!("{name:<name_width$} {addr:#0ADDR_WIDTH$x}+{size:<4}{type_}");
+        println!(
+            "{name:<name_width$} {addr:#0ADDR_WIDTH$x} {size:<11}{type_}",
+            size = format!("(size={size})")
+        );
     }
 }
 
