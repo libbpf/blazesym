@@ -25,8 +25,9 @@ use crate::Addr;
 use crate::SymType;
 
 pub use inspector::Inspector;
-#[cfg(feature = "breakpad")]
-pub use source::Breakpad;
+cfg_breakpad! {
+  pub use source::Breakpad;
+}
 pub use source::Elf;
 pub use source::Source;
 
