@@ -107,17 +107,18 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::path::Path;
 
-#[cfg(feature = "apk")]
-pub use source::Apk;
-#[cfg(feature = "breakpad")]
-pub use source::Breakpad;
+cfg_apk! {
+  pub use source::Apk;
+}
+cfg_breakpad! {
+  pub use source::Breakpad;
+}
 pub use source::Elf;
-#[cfg(feature = "gsym")]
-pub use source::Gsym;
-#[cfg(feature = "gsym")]
-pub use source::GsymData;
-#[cfg(feature = "gsym")]
-pub use source::GsymFile;
+cfg_gsym! {
+  pub use source::Gsym;
+  pub use source::GsymData;
+  pub use source::GsymFile;
+}
 pub use source::Kernel;
 pub use source::Process;
 pub use source::Source;
