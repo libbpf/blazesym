@@ -25,6 +25,10 @@ use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 
+use crate::blaze_err;
+#[cfg(doc)]
+use crate::blaze_err_last;
+use crate::set_last_err;
 use crate::slice_from_user_array;
 
 
@@ -458,22 +462,40 @@ impl Default for blaze_symbolizer_opts {
 ///
 /// C ABI compatible version of [`blazesym::symbolize::Symbolizer::new()`].
 /// Please refer to its documentation for the default configuration in use.
+///
+/// On success, the function creates a new [`blaze_symbolizer`] object
+/// and returns it. The resulting object should be released using
+/// [`blaze_symbolizer_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
 #[no_mangle]
 pub extern "C" fn blaze_symbolizer_new() -> *mut blaze_symbolizer {
     let symbolizer = Symbolizer::new();
     let symbolizer_box = Box::new(symbolizer);
+    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
     Box::into_raw(symbolizer_box)
 }
 
 /// Create an instance of a symbolizer with configurable options.
 ///
+/// On success, the function creates a new [`blaze_symbolizer`] object
+/// and returns it. The resulting object should be released using
+/// [`blaze_symbolizer_free`] once it is no longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
+///
 /// # Safety
-/// `opts` needs to be a valid pointer.
+/// - `opts` needs to point to a valid [`blaze_symbolizer_opts`] object
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     opts: *const blaze_symbolizer_opts,
 ) -> *mut blaze_symbolizer {
     if !input_zeroed!(opts, blaze_symbolizer_opts) {
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null_mut()
     }
     let opts = input_sanitize!(opts, blaze_symbolizer_opts);
@@ -494,6 +516,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
         .enable_demangling(demangle)
         .build();
     let symbolizer_box = Box::new(symbolizer);
+    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
     Box::into_raw(symbolizer_box)
 }
 
