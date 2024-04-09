@@ -642,6 +642,8 @@ mod tests {
 
     use blazesym::helper::read_elf_build_id;
 
+    use crate::blaze_err_last;
+
 
     /// Check that various types have expected sizes.
     #[test]
@@ -856,6 +858,31 @@ mod tests {
         assert_eq!(user_addrs.output_cnt, 5);
 
         let () = unsafe { blaze_user_output_free(result) };
+        let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
+
+    /// Check that we fail normalizing unsorted addresses with a function that
+    /// requires them to be sorted.
+    #[test]
+    fn normalize_user_addrs_unsorted_failure() {
+        let mut addrs = [
+            libc::__errno_location as Addr,
+            libc::dlopen as Addr,
+            libc::fopen as Addr,
+            elf_conversion as Addr,
+            normalize_user_addrs as Addr,
+        ];
+        let () = addrs.sort_by(|addr1, addr2| addr1.cmp(addr2).reverse());
+
+        let normalizer = blaze_normalizer_new();
+        assert_ne!(normalizer, ptr::null_mut());
+
+        let result = unsafe {
+            blaze_normalize_user_addrs_sorted(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+        };
+        assert_eq!(result, ptr::null_mut());
+        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_INVALID_INPUT);
+
         let () = unsafe { blaze_normalizer_free(normalizer) };
     }
 
