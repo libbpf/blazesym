@@ -895,14 +895,30 @@ void blaze_user_output_free(struct blaze_normalized_user_output *output);
  *
  * C ABI compatible version of [`blazesym::symbolize::Symbolizer::new()`].
  * Please refer to its documentation for the default configuration in use.
+ *
+ * On success, the function creates a new [`blaze_symbolizer`] object
+ * and returns it. The resulting object should be released using
+ * [`blaze_symbolizer_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
  */
 blaze_symbolizer *blaze_symbolizer_new(void);
 
 /**
  * Create an instance of a symbolizer with configurable options.
  *
+ * On success, the function creates a new [`blaze_symbolizer`] object
+ * and returns it. The resulting object should be released using
+ * [`blaze_symbolizer_free`] once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
+ *
  * # Safety
- * `opts` needs to be a valid pointer.
+ * - `opts` needs to point to a valid [`blaze_symbolizer_opts`] object
  */
 blaze_symbolizer *blaze_symbolizer_new_opts(const struct blaze_symbolizer_opts *opts);
 

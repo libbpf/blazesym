@@ -152,6 +152,11 @@ pub extern "C" fn blaze_err_last() -> blaze_err {
     LAST_ERR.with(|cell| cell.get())
 }
 
+/// Retrieve the error reported by the last fallible API function invoked.
+fn set_last_err(err: blaze_err) {
+    LAST_ERR.with(|cell| cell.set(err))
+}
+
 /// Check whether the given piece of memory is zeroed out.
 ///
 /// # Safety
