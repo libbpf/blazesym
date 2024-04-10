@@ -4,7 +4,7 @@
 //! Fallible functions generally return a `NULL` pointer. To provide
 //! users with a better idea of what went wrong, they additionally set a
 //! thread local last [error code][blaze_err]. This error indicates what
-//! kind of issue caused the operation to fall.
+//! kind of issue caused the operation to fail.
 //! A call to a fallible function always overwrites this error code. As
 //! such, please make sure to check the error before making an
 //! additional API call into the library.

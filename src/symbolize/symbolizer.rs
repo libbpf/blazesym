@@ -810,12 +810,12 @@ impl Symbolizer {
             }) => match input {
                 Input::VirtOffset(..) => {
                     return Err(Error::with_unsupported(
-                        "ELF symbolization does not support virtual offset inputs",
+                        "APK symbolization does not support virtual offset inputs",
                     ))
                 }
                 Input::AbsAddr(..) => {
                     return Err(Error::with_unsupported(
-                        "ELF symbolization does not support absolute address inputs",
+                        "APK symbolization does not support absolute address inputs",
                     ))
                 }
                 Input::FileOffset(offsets) => offsets
