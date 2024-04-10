@@ -59,6 +59,7 @@ use super::source::Kernel;
 use super::source::Process;
 use super::source::Source;
 use super::AddrCodeInfo;
+use super::FindSymOpts;
 use super::InlinedFn;
 use super::Input;
 use super::IntSym;
@@ -146,9 +147,6 @@ pub struct Builder {
     /// symbolization operation.
     auto_reload: bool,
     /// Whether to attempt to gather source code location information.
-    ///
-    /// This setting implies usage of debug symbols and forces the corresponding
-    /// flag to `true`.
     code_info: bool,
     /// Whether to report inlined functions as part of symbolization.
     inlined_fns: bool,
@@ -176,6 +174,8 @@ impl Builder {
     }
 
     /// Enable/disable inlined function reporting.
+    ///
+    /// This option only has an effect if `code_info` is `true`.
     pub fn enable_inlined_fns(mut self, enable: bool) -> Self {
         self.inlined_fns = enable;
         self
@@ -308,40 +308,23 @@ impl Symbolizer {
         addr: Addr,
         resolver: &Resolver<'_, 'slf>,
     ) -> Result<Symbolized<'slf>> {
-        let (sym_name, sym_addr, sym_size, lang) = match resolver {
-            Resolver::Uncached(resolver) => match resolver.find_sym(addr)? {
-                Ok(sym) => {
-                    let IntSym {
-                        name: sym_name,
-                        addr: sym_addr,
-                        size: sym_size,
-                        lang,
-                    } = sym;
-
-                    (Cow::Owned(sym_name.to_string()), sym_addr, sym_size, lang)
-                }
-                Err(reason) => return Ok(Symbolized::Unknown(reason)),
-            },
-            Resolver::Cached(resolver) => match resolver.find_sym(addr)? {
-                Ok(sym) => {
-                    let IntSym {
-                        name: sym_name,
-                        addr: sym_addr,
-                        size: sym_size,
-                        lang,
-                    } = sym;
-
-                    (Cow::Borrowed(sym_name), sym_addr, sym_size, lang)
-                }
-                Err(reason) => return Ok(Symbolized::Unknown(reason)),
-            },
+        let opts = match (self.code_info, self.inlined_fns) {
+            (false, _) => FindSymOpts::Basic,
+            (true, false) => FindSymOpts::CodeInfo,
+            (true, true) => FindSymOpts::CodeInfoAndInlined,
         };
 
-        let (name, code_info, inlined) = if self.code_info {
-            match resolver {
-                Resolver::Uncached(resolver) => {
-                    let addr_code_info = resolver.find_code_info(addr, self.inlined_fns)?;
-                    if let Some(AddrCodeInfo {
+        let (sym_name, sym_addr, sym_size, lang, name, code_info, inlined) = match resolver {
+            Resolver::Uncached(resolver) => match resolver.find_sym(addr, &opts)? {
+                Ok((sym, addr_code_info)) => {
+                    let IntSym {
+                        name: sym_name,
+                        addr: sym_addr,
+                        size: sym_size,
+                        lang,
+                    } = sym;
+
+                    let (name, code_info, inlined) = if let Some(AddrCodeInfo {
                         direct: (direct_name, direct_code_info),
                         inlined,
                     }) = addr_code_info
@@ -362,11 +345,30 @@ impl Symbolizer {
                         (direct_name, Some(direct_code_info), inlined)
                     } else {
                         (None, None, Vec::new())
-                    }
+                    };
+
+                    (
+                        Cow::Owned(sym_name.to_string()),
+                        sym_addr,
+                        sym_size,
+                        lang,
+                        name,
+                        code_info,
+                        inlined,
+                    )
                 }
-                Resolver::Cached(resolver) => {
-                    let addr_code_info = resolver.find_code_info(addr, self.inlined_fns)?;
-                    if let Some(AddrCodeInfo {
+                Err(reason) => return Ok(Symbolized::Unknown(reason)),
+            },
+            Resolver::Cached(resolver) => match resolver.find_sym(addr, &opts)? {
+                Ok((sym, addr_code_info)) => {
+                    let IntSym {
+                        name: sym_name,
+                        addr: sym_addr,
+                        size: sym_size,
+                        lang,
+                    } = sym;
+
+                    let (name, code_info, inlined) = if let Some(AddrCodeInfo {
                         direct: (direct_name, direct_code_info),
                         inlined,
                     }) = addr_code_info
@@ -386,11 +388,20 @@ impl Symbolizer {
                         (direct_name, Some(direct_code_info), inlined)
                     } else {
                         (None, None, Vec::new())
-                    }
+                    };
+
+                    (
+                        Cow::Borrowed(sym_name),
+                        sym_addr,
+                        sym_size,
+                        lang,
+                        name,
+                        code_info,
+                        inlined,
+                    )
                 }
-            }
-        } else {
-            (None, None, Vec::new())
+                Err(reason) => return Ok(Symbolized::Unknown(reason)),
+            },
         };
 
         let sym = Sym {

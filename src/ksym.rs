@@ -12,6 +12,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
 use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
@@ -120,8 +121,12 @@ impl KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
-        let sym = self.find_ksym(addr).map(IntSym::from);
+    fn find_sym(
+        &self,
+        addr: Addr,
+        _opts: &FindSymOpts,
+    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
+        let sym = self.find_ksym(addr).map(|sym| (IntSym::from(sym), None));
         Ok(sym)
     }
 
@@ -164,10 +169,6 @@ impl SymResolver for KSymResolver {
             Vec::new()
         };
         Ok(syms)
-    }
-
-    fn find_code_info(&self, _addr: Addr, _inlined_fns: bool) -> Result<Option<AddrCodeInfo>> {
-        Ok(None)
     }
 }
 
@@ -235,20 +236,29 @@ mod tests {
         // Find the address of the symbol placed at the middle
         let sym = &resolver.syms[resolver.syms.len() / 2];
         let addr = sym.addr;
-        let found = resolver.find_sym(addr).unwrap().unwrap();
+        let (found, _) = resolver
+            .find_sym(addr, &FindSymOpts::Basic)
+            .unwrap()
+            .unwrap();
         ensure_addr_for_name(found.name, addr);
 
         // 0 is an invalid address.  We remove all symbols with 0 as
         // their address from the list.
-        assert!(resolver.find_sym(0).unwrap().is_err());
+        assert!(resolver.find_sym(0, &FindSymOpts::Basic).unwrap().is_err());
 
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
         let addr = sym.addr;
-        let found = resolver.find_sym(addr).unwrap().unwrap();
+        let (found, _) = resolver
+            .find_sym(addr, &FindSymOpts::Basic)
+            .unwrap()
+            .unwrap();
         ensure_addr_for_name(found.name, addr);
 
-        let found = resolver.find_sym(addr + 1).unwrap().unwrap();
+        let (found, _) = resolver
+            .find_sym(addr + 1, &FindSymOpts::Basic)
+            .unwrap()
+            .unwrap();
         // Should still find the previous symbol, which is the last one.
         ensure_addr_for_name(found.name, addr);
     }

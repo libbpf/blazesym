@@ -11,24 +11,22 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str;
 
+use crate::inspect::FindAddrOpts;
+use crate::inspect::SymInfo;
+use crate::mmap::Mmap;
+use crate::resolver::SymResolver;
+use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::FindSymOpts;
+use crate::symbolize::IntSym;
+use crate::symbolize::Reason;
+use crate::symbolize::SrcLang;
+use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Pid;
-
-use crate::inspect::FindAddrOpts;
-use crate::inspect::SymInfo;
-use crate::mmap::Mmap;
-use crate::resolver::SymResolver;
-use crate::util::find_match_or_lower_bound_by_key;
 use crate::Result;
-
-use crate::symbolize::AddrCodeInfo;
-use crate::symbolize::IntSym;
-use crate::symbolize::Reason;
-
-use super::SrcLang;
 
 
 #[derive(Debug, Eq, PartialEq)]
@@ -175,7 +173,11 @@ impl PerfMap {
 }
 
 impl SymResolver for PerfMap {
-    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(
+        &self,
+        addr: Addr,
+        _opts: &FindSymOpts,
+    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
         let result = find_match_or_lower_bound_by_key(&self.functions, addr, |l| l.addr);
         match result {
             Some(idx) => {
@@ -194,7 +196,7 @@ impl SymResolver for PerfMap {
                             size: Some(*size),
                             lang: SrcLang::Unknown,
                         };
-                        return Ok(Ok(sym))
+                        return Ok(Ok((sym, None)))
                     }
                 }
                 Ok(Err(Reason::UnknownAddr))
@@ -211,11 +213,6 @@ impl SymResolver for PerfMap {
         Err(Error::with_unsupported(
             "Perf map resolver does not currently support lookup by name",
         ))
-    }
-
-    fn find_code_info(&self, _addr: Addr, _inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        // Perf maps don't carry any source code information.
-        Ok(None)
     }
 }
 
@@ -350,7 +347,10 @@ mod tests {
         let perf_map = PerfMap::from_file(Path::new("SAMPLE_PERF_MAP"), &file).unwrap();
 
         for offset in 0..0xb {
-            let sym = perf_map.find_sym(0x7fbf1fc2144c + offset).unwrap().unwrap();
+            let (sym, _) = perf_map
+                .find_sym(0x7fbf1fc2144c + offset, &FindSymOpts::Basic)
+                .unwrap()
+                .unwrap();
             assert_eq!(sym.name, "py::<module>:<frozen posixpath>");
             assert_eq!(sym.addr, 0x7fbf1fc2144c);
             assert_eq!(sym.size, Some(0xb));
