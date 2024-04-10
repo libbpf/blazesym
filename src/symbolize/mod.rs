@@ -129,6 +129,38 @@ use crate::normalize;
 use crate::Addr;
 
 
+/// Options determining what "parts" of a symbol to look up.
+#[derive(Debug)]
+pub(crate) enum FindSymOpts {
+    /// Only look up the "basic" symbol data (name, address, size, ...), without
+    /// source code location and inlined function information.
+    Basic,
+    /// Look up symbol data and source code location information.
+    CodeInfo,
+    /// Look up symbol data, source code location information, and inlined
+    /// function information.
+    CodeInfoAndInlined,
+}
+
+impl FindSymOpts {
+    #[inline]
+    pub(crate) fn code_info(&self) -> bool {
+        match self {
+            Self::Basic => false,
+            Self::CodeInfo | Self::CodeInfoAndInlined => true,
+        }
+    }
+
+    #[inline]
+    pub(crate) fn inlined_fns(&self) -> bool {
+        match self {
+            Self::Basic | Self::CodeInfo => false,
+            Self::CodeInfoAndInlined => true,
+        }
+    }
+}
+
+
 /// A enumeration of the different input types the symbolization APIs
 /// support.
 #[derive(Clone, Copy, Debug)]
