@@ -100,14 +100,6 @@ impl FileCache<ElfResolverData> {
 
 
 /// The symbol resolver for a single ELF file.
-///
-/// An ELF file may be loaded into an address space with a relocation.
-/// The callers should provide the path of an ELF file and where it's
-/// executable segment(s) is loaded.
-///
-/// For some ELF files, they are located at a specific address
-/// determined during compile-time.  For these cases, just pass `0` as
-/// it's loaded address.
 pub struct ElfResolver {
     backend: ElfBackend,
     file_name: PathBuf,
