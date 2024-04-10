@@ -408,10 +408,11 @@ impl From<GsymFile> for Source<'static> {
 }
 
 
-/// The description of a source of symbols and debug information.
+/// The description of a source of symbols and debug information that the
+/// library will consult to satisfy an address symbolization request.
 ///
-/// The source of symbols and debug information can be an ELF file, kernel
-/// image, or process.
+/// Objects of this type are used first and foremost with the
+/// [`Symbolizer::symbolize`] method.
 #[derive(Clone)]
 #[non_exhaustive]
 pub enum Source<'dat> {
