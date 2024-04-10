@@ -1,6 +1,9 @@
 use std::path::Path;
 use std::path::PathBuf;
 
+#[cfg(doc)]
+use super::Inspector;
+
 
 cfg_breakpad! {
 /// A Breakpad file.
@@ -65,6 +68,9 @@ impl From<Elf> for Source {
 
 
 /// The source to use for the inspection request.
+///
+/// Objects of this type are used first and foremost with the
+/// [`Inspector::lookup`] and [`Inspector::for_each`] methods.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Source {
