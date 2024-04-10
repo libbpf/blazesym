@@ -9,6 +9,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
 use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::Addr;
@@ -41,11 +42,18 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
+        // TODO: If an `ElfResolver` is available we probably should give
+        //       preference to it, if for no other reason than the fact that it
+        //       may report source code location information.
         if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
-            ksym_resolver.find_sym(addr)
+            ksym_resolver.find_sym(addr, opts)
         } else {
-            self.elf_resolver.as_ref().unwrap().find_sym(addr)
+            self.elf_resolver.as_ref().unwrap().find_sym(addr, opts)
         }
     }
 
@@ -55,14 +63,6 @@ impl SymResolver for KernelResolver {
         _opts: &FindAddrOpts,
     ) -> Result<Vec<SymInfo<'slf>>> {
         Ok(Vec::new())
-    }
-
-    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo>> {
-        if let Some(resolver) = self.elf_resolver.as_ref() {
-            resolver.find_code_info(addr, inlined_fns)
-        } else {
-            Ok(None)
-        }
     }
 }
 

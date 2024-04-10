@@ -13,6 +13,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
 use crate::symbolize::AddrCodeInfo;
+use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
@@ -151,10 +152,14 @@ impl ElfResolver {
 
 impl SymResolver for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
-    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
         #[cfg(feature = "dwarf")]
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
-            if let Some(sym) = dwarf.find_sym(addr)? {
+            if let Some(sym) = dwarf.find_sym(addr, opts)? {
                 return Ok(Ok(sym))
             }
         }
@@ -175,7 +180,7 @@ impl SymResolver for ElfResolver {
                     size: Some(size),
                     lang,
                 };
-                sym
+                (sym, None)
             });
 
         Ok(result)
@@ -205,20 +210,6 @@ impl SymResolver for ElfResolver {
             .iter_mut()
             .for_each(|sym| sym.obj_file_name = Some(Cow::Borrowed(&self.file_name)));
         Ok(syms)
-    }
-
-    #[cfg(feature = "dwarf")]
-    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        if let ElfBackend::Dwarf(dwarf) = &self.backend {
-            dwarf.find_code_info(addr, inlined_fns)
-        } else {
-            Ok(None)
-        }
-    }
-
-    #[cfg(not(feature = "dwarf"))]
-    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        Ok(None)
     }
 }
 

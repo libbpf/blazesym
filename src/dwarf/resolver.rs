@@ -19,6 +19,7 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
+use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
 use crate::Addr;
@@ -116,11 +117,7 @@ impl DwarfResolver {
     /// Find source code information of an address.
     ///
     /// `addr` is a normalized address.
-    pub fn find_code_info(
-        &self,
-        addr: Addr,
-        inlined_fns: bool,
-    ) -> Result<Option<AddrCodeInfo<'_>>> {
+    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
         // TODO: This conditional logic is weird and potentially
         //       unnecessary. Consider removing it or moving it higher
         //       in the call chain.
@@ -142,6 +139,7 @@ impl DwarfResolver {
                 };
 
                 let inlined = if inlined_fns {
+                    // TODO: Should reuse `function` from caller here instead.
                     if let Some(inline_stack) = self.units.find_inlined_functions(addr)? {
                         let mut inlined = Vec::with_capacity(inline_stack.len());
                         for result in inline_stack {
@@ -198,24 +196,34 @@ impl DwarfResolver {
     }
 
     /// Lookup the symbol at an address.
-    pub(crate) fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>, Error> {
+    pub(crate) fn find_sym(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+    ) -> Result<Option<(IntSym<'_>, Option<AddrCodeInfo<'_>>)>> {
         if let Some((function, unit)) = self.units.find_function(addr)? {
             let name = function
                 .name
                 .map(|name| name.to_string())
                 .transpose()?
                 .unwrap_or("");
-            let addr = function.range.map(|range| range.begin).unwrap_or(0);
+            let fn_addr = function.range.map(|range| range.begin).unwrap_or(0);
             let size = function
                 .range
                 .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
             let sym = IntSym {
                 name,
-                addr,
+                addr: fn_addr,
                 size,
                 lang: unit.language().into(),
             };
-            Ok(Some(sym))
+
+            let code_info = if opts.code_info() {
+                self.find_code_info(addr, opts.inlined_fns())?
+            } else {
+                None
+            };
+            Ok(Some((sym, code_info)))
         } else {
             Ok(None)
         }

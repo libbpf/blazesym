@@ -14,6 +14,7 @@ use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
+use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
@@ -162,7 +163,11 @@ impl<'dat> GsymResolver<'dat> {
 }
 
 impl SymResolver for GsymResolver<'_> {
-    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let sym_addr = self
                 .ctx
@@ -192,7 +197,13 @@ impl SymResolver for GsymResolver<'_> {
                 lang,
             };
 
-            Ok(Ok(sym))
+            let code_info = if opts.code_info() {
+                self.find_code_info(addr, opts.inlined_fns())?
+            } else {
+                None
+            };
+
+            Ok(Ok((sym, code_info)))
         } else {
             Ok(Err(Reason::UnknownAddr))
         }
@@ -209,7 +220,9 @@ impl SymResolver for GsymResolver<'_> {
             "Gsym resolver does not currently support lookup by name",
         ))
     }
+}
 
+impl GsymResolver<'_> {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
     fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
         let idx = match self.ctx.find_addr(addr) {
@@ -398,10 +411,13 @@ mod tests {
         // always fall into the inlined region, no matter toolchain. If not, add
         // padding bytes/dummy instructions and adjust some more.
         let addr = 0x200020a;
-        let sym = resolver.find_sym(addr).unwrap().unwrap();
+        let (sym, info) = resolver
+            .find_sym(addr, &FindSymOpts::CodeInfoAndInlined)
+            .unwrap()
+            .unwrap();
         assert_eq!(sym.name, "factorial_inline_test");
 
-        let info = resolver.find_code_info(addr, true).unwrap().unwrap();
+        let info = info.unwrap();
         assert_eq!(info.direct.1.line, Some(34));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined.len(), 2);

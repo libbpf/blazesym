@@ -13,6 +13,7 @@ use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
+use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
@@ -118,7 +119,11 @@ impl BreakpadResolver {
 
 impl SymResolver for BreakpadResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
-    fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
         if let Some(func) = self.symbol_file.find_function(addr) {
             let sym = IntSym {
                 name: &func.name,
@@ -126,7 +131,13 @@ impl SymResolver for BreakpadResolver {
                 size: Some(func.size.try_into().unwrap_or(usize::MAX)),
                 lang: SrcLang::Unknown,
             };
-            Ok(Ok(sym))
+
+            let code_info = if opts.code_info() {
+                self.find_code_info(addr, opts.inlined_fns())?
+            } else {
+                None
+            };
+            Ok(Ok((sym, code_info)))
         } else {
             let reason = if self.symbol_file.functions.is_empty() {
                 Reason::MissingSyms
@@ -152,12 +163,11 @@ impl SymResolver for BreakpadResolver {
 
         Ok(syms)
     }
+}
 
+impl BreakpadResolver {
+    // TODO: Fold into `find_sym`.
     fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        // TODO: We really shouldn't be doing another `find_function`
-        //       binary search here, conceptually. Consider merging
-        //       `find_code_info` into `find_sym` at the `SymResolver`
-        //       level.
         if let Some(func) = self.symbol_file.find_function(addr) {
             if let Some(source_line) = func.find_line(addr) {
                 let (dir, file) = self.find_source_location(source_line.file)?;
