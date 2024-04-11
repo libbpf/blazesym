@@ -323,13 +323,13 @@ impl<'dwarf> Units<'dwarf> {
             })
     }
 
-    pub fn find_function(
+    pub(super) fn find_function(
         &self,
         probe: u64,
-    ) -> Result<Option<(&Function<'dwarf>, Option<gimli::DwLang>)>, gimli::Error> {
+    ) -> Result<Option<(&Function<'dwarf>, &Unit<'dwarf>)>, gimli::Error> {
         for unit in self.find_units(probe) {
             if let Some(function) = unit.find_function(probe, self)? {
-                return Ok(Some((function, unit.language())))
+                return Ok(Some((function, unit)))
             }
         }
         Ok(None)
