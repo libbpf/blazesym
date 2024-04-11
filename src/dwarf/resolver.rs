@@ -28,8 +28,10 @@ use crate::ErrorExt;
 use crate::Result;
 use crate::SymType;
 
+use super::function::Function;
 use super::location::Location;
 use super::reader;
+use super::unit::Unit;
 use super::units::Units;
 
 
@@ -109,80 +111,6 @@ impl DwarfResolver {
         Self::from_parser(Rc::new(parser))
     }
 
-    /// Find source code information of an address.
-    ///
-    /// `addr` is a normalized address.
-    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        let code_info = if let Some(direct_location) = self.units.find_location(addr)? {
-            let Location {
-                dir,
-                file,
-                line,
-                column,
-            } = direct_location;
-
-            let mut direct_code_info = CodeInfo {
-                dir: Some(Cow::Borrowed(dir)),
-                file: Cow::Borrowed(file),
-                line,
-                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                _non_exhaustive: (),
-            };
-
-            let inlined = if inlined_fns {
-                // TODO: Should reuse `function` from caller here instead.
-                if let Some(inline_stack) = self.units.find_inlined_functions(addr)? {
-                    let mut inlined = Vec::with_capacity(inline_stack.len());
-                    for result in inline_stack {
-                        let (name, location) = result?;
-                        let mut code_info = location.map(|location| {
-                            let Location {
-                                dir,
-                                file,
-                                line,
-                                column,
-                            } = location;
-
-                            CodeInfo {
-                                dir: Some(Cow::Borrowed(dir)),
-                                file: Cow::Borrowed(file),
-                                line,
-                                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                                _non_exhaustive: (),
-                            }
-                        });
-
-                        // For each frame we need to move the code information
-                        // up by one layer.
-                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
-                            let () = swap(&mut code_info, last_code_info);
-                        } else if let Some(code_info) = &mut code_info {
-                            let () = swap(code_info, &mut direct_code_info);
-                        }
-
-                        let () = inlined.push((name, code_info));
-                    }
-                    inlined
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            };
-
-            let code_info = AddrCodeInfo {
-                direct: (None, direct_code_info),
-                inlined,
-            };
-
-            Some(code_info)
-        } else {
-            None
-        };
-
-        Ok(code_info)
-    }
-
     /// Lookup the symbol at an address.
     pub(crate) fn find_sym(
         &self,
@@ -207,7 +135,8 @@ impl DwarfResolver {
             };
 
             let code_info = if opts.code_info() {
-                self.find_code_info(addr, opts.inlined_fns())?
+                self.units
+                    .find_code_info(addr, function, unit, opts.inlined_fns())?
             } else {
                 None
             };
@@ -282,6 +211,91 @@ impl Debug for DwarfResolver {
 }
 
 
+// Conceptually this block belongs to the `DwarfResolver` type, but because it
+// uses a `Units` object with 'static lifetime we have to impl on `Units`
+// directly.
+impl<'dwarf> Units<'dwarf> {
+    /// Find source code information of an address.
+    ///
+    /// `addr` is a normalized address.
+    fn find_code_info<'slf>(
+        &'slf self,
+        addr: Addr,
+        function: &'slf Function<'dwarf>,
+        unit: &'slf Unit<'dwarf>,
+        inlined_fns: bool,
+    ) -> Result<Option<AddrCodeInfo<'slf>>> {
+        let code_info = if let Some(direct_location) = self.find_location(addr)? {
+            let Location {
+                dir,
+                file,
+                line,
+                column,
+            } = direct_location;
+
+            let mut direct_code_info = CodeInfo {
+                dir: Some(Cow::Borrowed(dir)),
+                file: Cow::Borrowed(file),
+                line,
+                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                _non_exhaustive: (),
+            };
+
+            let inlined = if inlined_fns {
+                if let Some(inline_stack) = self.find_inlined_functions(addr, function, unit)? {
+                    let mut inlined = Vec::with_capacity(inline_stack.len());
+                    for result in inline_stack {
+                        let (name, location) = result?;
+                        let mut code_info = location.map(|location| {
+                            let Location {
+                                dir,
+                                file,
+                                line,
+                                column,
+                            } = location;
+
+                            CodeInfo {
+                                dir: Some(Cow::Borrowed(dir)),
+                                file: Cow::Borrowed(file),
+                                line,
+                                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                                _non_exhaustive: (),
+                            }
+                        });
+
+                        // For each frame we need to move the code information
+                        // up by one layer.
+                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                            let () = swap(&mut code_info, last_code_info);
+                        } else if let Some(code_info) = &mut code_info {
+                            let () = swap(code_info, &mut direct_code_info);
+                        }
+
+                        let () = inlined.push((name, code_info));
+                    }
+                    inlined
+                } else {
+                    Vec::new()
+                }
+            } else {
+                Vec::new()
+            };
+
+            let code_info = AddrCodeInfo {
+                direct: (None, direct_code_info),
+                inlined,
+            };
+
+            Some(code_info)
+        } else {
+            None
+        };
+
+        Ok(code_info)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -326,7 +340,12 @@ mod tests {
             .join("test-stable-addresses.bin");
         let resolver = DwarfResolver::open(bin_name.as_ref()).unwrap();
 
-        let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
+        let info = resolver
+            .find_sym(0x2000100, &FindSymOpts::CodeInfo)
+            .unwrap()
+            .unwrap()
+            .1
+            .unwrap();
         assert_ne!(info.direct.1.dir, Some(Cow::Owned(PathBuf::new())));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.direct.1.line, Some(10));
