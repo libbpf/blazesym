@@ -200,6 +200,19 @@ impl Builder {
             demangle,
         } = self;
 
+        let find_sym_opts = match (code_info, inlined_fns) {
+            (false, inlined_fns) => {
+                if inlined_fns {
+                    log::warn!(
+                        "inlined functions reporting asked for but more general code information inquiry is disabled; flag is being ignored"
+                    );
+                }
+                FindSymOpts::Basic
+            }
+            (true, false) => FindSymOpts::CodeInfo,
+            (true, true) => FindSymOpts::CodeInfoAndInlined,
+        };
+
         Symbolizer {
             #[cfg(feature = "apk")]
             apk_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
@@ -210,8 +223,7 @@ impl Builder {
             gsym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             ksym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
-            code_info,
-            inlined_fns,
+            find_sym_opts,
             demangle,
         }
     }
@@ -275,8 +287,7 @@ pub struct Symbolizer {
     gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
     ksym_cache: FileCache<Rc<KSymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
-    code_info: bool,
-    inlined_fns: bool,
+    find_sym_opts: FindSymOpts,
     demangle: bool,
 }
 
@@ -308,14 +319,8 @@ impl Symbolizer {
         addr: Addr,
         resolver: &Resolver<'_, 'slf>,
     ) -> Result<Symbolized<'slf>> {
-        let opts = match (self.code_info, self.inlined_fns) {
-            (false, _) => FindSymOpts::Basic,
-            (true, false) => FindSymOpts::CodeInfo,
-            (true, true) => FindSymOpts::CodeInfoAndInlined,
-        };
-
         let (sym_name, sym_addr, sym_size, lang, name, code_info, inlined) = match resolver {
-            Resolver::Uncached(resolver) => match resolver.find_sym(addr, &opts)? {
+            Resolver::Uncached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
                 Ok((sym, addr_code_info)) => {
                     let IntSym {
                         name: sym_name,
@@ -359,7 +364,7 @@ impl Symbolizer {
                 }
                 Err(reason) => return Ok(Symbolized::Unknown(reason)),
             },
-            Resolver::Cached(resolver) => match resolver.find_sym(addr, &opts)? {
+            Resolver::Cached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
                 Ok((sym, addr_code_info)) => {
                     let IntSym {
                         name: sym_name,
