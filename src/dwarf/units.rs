@@ -336,9 +336,11 @@ impl<'dwarf> Units<'dwarf> {
     }
 
     /// Find the list of inlined functions that contain `probe`.
-    pub fn find_inlined_functions<'slf>(
+    pub(super) fn find_inlined_functions<'slf>(
         &'slf self,
         probe: u64,
+        function: &'slf Function<'dwarf>,
+        unit: &'slf Unit<'dwarf>,
     ) -> Result<
         Option<
             impl ExactSizeIterator<
@@ -347,44 +349,39 @@ impl<'dwarf> Units<'dwarf> {
         >,
         gimli::Error,
     > {
-        for unit in self.find_units(probe) {
-            if let Some(function) = unit.find_function(probe, self)? {
-                let inlined_fns = function.parse_inlined_functions(unit.dw_unit(), self)?;
-                let iter = inlined_fns.find_inlined_functions(probe).map(|inlined_fn| {
-                    let name = inlined_fn
-                        .name
-                        .map(|name| name.to_string())
-                        .transpose()?
-                        .unwrap_or("");
+        let inlined_fns = function.parse_inlined_functions(unit.dw_unit(), self)?;
+        let iter = inlined_fns.find_inlined_functions(probe).map(|inlined_fn| {
+            let name = inlined_fn
+                .name
+                .map(|name| name.to_string())
+                .transpose()?
+                .unwrap_or("");
 
-                    let code_info = if let Some(call_file) = inlined_fn.call_file {
-                        if let Some(lines) = unit.parse_lines(self)? {
-                            if let Some((dir, file)) = lines.files.get(call_file as usize) {
-                                let code_info = Location {
-                                    dir,
-                                    file,
-                                    line: Some(inlined_fn.call_line),
-                                    column: Some(inlined_fn.call_column),
-                                };
-                                Some(code_info)
-                            } else {
-                                warn!(
-                                    "encountered invalid inlined function `call_file` index ({call_file}); ignoring..."
-                                );
-                                None
-                            }
-                        } else {
-                            None
-                        }
+            let code_info = if let Some(call_file) = inlined_fn.call_file {
+                if let Some(lines) = unit.parse_lines(self)? {
+                    if let Some((dir, file)) = lines.files.get(call_file as usize) {
+                        let code_info = Location {
+                            dir,
+                            file,
+                            line: Some(inlined_fn.call_line),
+                            column: Some(inlined_fn.call_column),
+                        };
+                        Some(code_info)
                     } else {
+                        warn!(
+                            "encountered invalid inlined function `call_file` index ({call_file}); ignoring..."
+                        );
                         None
-                    };
-                    Ok((name, code_info))
-                });
-                return Ok(Some(iter))
-            }
-        }
-        Ok(None)
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+            Ok((name, code_info))
+        });
+        Ok(Some(iter))
     }
 
     /// Find the source file and line corresponding to the given virtual memory
@@ -551,9 +548,6 @@ mod tests {
 
             let loc = units.find_location(bogus_addr).unwrap();
             assert_eq!(loc, None);
-
-            let inlined = units.find_inlined_functions(bogus_addr).unwrap();
-            assert!(inlined.is_none());
         }
     }
 
