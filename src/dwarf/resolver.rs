@@ -78,7 +78,6 @@ pub(crate) struct DwarfResolver {
     //         to make sure we never end up with a dangling reference.
     units: Units<'static>,
     parser: Rc<ElfParser>,
-    line_number_info: bool,
 }
 
 impl DwarfResolver {
@@ -87,7 +86,7 @@ impl DwarfResolver {
         &self.parser
     }
 
-    pub fn from_parser(parser: Rc<ElfParser>, line_number_info: bool) -> Result<Self, Error> {
+    pub fn from_parser(parser: Rc<ElfParser>) -> Result<Self, Error> {
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
         //         is fine to conjure a 'static lifetime here.
@@ -96,11 +95,7 @@ impl DwarfResolver {
         let mut load_section = |section| reader::load_section(static_parser, section);
         let dwarf = Dwarf::load(&mut load_section)?;
         let units = Units::parse(dwarf)?;
-        let slf = Self {
-            units,
-            parser,
-            line_number_info,
-        };
+        let slf = Self { units, parser };
         Ok(slf)
     }
 
@@ -111,83 +106,76 @@ impl DwarfResolver {
     #[cfg(test)]
     pub fn open(filename: &Path) -> Result<Self> {
         let parser = ElfParser::open(filename)?;
-        Self::from_parser(Rc::new(parser), true)
+        Self::from_parser(Rc::new(parser))
     }
 
     /// Find source code information of an address.
     ///
     /// `addr` is a normalized address.
     fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        // TODO: This conditional logic is weird and potentially
-        //       unnecessary. Consider removing it or moving it higher
-        //       in the call chain.
-        let code_info = if self.line_number_info {
-            if let Some(direct_location) = self.units.find_location(addr)? {
-                let Location {
-                    dir,
-                    file,
-                    line,
-                    column,
-                } = direct_location;
+        let code_info = if let Some(direct_location) = self.units.find_location(addr)? {
+            let Location {
+                dir,
+                file,
+                line,
+                column,
+            } = direct_location;
 
-                let mut direct_code_info = CodeInfo {
-                    dir: Some(Cow::Borrowed(dir)),
-                    file: Cow::Borrowed(file),
-                    line,
-                    column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                    _non_exhaustive: (),
-                };
+            let mut direct_code_info = CodeInfo {
+                dir: Some(Cow::Borrowed(dir)),
+                file: Cow::Borrowed(file),
+                line,
+                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                _non_exhaustive: (),
+            };
 
-                let inlined = if inlined_fns {
-                    // TODO: Should reuse `function` from caller here instead.
-                    if let Some(inline_stack) = self.units.find_inlined_functions(addr)? {
-                        let mut inlined = Vec::with_capacity(inline_stack.len());
-                        for result in inline_stack {
-                            let (name, location) = result?;
-                            let mut code_info = location.map(|location| {
-                                let Location {
-                                    dir,
-                                    file,
-                                    line,
-                                    column,
-                                } = location;
+            let inlined = if inlined_fns {
+                // TODO: Should reuse `function` from caller here instead.
+                if let Some(inline_stack) = self.units.find_inlined_functions(addr)? {
+                    let mut inlined = Vec::with_capacity(inline_stack.len());
+                    for result in inline_stack {
+                        let (name, location) = result?;
+                        let mut code_info = location.map(|location| {
+                            let Location {
+                                dir,
+                                file,
+                                line,
+                                column,
+                            } = location;
 
-                                CodeInfo {
-                                    dir: Some(Cow::Borrowed(dir)),
-                                    file: Cow::Borrowed(file),
-                                    line,
-                                    column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                                    _non_exhaustive: (),
-                                }
-                            });
-
-                            // For each frame we need to move the code information
-                            // up by one layer.
-                            if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
-                                let () = swap(&mut code_info, last_code_info);
-                            } else if let Some(code_info) = &mut code_info {
-                                let () = swap(code_info, &mut direct_code_info);
+                            CodeInfo {
+                                dir: Some(Cow::Borrowed(dir)),
+                                file: Cow::Borrowed(file),
+                                line,
+                                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                                _non_exhaustive: (),
                             }
+                        });
 
-                            let () = inlined.push((name, code_info));
+                        // For each frame we need to move the code information
+                        // up by one layer.
+                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                            let () = swap(&mut code_info, last_code_info);
+                        } else if let Some(code_info) = &mut code_info {
+                            let () = swap(code_info, &mut direct_code_info);
                         }
-                        inlined
-                    } else {
-                        Vec::new()
+
+                        let () = inlined.push((name, code_info));
                     }
+                    inlined
                 } else {
                     Vec::new()
-                };
-
-                let code_info = AddrCodeInfo {
-                    direct: (None, direct_code_info),
-                    inlined,
-                };
-
-                Some(code_info)
+                }
             } else {
-                None
-            }
+                Vec::new()
+            };
+
+            let code_info = AddrCodeInfo {
+                direct: (None, direct_code_info),
+                inlined,
+            };
+
+            Some(code_info)
         } else {
             None
         };
