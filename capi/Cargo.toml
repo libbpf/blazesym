@@ -37,7 +37,7 @@ check-doc-snippets = []
 # up-to-date version of this header should already be available in the
 # include/ directory, so this feature is only necessary when APIs are
 # changed.
-generate-c-header = ["cbindgen", "which"]
+generate-c-header = ["dep:cbindgen", "dep:which"]
 
 [[bench]]
 name = "capi"
