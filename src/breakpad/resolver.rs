@@ -124,51 +124,25 @@ impl SymResolver for BreakpadResolver {
         addr: Addr,
         opts: &FindSymOpts,
     ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
-        if let Some(func) = self.symbol_file.find_function(addr) {
-            let sym = IntSym {
-                name: &func.name,
-                addr: func.addr,
-                size: Some(func.size.try_into().unwrap_or(usize::MAX)),
-                lang: SrcLang::Unknown,
-            };
-
-            let code_info = if opts.code_info() {
-                self.find_code_info(addr, opts.inlined_fns())?
-            } else {
-                None
-            };
-            Ok(Ok((sym, code_info)))
+        let func = if let Some(func) = self.symbol_file.find_function(addr) {
+            func
         } else {
             let reason = if self.symbol_file.functions.is_empty() {
                 Reason::MissingSyms
             } else {
                 Reason::UnknownAddr
             };
-            Ok(Err(reason))
-        }
-    }
+            return Ok(Err(reason))
+        };
 
-    fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
-        if let SymType::Variable = opts.sym_type {
-            return Err(Error::with_unsupported(
-                "breakpad logic does not currently support variable lookup",
-            ))
-        }
+        let sym = IntSym {
+            name: &func.name,
+            addr: func.addr,
+            size: Some(func.size.try_into().unwrap_or(usize::MAX)),
+            lang: SrcLang::Unknown,
+        };
 
-        let syms = self
-            .symbol_file
-            .find_addr(name)
-            .map(SymInfo::from)
-            .collect::<Vec<_>>();
-
-        Ok(syms)
-    }
-}
-
-impl BreakpadResolver {
-    // TODO: Fold into `find_sym`.
-    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        if let Some(func) = self.symbol_file.find_function(addr) {
+        let code_info = if opts.code_info() {
             if let Some(source_line) = func.find_line(addr) {
                 let (dir, file) = self.find_source_location(source_line.file)?;
                 let mut direct_code_info = CodeInfo {
@@ -179,7 +153,7 @@ impl BreakpadResolver {
                     _non_exhaustive: (),
                 };
 
-                let inlined = if inlined_fns {
+                let inlined = if opts.inlined_fns() {
                     let inline_stack = func.find_inlinees(addr);
                     let mut inlined = Vec::with_capacity(inline_stack.len());
                     for inlinee in inline_stack {
@@ -210,13 +184,30 @@ impl BreakpadResolver {
                     direct: (None, direct_code_info),
                     inlined,
                 };
-                Ok(Some(code_info))
+                Some(code_info)
             } else {
-                Ok(None)
+                None
             }
         } else {
-            Ok(None)
+            None
+        };
+        Ok(Ok((sym, code_info)))
+    }
+
+    fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
+        if let SymType::Variable = opts.sym_type {
+            return Err(Error::with_unsupported(
+                "breakpad logic does not currently support variable lookup",
+            ))
         }
+
+        let syms = self
+            .symbol_file
+            .find_addr(name)
+            .map(SymInfo::from)
+            .collect::<Vec<_>>();
+
+        Ok(syms)
     }
 }
 
