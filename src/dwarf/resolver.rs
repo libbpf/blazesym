@@ -199,8 +199,7 @@ impl DwarfResolver {
 
     /// Lookup the symbol at an address.
     pub(crate) fn find_sym(&self, addr: Addr) -> Result<Option<IntSym<'_>>, Error> {
-        let result = self.units.find_function(addr)?;
-        if let Some((function, language)) = result {
+        if let Some((function, unit)) = self.units.find_function(addr)? {
             let name = function
                 .name
                 .map(|name| name.to_string())
@@ -214,7 +213,7 @@ impl DwarfResolver {
                 name,
                 addr,
                 size,
-                lang: language.into(),
+                lang: unit.language().into(),
             };
             Ok(Some(sym))
         } else {
