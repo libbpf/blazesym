@@ -7,6 +7,21 @@ rust-version = "1.65"
 default-run = "blazecli"
 license = "BSD-3-Clause"
 repository = "https://github.com/libbpf/blazesym"
+readme = "README.md"
+categories = [
+  "api-bindings",
+  "command-line-utilities",
+  "development-tools::debugging",
+  "os::unix-apis",
+  "value-formatting",
+]
+keywords = [
+  "breakpad",
+  "cli",
+  "dwarf",
+  "elf",
+  "gsym",
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
