@@ -122,7 +122,7 @@ impl ElfResolver {
     ) -> Result<Self> {
         #[cfg(feature = "dwarf")]
         let backend = if _debug_syms {
-            let dwarf = DwarfResolver::from_parser(parser, code_info)?;
+            let dwarf = DwarfResolver::from_parser(parser)?;
             let backend = ElfBackend::Dwarf(Rc::new(dwarf));
             backend
         } else {
@@ -243,7 +243,7 @@ mod tests {
         assert!(dbg.starts_with("ELF"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
 
-        let dwarf = DwarfResolver::from_parser(parser, true).unwrap();
+        let dwarf = DwarfResolver::from_parser(parser).unwrap();
         let backend = ElfBackend::Dwarf(Rc::new(dwarf));
         let resolver = ElfResolver::with_backend(&path, backend).unwrap();
         let dbg = format!("{resolver:?}");
