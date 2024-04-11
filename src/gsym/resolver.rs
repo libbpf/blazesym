@@ -164,11 +164,11 @@ impl<'dat> GsymResolver<'dat> {
 impl SymResolver for GsymResolver<'_> {
     fn find_sym(&self, addr: Addr) -> Result<Result<IntSym<'_>, Reason>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
-            let found = self
+            let sym_addr = self
                 .ctx
                 .addr_at(idx)
                 .ok_or_invalid_data(|| format!("failed to read address table entry {idx}"))?;
-            if addr < found {
+            if addr < sym_addr {
                 return Ok(Err(Reason::UnknownAddr))
             }
 
@@ -187,7 +187,7 @@ impl SymResolver for GsymResolver<'_> {
             let lang = SrcLang::Unknown;
             let sym = IntSym {
                 name,
-                addr: found,
+                addr: sym_addr,
                 size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
                 lang,
             };
@@ -216,35 +216,35 @@ impl SymResolver for GsymResolver<'_> {
             Some(idx) => idx,
             None => return Ok(None),
         };
-        let symaddr = self
+        let sym_addr = self
             .ctx
             .addr_at(idx)
             .ok_or_invalid_data(|| format!("failed to read address table entry {idx}"))?;
-        if addr < symaddr {
+        if addr < sym_addr {
             return Ok(None)
         }
-        let addrinfo = self
+        let info = self
             .ctx
             .addr_info(idx)
             .ok_or_invalid_data(|| format!("failed to read address info entry {idx}"))?;
-        if addr >= (symaddr + addrinfo.size as Addr) {
+        if addr >= (sym_addr + info.size as Addr) {
             return Ok(None)
         }
 
         let mut line_tab_info = None;
         let mut inline_info = None;
-        let addrdatas = parse_address_data(addrinfo.data);
+        let addrdatas = parse_address_data(info.data);
         for addr_ent in addrdatas {
             match addr_ent.typ {
                 INFO_TYPE_LINE_TABLE_INFO => {
                     if line_tab_info.is_none() {
-                        line_tab_info = self.parse_line_tab_info(addr_ent.data, symaddr, addr)?;
+                        line_tab_info = self.parse_line_tab_info(addr_ent.data, sym_addr, addr)?;
                     }
                 }
                 INFO_TYPE_INLINE_INFO if inlined_fns => {
                     if inline_info.is_none() {
                         let mut data = addr_ent.data;
-                        inline_info = InlineInfo::parse(&mut data, symaddr, Some(addr))?;
+                        inline_info = InlineInfo::parse(&mut data, sym_addr, Some(addr))?;
                     }
                 }
                 typ => {
