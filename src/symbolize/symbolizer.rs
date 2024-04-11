@@ -470,12 +470,7 @@ impl Symbolizer {
                     // reporting purposes.
                     let apk_elf_path = create_apk_elf_path(apk_path, apk_entry.path)?;
                     let parser = Rc::new(ElfParser::from_mmap(mmap));
-                    let resolver = ElfResolver::from_parser(
-                        &apk_elf_path,
-                        parser,
-                        debug_syms,
-                        self.code_info,
-                    )?;
+                    let resolver = ElfResolver::from_parser(&apk_elf_path, parser, debug_syms)?;
                     let resolver = Rc::new(resolver);
                     Ok(resolver)
                 })?;
@@ -610,11 +605,10 @@ impl Symbolizer {
                     &entry_path.symbolic_path
                 };
 
-                let resolver = self.symbolizer.elf_cache.elf_resolver(
-                    path,
-                    self.debug_syms,
-                    self.symbolizer.code_info,
-                )?;
+                let resolver = self
+                    .symbolizer
+                    .elf_cache
+                    .elf_resolver(path, self.debug_syms)?;
 
                 match elf_offset_to_address(file_off, resolver.parser())? {
                     Some(addr) => {
@@ -741,9 +735,7 @@ impl Symbolizer {
         };
 
         let elf_resolver = if let Some(image) = kernel_image {
-            let resolver = self
-                .elf_cache
-                .elf_resolver(image, *debug_syms, self.code_info)?;
+            let resolver = self.elf_cache.elf_resolver(image, *debug_syms)?;
             Some(resolver)
         } else {
             let release = uname_release()?.to_str().unwrap().to_string();
@@ -755,9 +747,7 @@ impl Symbolizer {
             });
 
             if let Some(image) = kernel_image {
-                let result = self
-                    .elf_cache
-                    .elf_resolver(&image, *debug_syms, self.code_info);
+                let result = self.elf_cache.elf_resolver(&image, *debug_syms);
                 match result {
                     Ok(resolver) => Some(resolver),
                     Err(err) => {
@@ -870,9 +860,7 @@ impl Symbolizer {
                 debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver = self
-                    .elf_cache
-                    .elf_resolver(path, *debug_syms, self.code_info)?;
+                let resolver = self.elf_cache.elf_resolver(path, *debug_syms)?;
                 match input {
                     Input::VirtOffset(addrs) => addrs
                         .iter()
@@ -1052,9 +1040,7 @@ impl Symbolizer {
                 debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver = self
-                    .elf_cache
-                    .elf_resolver(path, *debug_syms, self.code_info)?;
+                let resolver = self.elf_cache.elf_resolver(path, *debug_syms)?;
                 let addr = match input {
                     Input::VirtOffset(addr) => addr,
                     Input::AbsAddr(..) => {
@@ -1202,7 +1188,7 @@ mod tests {
             .join("data")
             .join("test-stable-addresses.bin");
         let parser = Rc::new(ElfParser::open(&test_elf).unwrap());
-        let resolver = ElfResolver::from_parser(&test_elf, parser, false, false).unwrap();
+        let resolver = ElfResolver::from_parser(&test_elf, parser, false).unwrap();
         let resolver = Resolver::Cached(&resolver);
         assert_ne!(format!("{resolver:?}"), "");
     }
