@@ -395,14 +395,26 @@ mod tests {
 
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
-        let info = resolver.find_code_info(0x2000000, true).unwrap().unwrap();
+        let (sym, info) = resolver
+            .find_sym(0x2000000, &FindSymOpts::CodeInfoAndInlined)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sym.name, "main");
+
+        let info = info.unwrap();
         assert_eq!(info.direct.1.line, Some(65));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
-        let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
+        let (sym, info) = resolver
+            .find_sym(0x2000100, &FindSymOpts::CodeInfoAndInlined)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sym.name, "factorial");
+
+        let info = info.unwrap();
         assert_eq!(info.direct.1.line, Some(10));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
@@ -434,7 +446,13 @@ mod tests {
         assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(frame.line, Some(23));
 
-        let info = resolver.find_code_info(addr, false).unwrap().unwrap();
+        let (_sym, info) = resolver
+            .find_sym(addr, &FindSymOpts::CodeInfo)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sym.name, "factorial_inline_test");
+
+        let info = info.unwrap();
         // Note that the line number reported without inline information is
         // different to that when using inlined function information, because in
         // Gsym this additional data is used to "refine" the result.
