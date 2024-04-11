@@ -31,6 +31,7 @@ use super::linetab::LineTableRow;
 use super::linetab::RunResult;
 use super::parser::parse_address_data;
 use super::parser::GsymContext;
+use super::types::AddrInfo;
 use super::types::INFO_TYPE_INLINE_INFO;
 use super::types::INFO_TYPE_LINE_TABLE_INFO;
 use crate::log::warn;
@@ -181,6 +182,10 @@ impl SymResolver for GsymResolver<'_> {
                 .ctx
                 .addr_info(idx)
                 .ok_or_invalid_data(|| format!("failed to read address information entry {idx}"))?;
+            if addr >= (sym_addr + info.size as Addr) {
+                return Ok(Err(Reason::UnknownAddr))
+            }
+
             let name = self
                 .ctx
                 .get_str(info.name as usize)
@@ -198,7 +203,7 @@ impl SymResolver for GsymResolver<'_> {
             };
 
             let code_info = if opts.code_info() {
-                self.find_code_info(addr, opts.inlined_fns())?
+                self.find_code_info(addr, sym_addr, &info, opts.inlined_fns())?
             } else {
                 None
             };
@@ -223,27 +228,13 @@ impl SymResolver for GsymResolver<'_> {
 }
 
 impl GsymResolver<'_> {
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self), fields(file = debug(&self.file_name))))]
-    fn find_code_info(&self, addr: Addr, inlined_fns: bool) -> Result<Option<AddrCodeInfo<'_>>> {
-        let idx = match self.ctx.find_addr(addr) {
-            Some(idx) => idx,
-            None => return Ok(None),
-        };
-        let sym_addr = self
-            .ctx
-            .addr_at(idx)
-            .ok_or_invalid_data(|| format!("failed to read address table entry {idx}"))?;
-        if addr < sym_addr {
-            return Ok(None)
-        }
-        let info = self
-            .ctx
-            .addr_info(idx)
-            .ok_or_invalid_data(|| format!("failed to read address info entry {idx}"))?;
-        if addr >= (sym_addr + info.size as Addr) {
-            return Ok(None)
-        }
-
+    fn find_code_info(
+        &self,
+        addr: Addr,
+        sym_addr: Addr,
+        info: &AddrInfo,
+        inlined_fns: bool,
+    ) -> Result<Option<AddrCodeInfo<'_>>> {
         let mut line_tab_info = None;
         let mut inline_info = None;
         let addrdatas = parse_address_data(info.data);
