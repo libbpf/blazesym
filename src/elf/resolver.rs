@@ -41,7 +41,6 @@ impl FileCache<ElfResolverData> {
         &'slf self,
         path: &Path,
         debug_syms: bool,
-        code_info: bool,
     ) -> Result<&'slf Rc<ElfResolver>> {
         let (file, cell) = self.entry(path)?;
         let resolver = if let Some(data) = cell.get() {
@@ -52,7 +51,7 @@ impl FileCache<ElfResolverData> {
                     //         initializing the `dwarf` part of it, the
                     //         `elf` part *must* be present.
                     let parser = data.elf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(path, parser, debug_syms, code_info)?;
+                    let resolver = ElfResolver::from_parser(path, parser, debug_syms)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
@@ -63,7 +62,7 @@ impl FileCache<ElfResolverData> {
                     //         initializing the `elf` part of it, the
                     //         `dwarf` part *must* be present.
                     let parser = data.dwarf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(path, parser, debug_syms, code_info)?;
+                    let resolver = ElfResolver::from_parser(path, parser, debug_syms)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
@@ -71,7 +70,7 @@ impl FileCache<ElfResolverData> {
             .clone()
         } else {
             let parser = Rc::new(ElfParser::open_file(file)?);
-            let resolver = ElfResolver::from_parser(path, parser, debug_syms, code_info)?;
+            let resolver = ElfResolver::from_parser(path, parser, debug_syms)?;
             Rc::new(resolver)
         };
 
@@ -118,7 +117,6 @@ impl ElfResolver {
         path: &Path,
         parser: Rc<ElfParser>,
         _debug_syms: bool,
-        code_info: bool,
     ) -> Result<Self> {
         #[cfg(feature = "dwarf")]
         let backend = if _debug_syms {

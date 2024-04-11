@@ -99,8 +99,7 @@ impl Inspector {
                 debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let code_info = true;
-                let resolver = self.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
+                let resolver = self.elf_cache.elf_resolver(path, *debug_syms)?;
                 resolver.deref() as &dyn SymResolver
             }
         };
@@ -170,8 +169,7 @@ impl Inspector {
                         offset_in_file: true,
                         sym_type: SymType::Undefined,
                     };
-                    let code_info = true;
-                    let resolver = slf.elf_cache.elf_resolver(path, *debug_syms, code_info)?;
+                    let resolver = slf.elf_cache.elf_resolver(path, *debug_syms)?;
                     let parser = resolver.parser();
                     parser.for_each_sym(&opts, f)
                 }
