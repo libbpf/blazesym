@@ -108,9 +108,9 @@ impl DwarfResolver {
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
     #[cfg(test)]
-    pub fn open(filename: &Path, debug_line_info: bool) -> Result<Self> {
+    pub fn open(filename: &Path) -> Result<Self> {
         let parser = ElfParser::open(filename)?;
-        Self::from_parser(Rc::new(parser), debug_line_info)
+        Self::from_parser(Rc::new(parser), true)
     }
 
     /// Find source code information of an address.
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn debug_repr() {
         let bin_name = current_exe().unwrap();
-        let resolver = DwarfResolver::open(&bin_name, true).unwrap();
+        let resolver = DwarfResolver::open(&bin_name).unwrap();
         assert_ne!(format!("{resolver:?}"), "");
     }
 
@@ -329,7 +329,7 @@ mod tests {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.bin");
-        let resolver = DwarfResolver::open(bin_name.as_ref(), true).unwrap();
+        let resolver = DwarfResolver::open(bin_name.as_ref()).unwrap();
 
         let info = resolver.find_code_info(0x2000100, true).unwrap().unwrap();
         assert_ne!(info.direct.1.dir, Some(Cow::Owned(PathBuf::new())));
@@ -348,7 +348,7 @@ mod tests {
             offset_in_file: false,
             sym_type: SymType::Function,
         };
-        let resolver = DwarfResolver::open(test_dwarf.as_ref(), true).unwrap();
+        let resolver = DwarfResolver::open(test_dwarf.as_ref()).unwrap();
 
         let symbols = resolver.find_addr("factorial", &opts).unwrap();
         assert_eq!(symbols.len(), 1);
@@ -368,7 +368,7 @@ mod tests {
             offset_in_file: false,
             sym_type: SymType::Variable,
         };
-        let resolver = DwarfResolver::open(test_dwarf.as_ref(), true).unwrap();
+        let resolver = DwarfResolver::open(test_dwarf.as_ref()).unwrap();
 
         let err = resolver.find_addr("factorial", &opts).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
