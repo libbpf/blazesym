@@ -116,20 +116,21 @@ impl BreakpadResolver {
         Ok(())
     }
 
-    fn find_code_info(
-        &self,
+    fn fill_code_info<'slf>(
+        &'slf self,
+        sym: &mut IntSym<'slf>,
         addr: Addr,
         opts: &FindSymOpts,
         func: &Function,
-    ) -> Result<Option<AddrCodeInfo<'_>>> {
+    ) -> Result<()> {
         if !opts.code_info() {
-            return Ok(None)
+            return Ok(())
         }
 
         let source_line = if let Some(source_line) = func.find_line(addr) {
             source_line
         } else {
-            return Ok(None)
+            return Ok(())
         };
 
         let (dir, file) = self.find_source_location(source_line.file)?;
@@ -172,7 +173,9 @@ impl BreakpadResolver {
             direct: (None, direct_code_info),
             inlined,
         };
-        Ok(Some(code_info))
+        sym.code_info = Some(code_info);
+
+        Ok(())
     }
 }
 
@@ -190,13 +193,14 @@ impl SymResolver for BreakpadResolver {
             return Ok(Err(reason))
         };
 
-        let sym = IntSym {
+        let mut sym = IntSym {
             name: &func.name,
             addr: func.addr,
             size: Some(func.size.try_into().unwrap_or(usize::MAX)),
             lang: SrcLang::Unknown,
-            code_info: self.find_code_info(addr, opts, func)?,
+            code_info: None,
         };
+        let () = self.fill_code_info(&mut sym, addr, opts, func)?;
 
         Ok(Ok(sym))
     }

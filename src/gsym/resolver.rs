@@ -191,13 +191,14 @@ impl SymResolver for GsymResolver<'_> {
                 })?;
             // Gsym does not carry any source code language information.
             let lang = SrcLang::Unknown;
-            let sym = IntSym {
+            let mut sym = IntSym {
                 name,
                 addr: sym_addr,
                 size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
                 lang,
-                code_info: self.find_code_info(addr, opts, sym_addr, &info)?,
+                code_info: None,
             };
+            let () = self.fill_code_info(&mut sym, addr, opts, sym_addr, &info)?;
 
             Ok(Ok(sym))
         } else {
@@ -219,15 +220,16 @@ impl SymResolver for GsymResolver<'_> {
 }
 
 impl GsymResolver<'_> {
-    fn find_code_info(
-        &self,
+    fn fill_code_info<'slf>(
+        &'slf self,
+        sym: &mut IntSym<'slf>,
         addr: Addr,
         opts: &FindSymOpts,
         sym_addr: Addr,
         info: &AddrInfo,
-    ) -> Result<Option<AddrCodeInfo<'_>>> {
+    ) -> Result<()> {
         if !opts.code_info() {
-            return Ok(None)
+            return Ok(())
         }
 
         let mut line_tab_info = None;
@@ -256,7 +258,7 @@ impl GsymResolver<'_> {
         let mut line_tab_info = if let Some(line_tab_row) = line_tab_info {
             self.query_frame_code_info(line_tab_row.file_idx, Some(line_tab_row.file_line))?
         } else {
-            return Ok(None)
+            return Ok(())
         };
 
         let mut direct_name = None;
@@ -314,7 +316,9 @@ impl GsymResolver<'_> {
             direct: (direct_name, line_tab_info),
             inlined,
         };
-        Ok(Some(info))
+        sym.code_info = Some(info);
+
+        Ok(())
     }
 }
 
