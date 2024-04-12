@@ -196,11 +196,7 @@ impl SymResolver for GsymResolver<'_> {
                 addr: sym_addr,
                 size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
                 lang,
-                code_info: if opts.code_info() {
-                    self.find_code_info(addr, sym_addr, &info, opts.inlined_fns())?
-                } else {
-                    None
-                },
+                code_info: self.find_code_info(addr, opts, sym_addr, &info)?,
             };
 
             Ok(Ok(sym))
@@ -226,10 +222,14 @@ impl GsymResolver<'_> {
     fn find_code_info(
         &self,
         addr: Addr,
+        opts: &FindSymOpts,
         sym_addr: Addr,
         info: &AddrInfo,
-        inlined_fns: bool,
     ) -> Result<Option<AddrCodeInfo<'_>>> {
+        if !opts.code_info() {
+            return Ok(None)
+        }
+
         let mut line_tab_info = None;
         let mut inline_info = None;
         let addrdatas = parse_address_data(info.data);
@@ -240,7 +240,7 @@ impl GsymResolver<'_> {
                         line_tab_info = self.parse_line_tab_info(addr_ent.data, sym_addr, addr)?;
                     }
                 }
-                INFO_TYPE_INLINE_INFO if inlined_fns => {
+                INFO_TYPE_INLINE_INFO if opts.inlined_fns() => {
                     if inline_info.is_none() {
                         let mut data = addr_ent.data;
                         inline_info = InlineInfo::parse(&mut data, sym_addr, Some(addr))?;

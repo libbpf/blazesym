@@ -128,12 +128,7 @@ impl DwarfResolver {
                 addr: fn_addr,
                 size,
                 lang: unit.language().into(),
-                code_info: if opts.code_info() {
-                    self.units
-                        .find_code_info(addr, function, unit, opts.inlined_fns())?
-                } else {
-                    None
-                },
+                code_info: self.units.find_code_info(addr, opts, function, unit)?,
             };
 
             Ok(Some(sym))
@@ -217,10 +212,14 @@ impl<'dwarf> Units<'dwarf> {
     fn find_code_info<'slf>(
         &'slf self,
         addr: Addr,
+        opts: &FindSymOpts,
         function: &'slf Function<'dwarf>,
         unit: &'slf Unit<'dwarf>,
-        inlined_fns: bool,
     ) -> Result<Option<AddrCodeInfo<'slf>>> {
+        if !opts.code_info() {
+            return Ok(None)
+        }
+
         let code_info = if let Some(direct_location) = self.find_location(addr)? {
             let Location {
                 dir,
@@ -237,7 +236,7 @@ impl<'dwarf> Units<'dwarf> {
                 _non_exhaustive: (),
             };
 
-            let inlined = if inlined_fns {
+            let inlined = if opts.inlined_fns() {
                 if let Some(inline_stack) = self.find_inlined_functions(addr, function, unit)? {
                     let mut inlined = Vec::with_capacity(inline_stack.len());
                     for result in inline_stack {
