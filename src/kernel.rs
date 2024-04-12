@@ -5,8 +5,6 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::elf::ElfResolver;
-use crate::inspect::FindAddrOpts;
-use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
@@ -50,14 +48,6 @@ impl SymResolver for KernelResolver {
         } else {
             self.elf_resolver.as_ref().unwrap().find_sym(addr, opts)
         }
-    }
-
-    fn find_addr<'slf>(
-        &'slf self,
-        _name: &str,
-        _opts: &FindAddrOpts,
-    ) -> Result<Vec<SymInfo<'slf>>> {
-        Ok(Vec::new())
     }
 }
 

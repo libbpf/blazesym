@@ -19,9 +19,11 @@ mod inspector;
 mod source;
 
 use std::borrow::Cow;
+use std::fmt::Debug;
 use std::path::Path;
 
 use crate::Addr;
+use crate::Result;
 use crate::SymType;
 
 pub use inspector::Inspector;
@@ -81,4 +83,14 @@ pub(crate) struct FindAddrOpts {
     /// [`Undefined`][SymType::Undefined] indicates that all supported
     /// symbols are of interest.
     pub sym_type: SymType,
+}
+
+
+/// The trait providing inspection functionality.
+pub(crate) trait Inspect
+where
+    Self: Debug,
+{
+    /// Find information about a symbol given its name.
+    fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'_>>>;
 }

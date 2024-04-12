@@ -11,8 +11,6 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str;
 
-use crate::inspect::FindAddrOpts;
-use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::resolver::SymResolver;
 use crate::symbolize::FindSymOpts;
@@ -201,16 +199,6 @@ impl SymResolver for PerfMap {
             None => Ok(Err(Reason::UnknownAddr)),
         }
     }
-
-    fn find_addr<'slf>(
-        &'slf self,
-        _name: &str,
-        _opts: &FindAddrOpts,
-    ) -> Result<Vec<SymInfo<'slf>>> {
-        Err(Error::with_unsupported(
-            "Perf map resolver does not currently support lookup by name",
-        ))
-    }
 }
 
 impl Debug for PerfMap {
@@ -242,7 +230,6 @@ mod tests {
     use crate::symbolize::Process;
     use crate::symbolize::Source;
     use crate::symbolize::Symbolizer;
-    use crate::ErrorKind;
 
 
     const SAMPLE_PERF_MAP: &[u8] = br#"7fbf1fc21000 b py::_find_and_load:<frozen importlib._bootstrap>
@@ -321,19 +308,6 @@ mod tests {
     fn perf_map_parsing() {
         let functions = parse_perf_map(SAMPLE_PERF_MAP).unwrap();
         assert_eq!(functions.len(), 30);
-    }
-
-    /// Check that [`PerfMap::find_addr`] behaves as expected.
-    #[test]
-    fn unsupported_find_addr() {
-        let mut file = tempfile().unwrap();
-        let () = file.write_all(SAMPLE_PERF_MAP).unwrap();
-        let perf_map = PerfMap::from_file(Path::new("SAMPLE_PERF_MAP"), &file).unwrap();
-
-        let err = perf_map
-            .find_addr("factorial", &FindAddrOpts::default())
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 
     /// Check that we can load a perf map and use it to symbolize an address.

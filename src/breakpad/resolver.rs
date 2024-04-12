@@ -9,6 +9,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
+use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::CodeInfo;
@@ -207,7 +208,9 @@ impl SymResolver for BreakpadResolver {
 
         Ok(Ok(sym))
     }
+}
 
+impl Inspect for BreakpadResolver {
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::with_unsupported(

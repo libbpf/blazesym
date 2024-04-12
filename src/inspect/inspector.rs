@@ -11,13 +11,13 @@ use crate::breakpad::BreakpadResolver;
 use crate::elf::ElfResolverData;
 use crate::file_cache::FileCache;
 use crate::Result;
-use crate::SymResolver;
 
 #[cfg(feature = "breakpad")]
 use super::source::Breakpad;
 use super::source::Elf;
 use super::source::Source;
 use super::FindAddrOpts;
+use super::Inspect;
 use super::SymInfo;
 use super::SymType;
 
@@ -92,7 +92,7 @@ impl Inspector {
                 _non_exhaustive: (),
             }) => {
                 let resolver = self.breakpad_resolver(path)?;
-                resolver.deref() as &dyn SymResolver
+                resolver.deref() as &dyn Inspect
             }
             Source::Elf(Elf {
                 path,
@@ -100,7 +100,7 @@ impl Inspector {
                 _non_exhaustive: (),
             }) => {
                 let resolver = self.elf_cache.elf_resolver(path, *debug_syms)?;
-                resolver.deref() as &dyn SymResolver
+                resolver.deref() as &dyn Inspect
             }
         };
 
