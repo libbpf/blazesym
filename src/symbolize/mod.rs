@@ -307,13 +307,13 @@ pub(crate) enum SrcLang {
 /// Our internal representation of a symbol.
 pub(crate) struct IntSym<'src> {
     /// The name of the symbol.
-    pub(crate) name: &'src str,
+    pub name: &'src str,
     /// The symbol's normalized address.
-    pub(crate) addr: Addr,
+    pub addr: Addr,
     /// The symbol's size, if available.
-    pub(crate) size: Option<usize>,
+    pub size: Option<usize>,
     /// The source code language from which the symbol originates.
-    pub(crate) lang: SrcLang,
+    pub lang: SrcLang,
 }
 
 
