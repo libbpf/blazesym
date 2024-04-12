@@ -220,73 +220,73 @@ impl<'dwarf> Units<'dwarf> {
             return Ok(None)
         }
 
-        let code_info = if let Some(direct_location) = self.find_location(addr)? {
-            let Location {
-                dir,
-                file,
-                line,
-                column,
-            } = direct_location;
-
-            let mut direct_code_info = CodeInfo {
-                dir: Some(Cow::Borrowed(dir)),
-                file: Cow::Borrowed(file),
-                line,
-                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                _non_exhaustive: (),
-            };
-
-            let inlined = if opts.inlined_fns() {
-                if let Some(inline_stack) = self.find_inlined_functions(addr, function, unit)? {
-                    let mut inlined = Vec::with_capacity(inline_stack.len());
-                    for result in inline_stack {
-                        let (name, location) = result?;
-                        let mut code_info = location.map(|location| {
-                            let Location {
-                                dir,
-                                file,
-                                line,
-                                column,
-                            } = location;
-
-                            CodeInfo {
-                                dir: Some(Cow::Borrowed(dir)),
-                                file: Cow::Borrowed(file),
-                                line,
-                                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                                _non_exhaustive: (),
-                            }
-                        });
-
-                        // For each frame we need to move the code information
-                        // up by one layer.
-                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
-                            let () = swap(&mut code_info, last_code_info);
-                        } else if let Some(code_info) = &mut code_info {
-                            let () = swap(code_info, &mut direct_code_info);
-                        }
-
-                        let () = inlined.push((name, code_info));
-                    }
-                    inlined
-                } else {
-                    Vec::new()
-                }
-            } else {
-                Vec::new()
-            };
-
-            let code_info = AddrCodeInfo {
-                direct: (None, direct_code_info),
-                inlined,
-            };
-
-            Some(code_info)
+        let direct_location = if let Some(direct_location) = self.find_location(addr)? {
+            direct_location
         } else {
-            None
+            return Ok(None)
         };
 
-        Ok(code_info)
+        let Location {
+            dir,
+            file,
+            line,
+            column,
+        } = direct_location;
+
+        let mut direct_code_info = CodeInfo {
+            dir: Some(Cow::Borrowed(dir)),
+            file: Cow::Borrowed(file),
+            line,
+            column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+            _non_exhaustive: (),
+        };
+
+        let inlined = if opts.inlined_fns() {
+            if let Some(inline_stack) = self.find_inlined_functions(addr, function, unit)? {
+                let mut inlined = Vec::with_capacity(inline_stack.len());
+                for result in inline_stack {
+                    let (name, location) = result?;
+                    let mut code_info = location.map(|location| {
+                        let Location {
+                            dir,
+                            file,
+                            line,
+                            column,
+                        } = location;
+
+                        CodeInfo {
+                            dir: Some(Cow::Borrowed(dir)),
+                            file: Cow::Borrowed(file),
+                            line,
+                            column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                            _non_exhaustive: (),
+                        }
+                    });
+
+                    // For each frame we need to move the code information
+                    // up by one layer.
+                    if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                        let () = swap(&mut code_info, last_code_info);
+                    } else if let Some(code_info) = &mut code_info {
+                        let () = swap(code_info, &mut direct_code_info);
+                    }
+
+                    let () = inlined.push((name, code_info));
+                }
+                inlined
+            } else {
+                Vec::new()
+            }
+        } else {
+            Vec::new()
+        };
+
+        let code_info = AddrCodeInfo {
+            direct: (None, direct_code_info),
+            inlined,
+        };
+
+        Ok(Some(code_info))
     }
 }
 
