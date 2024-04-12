@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fs::File;
+use std::mem::take;
 use std::ops::Deref as _;
 use std::ops::Range;
 use std::path::Path;
@@ -30,6 +31,7 @@ use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
+use crate::symbolize::InlinedFn;
 use crate::util;
 use crate::util::uname_release;
 #[cfg(feature = "apk")]
@@ -58,9 +60,7 @@ use super::source::GsymFile;
 use super::source::Kernel;
 use super::source::Process;
 use super::source::Source;
-use super::AddrCodeInfo;
 use super::FindSymOpts;
-use super::InlinedFn;
 use super::Input;
 use super::IntSym;
 use super::Reason;
@@ -319,105 +319,71 @@ impl Symbolizer {
         addr: Addr,
         resolver: &Resolver<'_, 'slf>,
     ) -> Result<Symbolized<'slf>> {
-        let (sym_name, sym_addr, sym_size, lang, name, code_info, inlined) = match resolver {
+        let (sym_name, sym_addr, sym_size, code_info, inlined) = match resolver {
             Resolver::Uncached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
                 Ok(sym) => {
                     let IntSym {
-                        name: sym_name,
-                        addr: sym_addr,
-                        size: sym_size,
-                        lang,
-                        code_info: addr_code_info,
-                    } = sym;
-
-                    let (name, code_info, inlined) = if let Some(AddrCodeInfo {
-                        direct: (direct_name, direct_code_info),
-                        inlined,
-                    }) = addr_code_info
-                    {
-                        let direct_name = direct_name.map(|name| Cow::Owned(name.to_string()));
-                        let direct_code_info = direct_code_info.to_owned();
-                        let inlined = inlined
-                            .into_iter()
-                            .map(|(name, info)| {
-                                let name = self.maybe_demangle(Cow::Owned(name.to_string()), lang);
-                                InlinedFn {
-                                    name,
-                                    code_info: info.map(|info| info.to_owned()),
-                                    _non_exhaustive: (),
-                                }
-                            })
-                            .collect();
-                        (direct_name, Some(direct_code_info), inlined)
-                    } else {
-                        (None, None, Vec::new())
-                    };
-
-                    (
-                        Cow::Owned(sym_name.to_string()),
-                        sym_addr,
-                        sym_size,
-                        lang,
                         name,
+                        addr,
+                        size,
+                        lang,
                         code_info,
                         inlined,
-                    )
+                    } = sym;
+
+                    let name =
+                        Cow::Owned(self.maybe_demangle(Cow::Borrowed(name), lang).into_owned());
+                    let code_info = code_info.map(|info| info.to_owned());
+                    let inlined = Vec::from(inlined)
+                        .into_iter()
+                        .map(|inlined_fn| {
+                            let InlinedFn {
+                                name,
+                                code_info,
+                                _non_exhaustive: (),
+                            } = inlined_fn;
+                            InlinedFn {
+                                name: Cow::Owned(self.maybe_demangle(name, lang).into_owned()),
+                                code_info: code_info.map(|info| info.to_owned()),
+                                _non_exhaustive: (),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice();
+
+                    (name, addr, size, code_info, inlined)
                 }
                 Err(reason) => return Ok(Symbolized::Unknown(reason)),
             },
             Resolver::Cached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
                 Ok(sym) => {
                     let IntSym {
-                        name: sym_name,
-                        addr: sym_addr,
-                        size: sym_size,
+                        name,
+                        addr,
+                        size,
                         lang,
-                        code_info: addr_code_info,
+                        code_info,
+                        mut inlined,
                     } = sym;
 
-                    let (name, code_info, inlined) = if let Some(AddrCodeInfo {
-                        direct: (direct_name, direct_code_info),
-                        inlined,
-                    }) = addr_code_info
-                    {
-                        let direct_name = direct_name.map(Cow::Borrowed);
-                        let inlined = inlined
-                            .into_iter()
-                            .map(|(name, info)| {
-                                let name = self.maybe_demangle(Cow::Borrowed(name), lang);
-                                InlinedFn {
-                                    name,
-                                    code_info: info,
-                                    _non_exhaustive: (),
-                                }
-                            })
-                            .collect();
-                        (direct_name, Some(direct_code_info), inlined)
-                    } else {
-                        (None, None, Vec::new())
-                    };
-
-                    (
-                        Cow::Borrowed(sym_name),
-                        sym_addr,
-                        sym_size,
-                        lang,
-                        name,
-                        code_info,
-                        inlined,
-                    )
+                    let name = self.maybe_demangle(Cow::Borrowed(name), lang);
+                    let () = inlined.iter_mut().for_each(|inlined_fn| {
+                        let name = take(&mut inlined_fn.name);
+                        inlined_fn.name = self.maybe_demangle(name, lang);
+                    });
+                    (name, addr, size, code_info, inlined)
                 }
                 Err(reason) => return Ok(Symbolized::Unknown(reason)),
             },
         };
 
         let sym = Sym {
-            name: self.maybe_demangle(name.unwrap_or(sym_name), lang),
+            name: sym_name,
             addr: sym_addr,
             offset: (addr - sym_addr) as usize,
             size: sym_size,
             code_info,
-            inlined: inlined.into_boxed_slice(),
+            inlined,
             _non_exhaustive: (),
         };
         Ok(Symbolized::Sym(sym))

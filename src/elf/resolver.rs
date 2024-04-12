@@ -175,6 +175,7 @@ impl SymResolver for ElfResolver {
                     // ELF doesn't carry source code location
                     // information.
                     code_info: None,
+                    inlined: Box::new([]),
                 }
             });
 

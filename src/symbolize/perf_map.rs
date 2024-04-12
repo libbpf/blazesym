@@ -191,6 +191,7 @@ impl SymResolver for PerfMap {
                             size: Some(*size),
                             lang: SrcLang::Unknown,
                             code_info: None,
+                            inlined: Box::new([]),
                         };
                         return Ok(Ok(sym))
                     }

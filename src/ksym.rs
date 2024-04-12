@@ -43,6 +43,7 @@ impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
             lang: SrcLang::Unknown,
             // kallsyms doesn't have source code location information.
             code_info: None,
+            inlined: Box::new([]),
         }
     }
 }

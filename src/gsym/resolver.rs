@@ -12,9 +12,9 @@ use std::path::PathBuf;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
+use crate::symbolize::InlinedFn;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
@@ -197,6 +197,7 @@ impl SymResolver for GsymResolver<'_> {
                 size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
                 lang,
                 code_info: None,
+                inlined: Box::new([]),
             };
             let () = self.fill_code_info(&mut sym, addr, opts, sym_addr, &info)?;
 
@@ -261,8 +262,7 @@ impl GsymResolver<'_> {
             return Ok(())
         };
 
-        let mut direct_name = None;
-        let mut inlined = Vec::new();
+        let mut inlined = Vec::<InlinedFn>::new();
 
         if let Some(inline_info) = inline_info {
             let mut inline_stack = inline_info.inline_stack(addr).into_iter();
@@ -270,17 +270,16 @@ impl GsymResolver<'_> {
             // name and it effectively is meant to overwrite what is already
             // contained in the line table.
             if let Some(inline_info) = inline_stack.next() {
-                direct_name = Some(
-                    self.ctx
-                        .get_str(inline_info.name as usize)
-                        .and_then(|s| s.to_str())
-                        .ok_or_invalid_data(|| {
-                            format!(
-                                "failed to read string table entry at offset {}",
-                                inline_info.name
-                            )
-                        })?,
-                );
+                sym.name = self
+                    .ctx
+                    .get_str(inline_info.name as usize)
+                    .and_then(|s| s.to_str())
+                    .ok_or_invalid_data(|| {
+                        format!(
+                            "failed to read string table entry at offset {}",
+                            inline_info.name
+                        )
+                    })?;
 
                 let () = inlined.reserve(inline_stack.len());
 
@@ -302,21 +301,26 @@ impl GsymResolver<'_> {
 
                     // For each frame we need to move the code information
                     // up by one layer.
-                    if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                    if let Some(ref mut last_code_info) =
+                        inlined.last_mut().map(|f| &mut f.code_info)
+                    {
                         let () = swap(&mut code_info, last_code_info);
                     } else if let Some(code_info) = &mut code_info {
                         let () = swap(code_info, &mut line_tab_info);
                     }
-                    let () = inlined.push((name, code_info));
+
+                    let inlined_fn = InlinedFn {
+                        name: Cow::Borrowed(name),
+                        code_info,
+                        _non_exhaustive: (),
+                    };
+                    let () = inlined.push(inlined_fn);
                 }
             }
         }
 
-        let info = AddrCodeInfo {
-            direct: (direct_name, line_tab_info),
-            inlined,
-        };
-        sym.code_info = Some(info);
+        sym.code_info = Some(line_tab_info);
+        sym.inlined = inlined.into_boxed_slice();
 
         Ok(())
     }
@@ -386,11 +390,11 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "main");
+        assert!(sym.inlined.is_empty());
 
         let info = sym.code_info.unwrap();
-        assert_eq!(info.direct.1.line, Some(65));
-        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(info.inlined, Vec::new());
+        assert_eq!(info.line, Some(65));
+        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
@@ -399,11 +403,11 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial");
+        assert!(sym.inlined.is_empty());
 
         let info = sym.code_info.unwrap();
-        assert_eq!(info.direct.1.line, Some(10));
-        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(info.inlined, Vec::new());
+        assert_eq!(info.line, Some(10));
+        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
 
         // Address is hopefully sufficiently far into `factorial_inline_test` to
         // always fall into the inlined region, no matter toolchain. If not, add
@@ -414,21 +418,21 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial_inline_test");
+        assert_eq!(sym.inlined.len(), 2);
 
         let info = sym.code_info.unwrap();
-        assert_eq!(info.direct.1.line, Some(34));
-        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(info.inlined.len(), 2);
+        assert_eq!(info.line, Some(34));
+        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
 
-        let name = &info.inlined[0].0;
+        let name = &sym.inlined[0].name;
         assert_eq!(*name, "factorial_inline_wrapper");
-        let frame = info.inlined[0].1.as_ref().unwrap();
+        let frame = sym.inlined[0].code_info.as_ref().unwrap();
         assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(frame.line, Some(28));
 
-        let name = &info.inlined[1].0;
+        let name = &sym.inlined[1].name;
         assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
-        let frame = info.inlined[1].1.as_ref().unwrap();
+        let frame = sym.inlined[1].code_info.as_ref().unwrap();
         assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(frame.line, Some(23));
 
@@ -437,14 +441,14 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial_inline_test");
+        assert!(sym.inlined.is_empty());
 
         let info = sym.code_info.unwrap();
         // Note that the line number reported without inline information is
         // different to that when using inlined function information, because in
         // Gsym this additional data is used to "refine" the result.
-        assert_eq!(info.direct.1.line, Some(23));
-        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(info.inlined, Vec::new());
+        assert_eq!(info.line, Some(23));
+        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
     }
 
     /// Check that [`GsymResolver::find_addr`] behaves as expected.

@@ -214,20 +214,6 @@ where
 }
 
 
-#[derive(Debug, PartialEq)]
-pub(crate) struct AddrCodeInfo<'src> {
-    /// Source information about the top-level frame belonging to an
-    /// address.
-    ///
-    /// It also contains an optional name, which is necessary for
-    /// formats where inline information can "correct" (overwrite) the
-    /// name of the symbol.
-    pub direct: (Option<&'src str>, CodeInfo<'src>),
-    /// Source information about inlined functions, along with their names.
-    pub inlined: Vec<(&'src str, Option<CodeInfo<'src>>)>,
-}
-
-
 /// Source code location information for a symbol or inlined function.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CodeInfo<'src> {
@@ -315,7 +301,9 @@ pub(crate) struct IntSym<'src> {
     /// The source code language from which the symbol originates.
     pub lang: SrcLang,
     /// Source code location information.
-    pub code_info: Option<AddrCodeInfo<'src>>,
+    pub code_info: Option<CodeInfo<'src>>,
+    /// Inlined function information.
+    pub inlined: Box<[InlinedFn<'src>]>,
 }
 
 
@@ -491,12 +479,6 @@ mod tests {
 
         let symbolized = Symbolized::Sym(sym);
         assert_ne!(format!("{symbolized:?}"), "");
-
-        let addr_code_info = AddrCodeInfo {
-            direct: (None, code_info),
-            inlined: Vec::new(),
-        };
-        assert_ne!(format!("{addr_code_info:?}"), "");
     }
 
     /// Exercise the `Display` representation of various types.
