@@ -126,51 +126,53 @@ impl BreakpadResolver {
             return Ok(None)
         }
 
-        if let Some(source_line) = func.find_line(addr) {
-            let (dir, file) = self.find_source_location(source_line.file)?;
-            let mut direct_code_info = CodeInfo {
-                dir: dir.map(Cow::Borrowed),
-                file: Cow::Borrowed(file),
-                line: Some(source_line.line),
-                column: None,
-                _non_exhaustive: (),
-            };
-
-            let inlined = if opts.inlined_fns() {
-                let inline_stack = func.find_inlinees(addr);
-                let mut inlined = Vec::with_capacity(inline_stack.len());
-                for inlinee in inline_stack {
-                    let name = self.find_inlinee_name(inlinee.origin_id)?;
-                    let (dir, file) = self.find_source_location(inlinee.call_file)?;
-                    let mut code_info = Some(CodeInfo {
-                        dir: dir.map(Cow::Borrowed),
-                        file: Cow::Borrowed(file),
-                        line: Some(inlinee.call_line),
-                        column: None,
-                        _non_exhaustive: (),
-                    });
-
-                    if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
-                        let () = swap(&mut code_info, last_code_info);
-                    } else if let Some(code_info) = &mut code_info {
-                        let () = swap(code_info, &mut direct_code_info);
-                    }
-
-                    let () = inlined.push((name, code_info));
-                }
-                inlined
-            } else {
-                Vec::new()
-            };
-
-            let code_info = AddrCodeInfo {
-                direct: (None, direct_code_info),
-                inlined,
-            };
-            Ok(Some(code_info))
+        let source_line = if let Some(source_line) = func.find_line(addr) {
+            source_line
         } else {
-            Ok(None)
-        }
+            return Ok(None)
+        };
+
+        let (dir, file) = self.find_source_location(source_line.file)?;
+        let mut direct_code_info = CodeInfo {
+            dir: dir.map(Cow::Borrowed),
+            file: Cow::Borrowed(file),
+            line: Some(source_line.line),
+            column: None,
+            _non_exhaustive: (),
+        };
+
+        let inlined = if opts.inlined_fns() {
+            let inline_stack = func.find_inlinees(addr);
+            let mut inlined = Vec::with_capacity(inline_stack.len());
+            for inlinee in inline_stack {
+                let name = self.find_inlinee_name(inlinee.origin_id)?;
+                let (dir, file) = self.find_source_location(inlinee.call_file)?;
+                let mut code_info = Some(CodeInfo {
+                    dir: dir.map(Cow::Borrowed),
+                    file: Cow::Borrowed(file),
+                    line: Some(inlinee.call_line),
+                    column: None,
+                    _non_exhaustive: (),
+                });
+
+                if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                    let () = swap(&mut code_info, last_code_info);
+                } else if let Some(code_info) = &mut code_info {
+                    let () = swap(code_info, &mut direct_code_info);
+                }
+
+                let () = inlined.push((name, code_info));
+            }
+            inlined
+        } else {
+            Vec::new()
+        };
+
+        let code_info = AddrCodeInfo {
+            direct: (None, direct_code_info),
+            inlined,
+        };
+        Ok(Some(code_info))
     }
 }
 
