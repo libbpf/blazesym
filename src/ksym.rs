@@ -16,10 +16,10 @@ use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
+use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 use crate::Result;
-use crate::SymResolver;
 use crate::SymType;
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
@@ -123,7 +123,7 @@ impl KSymResolver {
     }
 }
 
-impl SymResolver for KSymResolver {
+impl Symbolize for KSymResolver {
     fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         let sym = self.find_ksym(addr).map(IntSym::from);
         Ok(sym)

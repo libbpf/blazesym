@@ -9,10 +9,10 @@ use crate::ksym::KSymResolver;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
 use crate::Result;
-use crate::SymResolver;
 
 
 pub(crate) struct KernelResolver {
@@ -38,7 +38,7 @@ impl KernelResolver {
     }
 }
 
-impl SymResolver for KernelResolver {
+impl Symbolize for KernelResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         // TODO: If an `ElfResolver` is available we probably should give
         //       preference to it, if for no other reason than the fact that it

@@ -17,10 +17,10 @@ use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
+use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
 use crate::Result;
-use crate::SymResolver;
 use crate::SymType;
 
 use super::ElfBackend;
@@ -148,7 +148,7 @@ impl ElfResolver {
     }
 }
 
-impl SymResolver for ElfResolver {
+impl Symbolize for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         #[cfg(feature = "dwarf")]

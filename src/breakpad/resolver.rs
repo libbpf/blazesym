@@ -18,12 +18,12 @@ use crate::symbolize::InlinedFn;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
+use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Result;
-use crate::SymResolver;
 use crate::SymType;
 
 use super::types::Function;
@@ -182,7 +182,7 @@ impl BreakpadResolver {
     }
 }
 
-impl SymResolver for BreakpadResolver {
+impl Symbolize for BreakpadResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         let func = if let Some(func) = self.symbol_file.find_function(addr) {
