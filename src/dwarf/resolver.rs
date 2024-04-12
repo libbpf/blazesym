@@ -17,9 +17,9 @@ use crate::elf::ElfParser;
 use crate::error::IntoCowStr;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
+use crate::symbolize::InlinedFn;
 use crate::symbolize::IntSym;
 use crate::symbolize::SrcLang;
 use crate::Addr;
@@ -129,6 +129,7 @@ impl DwarfResolver {
                 size,
                 lang: unit.language().into(),
                 code_info: None,
+                inlined: Box::new([]),
             };
             let () = self
                 .units
@@ -248,7 +249,7 @@ impl<'dwarf> Units<'dwarf> {
 
         let inlined = if opts.inlined_fns() {
             if let Some(inline_stack) = self.find_inlined_functions(addr, function, unit)? {
-                let mut inlined = Vec::with_capacity(inline_stack.len());
+                let mut inlined = Vec::<InlinedFn>::with_capacity(inline_stack.len());
                 for result in inline_stack {
                     let (name, location) = result?;
                     let mut code_info = location.map(|location| {
@@ -270,13 +271,20 @@ impl<'dwarf> Units<'dwarf> {
 
                     // For each frame we need to move the code information
                     // up by one layer.
-                    if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                    if let Some(ref mut last_code_info) =
+                        inlined.last_mut().map(|f| &mut f.code_info)
+                    {
                         let () = swap(&mut code_info, last_code_info);
                     } else if let Some(code_info) = &mut code_info {
                         let () = swap(code_info, &mut direct_code_info);
                     }
 
-                    let () = inlined.push((name, code_info));
+                    let inlined_fn = InlinedFn {
+                        name: Cow::Borrowed(name),
+                        code_info,
+                        _non_exhaustive: (),
+                    };
+                    let () = inlined.push(inlined_fn);
                 }
                 inlined
             } else {
@@ -286,11 +294,8 @@ impl<'dwarf> Units<'dwarf> {
             Vec::new()
         };
 
-        let code_info = AddrCodeInfo {
-            direct: (None, direct_code_info),
-            inlined,
-        };
-        sym.code_info = Some(code_info);
+        sym.code_info = Some(direct_code_info);
+        sym.inlined = inlined.into_boxed_slice();
 
         Ok(())
     }
@@ -347,10 +352,10 @@ mod tests {
             .unwrap()
             .code_info
             .unwrap();
-        assert_ne!(info.direct.1.dir, Some(Cow::Owned(PathBuf::new())));
-        assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
-        assert_eq!(info.direct.1.line, Some(10));
-        assert!(info.direct.1.column.is_some());
+        assert_ne!(info.dir, Some(Cow::Owned(PathBuf::new())));
+        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(info.line, Some(10));
+        assert!(info.column.is_some());
     }
 
     /// Check that we can look up a symbol in DWARF debug information.

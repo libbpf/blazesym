@@ -11,9 +11,9 @@ use std::path::PathBuf;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
+use crate::symbolize::InlinedFn;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
@@ -144,7 +144,7 @@ impl BreakpadResolver {
 
         let inlined = if opts.inlined_fns() {
             let inline_stack = func.find_inlinees(addr);
-            let mut inlined = Vec::with_capacity(inline_stack.len());
+            let mut inlined = Vec::<InlinedFn>::with_capacity(inline_stack.len());
             for inlinee in inline_stack {
                 let name = self.find_inlinee_name(inlinee.origin_id)?;
                 let (dir, file) = self.find_source_location(inlinee.call_file)?;
@@ -156,24 +156,26 @@ impl BreakpadResolver {
                     _non_exhaustive: (),
                 });
 
-                if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                if let Some(ref mut last_code_info) = inlined.last_mut().map(|f| &mut f.code_info) {
                     let () = swap(&mut code_info, last_code_info);
                 } else if let Some(code_info) = &mut code_info {
                     let () = swap(code_info, &mut direct_code_info);
                 }
 
-                let () = inlined.push((name, code_info));
+                let inlined_fn = InlinedFn {
+                    name: Cow::Borrowed(name),
+                    code_info,
+                    _non_exhaustive: (),
+                };
+                let () = inlined.push(inlined_fn);
             }
             inlined
         } else {
             Vec::new()
         };
 
-        let code_info = AddrCodeInfo {
-            direct: (None, direct_code_info),
-            inlined,
-        };
-        sym.code_info = Some(code_info);
+        sym.code_info = Some(direct_code_info);
+        sym.inlined = inlined.into_boxed_slice();
 
         Ok(())
     }
@@ -199,6 +201,7 @@ impl SymResolver for BreakpadResolver {
             size: Some(func.size.try_into().unwrap_or(usize::MAX)),
             lang: SrcLang::Unknown,
             code_info: None,
+            inlined: Box::new([]),
         };
         let () = self.fill_code_info(&mut sym, addr, opts, func)?;
 
