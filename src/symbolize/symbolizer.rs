@@ -43,7 +43,6 @@ use crate::ErrorKind;
 use crate::IntoError as _;
 use crate::Pid;
 use crate::Result;
-use crate::SymResolver;
 
 use super::perf_map::PerfMap;
 #[cfg(feature = "apk")]
@@ -66,6 +65,7 @@ use super::IntSym;
 use super::Reason;
 use super::SrcLang;
 use super::Sym;
+use super::Symbolize;
 use super::Symbolized;
 
 
@@ -256,8 +256,8 @@ impl Default for Builder {
 /// hand out references to mmap'ed data.
 #[derive(Debug)]
 enum Resolver<'tmp, 'slf> {
-    Uncached(&'tmp (dyn SymResolver + 'tmp)),
-    Cached(&'slf dyn SymResolver),
+    Uncached(&'tmp (dyn Symbolize + 'tmp)),
+    Cached(&'slf dyn Symbolize),
 }
 
 

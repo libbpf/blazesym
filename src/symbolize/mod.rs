@@ -102,6 +102,7 @@ mod symbolizer;
 
 use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -127,6 +128,7 @@ pub use symbolizer::Symbolizer;
 
 use crate::normalize;
 use crate::Addr;
+use crate::Result;
 
 
 /// Options determining what "parts" of a symbol to look up.
@@ -439,6 +441,17 @@ impl<'src> Symbolized<'src> {
         }
     }
 }
+
+
+/// The trait for types providing address symbolization services.
+pub(crate) trait Symbolize
+where
+    Self: Debug,
+{
+    /// Find the symbol corresponding to the given address.
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>>;
+}
+
 
 #[cfg(test)]
 mod tests {

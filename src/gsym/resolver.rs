@@ -16,10 +16,10 @@ use crate::symbolize::InlinedFn;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
+use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::IntoError as _;
 use crate::Result;
-use crate::SymResolver;
 
 use super::inline::InlineInfo;
 use super::linetab::run_op;
@@ -160,7 +160,7 @@ impl<'dat> GsymResolver<'dat> {
     }
 }
 
-impl SymResolver for GsymResolver<'_> {
+impl Symbolize for GsymResolver<'_> {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let sym_addr = self

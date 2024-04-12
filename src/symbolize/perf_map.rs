@@ -12,11 +12,11 @@ use std::path::PathBuf;
 use std::str;
 
 use crate::mmap::Mmap;
-use crate::resolver::SymResolver;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
+use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 use crate::Error;
@@ -169,7 +169,7 @@ impl PerfMap {
     }
 }
 
-impl SymResolver for PerfMap {
+impl Symbolize for PerfMap {
     fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         let result = find_match_or_lower_bound_by_key(&self.functions, addr, |l| l.addr);
         match result {

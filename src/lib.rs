@@ -70,15 +70,12 @@ mod mmap;
 pub mod normalize;
 mod once;
 mod pid;
-mod resolver;
 pub mod symbolize;
 mod util;
 #[cfg(feature = "apk")]
 mod zip;
 
 use std::result;
-
-use resolver::SymResolver;
 
 
 pub use crate::error::Error;
