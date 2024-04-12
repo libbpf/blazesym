@@ -314,6 +314,8 @@ pub(crate) struct IntSym<'src> {
     pub size: Option<usize>,
     /// The source code language from which the symbol originates.
     pub lang: SrcLang,
+    /// Source code location information.
+    pub code_info: Option<AddrCodeInfo<'src>>,
 }
 
 

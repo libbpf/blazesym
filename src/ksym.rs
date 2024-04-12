@@ -11,7 +11,6 @@ use std::path::PathBuf;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
@@ -42,6 +41,8 @@ impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
             // Kernel symbols don't carry any source code language
             // information.
             lang: SrcLang::Unknown,
+            // kallsyms doesn't have source code location information.
+            code_info: None,
         }
     }
 }
@@ -121,12 +122,8 @@ impl KSymResolver {
 }
 
 impl SymResolver for KSymResolver {
-    fn find_sym(
-        &self,
-        addr: Addr,
-        _opts: &FindSymOpts,
-    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
-        let sym = self.find_ksym(addr).map(|sym| (IntSym::from(sym), None));
+    fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+        let sym = self.find_ksym(addr).map(IntSym::from);
         Ok(sym)
     }
 
@@ -236,7 +233,7 @@ mod tests {
         // Find the address of the symbol placed at the middle
         let sym = &resolver.syms[resolver.syms.len() / 2];
         let addr = sym.addr;
-        let (found, _) = resolver
+        let found = resolver
             .find_sym(addr, &FindSymOpts::Basic)
             .unwrap()
             .unwrap();
@@ -249,13 +246,13 @@ mod tests {
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
         let addr = sym.addr;
-        let (found, _) = resolver
+        let found = resolver
             .find_sym(addr, &FindSymOpts::Basic)
             .unwrap()
             .unwrap();
         ensure_addr_for_name(found.name, addr);
 
-        let (found, _) = resolver
+        let found = resolver
             .find_sym(addr + 1, &FindSymOpts::Basic)
             .unwrap()
             .unwrap();

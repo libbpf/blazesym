@@ -112,11 +112,7 @@ impl DwarfResolver {
     }
 
     /// Lookup the symbol at an address.
-    pub(crate) fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Option<(IntSym<'_>, Option<AddrCodeInfo<'_>>)>> {
+    pub(crate) fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Option<IntSym<'_>>> {
         if let Some((function, unit)) = self.units.find_function(addr)? {
             let name = function
                 .name
@@ -132,15 +128,15 @@ impl DwarfResolver {
                 addr: fn_addr,
                 size,
                 lang: unit.language().into(),
+                code_info: if opts.code_info() {
+                    self.units
+                        .find_code_info(addr, function, unit, opts.inlined_fns())?
+                } else {
+                    None
+                },
             };
 
-            let code_info = if opts.code_info() {
-                self.units
-                    .find_code_info(addr, function, unit, opts.inlined_fns())?
-            } else {
-                None
-            };
-            Ok(Some((sym, code_info)))
+            Ok(Some(sym))
         } else {
             Ok(None)
         }
@@ -344,7 +340,7 @@ mod tests {
             .find_sym(0x2000100, &FindSymOpts::CodeInfo)
             .unwrap()
             .unwrap()
-            .1
+            .code_info
             .unwrap();
         assert_ne!(info.direct.1.dir, Some(Cow::Owned(PathBuf::new())));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));

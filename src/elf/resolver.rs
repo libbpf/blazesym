@@ -12,7 +12,6 @@ use crate::file_cache::FileCache;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
@@ -150,11 +149,7 @@ impl ElfResolver {
 
 impl SymResolver for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
-    fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         #[cfg(feature = "dwarf")]
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             if let Some(sym) = dwarf.find_sym(addr, opts)? {
@@ -172,13 +167,15 @@ impl SymResolver for ElfResolver {
                 // TODO: Long term we probably want a different heuristic here, as
                 //       there can be valid differences between the two formats
                 //       (e.g., DWARF could contain more symbols).
-                let sym = IntSym {
+                IntSym {
                     name,
                     addr,
                     size: Some(size),
                     lang,
-                };
-                (sym, None)
+                    // ELF doesn't carry source code location
+                    // information.
+                    code_info: None,
+                }
             });
 
         Ok(result)
