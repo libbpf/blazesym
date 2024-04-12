@@ -253,72 +253,68 @@ impl GsymResolver<'_> {
             }
         }
 
-        if let Some(line_tab_row) = line_tab_info {
-            let mut line_tab_info =
-                self.query_frame_code_info(line_tab_row.file_idx, Some(line_tab_row.file_line))?;
+        let mut line_tab_info = if let Some(line_tab_row) = line_tab_info {
+            self.query_frame_code_info(line_tab_row.file_idx, Some(line_tab_row.file_line))?
+        } else {
+            return Ok(None)
+        };
 
-            let mut direct_name = None;
-            let mut inlined = Vec::new();
+        let mut direct_name = None;
+        let mut inlined = Vec::new();
 
-            if let Some(inline_info) = inline_info {
-                let mut inline_stack = inline_info.inline_stack(addr).into_iter();
-                // As per Gsym file format, the first "frame" only contains the
-                // name and it effectively is meant to overwrite what is already
-                // contained in the line table.
-                if let Some(inline_info) = inline_stack.next() {
-                    direct_name = Some(
-                        self.ctx
-                            .get_str(inline_info.name as usize)
-                            .and_then(|s| s.to_str())
-                            .ok_or_invalid_data(|| {
-                                format!(
-                                    "failed to read string table entry at offset {}",
-                                    inline_info.name
-                                )
-                            })?,
-                    );
+        if let Some(inline_info) = inline_info {
+            let mut inline_stack = inline_info.inline_stack(addr).into_iter();
+            // As per Gsym file format, the first "frame" only contains the
+            // name and it effectively is meant to overwrite what is already
+            // contained in the line table.
+            if let Some(inline_info) = inline_stack.next() {
+                direct_name = Some(
+                    self.ctx
+                        .get_str(inline_info.name as usize)
+                        .and_then(|s| s.to_str())
+                        .ok_or_invalid_data(|| {
+                            format!(
+                                "failed to read string table entry at offset {}",
+                                inline_info.name
+                            )
+                        })?,
+                );
 
-                    let () = inlined.reserve(inline_stack.len());
+                let () = inlined.reserve(inline_stack.len());
 
-                    for frame in inline_stack {
-                        let name = self
-                            .ctx
-                            .get_str(frame.name as usize)
-                            .and_then(|s| s.to_str())
-                            .ok_or_invalid_data(|| {
-                                format!(
-                                    "failed to read string table entry at offset {}",
-                                    frame.name
-                                )
-                            })?;
+                for frame in inline_stack {
+                    let name = self
+                        .ctx
+                        .get_str(frame.name as usize)
+                        .and_then(|s| s.to_str())
+                        .ok_or_invalid_data(|| {
+                            format!("failed to read string table entry at offset {}", frame.name)
+                        })?;
 
-                        let mut code_info = if let Some(file) = frame.call_file {
-                            let code_info = self.query_frame_code_info(file, frame.call_line)?;
-                            Some(code_info)
-                        } else {
-                            None
-                        };
+                    let mut code_info = if let Some(file) = frame.call_file {
+                        let code_info = self.query_frame_code_info(file, frame.call_line)?;
+                        Some(code_info)
+                    } else {
+                        None
+                    };
 
-                        // For each frame we need to move the code information
-                        // up by one layer.
-                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
-                            let () = swap(&mut code_info, last_code_info);
-                        } else if let Some(code_info) = &mut code_info {
-                            let () = swap(code_info, &mut line_tab_info);
-                        }
-                        let () = inlined.push((name, code_info));
+                    // For each frame we need to move the code information
+                    // up by one layer.
+                    if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                        let () = swap(&mut code_info, last_code_info);
+                    } else if let Some(code_info) = &mut code_info {
+                        let () = swap(code_info, &mut line_tab_info);
                     }
+                    let () = inlined.push((name, code_info));
                 }
             }
-
-            let info = AddrCodeInfo {
-                direct: (direct_name, line_tab_info),
-                inlined,
-            };
-            Ok(Some(info))
-        } else {
-            Ok(None)
         }
+
+        let info = AddrCodeInfo {
+            direct: (direct_name, line_tab_info),
+            inlined,
+        };
+        Ok(Some(info))
     }
 }
 
