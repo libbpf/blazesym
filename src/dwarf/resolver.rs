@@ -123,13 +123,16 @@ impl DwarfResolver {
             let size = function
                 .range
                 .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
-            let sym = IntSym {
+            let mut sym = IntSym {
                 name,
                 addr: fn_addr,
                 size,
                 lang: unit.language().into(),
-                code_info: self.units.find_code_info(addr, opts, function, unit)?,
+                code_info: None,
             };
+            let () = self
+                .units
+                .fill_code_info(&mut sym, addr, opts, function, unit)?;
 
             Ok(Some(sym))
         } else {
@@ -206,24 +209,26 @@ impl Debug for DwarfResolver {
 // uses a `Units` object with 'static lifetime we have to impl on `Units`
 // directly.
 impl<'dwarf> Units<'dwarf> {
-    /// Find source code information of an address.
+    /// Fill in source code information for an address to the provided
+    /// `IntSym`.
     ///
     /// `addr` is a normalized address.
-    fn find_code_info<'slf>(
+    fn fill_code_info<'slf>(
         &'slf self,
+        sym: &mut IntSym<'slf>,
         addr: Addr,
         opts: &FindSymOpts,
         function: &'slf Function<'dwarf>,
         unit: &'slf Unit<'dwarf>,
-    ) -> Result<Option<AddrCodeInfo<'slf>>> {
+    ) -> Result<()> {
         if !opts.code_info() {
-            return Ok(None)
+            return Ok(())
         }
 
         let direct_location = if let Some(direct_location) = self.find_location(addr)? {
             direct_location
         } else {
-            return Ok(None)
+            return Ok(())
         };
 
         let Location {
@@ -285,8 +290,9 @@ impl<'dwarf> Units<'dwarf> {
             direct: (None, direct_code_info),
             inlined,
         };
+        sym.code_info = Some(code_info);
 
-        Ok(Some(code_info))
+        Ok(())
     }
 }
 
