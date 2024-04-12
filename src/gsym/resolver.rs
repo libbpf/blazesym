@@ -9,8 +9,6 @@ use std::mem::swap;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::inspect::FindAddrOpts;
-use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
@@ -19,7 +17,6 @@ use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
 use crate::Addr;
-use crate::Error;
 use crate::IntoError as _;
 use crate::Result;
 use crate::SymResolver;
@@ -206,18 +203,6 @@ impl SymResolver for GsymResolver<'_> {
             Ok(Err(Reason::UnknownAddr))
         }
     }
-
-    fn find_addr<'slf>(
-        &'slf self,
-        _name: &str,
-        _opts: &FindAddrOpts,
-    ) -> Result<Vec<SymInfo<'slf>>> {
-        // It is inefficient to find the address of a symbol with
-        // Gsym. We may support it in the future if needed.
-        Err(Error::with_unsupported(
-            "Gsym resolver does not currently support lookup by name",
-        ))
-    }
 }
 
 impl GsymResolver<'_> {
@@ -346,8 +331,6 @@ mod tests {
 
     use test_log::test;
 
-    use crate::ErrorKind;
-
 
     /// Exercise the `Debug` representation of various types.
     #[test]
@@ -449,18 +432,5 @@ mod tests {
         // Gsym this additional data is used to "refine" the result.
         assert_eq!(info.line, Some(23));
         assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
-    }
-
-    /// Check that [`GsymResolver::find_addr`] behaves as expected.
-    #[test]
-    fn unsupported_find_addr() {
-        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-stable-addresses.gsym");
-        let resolver = GsymResolver::new(test_gsym).unwrap();
-        let err = resolver
-            .find_addr("factorial", &FindAddrOpts::default())
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }

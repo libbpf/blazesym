@@ -9,6 +9,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
+use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
 use crate::symbolize::FindSymOpts;
@@ -127,7 +128,9 @@ impl SymResolver for KSymResolver {
         let sym = self.find_ksym(addr).map(IntSym::from);
         Ok(sym)
     }
+}
 
+impl Inspect for KSymResolver {
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Ok(Vec::new())

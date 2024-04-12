@@ -10,6 +10,7 @@ use std::rc::Rc;
 use crate::dwarf::DwarfResolver;
 use crate::file_cache::FileCache;
 use crate::inspect::FindAddrOpts;
+use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
 use crate::symbolize::FindSymOpts;
@@ -181,7 +182,9 @@ impl SymResolver for ElfResolver {
 
         Ok(result)
     }
+}
 
+impl Inspect for ElfResolver {
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
         fn find_addr_impl<'slf>(
             slf: &'slf ElfResolver,
