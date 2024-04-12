@@ -8,7 +8,6 @@ use crate::elf::ElfResolver;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::ksym::KSymResolver;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
@@ -42,11 +41,7 @@ impl KernelResolver {
 }
 
 impl SymResolver for KernelResolver {
-    fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         // TODO: If an `ElfResolver` is available we probably should give
         //       preference to it, if for no other reason than the fact that it
         //       may report source code location information.

@@ -15,7 +15,6 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::resolver::SymResolver;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
@@ -173,11 +172,7 @@ impl PerfMap {
 }
 
 impl SymResolver for PerfMap {
-    fn find_sym(
-        &self,
-        addr: Addr,
-        _opts: &FindSymOpts,
-    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
+    fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         let result = find_match_or_lower_bound_by_key(&self.functions, addr, |l| l.addr);
         match result {
             Some(idx) => {
@@ -195,8 +190,9 @@ impl SymResolver for PerfMap {
                             addr: *addr,
                             size: Some(*size),
                             lang: SrcLang::Unknown,
+                            code_info: None,
                         };
-                        return Ok(Ok((sym, None)))
+                        return Ok(Ok(sym))
                     }
                 }
                 Ok(Err(Reason::UnknownAddr))
@@ -347,7 +343,7 @@ mod tests {
         let perf_map = PerfMap::from_file(Path::new("SAMPLE_PERF_MAP"), &file).unwrap();
 
         for offset in 0..0xb {
-            let (sym, _) = perf_map
+            let sym = perf_map
                 .find_sym(0x7fbf1fc2144c + offset, &FindSymOpts::Basic)
                 .unwrap()
                 .unwrap();

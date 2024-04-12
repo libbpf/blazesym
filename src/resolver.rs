@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
-use crate::symbolize::AddrCodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
@@ -19,11 +18,7 @@ where
     Self: Debug,
 {
     /// Find the symbol corresponding to the given address.
-    fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>>;
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>>;
 
     /// Find information about a symbol given its name.
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'_>>>;

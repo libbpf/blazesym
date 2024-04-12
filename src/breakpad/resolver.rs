@@ -115,15 +115,68 @@ impl BreakpadResolver {
         }
         Ok(())
     }
+
+    fn find_code_info(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+        func: &Function,
+    ) -> Result<Option<AddrCodeInfo<'_>>> {
+        if !opts.code_info() {
+            return Ok(None)
+        }
+
+        if let Some(source_line) = func.find_line(addr) {
+            let (dir, file) = self.find_source_location(source_line.file)?;
+            let mut direct_code_info = CodeInfo {
+                dir: dir.map(Cow::Borrowed),
+                file: Cow::Borrowed(file),
+                line: Some(source_line.line),
+                column: None,
+                _non_exhaustive: (),
+            };
+
+            let inlined = if opts.inlined_fns() {
+                let inline_stack = func.find_inlinees(addr);
+                let mut inlined = Vec::with_capacity(inline_stack.len());
+                for inlinee in inline_stack {
+                    let name = self.find_inlinee_name(inlinee.origin_id)?;
+                    let (dir, file) = self.find_source_location(inlinee.call_file)?;
+                    let mut code_info = Some(CodeInfo {
+                        dir: dir.map(Cow::Borrowed),
+                        file: Cow::Borrowed(file),
+                        line: Some(inlinee.call_line),
+                        column: None,
+                        _non_exhaustive: (),
+                    });
+
+                    if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
+                        let () = swap(&mut code_info, last_code_info);
+                    } else if let Some(code_info) = &mut code_info {
+                        let () = swap(code_info, &mut direct_code_info);
+                    }
+
+                    let () = inlined.push((name, code_info));
+                }
+                inlined
+            } else {
+                Vec::new()
+            };
+
+            let code_info = AddrCodeInfo {
+                direct: (None, direct_code_info),
+                inlined,
+            };
+            Ok(Some(code_info))
+        } else {
+            Ok(None)
+        }
+    }
 }
 
 impl SymResolver for BreakpadResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
-    fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         let func = if let Some(func) = self.symbol_file.find_function(addr) {
             func
         } else {
@@ -140,58 +193,10 @@ impl SymResolver for BreakpadResolver {
             addr: func.addr,
             size: Some(func.size.try_into().unwrap_or(usize::MAX)),
             lang: SrcLang::Unknown,
+            code_info: self.find_code_info(addr, opts, func)?,
         };
 
-        let code_info = if opts.code_info() {
-            if let Some(source_line) = func.find_line(addr) {
-                let (dir, file) = self.find_source_location(source_line.file)?;
-                let mut direct_code_info = CodeInfo {
-                    dir: dir.map(Cow::Borrowed),
-                    file: Cow::Borrowed(file),
-                    line: Some(source_line.line),
-                    column: None,
-                    _non_exhaustive: (),
-                };
-
-                let inlined = if opts.inlined_fns() {
-                    let inline_stack = func.find_inlinees(addr);
-                    let mut inlined = Vec::with_capacity(inline_stack.len());
-                    for inlinee in inline_stack {
-                        let name = self.find_inlinee_name(inlinee.origin_id)?;
-                        let (dir, file) = self.find_source_location(inlinee.call_file)?;
-                        let mut code_info = Some(CodeInfo {
-                            dir: dir.map(Cow::Borrowed),
-                            file: Cow::Borrowed(file),
-                            line: Some(inlinee.call_line),
-                            column: None,
-                            _non_exhaustive: (),
-                        });
-
-                        if let Some((_last_name, ref mut last_code_info)) = inlined.last_mut() {
-                            let () = swap(&mut code_info, last_code_info);
-                        } else if let Some(code_info) = &mut code_info {
-                            let () = swap(code_info, &mut direct_code_info);
-                        }
-
-                        let () = inlined.push((name, code_info));
-                    }
-                    inlined
-                } else {
-                    Vec::new()
-                };
-
-                let code_info = AddrCodeInfo {
-                    direct: (None, direct_code_info),
-                    inlined,
-                };
-                Some(code_info)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-        Ok(Ok((sym, code_info)))
+        Ok(Ok(sym))
     }
 
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {

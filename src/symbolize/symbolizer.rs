@@ -321,12 +321,13 @@ impl Symbolizer {
     ) -> Result<Symbolized<'slf>> {
         let (sym_name, sym_addr, sym_size, lang, name, code_info, inlined) = match resolver {
             Resolver::Uncached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
-                Ok((sym, addr_code_info)) => {
+                Ok(sym) => {
                     let IntSym {
                         name: sym_name,
                         addr: sym_addr,
                         size: sym_size,
                         lang,
+                        code_info: addr_code_info,
                     } = sym;
 
                     let (name, code_info, inlined) = if let Some(AddrCodeInfo {
@@ -365,12 +366,13 @@ impl Symbolizer {
                 Err(reason) => return Ok(Symbolized::Unknown(reason)),
             },
             Resolver::Cached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
-                Ok((sym, addr_code_info)) => {
+                Ok(sym) => {
                     let IntSym {
                         name: sym_name,
                         addr: sym_addr,
                         size: sym_size,
                         lang,
+                        code_info: addr_code_info,
                     } = sym;
 
                     let (name, code_info, inlined) = if let Some(AddrCodeInfo {

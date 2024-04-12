@@ -164,11 +164,7 @@ impl<'dat> GsymResolver<'dat> {
 }
 
 impl SymResolver for GsymResolver<'_> {
-    fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Result<(IntSym<'_>, Option<AddrCodeInfo<'_>>), Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let sym_addr = self
                 .ctx
@@ -200,15 +196,14 @@ impl SymResolver for GsymResolver<'_> {
                 addr: sym_addr,
                 size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
                 lang,
+                code_info: if opts.code_info() {
+                    self.find_code_info(addr, sym_addr, &info, opts.inlined_fns())?
+                } else {
+                    None
+                },
             };
 
-            let code_info = if opts.code_info() {
-                self.find_code_info(addr, sym_addr, &info, opts.inlined_fns())?
-            } else {
-                None
-            };
-
-            Ok(Ok((sym, code_info)))
+            Ok(Ok(sym))
         } else {
             Ok(Err(Reason::UnknownAddr))
         }
@@ -386,26 +381,26 @@ mod tests {
 
         // `main` resides at address 0x2000000, and it's located at the given
         // line.
-        let (sym, info) = resolver
+        let sym = resolver
             .find_sym(0x2000000, &FindSymOpts::CodeInfoAndInlined)
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "main");
 
-        let info = info.unwrap();
+        let info = sym.code_info.unwrap();
         assert_eq!(info.direct.1.line, Some(65));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
-        let (sym, info) = resolver
+        let sym = resolver
             .find_sym(0x2000100, &FindSymOpts::CodeInfoAndInlined)
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial");
 
-        let info = info.unwrap();
+        let info = sym.code_info.unwrap();
         assert_eq!(info.direct.1.line, Some(10));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined, Vec::new());
@@ -414,13 +409,13 @@ mod tests {
         // always fall into the inlined region, no matter toolchain. If not, add
         // padding bytes/dummy instructions and adjust some more.
         let addr = 0x200020a;
-        let (sym, info) = resolver
+        let sym = resolver
             .find_sym(addr, &FindSymOpts::CodeInfoAndInlined)
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial_inline_test");
 
-        let info = info.unwrap();
+        let info = sym.code_info.unwrap();
         assert_eq!(info.direct.1.line, Some(34));
         assert_eq!(info.direct.1.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(info.inlined.len(), 2);
@@ -437,13 +432,13 @@ mod tests {
         assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
         assert_eq!(frame.line, Some(23));
 
-        let (_sym, info) = resolver
+        let sym = resolver
             .find_sym(addr, &FindSymOpts::CodeInfo)
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial_inline_test");
 
-        let info = info.unwrap();
+        let info = sym.code_info.unwrap();
         // Note that the line number reported without inline information is
         // different to that when using inlined function information, because in
         // Gsym this additional data is used to "refine" the result.
