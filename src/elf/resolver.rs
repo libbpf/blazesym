@@ -20,9 +20,14 @@ use crate::Addr;
 use crate::Error;
 use crate::Result;
 
-use super::ElfBackend;
 use super::ElfParser;
 
+#[derive(Clone, Debug)]
+enum ElfBackend {
+    #[cfg(feature = "dwarf")]
+    Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
+    Elf(Rc<ElfParser>), // ELF w/o DWARF
+}
 
 /// Resolver data associated with a specific source.
 #[derive(Clone, Debug)]
