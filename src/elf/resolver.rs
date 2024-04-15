@@ -102,10 +102,6 @@ pub struct ElfResolver {
 }
 
 impl ElfResolver {
-    pub(crate) fn with_backend(backend: ElfBackend) -> Result<ElfResolver> {
-        Ok(ElfResolver { backend })
-    }
-
     pub(crate) fn from_parser(parser: Rc<ElfParser>, _debug_syms: bool) -> Result<Self> {
         #[cfg(feature = "dwarf")]
         let backend = if _debug_syms {
@@ -119,7 +115,7 @@ impl ElfResolver {
         #[cfg(not(feature = "dwarf"))]
         let backend = ElfBackend::Elf(parser);
 
-        let resolver = ElfResolver::with_backend(backend)?;
+        let resolver = ElfResolver { backend };
         Ok(resolver)
     }
 
@@ -202,15 +198,12 @@ mod tests {
             .join("test-stable-addresses.bin");
 
         let parser = Rc::new(ElfParser::open(&path).unwrap());
-        let backend = ElfBackend::Elf(parser.clone());
-        let resolver = ElfResolver::with_backend(backend).unwrap();
+        let resolver = ElfResolver::from_parser(parser.clone(), false).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("ELF"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
 
-        let dwarf = DwarfResolver::from_parser(parser).unwrap();
-        let backend = ElfBackend::Dwarf(Rc::new(dwarf));
-        let resolver = ElfResolver::with_backend(backend).unwrap();
+        let resolver = ElfResolver::from_parser(parser, true).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("DWARF"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
