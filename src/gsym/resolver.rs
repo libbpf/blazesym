@@ -9,6 +9,7 @@ use std::mem::swap;
 use std::path::Path;
 use std::path::PathBuf;
 
+use crate::log::warn;
 use crate::mmap::Mmap;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
@@ -31,7 +32,6 @@ use super::parser::GsymContext;
 use super::types::AddrInfo;
 use super::types::INFO_TYPE_INLINE_INFO;
 use super::types::INFO_TYPE_LINE_TABLE_INFO;
-use crate::log::warn;
 
 
 #[allow(dead_code)]

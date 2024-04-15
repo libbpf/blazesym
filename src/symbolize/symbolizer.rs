@@ -825,7 +825,7 @@ impl Symbolizer {
                 };
 
                 let resolver = self.breakpad_resolver(path)?;
-                let symbols = self.symbolize_addrs(addrs, &Resolver::Uncached(resolver.deref()))?;
+                let symbols = self.symbolize_addrs(addrs, &Resolver::Cached(resolver.deref()))?;
                 Ok(symbols)
             }
             Source::Elf(Elf {
