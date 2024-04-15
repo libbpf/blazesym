@@ -49,16 +49,28 @@ impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
     }
 }
 
+impl<'ksym> From<&'ksym Ksym> for SymInfo<'ksym> {
+    fn from(other: &'ksym Ksym) -> Self {
+        let Ksym { name, addr } = other;
+        SymInfo {
+            name: Cow::Borrowed(name),
+            addr: *addr,
+            size: 0,
+            sym_type: SymType::Function,
+            file_offset: None,
+            obj_file_name: None,
+        }
+    }
+}
+
+
 /// The symbol resolver for /proc/kallsyms.
 ///
 /// The users should provide the path of kallsyms, so you can provide
 /// a copy from other devices.
 pub struct KSymResolver {
-    // SAFETY: We must not hand out strings with a 'static lifetime to
-    //         callers. Rather, they should never outlive `self`.
-    //         Furthermore, this member has to be listed before `syms`
-    //         to make sure we never end up with dangling references.
-    sym_to_addr: OnceCell<Vec<(&'static str, Addr)>>,
+    /// An index over `syms` that is sorted by name.
+    by_name_idx: OnceCell<Box<[usize]>>,
     syms: Vec<Ksym>,
     file_name: PathBuf,
 }
@@ -96,7 +108,7 @@ impl KSymResolver {
 
         let slf = Self {
             syms,
-            sym_to_addr: OnceCell::new(),
+            by_name_idx: OnceCell::new(),
             file_name: filename,
         };
         Ok(slf)
@@ -115,6 +127,19 @@ impl KSymResolver {
                 }
             }
         }
+    }
+
+    fn create_by_name_idx(syms: &[Ksym]) -> Vec<usize> {
+        let mut by_name_idx = (0..syms.len()).collect::<Vec<_>>();
+        let () = by_name_idx.sort_by(|idx1, idx2| {
+            let sym1 = &syms[*idx1];
+            let sym2 = &syms[*idx2];
+            sym1.name
+                .cmp(&sym2.name)
+                .then_with(|| sym1.addr.cmp(&sym2.addr))
+        });
+
+        by_name_idx
     }
 
     /// Retrieve the path to the kallsyms file used by this resolver.
@@ -136,35 +161,18 @@ impl Inspect for KSymResolver {
             return Ok(Vec::new())
         }
 
-        let sym_to_addr = self.sym_to_addr.get_or_init(|| {
-            let mut syms = self
-                .syms
-                .iter()
-                .map(|Ksym { name, addr }| {
-                    // SAFETY: We ensure that all `Ksym` objects outlive the
-                    //         `syms` member, so conjuring up a 'static
-                    //         lifetime is fine.
-                    let name = unsafe { &*(name.as_ref() as *const str) };
-                    (name, *addr)
-                })
-                .collect::<Vec<_>>();
-            let () =
-                syms.sort_by(|sym1, sym2| sym1.0.cmp(sym2.0).then_with(|| sym1.1.cmp(&sym2.1)));
-            syms
+        let by_name_idx = self.by_name_idx.get_or_init(|| {
+            let by_name_idx = Self::create_by_name_idx(&self.syms);
+            let by_name_idx = by_name_idx.into_boxed_slice();
+            by_name_idx
         });
 
-        let result = find_match_or_lower_bound_by_key(sym_to_addr, name, |(name, _addr)| name);
+        let result =
+            find_match_or_lower_bound_by_key(by_name_idx, name, |idx| &self.syms[*idx].name);
         let syms = if let Some(idx) = result {
-            sym_to_addr[idx..]
+            by_name_idx[idx..]
                 .iter()
-                .map(|(name, addr)| SymInfo {
-                    name: Cow::Borrowed(*name),
-                    addr: *addr,
-                    size: 0,
-                    sym_type: SymType::Function,
-                    file_offset: None,
-                    obj_file_name: None,
-                })
+                .map(|idx| SymInfo::from(&self.syms[*idx]))
                 .collect()
         } else {
             Vec::new()
@@ -194,7 +202,7 @@ mod tests {
     fn debug_repr() {
         let resolver = KSymResolver {
             syms: Vec::new(),
-            sym_to_addr: OnceCell::new(),
+            by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
         };
         assert_ne!(format!("{resolver:?}"), "");
@@ -285,7 +293,7 @@ mod tests {
                     name: "3".to_string(),
                 },
             ],
-            sym_to_addr: OnceCell::new(),
+            by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
         };
 
