@@ -1,9 +1,7 @@
-use std::borrow::Cow;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::path::Path;
-use std::path::PathBuf;
 use std::rc::Rc;
 
 #[cfg(feature = "dwarf")]
@@ -49,7 +47,7 @@ impl FileCache<ElfResolverData> {
                     //         initializing the `dwarf` part of it, the
                     //         `elf` part *must* be present.
                     let parser = data.elf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(path, parser, debug_syms)?;
+                    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
@@ -60,15 +58,15 @@ impl FileCache<ElfResolverData> {
                     //         initializing the `elf` part of it, the
                     //         `dwarf` part *must* be present.
                     let parser = data.dwarf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(path, parser, debug_syms)?;
+                    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
             }
             .clone()
         } else {
-            let parser = Rc::new(ElfParser::open_file(file)?);
-            let resolver = ElfResolver::from_parser(path, parser, debug_syms)?;
+            let parser = Rc::new(ElfParser::open_file(file, path)?);
+            let resolver = ElfResolver::from_parser(parser, debug_syms)?;
             Rc::new(resolver)
         };
 
@@ -100,22 +98,14 @@ impl FileCache<ElfResolverData> {
 /// The symbol resolver for a single ELF file.
 pub struct ElfResolver {
     backend: ElfBackend,
-    file_name: PathBuf,
 }
 
 impl ElfResolver {
-    pub(crate) fn with_backend(file_name: &Path, backend: ElfBackend) -> Result<ElfResolver> {
-        Ok(ElfResolver {
-            backend,
-            file_name: file_name.to_path_buf(),
-        })
+    pub(crate) fn with_backend(backend: ElfBackend) -> Result<ElfResolver> {
+        Ok(ElfResolver { backend })
     }
 
-    pub(crate) fn from_parser(
-        path: &Path,
-        parser: Rc<ElfParser>,
-        _debug_syms: bool,
-    ) -> Result<Self> {
+    pub(crate) fn from_parser(parser: Rc<ElfParser>, _debug_syms: bool) -> Result<Self> {
         #[cfg(feature = "dwarf")]
         let backend = if _debug_syms {
             let dwarf = DwarfResolver::from_parser(parser)?;
@@ -128,7 +118,7 @@ impl ElfResolver {
         #[cfg(not(feature = "dwarf"))]
         let backend = ElfBackend::Elf(parser);
 
-        let resolver = ElfResolver::with_backend(path, backend)?;
+        let resolver = ElfResolver::with_backend(backend)?;
         Ok(resolver)
     }
 
@@ -141,8 +131,12 @@ impl ElfResolver {
     }
 
     /// Retrieve the path to the ELF file represented by this resolver.
-    pub(crate) fn file_name(&self) -> &Path {
-        &self.file_name
+    pub(crate) fn path(&self) -> &Path {
+        match &self.backend {
+            #[cfg(feature = "dwarf")]
+            ElfBackend::Dwarf(dwarf) => dwarf.parser().path(),
+            ElfBackend::Elf(parser) => parser.path(),
+        }
     }
 }
 
@@ -182,20 +176,17 @@ impl Inspect for ElfResolver {
             Ok(syms)
         }
 
-        let mut syms = find_addr_impl(self, name, opts)?;
-        let () = syms
-            .iter_mut()
-            .for_each(|sym| sym.obj_file_name = Some(Cow::Borrowed(&self.file_name)));
+        let syms = find_addr_impl(self, name, opts)?;
         Ok(syms)
     }
 }
 
 impl Debug for ElfResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match self.backend {
+        match &self.backend {
             #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(_) => write!(f, "DWARF {}", self.file_name.display()),
-            ElfBackend::Elf(_) => write!(f, "ELF {}", self.file_name.display()),
+            ElfBackend::Dwarf(_) => write!(f, "DWARF {}", self.path().display()),
+            ElfBackend::Elf(_) => write!(f, "ELF {}", self.path().display()),
         }
     }
 }
@@ -215,14 +206,14 @@ mod tests {
 
         let parser = Rc::new(ElfParser::open(&path).unwrap());
         let backend = ElfBackend::Elf(parser.clone());
-        let resolver = ElfResolver::with_backend(&path, backend).unwrap();
+        let resolver = ElfResolver::with_backend(backend).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("ELF"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
 
         let dwarf = DwarfResolver::from_parser(parser).unwrap();
         let backend = ElfBackend::Dwarf(Rc::new(dwarf));
-        let resolver = ElfResolver::with_backend(&path, backend).unwrap();
+        let resolver = ElfResolver::with_backend(backend).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("DWARF"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");

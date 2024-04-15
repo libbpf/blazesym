@@ -134,7 +134,7 @@ impl<'src> BuildIdReader<'src> for CachingBuildIdReader<'src> {
         let (file, cell) = self.cache.entry(path)?;
         let build_id = cell
             .get_or_try_init(|| {
-                let parser = ElfParser::open_file(file)?;
+                let parser = ElfParser::open_file(file, path)?;
                 let buildid =
                     read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
                 Result::<_, Error>::Ok(buildid)

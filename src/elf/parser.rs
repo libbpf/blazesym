@@ -6,6 +6,7 @@ use std::fs::File;
 use std::mem;
 use std::ops::Deref as _;
 use std::path::Path;
+use std::path::PathBuf;
 
 use crate::insert_map::InsertMap;
 use crate::inspect::FindAddrOpts;
@@ -565,37 +566,49 @@ pub(crate) struct ElfParser {
     decompressed: InsertMap<usize, Vec<u8>>,
     /// The memory mapped file.
     _mmap: Mmap,
+    /// The path to the ELF file being worked on.
+    path: PathBuf,
 }
 
 impl ElfParser {
     /// Create an `ElfParser` from an open file.
-    pub fn open_file(file: &File) -> Result<ElfParser> {
-        Mmap::map(file)
-            .map(Self::from_mmap)
-            .context("failed to memory map file")
+    pub fn open_file<P>(file: &File, path: P) -> Result<Self>
+    where
+        P: Into<PathBuf>,
+    {
+        let mmap = Mmap::map(file).context("failed to memory map file")?;
+        Ok(Self::from_mmap(mmap, path))
     }
 
     /// Create an `ElfParser` from mmap'ed data.
-    pub fn from_mmap(mmap: Mmap) -> ElfParser {
-        // We transmute the mmap's lifetime to static here as that is a
-        // necessity for self-referentiality.
-        // SAFETY: We never hand out any 'static references to cache
-        //         data.
-        let elf_data = unsafe { mem::transmute(mmap.deref()) };
+    pub fn from_mmap<P>(mmap: Mmap, path: P) -> Self
+    where
+        P: Into<PathBuf>,
+    {
+        fn from_mmap_impl(mmap: Mmap, path: PathBuf) -> ElfParser {
+            // We transmute the mmap's lifetime to static here as that is a
+            // necessity for self-referentiality.
+            // SAFETY: We never hand out any 'static references to cache
+            //         data.
+            let elf_data = unsafe { mem::transmute(mmap.deref()) };
 
-        let parser = ElfParser {
-            _mmap: mmap,
-            decompressed: InsertMap::new(),
-            cache: Cache::new(elf_data),
-        };
-        parser
+            let parser = ElfParser {
+                _mmap: mmap,
+                decompressed: InsertMap::new(),
+                cache: Cache::new(elf_data),
+                path,
+            };
+            parser
+        }
+
+        from_mmap_impl(mmap, path.into())
     }
 
     /// Create an `ElfParser` for a path.
-    pub fn open(filename: &Path) -> Result<ElfParser> {
-        let file = File::open(filename)
-            .with_context(|| format!("failed to open {}", filename.display()))?;
-        Self::open_file(&file)
+    pub fn open(path: &Path) -> Result<ElfParser> {
+        let file =
+            File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+        Self::open_file(&file, path)
     }
 
     /// Retrieve the data corresponding to the ELF section at index
@@ -730,7 +743,7 @@ impl ElfParser {
                                 .offset_in_file
                                 .then(|| self.file_offset(shdrs, sym_ref))
                                 .transpose()?,
-                            obj_file_name: None,
+                            obj_file_name: Some(Cow::Borrowed(&self.path)),
                         });
                     }
                 }
@@ -866,6 +879,12 @@ impl ElfParser {
             usize::try_from(size).unwrap_or(usize::MAX),
         )
     }
+
+    /// Retrieve the path to the file this object operates on.
+    #[inline]
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
 }
 
 
@@ -882,7 +901,7 @@ mod tests {
     use std::mem::size_of;
     use std::slice;
 
-    use tempfile::tempfile;
+    use tempfile::NamedTempFile;
 
     use test_log::test;
 
@@ -981,13 +1000,13 @@ mod tests {
             ],
         };
 
-        let mut file = tempfile().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
         let dump =
             unsafe { slice::from_raw_parts((&elf as *const Elf).cast::<u8>(), size_of::<Elf>()) };
         let () = file.write_all(dump).unwrap();
         let () = file.rewind().unwrap();
 
-        let parser = ElfParser::open_file(&file).unwrap();
+        let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
         let ehdr = parser.cache.ensure_ehdr().unwrap();
         assert_eq!(ehdr.shnum, SHNUM.into());
         assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
@@ -1038,13 +1057,13 @@ mod tests {
             }],
         };
 
-        let mut file = tempfile().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
         let dump =
             unsafe { slice::from_raw_parts((&elf as *const Elf).cast::<u8>(), size_of::<Elf>()) };
         let () = file.write_all(dump).unwrap();
         let () = file.rewind().unwrap();
 
-        let parser = ElfParser::open_file(&file).unwrap();
+        let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
         let ehdr = parser.cache.ensure_ehdr().unwrap();
         let shstrndx = parser.cache.shstrndx(ehdr.ehdr).unwrap();
         assert_eq!(shstrndx, SHSTRNDX.into());

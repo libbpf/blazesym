@@ -442,8 +442,8 @@ impl Symbolizer {
                     // Create an Android-style binary-in-APK path for
                     // reporting purposes.
                     let apk_elf_path = create_apk_elf_path(apk_path, apk_entry.path)?;
-                    let parser = Rc::new(ElfParser::from_mmap(mmap));
-                    let resolver = ElfResolver::from_parser(&apk_elf_path, parser, debug_syms)?;
+                    let parser = Rc::new(ElfParser::from_mmap(mmap, apk_elf_path));
+                    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
                     let resolver = Rc::new(resolver);
                     Ok(resolver)
                 })?;
@@ -1161,7 +1161,7 @@ mod tests {
             .join("data")
             .join("test-stable-addresses.bin");
         let parser = Rc::new(ElfParser::open(&test_elf).unwrap());
-        let resolver = ElfResolver::from_parser(&test_elf, parser, false).unwrap();
+        let resolver = ElfResolver::from_parser(parser, false).unwrap();
         let resolver = Resolver::Cached(&resolver);
         assert_ne!(format!("{resolver:?}"), "");
     }
@@ -1303,7 +1303,7 @@ mod tests {
 
         // Look up the address of the `the_answer` function inside of the shared
         // object.
-        let elf_parser = ElfParser::from_mmap(elf_mmap.clone());
+        let elf_parser = ElfParser::from_mmap(elf_mmap.clone(), Path::new("libtest-so.so"));
         let opts = FindAddrOpts {
             sym_type: SymType::Function,
             ..Default::default()

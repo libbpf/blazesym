@@ -374,7 +374,6 @@ mod tests {
     use std::io::Write as _;
     use std::ops::Deref as _;
 
-    use tempfile::tempfile;
     use tempfile::NamedTempFile;
 
     use test_log::test;
@@ -461,10 +460,10 @@ mod tests {
 
         // Sanity check that the entry actually references a valid ELF binary,
         // which is what we expect.
-        let mut file = tempfile().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
         let () = file.write_all(entry.data).unwrap();
 
-        let elf = ElfParser::open_file(&file).unwrap();
+        let elf = ElfParser::open_file(file.as_file(), file.path()).unwrap();
         assert!(elf.find_section(".text").is_ok());
     }
 
