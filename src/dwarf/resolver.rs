@@ -16,6 +16,7 @@ use gimli::Dwarf;
 use crate::elf::ElfParser;
 use crate::error::IntoCowStr;
 use crate::inspect::FindAddrOpts;
+use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
@@ -23,6 +24,7 @@ use crate::symbolize::InlinedFn;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
+use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt;
@@ -111,13 +113,10 @@ impl DwarfResolver {
         let parser = ElfParser::open(filename)?;
         Self::from_parser(Rc::new(parser))
     }
+}
 
-    /// Lookup the symbol at an address.
-    pub(crate) fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Result<IntSym<'_>, Reason>> {
+impl Symbolize for DwarfResolver {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         if let Some((function, unit)) = self.units.find_function(addr)? {
             let name = function
                 .name
@@ -149,18 +148,14 @@ impl DwarfResolver {
             }
         }
     }
+}
 
-    /// Find the address of a symbol from DWARF.
+impl Inspect for DwarfResolver {
+    /// Find information about a symbol given its name.
     ///
-    /// # Arguments
-    ///
-    /// * `name` - is the symbol name to find.
-    /// * `opts` - is the context giving additional parameters.
-    pub(crate) fn find_addr<'slf>(
-        &'slf self,
-        name: &str,
-        opts: &FindAddrOpts,
-    ) -> Result<Vec<SymInfo<'slf>>> {
+    /// # Notes
+    /// - lookup of variables is not currently supported
+    fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Err(Error::with_unsupported("not implemented"))
         }
