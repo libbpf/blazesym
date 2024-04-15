@@ -22,6 +22,7 @@
 //! relevance for C).
 
 #![allow(
+    clippy::collapsible_else_if,
     clippy::collapsible_if,
     clippy::fn_to_numeric_cast,
     clippy::let_and_return,
