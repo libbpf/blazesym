@@ -179,6 +179,18 @@ impl Inspect for KSymResolver {
         };
         Ok(syms)
     }
+
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {
+        if let SymType::Variable = opts.sym_type {
+            return Ok(())
+        }
+
+        for ksym in &self.syms {
+            let sym = SymInfo::from(ksym);
+            let () = f(&sym);
+        }
+        Ok(())
+    }
 }
 
 impl Debug for KSymResolver {
@@ -329,5 +341,80 @@ mod tests {
         let sym = resolver.find_ksym(0x1234568).unwrap();
         assert_eq!(sym.addr, 0x12345);
         assert_eq!(sym.name, "3");
+    }
+
+    /// Check that we can correctly iterate over all symbols.
+    #[test]
+    fn symbol_iteration() {
+        let resolver = KSymResolver {
+            syms: vec![
+                Ksym {
+                    addr: 0x123,
+                    name: "j".to_string(),
+                },
+                Ksym {
+                    addr: 0x123,
+                    name: "b".to_string(),
+                },
+                Ksym {
+                    addr: 0x1234,
+                    name: "a".to_string(),
+                },
+                Ksym {
+                    addr: 0x12345,
+                    name: "z".to_string(),
+                },
+            ],
+            by_name_idx: OnceCell::new(),
+            file_name: PathBuf::new(),
+        };
+
+        let opts = FindAddrOpts::default();
+        let mut syms = Vec::with_capacity(resolver.syms.len());
+        let () = resolver
+            .for_each(&opts, &mut |sym| syms.push(sym.name.to_string()))
+            .unwrap();
+        let () = syms.sort();
+        assert_eq!(syms, vec!["a", "b", "j", "z"]);
+    }
+
+    /// Check that [`KSymResolver::find_addr`] and
+    /// [`KSymResolver::for_each`] behave as expected for variable
+    /// inquiries.
+    #[test]
+    fn variable_operations() {
+        let resolver = KSymResolver {
+            syms: vec![
+                Ksym {
+                    addr: 0x123,
+                    name: "j".to_string(),
+                },
+                Ksym {
+                    addr: 0x123,
+                    name: "b".to_string(),
+                },
+                Ksym {
+                    addr: 0x1234,
+                    name: "a".to_string(),
+                },
+                Ksym {
+                    addr: 0x12345,
+                    name: "z".to_string(),
+                },
+            ],
+            by_name_idx: OnceCell::new(),
+            file_name: PathBuf::new(),
+        };
+
+        let opts = FindAddrOpts {
+            sym_type: SymType::Variable,
+            ..Default::default()
+        };
+        let result = resolver.find_addr("a", &opts).unwrap();
+        assert_eq!(result, Vec::new());
+
+        let () = resolver
+            .for_each(&opts, &mut |_sym| unreachable!())
+            .unwrap();
     }
 }

@@ -201,6 +201,13 @@ impl Inspect for DwarfResolver {
 
         Ok(syms)
     }
+
+    fn for_each(&self, _opts: &FindAddrOpts, _f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {
+        // TODO: Implement this functionality.
+        Err(Error::with_unsupported(
+            "DWARF logic does not currently support symbol iteration",
+        ))
+    }
 }
 
 impl Debug for DwarfResolver {
@@ -384,7 +391,7 @@ mod tests {
 
     /// Check that we fail to look up variables.
     #[test]
-    fn lookup_symbol_wrong_type() {
+    fn unsupported_ops() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses-dwarf-only.bin");
@@ -395,6 +402,9 @@ mod tests {
         let resolver = DwarfResolver::open(test_dwarf.as_ref()).unwrap();
 
         let err = resolver.find_addr("factorial", &opts).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Unsupported);
+
+        let err = resolver.for_each(&opts, &mut |_| ()).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }
