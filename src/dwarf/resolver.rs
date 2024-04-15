@@ -21,6 +21,7 @@ use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::InlinedFn;
 use crate::symbolize::IntSym;
+use crate::symbolize::Reason;
 use crate::symbolize::SrcLang;
 use crate::Addr;
 use crate::Error;
@@ -112,7 +113,11 @@ impl DwarfResolver {
     }
 
     /// Lookup the symbol at an address.
-    pub(crate) fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Option<IntSym<'_>>> {
+    pub(crate) fn find_sym(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+    ) -> Result<Result<IntSym<'_>, Reason>> {
         if let Some((function, unit)) = self.units.find_function(addr)? {
             let name = function
                 .name
@@ -135,9 +140,13 @@ impl DwarfResolver {
                 .units
                 .fill_code_info(&mut sym, addr, opts, function, unit)?;
 
-            Ok(Some(sym))
+            Ok(Ok(sym))
         } else {
-            Ok(None)
+            if self.units.is_empty() {
+                Ok(Err(Reason::MissingSyms))
+            } else {
+                Ok(Err(Reason::UnknownAddr))
+            }
         }
     }
 

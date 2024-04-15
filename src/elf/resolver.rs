@@ -153,7 +153,7 @@ impl Symbolize for ElfResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
         #[cfg(feature = "dwarf")]
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
-            if let Some(sym) = dwarf.find_sym(addr, opts)? {
+            if let Ok(sym) = dwarf.find_sym(addr, opts)? {
                 return Ok(Ok(sym))
             }
         }
