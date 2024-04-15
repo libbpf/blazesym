@@ -158,25 +158,16 @@ impl Symbolize for ElfResolver {
 
 impl Inspect for ElfResolver {
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
-        fn find_addr_impl<'slf>(
-            slf: &'slf ElfResolver,
-            name: &str,
-            opts: &FindAddrOpts,
-        ) -> Result<Vec<SymInfo<'slf>>> {
-            #[cfg(feature = "dwarf")]
-            if let ElfBackend::Dwarf(dwarf) = &slf.backend {
-                let syms = dwarf.find_addr(name, opts)?;
-                if !syms.is_empty() {
-                    return Ok(syms)
-                }
+        #[cfg(feature = "dwarf")]
+        if let ElfBackend::Dwarf(dwarf) = &self.backend {
+            let syms = dwarf.find_addr(name, opts)?;
+            if !syms.is_empty() {
+                return Ok(syms)
             }
-
-            let parser = slf.parser();
-            let syms = parser.find_addr(name, opts)?;
-            Ok(syms)
         }
 
-        let syms = find_addr_impl(self, name, opts)?;
+        let parser = self.parser();
+        let syms = parser.find_addr(name, opts)?;
         Ok(syms)
     }
 }
