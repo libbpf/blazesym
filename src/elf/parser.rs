@@ -12,7 +12,10 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::once::OnceCell;
+use crate::symbolize::FindSymOpts;
+use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::SrcLang;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::ReadRaw as _;
 use crate::Addr;
@@ -54,7 +57,7 @@ fn find_sym<'mmap>(
     strtab: &'mmap [u8],
     addr: Addr,
     type_: SymType,
-) -> Result<Option<(&'mmap str, Addr, usize)>> {
+) -> Result<Option<IntSym<'mmap>>> {
     match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
         None => Ok(None),
         Some(idx) => {
@@ -73,10 +76,23 @@ fn find_sym<'mmap>(
                     && sym.st_shndx != SHN_UNDEF
                     && (sym.st_size == 0 || addr < sym.st_value + sym.st_size)
                 {
-                    let name = symbol_name(strtab, sym)?;
-                    let addr = sym.st_value as Addr;
-                    let size = usize::try_from(sym.st_size).unwrap_or(usize::MAX);
-                    return Ok(Some((name, addr, size)))
+                    let sym = IntSym {
+                        name: symbol_name(strtab, sym)?,
+                        addr: sym.st_value as Addr,
+                        size: if sym.st_size == 0 {
+                            None
+                        } else {
+                            Some(usize::try_from(sym.st_size).unwrap_or(usize::MAX))
+                        },
+                        // ELF does not carry any source code language
+                        // information.
+                        lang: SrcLang::Unknown,
+                        // ELF doesn't carry source code location
+                        // information.
+                        code_info: None,
+                        inlined: Box::new([]),
+                    };
+                    return Ok(Some(sym))
                 }
             }
             Ok(None)
@@ -627,18 +643,27 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_sym(
-        &self,
-        addr: Addr,
-        type_: SymType,
-    ) -> Result<Result<(&str, Addr, usize), Reason>> {
+    pub fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+        // ELF doesn't carry any source code or inlining information.
+        let _opts = opts;
+
         let symtab_cache = self.cache.ensure_symtab_cache()?;
-        if let Some(sym) = find_sym(&symtab_cache.syms, symtab_cache.strs, addr, type_)? {
+        if let Some(sym) = find_sym(
+            &symtab_cache.syms,
+            symtab_cache.strs,
+            addr,
+            SymType::Undefined,
+        )? {
             return Ok(Ok(sym))
         }
 
         let dynsym_cache = self.cache.ensure_dynsym_cache()?;
-        if let Some(sym) = find_sym(&dynsym_cache.syms, dynsym_cache.strs, addr, type_)? {
+        if let Some(sym) = find_sym(
+            &dynsym_cache.syms,
+            dynsym_cache.strs,
+            addr,
+            SymType::Undefined,
+        )? {
             return Ok(Ok(sym))
         }
 
@@ -1047,11 +1072,10 @@ mod tests {
 
         let (name, addr, size) = parser.pick_symtab_addr();
 
-        let sym = parser.find_sym(addr, SymType::Function).unwrap().unwrap();
-        let (name_ret, addr_ret, size_ret) = sym;
-        assert_eq!(addr_ret, addr);
-        assert_eq!(name_ret, name);
-        assert_eq!(size_ret, size);
+        let sym = parser.find_sym(addr, &FindSymOpts::Basic).unwrap().unwrap();
+        assert_eq!(sym.addr, addr);
+        assert_eq!(sym.name, name);
+        assert_eq!(sym.size, Some(size));
     }
 
     #[test]
@@ -1155,18 +1179,22 @@ mod tests {
     fn lookup_symbol_with_unknown_size() {
         fn test(symtab: &[&Elf64_Sym]) {
             let strtab = b"\x00__libc_init_first\x00versionsort64\x00";
-            let result = find_sym(symtab, strtab, 0x29d00, SymType::Function)
+            let sym = find_sym(symtab, strtab, 0x29d00, SymType::Function)
                 .unwrap()
                 .unwrap();
-            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x0));
+            assert_eq!(sym.name, "__libc_init_first");
+            assert_eq!(sym.addr, 0x29d00);
+            assert_eq!(sym.size, None);
 
             // Because the symbol has a size of 0 and is the only conceivable
             // match, we report it on the basis that ELF reserves these for "no
             // size or an unknown size" cases.
-            let result = find_sym(symtab, strtab, 0x29d90, SymType::Function)
+            let sym = find_sym(symtab, strtab, 0x29d90, SymType::Function)
                 .unwrap()
                 .unwrap();
-            assert_eq!(result, ("__libc_init_first", 0x29d00, 0x0));
+            assert_eq!(sym.name, "__libc_init_first");
+            assert_eq!(sym.addr, 0x29d00);
+            assert_eq!(sym.size, None);
 
             // Note that despite of the first symbol (the invalid one; present
             // by default and reserved by ELF), is not being reported here

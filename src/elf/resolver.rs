@@ -16,12 +16,10 @@ use crate::once::OnceCell;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
-use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
 use crate::Result;
-use crate::SymType;
 
 use super::ElfBackend;
 use super::ElfParser;
@@ -159,27 +157,7 @@ impl Symbolize for ElfResolver {
         }
 
         let parser = self.parser();
-        let result = parser
-            .find_sym(addr, SymType::Undefined)?
-            .map(|(name, addr, size)| {
-                // ELF does not carry any source code language information.
-                let lang = SrcLang::Unknown;
-                // We found the address in ELF.
-                // TODO: Long term we probably want a different heuristic here, as
-                //       there can be valid differences between the two formats
-                //       (e.g., DWARF could contain more symbols).
-                IntSym {
-                    name,
-                    addr,
-                    size: Some(size),
-                    lang,
-                    // ELF doesn't carry source code location
-                    // information.
-                    code_info: None,
-                    inlined: Box::new([]),
-                }
-            });
-
+        let result = parser.find_sym(addr, opts)?;
         Ok(result)
     }
 }

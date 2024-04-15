@@ -280,7 +280,7 @@ pub struct InlinedFn<'src> {
 
 
 /// The source code language from which a symbol originates.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, PartialEq)]
 pub(crate) enum SrcLang {
     /// The language is unknown.
     #[default]
@@ -293,6 +293,7 @@ pub(crate) enum SrcLang {
 
 
 /// Our internal representation of a symbol.
+#[derive(Debug, PartialEq)]
 pub(crate) struct IntSym<'src> {
     /// The name of the symbol.
     pub name: &'src str,
