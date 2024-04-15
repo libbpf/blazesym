@@ -99,24 +99,6 @@ impl BreakpadResolver {
         Ok(name)
     }
 
-    /// Perform an operation on each symbol.
-    pub(crate) fn for_each_sym<F>(&self, opts: &FindAddrOpts, mut f: F) -> Result<()>
-    where
-        F: FnMut(&SymInfo<'_>),
-    {
-        if let SymType::Variable = opts.sym_type {
-            return Err(Error::with_unsupported(
-                "breakpad logic does not currently support variable iteration",
-            ))
-        }
-
-        for func in &self.symbol_file.functions {
-            let sym = SymInfo::from(func);
-            let () = f(&sym);
-        }
-        Ok(())
-    }
-
     fn fill_code_info<'slf>(
         &'slf self,
         sym: &mut IntSym<'slf>,
@@ -226,6 +208,21 @@ impl Inspect for BreakpadResolver {
 
         Ok(syms)
     }
+
+    /// Perform an operation on each symbol.
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {
+        if let SymType::Variable = opts.sym_type {
+            return Err(Error::with_unsupported(
+                "breakpad logic does not currently support variable iteration",
+            ))
+        }
+
+        for func in &self.symbol_file.functions {
+            let sym = SymInfo::from(func);
+            let () = f(&sym);
+        }
+        Ok(())
+    }
 }
 
 impl Debug for BreakpadResolver {
@@ -259,7 +256,7 @@ mod tests {
     }
 
     /// Check that [`BreakpadResolver::find_addr`] and
-    /// [`BreakpadResolver::for_each_sym`] behave as expected.
+    /// [`BreakpadResolver::for_each`] behave as expected.
     #[test]
     fn unsupported_ops() {
         let sym_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -275,7 +272,7 @@ mod tests {
         let err = resolver.find_addr("a_variable", &opts).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
 
-        let err = resolver.for_each_sym(&opts, |_| ()).unwrap_err();
+        let err = resolver.for_each(&opts, &mut |_| ()).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }

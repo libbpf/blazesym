@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::ops::Deref as _;
 use std::path::Path;
 use std::rc::Rc;
 
@@ -169,6 +170,11 @@ impl Inspect for ElfResolver {
         let parser = self.parser();
         let syms = parser.find_addr(name, opts)?;
         Ok(syms)
+    }
+
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {
+        let parser = self.parser();
+        parser.deref().for_each(opts, f)
     }
 }
 

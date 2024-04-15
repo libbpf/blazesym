@@ -93,4 +93,7 @@ where
 {
     /// Find information about a symbol given its name.
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'_>>>;
+
+    /// Perform an operation on each symbol.
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()>;
 }

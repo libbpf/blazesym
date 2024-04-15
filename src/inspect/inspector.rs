@@ -146,7 +146,7 @@ impl Inspector {
             src: &Source,
             f: &mut dyn FnMut(&SymInfo<'_>),
         ) -> Result<()> {
-            match src {
+            let (resolver, opts) = match src {
                 #[cfg(feature = "breakpad")]
                 Source::Breakpad(Breakpad {
                     path,
@@ -158,7 +158,7 @@ impl Inspector {
                         sym_type: SymType::Undefined,
                     };
                     let resolver = slf.breakpad_resolver(path)?;
-                    resolver.for_each_sym(&opts, f)
+                    (resolver.deref() as &dyn Inspect, opts)
                 }
                 Source::Elf(Elf {
                     path,
@@ -170,10 +170,11 @@ impl Inspector {
                         sym_type: SymType::Undefined,
                     };
                     let resolver = slf.elf_cache.elf_resolver(path, *debug_syms)?;
-                    let parser = resolver.parser();
-                    parser.for_each_sym(&opts, f)
+                    (resolver.deref() as &dyn Inspect, opts)
                 }
-            }
+            };
+
+            resolver.for_each(&opts, f)
         }
 
         for_each_impl(self, src, &mut f)

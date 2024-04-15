@@ -811,10 +811,11 @@ impl ElfParser {
     }
 
     /// Perform an operation on each symbol.
-    pub(crate) fn for_each_sym<F>(&self, opts: &FindAddrOpts, mut f: F) -> Result<()>
-    where
-        F: FnMut(&SymInfo<'_>),
-    {
+    pub(crate) fn for_each(
+        &self,
+        opts: &FindAddrOpts,
+        mut f: &mut dyn FnMut(&SymInfo<'_>),
+    ) -> Result<()> {
         let symtab = self.cache.ensure_symtab()?;
         let str2symtab = self.cache.ensure_str2symtab()?;
         let () = self.for_each_sym_impl(opts, symtab, str2symtab, &mut f)?;
@@ -1126,7 +1127,7 @@ mod tests {
         };
         let parser = ElfParser::open(bin_name.as_ref()).unwrap();
         let () = parser
-            .for_each_sym(&opts, |sym| {
+            .for_each(&opts, &mut |sym| {
                 let file_offset = parser.find_file_offset(sym.addr).unwrap();
                 assert_eq!(file_offset, sym.file_offset);
             })
