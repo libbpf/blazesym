@@ -353,6 +353,7 @@ fn prepare_test_files(crate_root: &Path) {
         &["-shared", "-fPIC", "-Wl,--build-id=md5,-z,noseparate-code"],
     );
     let src = crate_root.join("data").join("libtest-so.so");
+    gsym(&src, "libtest-so.gsym");
     strip(&src, "libtest-so-stripped.so", &[]);
     strip(
         &src,

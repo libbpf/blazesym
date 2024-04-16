@@ -22,7 +22,10 @@ jobs:
         runs-on: [ubuntu-latest, macos-latest]
         rust: [stable]
         profile: [dev, release]
-        args: ["--workspace"]
+        # gsym-in-apk requires `generate-unit-test-files` feature, which
+        # requires `llvm-gsymutil` installed. We don't want that dependency in
+        # this large OS spanning matrix.
+        args: ["--workspace --exclude=gsym-in-apk"]
         include:
           - runs-on: ubuntu-latest
             rust: stable
@@ -107,7 +110,7 @@ jobs:
     name: No-op rebuilds
     runs-on: ubuntu-22.04
     env:
-       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -227,6 +230,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo run --example backtrace
+    - run: cargo run --package gsym-in-apk
   c-header:
     name: Check generated C header
     runs-on: ubuntu-latest
@@ -245,7 +249,7 @@ jobs:
     name: Benchmark
     runs-on: ubuntu-22.04
     env:
-       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
@@ -283,8 +287,9 @@ jobs:
       - run: cargo +nightly fmt --all -- --check
   cargo-doc:
     name: Generate documentation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
       RUSTDOCFLAGS: '--cfg docsrs -D warnings'
     steps:
       - uses: actions/checkout@v4

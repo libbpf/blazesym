@@ -3,6 +3,7 @@ members = [
   ".",
   "capi",
   "cli",
+  "examples/gsym-in-apk",
 ]
 
 [package]
@@ -31,6 +32,7 @@ keywords = [
 ]
 exclude = ["data/kallsyms.xz"]
 autobenches = false
+autoexamples = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -79,6 +81,15 @@ dont-generate-unit-test-files = []
 # be used for testing and benchmarking purposes, not for the core library, which
 # is expected to work on stable.
 nightly = []
+
+[[example]]
+name = "addr2ln"
+
+[[example]]
+name = "addr2ln_pid"
+
+[[example]]
+name = "backtrace"
 
 [[bench]]
 name = "main"
