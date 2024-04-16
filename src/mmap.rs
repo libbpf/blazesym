@@ -3,7 +3,6 @@ use std::io;
 use std::ops::Deref;
 use std::ops::Range;
 use std::os::unix::io::AsRawFd;
-#[cfg(test)]
 use std::path::Path;
 use std::ptr::null_mut;
 use std::rc::Rc;
@@ -35,7 +34,6 @@ impl Builder {
     }
 
     /// Memory map the file at the provided `path`.
-    #[cfg(test)]
     pub fn open<P>(self, path: P) -> Result<Mmap>
     where
         P: AsRef<Path>,
@@ -123,8 +121,9 @@ impl Drop for Mapping {
 }
 
 
+/// A type encapsulating a region of mapped memory.
 #[derive(Clone, Debug)]
-pub(crate) struct Mmap {
+pub struct Mmap {
     /// The actual memory mapping.
     mapping: Rc<Mapping>,
     /// The view on the memory mapping that this object represents.
@@ -133,19 +132,19 @@ pub(crate) struct Mmap {
 
 impl Mmap {
     /// Create [`Builder`] for creating a customizable memory mapping.
-    pub fn builder() -> Builder {
+    pub(crate) fn builder() -> Builder {
         Builder::new()
     }
 
     /// Map the provided file into memory, in its entirety.
-    pub fn map(file: &File) -> Result<Self> {
+    pub(crate) fn map(file: &File) -> Result<Self> {
         Self::builder().map(file)
     }
 
     /// Create a new `Mmap` object (sharing the same underlying memory mapping
     /// as the current one) that restricts its view to the provided `range`.
     /// Adjustment happens relative to the current view.
-    pub fn constrain(&self, range: Range<u64>) -> Option<Self> {
+    pub(crate) fn constrain(&self, range: Range<u64>) -> Option<Self> {
         if self.view.start + range.end > self.view.end {
             return None
         }

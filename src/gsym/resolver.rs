@@ -41,8 +41,8 @@ enum Data<'dat> {
 }
 
 
-/// The symbol resolver for the GSYM format.
-pub struct GsymResolver<'dat> {
+/// A symbol resolver for the GSYM format.
+pub(crate) struct GsymResolver<'dat> {
     file_name: Option<PathBuf>,
     // SAFETY: This member should be listed before `ctx` to make sure we never
     //         end up with dangling references.
@@ -52,13 +52,16 @@ pub struct GsymResolver<'dat> {
 
 impl GsymResolver<'static> {
     /// Create a `GsymResolver` that loads data from the provided file.
-    #[cfg(test)]
-    pub fn new(path: PathBuf) -> Result<Self> {
-        let mmap = Mmap::builder().open(&path)?;
-        Self::from_mmap(path, mmap)
+    pub fn open<P>(path: P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+        let mmap = Mmap::builder().open(path)?;
+        Self::from_mmap(path.to_path_buf(), mmap)
     }
 
-    pub fn from_file(path: PathBuf, file: &File) -> Result<Self> {
+    pub(crate) fn from_file(path: PathBuf, file: &File) -> Result<Self> {
         let mmap = Mmap::map(file)?;
         Self::from_mmap(path, mmap)
     }
@@ -339,7 +342,7 @@ mod tests {
             .join("data")
             .join("test-stable-addresses.gsym");
 
-        let resolver = GsymResolver::new(test_gsym).unwrap();
+        let resolver = GsymResolver::open(test_gsym).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("GSYM"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addresses.gsym"), "{dbg}");
@@ -364,7 +367,7 @@ mod tests {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.gsym");
-        let resolver = GsymResolver::new(test_gsym).unwrap();
+        let resolver = GsymResolver::open(test_gsym).unwrap();
 
         // `main` resides at address 0x2000000, and it's located at the given
         // line.

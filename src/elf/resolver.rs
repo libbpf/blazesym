@@ -108,6 +108,16 @@ pub struct ElfResolver {
 }
 
 impl ElfResolver {
+    /// Create a `ElfResolver` that loads data from the provided file.
+    pub fn open<P>(path: P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+        let parser = Rc::new(ElfParser::open(path).unwrap());
+        Self::from_parser(parser, true)
+    }
+
     pub(crate) fn from_parser(parser: Rc<ElfParser>, _debug_syms: bool) -> Result<Self> {
         #[cfg(feature = "dwarf")]
         let backend = if _debug_syms {

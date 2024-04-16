@@ -46,7 +46,7 @@ impl<'func> From<&'func Function> for SymInfo<'func> {
 
 
 /// A symbol resolver for a single Breakpad file.
-pub(crate) struct BreakpadResolver {
+pub struct BreakpadResolver {
     /// The parsed symbol file.
     symbol_file: SymbolFile,
     /// The path of the Breakpad file in use.
@@ -54,6 +54,17 @@ pub(crate) struct BreakpadResolver {
 }
 
 impl BreakpadResolver {
+    /// Create a `BreakpadResolver` that loads data from the provided file.
+    pub fn open<P>(path: P) -> Result<Self>
+    where
+        P: AsRef<Path>,
+    {
+        let path = path.as_ref();
+        let file = File::open(path)
+            .with_context(|| format!("failed to open breakpad file `{}`", path.display()))?;
+        Self::from_file(path.to_path_buf(), &file)
+    }
+
     pub(crate) fn from_file(path: PathBuf, file: &File) -> Result<Self> {
         let mmap = Mmap::map(file)
             .with_context(|| format!("failed to memory map breakpad file `{}`", path.display()))?;
@@ -247,9 +258,8 @@ mod tests {
         let sym_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.sym");
-        let sym_file = File::open(&sym_path).unwrap();
 
-        let resolver = BreakpadResolver::from_file(sym_path, &sym_file).unwrap();
+        let resolver = BreakpadResolver::open(sym_path).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("Breakpad"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addresses.sym"), "{dbg}");
@@ -262,9 +272,8 @@ mod tests {
         let sym_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addresses.sym");
-        let sym_file = File::open(&sym_path).unwrap();
 
-        let resolver = BreakpadResolver::from_file(sym_path, &sym_file).unwrap();
+        let resolver = BreakpadResolver::open(sym_path).unwrap();
         let opts = FindAddrOpts {
             sym_type: SymType::Variable,
             ..Default::default()
