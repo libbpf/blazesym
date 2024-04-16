@@ -283,6 +283,7 @@ mod tests {
     use crate::normalize::UserMeta;
     use crate::symbolize;
     use crate::symbolize::Symbolizer;
+    use crate::zip;
     use crate::SymType;
 
 
@@ -422,8 +423,6 @@ mod tests {
     /// zip archive.
     #[test]
     fn normalize_custom_so_in_zip() {
-        use crate::zip;
-
         fn test(so_name: &str) {
             let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")

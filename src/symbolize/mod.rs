@@ -69,6 +69,11 @@ cfg_gsym! {
 pub use source::Kernel;
 pub use source::Process;
 pub use source::Source;
+
+cfg_apk! {
+    pub use symbolizer::ApkDispatch;
+    pub use symbolizer::ApkMemberInfo;
+}
 pub use symbolizer::Builder;
 pub use symbolizer::Symbolizer;
 
@@ -421,6 +426,8 @@ where
 
 /// A meta-trait encompassing functionality necessary for plugging into
 /// the container symbolization logic.
+///
+/// Refer to [`Builder::set_apk_dispatcher`] for additional details.
 pub trait Resolve: Symbolize + TranslateFileOffset {}
 
 impl<R> Resolve for R where R: Symbolize + TranslateFileOffset {}
