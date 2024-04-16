@@ -861,6 +861,21 @@ impl ElfParser {
         Ok(phdrs)
     }
 
+    /// Translate a file offset into a virtual offset.
+    pub(crate) fn file_offset_to_virt_offset(&self, offset: u64) -> Result<Option<Addr>> {
+        let phdrs = self.program_headers()?;
+        let addr = phdrs.iter().find_map(|phdr| {
+            if phdr.p_type == PT_LOAD {
+                if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&offset) {
+                    return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
+                }
+            }
+            None
+        });
+
+        Ok(addr)
+    }
+
     #[cfg(test)]
     fn pick_symtab_addr(&self) -> (&str, Addr, usize) {
         let symtab = self.cache.ensure_symtab().unwrap();
