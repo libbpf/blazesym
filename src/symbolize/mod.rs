@@ -390,14 +390,37 @@ impl<'src> Symbolized<'src> {
 }
 
 
+/// A trait helping with upcasting into a `dyn Symbolize`.
+// TODO: This trait is currently necessary because Rust does not yet support
+//       trait upcasting on stable (check `trait_upcasting` feature).
+pub(crate) trait AsSymbolize {
+    fn as_symbolize(&self) -> &dyn Symbolize;
+}
+
 /// The trait for types providing address symbolization services.
 pub(crate) trait Symbolize
 where
-    Self: Debug,
+    Self: AsSymbolize + Debug,
 {
     /// Find the symbol corresponding to the given address.
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>>;
 }
+
+impl<S> AsSymbolize for S
+where
+    S: Symbolize,
+{
+    fn as_symbolize(&self) -> &dyn Symbolize {
+        self
+    }
+}
+
+
+/// A meta-trait encompassing functionality necessary for plugging into
+/// the container symbolization logic.
+pub(crate) trait Resolve: Symbolize + TranslateFileOffset {}
+
+impl<R> Resolve for R where R: Symbolize + TranslateFileOffset {}
 
 
 /// A trait representing the ability to convert file offsets into virtual
