@@ -31,6 +31,7 @@ use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
 use crate::symbolize::InlinedFn;
+use crate::symbolize::Resolve;
 use crate::symbolize::TranslateFileOffset;
 use crate::util;
 use crate::util::uname_release;
@@ -264,7 +265,7 @@ enum Resolver<'tmp, 'slf> {
 pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
     #[cfg(feature = "apk")]
-    apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Box<ElfResolver>>)>,
+    apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Box<dyn Resolve>>)>,
     #[cfg(feature = "breakpad")]
     breakpad_cache: FileCache<BreakpadResolver>,
     elf_cache: FileCache<ElfResolverData>,
@@ -406,8 +407,8 @@ impl Symbolizer {
         apk_path: &Path,
         file_off: u64,
         debug_syms: bool,
-        resolver_map: &'slf InsertMap<Range<u64>, Box<ElfResolver>>,
-    ) -> Result<Option<(&'slf ElfResolver, Addr)>> {
+        resolver_map: &'slf InsertMap<Range<u64>, Box<dyn Resolve>>,
+    ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
         // Find the APK entry covering the calculated file offset.
         for apk_entry in apk.entries() {
             let apk_entry = apk_entry?;
@@ -435,7 +436,7 @@ impl Symbolizer {
 
                 let elf_off = file_off - apk_entry.data_offset;
                 if let Some(addr) = resolver.file_offset_to_virt_offset(elf_off)? {
-                    return Ok(Some((resolver, addr)))
+                    return Ok(Some((resolver.deref(), addr)))
                 }
                 break
             }
@@ -450,7 +451,7 @@ impl Symbolizer {
         path: &Path,
         file_off: u64,
         debug_syms: bool,
-    ) -> Result<Option<(&'slf ElfResolver, Addr)>> {
+    ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
         let (file, cell) = self.apk_cache.entry(path)?;
         let (apk, resolvers) = cell.get_or_try_init(|| {
             let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
@@ -540,9 +541,10 @@ impl Symbolizer {
                     .apk_resolver(apk_path, file_off, self.debug_syms)?
                 {
                     Some((elf_resolver, elf_addr)) => {
-                        let symbol = self
-                            .symbolizer
-                            .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver))?;
+                        let symbol = self.symbolizer.symbolize_with_resolver(
+                            elf_addr,
+                            &Resolver::Cached(elf_resolver.as_symbolize()),
+                        )?;
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
@@ -780,8 +782,10 @@ impl Symbolizer {
                     .iter()
                     .map(
                         |offset| match self.apk_resolver(path, *offset, *debug_syms)? {
-                            Some((elf_resolver, elf_addr)) => self
-                                .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver)),
+                            Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
+                                elf_addr,
+                                &Resolver::Cached(elf_resolver.as_symbolize()),
+                            ),
                             None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                         },
                     )
@@ -963,9 +967,10 @@ impl Symbolizer {
                     ))
                 }
                 Input::FileOffset(offset) => match self.apk_resolver(path, offset, *debug_syms)? {
-                    Some((elf_resolver, elf_addr)) => {
-                        self.symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver))
-                    }
+                    Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
+                        elf_addr,
+                        &Resolver::Cached(elf_resolver.as_symbolize()),
+                    ),
                     None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                 },
             },
