@@ -35,6 +35,7 @@ use crate::symbolize::Resolve;
 use crate::symbolize::TranslateFileOffset;
 use crate::util;
 use crate::util::uname_release;
+use crate::util::Dbg;
 #[cfg(feature = "apk")]
 use crate::zip;
 use crate::Addr;
@@ -123,6 +124,53 @@ fn maybe_demangle(name: Cow<'_, str>, _language: SrcLang) -> Cow<'_, str> {
 }
 
 
+/// Information about a member inside an APK.
+///
+/// This type is used in conjunction with the APK "dispatcher" infrastructure;
+/// see [`Builder::set_apk_dispatcher`].
+#[cfg(feature = "apk")]
+#[derive(Clone, Debug)]
+pub struct ApkMemberInfo<'dat> {
+    /// The path to the APK itself.
+    pub apk_path: &'dat Path,
+    /// The path to the member inside the APK.
+    pub member_path: &'dat Path,
+    /// The memory mapped member data.
+    pub member_mmap: Mmap,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
+}
+
+
+/// The signature of a dispatcher function for APK symbolization.
+///
+/// This type is used in conjunction with the APK "dispatcher" infrastructure;
+/// see [`Builder::set_apk_dispatcher`].
+///
+/// If this function returns `Some` resolver, this resolver will be used
+/// for addresses belonging to the represented archive member. If `None`
+/// is returned, the default dispatcher will be used instead.
+// TODO: Use a trait alias once stable.
+#[cfg(feature = "apk")]
+pub trait ApkDispatch: Fn(ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {}
+
+#[cfg(feature = "apk")]
+impl<F> ApkDispatch for F where F: Fn(ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {}
+
+
+#[cfg(feature = "apk")]
+fn default_apk_dispatcher(info: ApkMemberInfo<'_>, debug_syms: bool) -> Result<Box<dyn Resolve>> {
+    // Create an Android-style binary-in-APK path for
+    // reporting purposes.
+    let apk_elf_path = create_apk_elf_path(info.apk_path, info.member_path)?;
+    let parser = Rc::new(ElfParser::from_mmap(info.member_mmap, apk_elf_path));
+    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
+    let resolver = Box::new(resolver);
+    Ok(resolver)
+}
+
+
 /// A builder for configurable construction of [`Symbolizer`] objects.
 ///
 /// By default all features are enabled.
@@ -142,6 +190,10 @@ pub struct Builder {
     /// languages are Rust and C++ and the flag will have no effect if
     /// the underlying language does not mangle symbols (such as C).
     demangle: bool,
+    /// The "dispatch" function to use when symbolizing addresses
+    /// mapping to members of an APK.
+    #[cfg(feature = "apk")]
+    apk_dispatch: Option<Dbg<Box<dyn ApkDispatch>>>,
 }
 
 impl Builder {
@@ -177,6 +229,18 @@ impl Builder {
         self
     }
 
+    /// Set the "dispatch" function to use when symbolizing addresses
+    /// mapping to members of an APK.
+    #[cfg(feature = "apk")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "apk")))]
+    pub fn set_apk_dispatcher<D>(mut self, apk_dispatch: D) -> Self
+    where
+        D: ApkDispatch + 'static,
+    {
+        self.apk_dispatch = Some(Dbg(Box::new(apk_dispatch)));
+        self
+    }
+
     /// Create the [`Symbolizer`] object.
     pub fn build(self) -> Symbolizer {
         let Self {
@@ -184,6 +248,8 @@ impl Builder {
             code_info,
             inlined_fns,
             demangle,
+            #[cfg(feature = "apk")]
+            apk_dispatch,
         } = self;
 
         let find_sym_opts = match (code_info, inlined_fns) {
@@ -211,6 +277,8 @@ impl Builder {
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             find_sym_opts,
             demangle,
+            #[cfg(feature = "apk")]
+            apk_dispatch,
         }
     }
 }
@@ -222,6 +290,8 @@ impl Default for Builder {
             code_info: true,
             inlined_fns: true,
             demangle: true,
+            #[cfg(feature = "apk")]
+            apk_dispatch: None,
         }
     }
 }
@@ -275,6 +345,8 @@ pub struct Symbolizer {
     perf_map_cache: FileCache<PerfMap>,
     find_sym_opts: FindSymOpts,
     demangle: bool,
+    #[cfg(feature = "apk")]
+    apk_dispatch: Option<Dbg<Box<dyn ApkDispatch>>>,
 }
 
 impl Symbolizer {
@@ -425,12 +497,23 @@ impl Symbolizer {
                                 apk_path.display()
                             )
                         })?;
-                    // Create an Android-style binary-in-APK path for
-                    // reporting purposes.
-                    let apk_elf_path = create_apk_elf_path(apk_path, apk_entry.path)?;
-                    let parser = Rc::new(ElfParser::from_mmap(mmap, apk_elf_path));
-                    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
-                    let resolver = Box::new(resolver);
+                    let info = ApkMemberInfo {
+                        apk_path,
+                        member_path: apk_entry.path,
+                        member_mmap: mmap,
+                        _non_exhaustive: (),
+                    };
+
+                    let resolver = if let Some(Dbg(apk_dispatch)) = &self.apk_dispatch {
+                        if let Some(resolver) = (apk_dispatch)(info.clone())? {
+                            resolver
+                        } else {
+                            default_apk_dispatcher(info, debug_syms)?
+                        }
+                    } else {
+                        default_apk_dispatcher(info, debug_syms)?
+                    };
+
                     Ok(resolver)
                 })?;
 
@@ -1128,6 +1211,7 @@ mod tests {
 
     use std::mem::transmute;
 
+    use crate::inspect;
     use crate::inspect::FindAddrOpts;
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
@@ -1266,16 +1350,7 @@ mod tests {
         }
     }
 
-    /// Check that we can symbolize an address residing in a zip archive.
-    #[test]
-    fn symbolize_zip() {
-        use crate::zip;
-
-        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test.zip");
-
-        let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+    fn find_the_answer_fn(mmap: &Mmap) -> (inspect::SymInfo<'_>, Addr) {
         let archive = zip::Archive::with_mmap(mmap.clone()).unwrap();
         let so = archive
             .entries()
@@ -1309,18 +1384,128 @@ mod tests {
         let answer = the_answer_fn();
         assert_eq!(answer, 42);
 
-        // Now symbolize the address we just looked up. It should be
-        // correctly mapped to the `the_answer` function within our
-        // process.
+        (sym.to_owned(), the_answer_addr as Addr)
+    }
+
+    /// Check that we can symbolize an address residing in a zip archive.
+    #[test]
+    fn symbolize_zip() {
+        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+
+        let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+        let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
+
+        // Symbolize the address we just looked up. It should be correctly
+        // mapped to the `the_answer` function within our process.
         let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
+            .symbolize_single(&src, Input::AbsAddr(the_answer_addr))
             .unwrap()
             .into_sym()
             .unwrap();
 
         assert_eq!(result.name, "the_answer");
         assert_eq!(result.addr, sym.addr);
+    }
+
+    /// Check that we can symbolize an address residing in a zip archive, using
+    /// a custom APK dispatcher.
+    #[test]
+    fn symbolize_zip_with_custom_dispatch() {
+        fn zip_dispatch(info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+            assert_eq!(info.member_path, Path::new("libtest-so.so"));
+
+            let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(info.member_path);
+
+            let resolver = ElfResolver::open(test_so)?;
+            Ok(Some(Box::new(resolver)))
+        }
+
+        fn zip_no_dispatch(info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+            assert_eq!(info.member_path, Path::new("libtest-so.so"));
+            Ok(None)
+        }
+
+        fn test(dispatcher: impl ApkDispatch + 'static) {
+            let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("test.zip");
+
+            let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+            let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
+
+            let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+            let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
+            let result = symbolizer
+                .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
+                .unwrap()
+                .into_sym()
+                .unwrap();
+
+            assert_eq!(result.name, "the_answer");
+            assert_eq!(result.addr, sym.addr);
+        }
+
+        let () = test(zip_dispatch);
+        let () = test(zip_no_dispatch);
+    }
+
+    /// Check that we correctly propagate errors induced by a custom APK
+    /// dispatcher.
+    #[test]
+    fn symbolize_zip_with_custom_dispatch_errors() {
+        fn zip_error_dispatch(_info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+            Err(Error::with_unsupported("induced error"))
+        }
+
+        fn zip_delayed_error_dispatch(
+            _info: ApkMemberInfo<'_>,
+        ) -> Result<Option<Box<dyn Resolve>>> {
+            #[derive(Debug)]
+            struct Resolver;
+
+            impl Symbolize for Resolver {
+                fn find_sym(
+                    &self,
+                    _addr: Addr,
+                    _opts: &FindSymOpts,
+                ) -> Result<Result<ResolvedSym<'_>, Reason>> {
+                    unimplemented!()
+                }
+            }
+
+            impl TranslateFileOffset for Resolver {
+                fn file_offset_to_virt_offset(&self, _file_offset: u64) -> Result<Option<Addr>> {
+                    Err(Error::with_unsupported("induced error"))
+                }
+            }
+
+            Ok(Some(Box::new(Resolver)))
+        }
+
+        fn test(dispatcher: impl ApkDispatch + 'static) {
+            let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("test.zip");
+
+            let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+            let (_sym, the_answer_addr) = find_the_answer_fn(&mmap);
+
+            let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+            let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
+            let err = symbolizer
+                .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
+                .unwrap_err();
+
+            assert_eq!(err.to_string(), "induced error");
+        }
+
+        let () = test(zip_error_dispatch);
+        let () = test(zip_delayed_error_dispatch);
     }
 }

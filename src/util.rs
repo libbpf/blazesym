@@ -2,6 +2,9 @@ use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::ffi::CString;
 use std::ffi::OsStr;
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::io;
 use std::iter;
 use std::mem::align_of;
@@ -12,6 +15,24 @@ use std::os::unix::ffi::OsStrExt as _;
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::slice;
+
+
+/// A type providing a derive for `Debug` for types that
+/// otherwise don't.
+#[repr(transparent)]
+pub(crate) struct Dbg<T>(pub T)
+where
+    T: ?Sized;
+
+impl<T> Debug for Dbg<T>
+where
+    T: ?Sized,
+{
+    #[inline]
+    fn fmt(&self, fmt: &mut Formatter<'_>) -> FmtResult {
+        write!(fmt, "{:?}", &self.0 as *const T)
+    }
+}
 
 
 #[cfg(feature = "breakpad")]
@@ -556,6 +577,19 @@ mod tests {
     fn sorted_check() {
         assert!(is_sorted([1, 5, 6].iter()));
         assert!(!is_sorted([1, 5, 6, 0].iter()));
+    }
+
+    /// Check that our [`Dbg`] type does what it says on the tin.
+    #[test]
+    fn debug_non_debug() {
+        #[repr(transparent)]
+        struct NonDebug(usize);
+
+        let dbg = Dbg(NonDebug(42));
+        assert_eq!(
+            format!("{dbg:?}"),
+            format!("{:?}", &dbg.0 .0 as *const usize)
+        );
     }
 
     /// Check that we can reorder elements in an array as expected.
