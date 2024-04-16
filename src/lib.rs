@@ -83,6 +83,7 @@ pub use crate::error::Error;
 pub use crate::error::ErrorExt;
 pub use crate::error::ErrorKind;
 pub use crate::error::IntoError;
+pub use crate::mmap::Mmap;
 pub use crate::normalize::buildid::BuildId;
 pub use crate::pid::Pid;
 
@@ -114,7 +115,45 @@ pub enum SymType {
 
 /// Utility functionality not specific to any overarching theme.
 pub mod helper {
+    use super::*;
+
     pub use crate::normalize::buildid::read_elf_build_id;
+
+    cfg_breakpad! {
+        pub use crate::breakpad::BreakpadResolver;
+    }
+    pub use crate::elf::ElfResolver;
+    cfg_gsym! {
+        use std::path::Path;
+        use crate::symbolize::Symbolize;
+        use crate::symbolize::ResolvedSym;
+        use crate::symbolize::Reason;
+        use crate::symbolize::FindSymOpts;
+        use crate::gsym;
+
+        /// A symbol resolver for the GSYM format.
+        // We provide a wrapper type here to eliminate the need for a lifetime.
+        #[derive(Debug)]
+        pub struct GsymResolver(gsym::GsymResolver<'static>);
+
+        impl GsymResolver {
+            /// Create a `GsymResolver` that loads data from the provided file.
+            #[inline]
+            pub fn open<P>(path: P) -> Result<Self>
+            where
+                P: AsRef<Path>,
+            {
+                Ok(Self(gsym::GsymResolver::open(path)?))
+            }
+        }
+
+        impl Symbolize for GsymResolver {
+            #[inline]
+            fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
+                self.0.find_sym(addr, opts)
+            }
+        }
+    }
 }
 
 
@@ -148,4 +187,31 @@ mod log {
     pub(crate) use debug as info;
     pub(crate) use debug as trace;
     pub(crate) use debug as warn;
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::path::Path;
+
+    use crate::symbolize::FindSymOpts;
+    use crate::symbolize::Symbolize as _;
+
+
+    /// "Test" our public `GsymResolver`.
+    #[test]
+    fn gsym_resolver() {
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addresses.gsym");
+
+        let resolver = helper::GsymResolver::open(test_gsym).unwrap();
+        let sym = resolver
+            .find_sym(0x2000100, &FindSymOpts::Basic)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sym.name, "factorial");
+    }
 }

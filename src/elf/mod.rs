@@ -5,5 +5,6 @@ mod resolver;
 pub(crate) mod types;
 
 pub(crate) use parser::ElfParser;
-pub(crate) use resolver::ElfResolver;
 pub(crate) use resolver::ElfResolverData;
+
+pub use resolver::ElfResolver;
