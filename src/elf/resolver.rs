@@ -16,6 +16,7 @@ use crate::symbolize::FindSymOpts;
 use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
 use crate::symbolize::Symbolize;
+use crate::symbolize::TranslateFileOffset;
 use crate::Addr;
 use crate::Error;
 use crate::Result;
@@ -155,6 +156,13 @@ impl Symbolize for ElfResolver {
         let parser = self.parser();
         let result = parser.find_sym(addr, opts)?;
         Ok(result)
+    }
+}
+
+impl TranslateFileOffset for ElfResolver {
+    fn file_offset_to_virt_offset(&self, file_offset: u64) -> Result<Option<Addr>> {
+        let parser = self.parser();
+        parser.file_offset_to_virt_offset(file_offset)
     }
 }
 

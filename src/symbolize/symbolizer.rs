@@ -11,7 +11,6 @@ use std::rc::Rc;
 
 #[cfg(feature = "breakpad")]
 use crate::breakpad::BreakpadResolver;
-use crate::elf;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::elf::ElfResolverData;
@@ -32,6 +31,7 @@ use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
 use crate::symbolize::InlinedFn;
+use crate::symbolize::TranslateFileOffset;
 use crate::util;
 use crate::util::uname_release;
 #[cfg(feature = "apk")]
@@ -119,21 +119,6 @@ fn maybe_demangle(name: Cow<'_, str>, language: SrcLang) -> Cow<'_, str> {
 fn maybe_demangle(name: Cow<'_, str>, _language: SrcLang) -> Cow<'_, str> {
     // Demangling is disabled.
     name
-}
-
-
-fn elf_offset_to_address(offset: u64, parser: &ElfParser) -> Result<Option<Addr>> {
-    let phdrs = parser.program_headers()?;
-    let addr = phdrs.iter().find_map(|phdr| {
-        if phdr.p_type == elf::types::PT_LOAD {
-            if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&offset) {
-                return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
-            }
-        }
-        None
-    });
-
-    Ok(addr)
 }
 
 
@@ -449,7 +434,7 @@ impl Symbolizer {
                 })?;
 
                 let elf_off = file_off - apk_entry.data_offset;
-                if let Some(addr) = elf_offset_to_address(elf_off, resolver.parser())? {
+                if let Some(addr) = resolver.file_offset_to_virt_offset(elf_off)? {
                     return Ok(Some((resolver, addr)))
                 }
                 break
@@ -583,7 +568,7 @@ impl Symbolizer {
                     .elf_cache
                     .elf_resolver(path, self.debug_syms)?;
 
-                match elf_offset_to_address(file_off, resolver.parser())? {
+                match resolver.file_offset_to_virt_offset(file_off)? {
                     Some(addr) => {
                         let symbol = self
                             .symbolizer
@@ -849,7 +834,7 @@ impl Symbolizer {
                     Input::FileOffset(offsets) => offsets
                         .iter()
                         .map(
-                            |offset| match elf_offset_to_address(*offset, resolver.parser())? {
+                            |offset| match resolver.file_offset_to_virt_offset(*offset)? {
                                 Some(addr) => self.symbolize_with_resolver(
                                     addr,
                                     &Resolver::Cached(resolver.deref()),
@@ -1022,7 +1007,7 @@ impl Symbolizer {
                         ))
                     }
                     Input::FileOffset(offset) => {
-                        match elf_offset_to_address(offset, resolver.parser())? {
+                        match resolver.file_offset_to_virt_offset(offset)? {
                             Some(addr) => addr,
                             None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                         }

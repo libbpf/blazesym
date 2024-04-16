@@ -454,6 +454,20 @@ where
 }
 
 
+/// A trait representing the ability to convert file offsets into virtual
+/// offsets.
+///
+/// Please refer to the [`Input`] enum for an overview of the various offset
+/// types.
+pub(crate) trait TranslateFileOffset
+where
+    Self: Debug,
+{
+    /// Convert the provided file offset into a virtual offset.
+    fn file_offset_to_virt_offset(&self, file_offset: u64) -> Result<Option<Addr>>;
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
