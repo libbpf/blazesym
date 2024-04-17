@@ -159,6 +159,19 @@ pub trait ApkDispatch: Fn(ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>>
 impl<F> ApkDispatch for F where F: Fn(ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {}
 
 
+/// The signature of a dispatcher function for process symbolization.
+///
+/// This type is used in conjunction with the process "dispatcher"
+/// infrastructure; see [`Builder::set_process_dispatcher`].
+///
+/// If this function returns `Some` resolver, this resolver will be used
+/// for addresses belonging to the represented process member. If `None`
+/// is returned, the default dispatcher will be used instead.
+pub trait ProcessDispatch: Fn(ProcessMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {}
+
+impl<F> ProcessDispatch for F where F: Fn(ProcessMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {}
+
+
 #[cfg(feature = "apk")]
 fn default_apk_dispatcher(info: ApkMemberInfo<'_>, debug_syms: bool) -> Result<Box<dyn Resolve>> {
     // Create an Android-style binary-in-APK path for
@@ -168,6 +181,20 @@ fn default_apk_dispatcher(info: ApkMemberInfo<'_>, debug_syms: bool) -> Result<B
     let resolver = ElfResolver::from_parser(parser, debug_syms)?;
     let resolver = Box::new(resolver);
     Ok(resolver)
+}
+
+
+/// Information about an address space member of a process.
+#[derive(Clone, Debug)]
+pub struct ProcessMemberInfo<'dat> {
+    /// The virtual address range covered by this member.
+    pub range: Range<Addr>,
+    /// The "pathname" component in a `/proc/[pid]/maps` entry. See
+    /// `proc(5)` section `/proc/[pid]/maps`.
+    pub member_entry: &'dat PathName,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
 }
 
 
@@ -194,6 +221,9 @@ pub struct Builder {
     /// mapping to members of an APK.
     #[cfg(feature = "apk")]
     apk_dispatch: Option<Dbg<Box<dyn ApkDispatch>>>,
+    /// The "dispatch" function to use when symbolizing addresses
+    /// mapping to members of a process.
+    process_dispatch: Option<Dbg<Box<dyn ProcessDispatch>>>,
 }
 
 impl Builder {
@@ -241,6 +271,16 @@ impl Builder {
         self
     }
 
+    /// Set the "dispatch" function to use when symbolizing addresses
+    /// mapping to members of a process.
+    pub fn set_process_dispatcher<D>(mut self, process_dispatch: D) -> Self
+    where
+        D: ProcessDispatch + 'static,
+    {
+        self.process_dispatch = Some(Dbg(Box::new(process_dispatch)));
+        self
+    }
+
     /// Create the [`Symbolizer`] object.
     pub fn build(self) -> Symbolizer {
         let Self {
@@ -250,13 +290,14 @@ impl Builder {
             demangle,
             #[cfg(feature = "apk")]
             apk_dispatch,
+            process_dispatch,
         } = self;
 
         let find_sym_opts = match (code_info, inlined_fns) {
             (false, inlined_fns) => {
                 if inlined_fns {
                     log::warn!(
-                        "inlined functions reporting asked for but more general code information inquiry is disabled; flag is being ignored"
+                        "inlined function reporting asked for but more general code information inquiry is disabled; flag is being ignored"
                     );
                 }
                 FindSymOpts::Basic
@@ -275,10 +316,12 @@ impl Builder {
             gsym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             ksym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
+            process_cache: InsertMap::new(),
             find_sym_opts,
             demangle,
             #[cfg(feature = "apk")]
             apk_dispatch,
+            process_dispatch,
         }
     }
 }
@@ -292,6 +335,7 @@ impl Default for Builder {
             demangle: true,
             #[cfg(feature = "apk")]
             apk_dispatch: None,
+            process_dispatch: None,
         }
     }
 }
@@ -343,10 +387,12 @@ pub struct Symbolizer {
     gsym_cache: FileCache<GsymResolver<'static>>,
     ksym_cache: FileCache<Rc<KSymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
+    process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
     find_sym_opts: FindSymOpts,
     demangle: bool,
     #[cfg(feature = "apk")]
     apk_dispatch: Option<Dbg<Box<dyn ApkDispatch>>>,
+    process_dispatch: Option<Dbg<Box<dyn ProcessDispatch>>>,
 }
 
 impl Symbolizer {
@@ -577,6 +623,28 @@ impl Symbolizer {
         }
     }
 
+    fn process_dispatch_resolver<'slf>(
+        &'slf self,
+        range: Range<Addr>,
+        path_name: &PathName,
+    ) -> Result<Option<&'slf dyn Resolve>> {
+        if let Some(Dbg(process_dispatch)) = &self.process_dispatch {
+            let resolver = self
+                .process_cache
+                .get_or_try_insert(path_name.clone(), || {
+                    let info = ProcessMemberInfo {
+                        range,
+                        member_entry: path_name,
+                        _non_exhaustive: (),
+                    };
+                    (process_dispatch)(info)
+                })?;
+            Ok(resolver.as_deref())
+        } else {
+            Ok(None)
+        }
+    }
+
     /// Symbolize the given list of user space addresses in the provided
     /// process.
     fn symbolize_user_addrs(
@@ -685,6 +753,31 @@ impl Symbolizer {
             }
 
             fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
+                if let Some(path_name) = &entry.path_name {
+                    if let Some(resolver) = self
+                        .symbolizer
+                        .process_dispatch_resolver(entry.range.clone(), path_name)?
+                    {
+                        let file_off = addr - entry.range.start + entry.offset;
+                        let result = match resolver.file_offset_to_virt_offset(file_off)? {
+                            Some(addr) => {
+                                let symbol = self.symbolizer.symbolize_with_resolver(
+                                    addr,
+                                    &Resolver::Cached(resolver.as_symbolize()),
+                                )?;
+                                let () = self.all_symbols.push(symbol);
+                                Ok(())
+                            }
+                            None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
+                        };
+                        return result
+                    }
+
+                    // If there is no process dispatcher installed or it did
+                    // not return a resolver for the entry, we use our
+                    // default handling scheme.
+                }
+
                 match &entry.path_name {
                     Some(PathName::Path(entry_path)) => {
                         let file_off = addr - entry.range.start + entry.offset;

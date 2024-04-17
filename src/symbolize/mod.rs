@@ -75,7 +75,15 @@ cfg_apk! {
     pub use symbolizer::ApkMemberInfo;
 }
 pub use symbolizer::Builder;
+pub use symbolizer::ProcessDispatch;
+pub use symbolizer::ProcessMemberInfo;
 pub use symbolizer::Symbolizer;
+
+// Strictly speaking these types are applicable to the entire crate, but right
+// now they are only used as part of the symbolization APIs, so we re-export
+// them through this module only.
+pub use crate::maps::EntryPath as ProcessMemberPath;
+pub use crate::maps::PathName as ProcessMemberType;
 
 use crate::normalize;
 use crate::Addr;
@@ -427,7 +435,8 @@ where
 /// A meta-trait encompassing functionality necessary for plugging into
 /// the container symbolization logic.
 ///
-/// Refer to [`Builder::set_apk_dispatcher`] for additional details.
+/// Refer to [`Builder::set_apk_dispatcher`] and
+/// [`Builder::set_process_dispatcher`] for additional details.
 pub trait Resolve: Symbolize + TranslateFileOffset {}
 
 impl<R> Resolve for R where R: Symbolize + TranslateFileOffset {}
