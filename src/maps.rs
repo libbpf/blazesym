@@ -22,8 +22,9 @@ use crate::Pid;
 use crate::Result;
 
 
+/// Path information about a process member.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-pub(crate) struct EntryPath {
+pub struct EntryPath {
     /// The path of the file backing the maps entry via a
     /// `/proc/<xxx>/map_files/` component.
     ///
@@ -36,20 +37,28 @@ pub(crate) struct EntryPath {
     /// parsed. This path has been sanitized and no longer contains any
     /// `(deleted)` suffixes.
     pub symbolic_path: PathBuf,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
 }
 
 
 /// The "pathname" component in a proc maps entry. See `proc(5)` section
 /// `/proc/[pid]/maps`.
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum PathName {
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[non_exhaustive]
+pub enum PathName {
+    /// The member represents a entity with a path on the file system.
     Path(EntryPath),
+    /// The member is a non-file system backed entity.
+    ///
+    /// Examples include the heap (`[heap]`) or BPF programs, for example.
     Component(String),
 }
 
 impl PathName {
     #[cfg(test)]
-    pub fn as_path(&self) -> Option<&EntryPath> {
+    pub(crate) fn as_path(&self) -> Option<&EntryPath> {
         match self {
             Self::Path(path) => Some(path),
             _ => None,
@@ -57,7 +66,7 @@ impl PathName {
     }
 
     #[cfg(test)]
-    pub fn as_component(&self) -> Option<&str> {
+    pub(crate) fn as_component(&self) -> Option<&str> {
         match self {
             Self::Component(comp) => Some(comp),
             _ => None,
@@ -192,6 +201,7 @@ fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
             Some(PathName::Path(EntryPath {
                 maps_file,
                 symbolic_path,
+                _non_exhaustive: (),
             }))
         }
         // This variant would typically capture components such as `[vdso]` or

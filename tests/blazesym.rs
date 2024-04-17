@@ -20,16 +20,22 @@ use std::process::Stdio;
 use std::str;
 
 use blazesym::helper::read_elf_build_id;
+use blazesym::helper::ElfResolver;
 use blazesym::inspect;
 use blazesym::inspect::Inspector;
 use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
+use blazesym::symbolize::ProcessDispatch;
+use blazesym::symbolize::ProcessMemberInfo;
+use blazesym::symbolize::ProcessMemberType;
 use blazesym::symbolize::Reason;
+use blazesym::symbolize::Resolve;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::ErrorKind;
 use blazesym::Pid;
+use blazesym::Result;
 use blazesym::SymType;
 
 use libc::kill;
@@ -610,6 +616,54 @@ fn symbolize_process_in_mount_namespace() {
     // "Signal" the child to terminate gracefully.
     let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
     let _status = child.wait().unwrap();
+}
+
+/// Test that we can use a custom dispatch function when symbolizing addresses
+/// in processes.
+#[test]
+fn symbolize_process_with_custom_dispatch() {
+    fn process_dispatch(info: ProcessMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+        let resolver = match info.member_entry {
+            ProcessMemberType::Path(entry) => ElfResolver::open(&entry.maps_file)?,
+            _ => unreachable!(),
+        };
+        Ok(Some(Box::new(resolver)))
+    }
+
+    fn process_no_dispatch(_info: ProcessMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+        Ok(None)
+    }
+
+    fn test(dispatcher: impl ProcessDispatch + 'static) {
+        let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+        let addrs = [
+            symbolize_process as Addr,
+            symbolize_process_with_custom_dispatch as Addr,
+        ];
+        let symbolizer = Symbolizer::builder()
+            .set_process_dispatcher(dispatcher)
+            .build();
+        let results = symbolizer
+            .symbolize(&src, symbolize::Input::AbsAddr(&addrs))
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 2);
+
+        let result = results[0].as_sym().unwrap();
+        assert!(result.name.contains("symbolize_process"), "{result:x?}");
+
+        let result = results[1].as_sym().unwrap();
+        assert!(
+            result
+                .name
+                .contains("symbolize_process_with_custom_dispatch"),
+            "{result:x?}"
+        );
+    }
+
+    test(process_dispatch);
+    test(process_no_dispatch);
 }
 
 /// Check that we can normalize addresses in an ELF shared object.
