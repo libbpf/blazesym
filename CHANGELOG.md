@@ -12,6 +12,7 @@ Unreleased
   was not successful as part of the `normalize::UserMeta::Unknown` variant
 - Reduced number of allocations performed on address normalization and
   process symbolization paths
+- Removed `Clone` impl of `symbolize::Builder` type
 
 
 0.2.0-alpha.11

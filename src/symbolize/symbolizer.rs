@@ -125,7 +125,7 @@ fn maybe_demangle(name: Cow<'_, str>, _language: SrcLang) -> Cow<'_, str> {
 /// A builder for configurable construction of [`Symbolizer`] objects.
 ///
 /// By default all features are enabled.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Builder {
     /// Whether or not to automatically reload file system based
     /// symbolization sources that were updated since the last
