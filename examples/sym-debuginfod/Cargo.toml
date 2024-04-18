@@ -1,0 +1,20 @@
+[package]
+name = "sym-debuginfod"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[bin]]
+name = "sym-debuginfod"
+path = "main.rs"
+
+[dependencies]
+anyhow = "1.0"
+blazesym = {version = "=0.2.0-alpha.11", path = "../..", features = ["tracing"]}
+clap = {version = "4.4", features = ["derive", "string"]}
+debuginfod = {version = "0.1", features = ["fs-cache", "tracing"]}
+dirs = "5.0.1"
+tracing = "0.1"
+tracing-subscriber = {version = "0.3", features = ["ansi", "env-filter", "fmt"]}

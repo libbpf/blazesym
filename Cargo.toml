@@ -3,6 +3,7 @@ members = [
   ".",
   "capi",
   "cli",
+  "examples/sym-debuginfod",
   "examples/gsym-in-apk",
 ]
 
