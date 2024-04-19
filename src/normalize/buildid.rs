@@ -222,7 +222,7 @@ mod tests {
 
             let parser = ElfParser::open(&elf).unwrap();
             let build_id = f(&parser).unwrap().unwrap();
-            // The file contains a sha1 build ID, which is always 40 hex digits.
+            // The file contains a sha1 build ID, which is always 20 bytes long.
             assert_eq!(build_id.len(), 20, "'{build_id:?}'");
         }
 
