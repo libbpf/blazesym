@@ -269,7 +269,7 @@ pub struct Symbolizer {
     breakpad_cache: FileCache<BreakpadResolver>,
     elf_cache: FileCache<ElfResolverData>,
     #[cfg(feature = "gsym")]
-    gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
+    gsym_cache: FileCache<GsymResolver<'static>>,
     ksym_cache: FileCache<Rc<KSymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
     find_sym_opts: FindSymOpts,
@@ -387,13 +387,13 @@ impl Symbolizer {
     }
 
     #[cfg(feature = "gsym")]
-    fn create_gsym_resolver(&self, path: &Path, file: &File) -> Result<Rc<GsymResolver<'static>>> {
+    fn create_gsym_resolver(&self, path: &Path, file: &File) -> Result<GsymResolver<'static>> {
         let resolver = GsymResolver::from_file(path.to_path_buf(), file)?;
-        Ok(Rc::new(resolver))
+        Ok(resolver)
     }
 
     #[cfg(feature = "gsym")]
-    fn gsym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<GsymResolver<'static>>> {
+    fn gsym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf GsymResolver<'static>> {
         let (file, cell) = self.gsym_cache.entry(path)?;
         let resolver = cell.get_or_try_init(|| self.create_gsym_resolver(path, file))?;
         Ok(resolver)
@@ -927,7 +927,7 @@ impl Symbolizer {
                 };
 
                 let resolver = self.gsym_resolver(path)?;
-                let symbols = self.symbolize_addrs(addrs, &Resolver::Cached(resolver.deref()))?;
+                let symbols = self.symbolize_addrs(addrs, &Resolver::Cached(resolver))?;
                 Ok(symbols)
             }
             Source::Phantom(()) => unreachable!(),
@@ -1103,7 +1103,7 @@ impl Symbolizer {
                 };
 
                 let resolver = self.gsym_resolver(path)?;
-                self.symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))
+                self.symbolize_with_resolver(addr, &Resolver::Cached(resolver))
             }
             Source::Phantom(()) => unreachable!(),
         }
