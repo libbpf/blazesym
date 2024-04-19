@@ -266,7 +266,7 @@ pub struct Symbolizer {
     #[cfg(feature = "apk")]
     apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Box<ElfResolver>>)>,
     #[cfg(feature = "breakpad")]
-    breakpad_cache: FileCache<Rc<BreakpadResolver>>,
+    breakpad_cache: FileCache<BreakpadResolver>,
     elf_cache: FileCache<ElfResolverData>,
     #[cfg(feature = "gsym")]
     gsym_cache: FileCache<Rc<GsymResolver<'static>>>,
@@ -463,13 +463,13 @@ impl Symbolizer {
     }
 
     #[cfg(feature = "breakpad")]
-    fn create_breakpad_resolver(&self, path: &Path, file: &File) -> Result<Rc<BreakpadResolver>> {
+    fn create_breakpad_resolver(&self, path: &Path, file: &File) -> Result<BreakpadResolver> {
         let resolver = BreakpadResolver::from_file(path.to_path_buf(), file)?;
-        Ok(Rc::new(resolver))
+        Ok(resolver)
     }
 
     #[cfg(feature = "breakpad")]
-    fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<BreakpadResolver>> {
+    fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf BreakpadResolver> {
         let (file, cell) = self.breakpad_cache.entry(path)?;
         let resolver = cell.get_or_try_init(|| self.create_breakpad_resolver(path, file))?;
         Ok(resolver)
@@ -807,7 +807,7 @@ impl Symbolizer {
                 };
 
                 let resolver = self.breakpad_resolver(path)?;
-                let symbols = self.symbolize_addrs(addrs, &Resolver::Cached(resolver.deref()))?;
+                let symbols = self.symbolize_addrs(addrs, &Resolver::Cached(resolver))?;
                 Ok(symbols)
             }
             Source::Elf(Elf {
@@ -989,7 +989,7 @@ impl Symbolizer {
                 };
 
                 let resolver = self.breakpad_resolver(path)?;
-                self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
+                self.symbolize_with_resolver(addr, &Resolver::Cached(resolver))
             }
             Source::Elf(Elf {
                 path,
