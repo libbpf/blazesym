@@ -264,7 +264,7 @@ enum Resolver<'tmp, 'slf> {
 pub struct Symbolizer {
     #[allow(clippy::type_complexity)]
     #[cfg(feature = "apk")]
-    apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Rc<ElfResolver>>)>,
+    apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Box<ElfResolver>>)>,
     #[cfg(feature = "breakpad")]
     breakpad_cache: FileCache<Rc<BreakpadResolver>>,
     elf_cache: FileCache<ElfResolverData>,
@@ -406,8 +406,8 @@ impl Symbolizer {
         apk_path: &Path,
         file_off: u64,
         debug_syms: bool,
-        resolver_map: &'slf InsertMap<Range<u64>, Rc<ElfResolver>>,
-    ) -> Result<Option<(&'slf Rc<ElfResolver>, Addr)>> {
+        resolver_map: &'slf InsertMap<Range<u64>, Box<ElfResolver>>,
+    ) -> Result<Option<(&'slf ElfResolver, Addr)>> {
         // Find the APK entry covering the calculated file offset.
         for apk_entry in apk.entries() {
             let apk_entry = apk_entry?;
@@ -429,7 +429,7 @@ impl Symbolizer {
                     let apk_elf_path = create_apk_elf_path(apk_path, apk_entry.path)?;
                     let parser = Rc::new(ElfParser::from_mmap(mmap, apk_elf_path));
                     let resolver = ElfResolver::from_parser(parser, debug_syms)?;
-                    let resolver = Rc::new(resolver);
+                    let resolver = Box::new(resolver);
                     Ok(resolver)
                 })?;
 
@@ -450,7 +450,7 @@ impl Symbolizer {
         path: &Path,
         file_off: u64,
         debug_syms: bool,
-    ) -> Result<Option<(&'slf Rc<ElfResolver>, Addr)>> {
+    ) -> Result<Option<(&'slf ElfResolver, Addr)>> {
         let (file, cell) = self.apk_cache.entry(path)?;
         let (apk, resolvers) = cell.get_or_try_init(|| {
             let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
@@ -540,10 +540,9 @@ impl Symbolizer {
                     .apk_resolver(apk_path, file_off, self.debug_syms)?
                 {
                     Some((elf_resolver, elf_addr)) => {
-                        let symbol = self.symbolizer.symbolize_with_resolver(
-                            elf_addr,
-                            &Resolver::Cached(elf_resolver.deref()),
-                        )?;
+                        let symbol = self
+                            .symbolizer
+                            .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver))?;
                         let () = self.all_symbols.push(symbol);
                         Ok(())
                     }
@@ -781,10 +780,8 @@ impl Symbolizer {
                     .iter()
                     .map(
                         |offset| match self.apk_resolver(path, *offset, *debug_syms)? {
-                            Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
-                                elf_addr,
-                                &Resolver::Cached(elf_resolver.deref()),
-                            ),
+                            Some((elf_resolver, elf_addr)) => self
+                                .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver)),
                             None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                         },
                     )
@@ -966,8 +963,9 @@ impl Symbolizer {
                     ))
                 }
                 Input::FileOffset(offset) => match self.apk_resolver(path, offset, *debug_syms)? {
-                    Some((elf_resolver, elf_addr)) => self
-                        .symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver.deref())),
+                    Some((elf_resolver, elf_addr)) => {
+                        self.symbolize_with_resolver(elf_addr, &Resolver::Cached(elf_resolver))
+                    }
                     None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                 },
             },
