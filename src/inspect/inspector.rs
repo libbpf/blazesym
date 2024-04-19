@@ -3,8 +3,6 @@ use std::fs::File;
 use std::ops::Deref as _;
 #[cfg(feature = "breakpad")]
 use std::path::Path;
-#[cfg(feature = "breakpad")]
-use std::rc::Rc;
 
 #[cfg(feature = "breakpad")]
 use crate::breakpad::BreakpadResolver;
@@ -38,7 +36,7 @@ use super::SymType;
 #[derive(Debug)]
 pub struct Inspector {
     #[cfg(feature = "breakpad")]
-    breakpad_cache: FileCache<Rc<BreakpadResolver>>,
+    breakpad_cache: FileCache<Box<BreakpadResolver>>,
     elf_cache: FileCache<ElfResolverData>,
 }
 
@@ -54,13 +52,13 @@ impl Inspector {
     }
 
     #[cfg(feature = "breakpad")]
-    fn create_breakpad_resolver(&self, path: &Path, file: &File) -> Result<Rc<BreakpadResolver>> {
+    fn create_breakpad_resolver(&self, path: &Path, file: &File) -> Result<Box<BreakpadResolver>> {
         let resolver = BreakpadResolver::from_file(path.to_path_buf(), file)?;
-        Ok(Rc::new(resolver))
+        Ok(Box::new(resolver))
     }
 
     #[cfg(feature = "breakpad")]
-    fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<BreakpadResolver>> {
+    fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf BreakpadResolver> {
         let (file, cell) = self.breakpad_cache.entry(path)?;
         let resolver = cell.get_or_try_init(|| self.create_breakpad_resolver(path, file))?;
         Ok(resolver)
@@ -92,7 +90,7 @@ impl Inspector {
                 _non_exhaustive: (),
             }) => {
                 let resolver = self.breakpad_resolver(path)?;
-                resolver.deref() as &dyn Inspect
+                resolver as &dyn Inspect
             }
             Source::Elf(Elf {
                 path,
@@ -158,7 +156,7 @@ impl Inspector {
                         sym_type: SymType::Undefined,
                     };
                     let resolver = slf.breakpad_resolver(path)?;
-                    (resolver.deref() as &dyn Inspect, opts)
+                    (resolver as &dyn Inspect, opts)
                 }
                 Source::Elf(Elf {
                     path,
@@ -194,7 +192,6 @@ mod tests {
 
     #[cfg(not(feature = "breakpad"))]
     use std::path::Path;
-    #[cfg(not(feature = "breakpad"))]
     use std::rc::Rc;
 
     use crate::ErrorKind;
