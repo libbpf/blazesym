@@ -3,7 +3,7 @@ use std::backtrace::BacktraceStatus;
 use std::borrow::Borrow;
 use std::borrow::Cow;
 use std::error;
-use std::error::Error as _;
+use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -108,6 +108,11 @@ enum ErrorImpl {
         #[cfg(feature = "backtrace")]
         backtrace: Backtrace,
     },
+    Std {
+        error: Box<dyn StdError + Send + Sync + 'static>,
+        #[cfg(feature = "backtrace")]
+        backtrace: Backtrace,
+    },
     // Unfortunately, if we just had a single `Context` variant that
     // contains a `Cow`, this inner `Cow` would cause an overall enum
     // size increase by a machine word, because currently `rustc`
@@ -143,6 +148,7 @@ impl ErrorImpl {
                 io::ErrorKind::OutOfMemory => ErrorKind::OutOfMemory,
                 _ => ErrorKind::Other,
             },
+            Self::Std { .. } => ErrorKind::Other,
             Self::ContextOwned { source, .. } | Self::ContextStatic { source, .. } => {
                 source.deref().kind()
             }
@@ -156,6 +162,7 @@ impl ErrorImpl {
             #[cfg(feature = "dwarf")]
             Self::Dwarf { backtrace, .. } => Some(backtrace),
             Self::Io { backtrace, .. } => Some(backtrace),
+            Self::Std { backtrace, .. } => Some(backtrace),
             Self::ContextOwned { .. } => None,
             Self::ContextStatic { .. } => None,
         }
@@ -194,6 +201,10 @@ impl Debug for ErrorImpl {
                     dbg = f.debug_tuple(stringify!(Io));
                     dbg.field(error)
                 }
+                Self::Std { error, .. } => {
+                    dbg = f.debug_tuple(stringify!(Std));
+                    dbg.field(error)
+                }
                 Self::ContextOwned { context, .. } => {
                     dbg = f.debug_tuple(stringify!(ContextOwned));
                     dbg.field(context)
@@ -209,6 +220,7 @@ impl Debug for ErrorImpl {
                 #[cfg(feature = "dwarf")]
                 Self::Dwarf { error, .. } => write!(f, "Error: {error}")?,
                 Self::Io { error, .. } => write!(f, "Error: {error}")?,
+                Self::Std { error, .. } => write!(f, "Error: {error}")?,
                 Self::ContextOwned { context, .. } => write!(f, "Error: {context}")?,
                 Self::ContextStatic { context, .. } => write!(f, "Error: {context}")?,
             };
@@ -240,6 +252,7 @@ impl Display for ErrorImpl {
             #[cfg(feature = "dwarf")]
             Self::Dwarf { error, .. } => Display::fmt(error, f)?,
             Self::Io { error, .. } => Display::fmt(error, f)?,
+            Self::Std { error, .. } => Display::fmt(error, f)?,
             Self::ContextOwned { context, .. } => Display::fmt(context, f)?,
             Self::ContextStatic { context, .. } => Display::fmt(context, f)?,
         };
@@ -261,6 +274,7 @@ impl error::Error for ErrorImpl {
             #[cfg(feature = "dwarf")]
             Self::Dwarf { error, .. } => error.source(),
             Self::Io { error, .. } => error.source(),
+            Self::Std { error, .. } => error.source(),
             Self::ContextOwned { source, .. } | Self::ContextStatic { source, .. } => Some(source),
         }
     }
@@ -524,6 +538,22 @@ impl From<io::Error> for Error {
     }
 }
 
+impl From<Box<dyn StdError + Send + Sync + 'static>> for Error {
+    fn from(other: Box<dyn StdError + Send + Sync + 'static>) -> Self {
+        Self {
+            error: Box::new(ErrorImpl::Std {
+                error: other,
+                // Ideally we'd use any backtrace potentially attached to the
+                // error, but we have no way of knowing that or accessing it,
+                // because no trait exposes it. So the best we can do is capture
+                // a backtrace ourselves. Sigh.
+                #[cfg(feature = "backtrace")]
+                backtrace: Backtrace::capture(),
+            }),
+        }
+    }
+}
+
 
 /// A trait providing ergonomic chaining capabilities to [`Error`].
 pub trait ErrorExt: private::Sealed {
@@ -695,6 +725,18 @@ mod tests {
     #[test]
     fn error_size() {
         assert_eq!(size_of::<Error>(), size_of::<usize>());
+    }
+
+    /// Check that we can convert a `dyn std::error::Error` into our `Error`.
+    #[test]
+    fn std_error_conversion() {
+        let err = io::Error::new(io::ErrorKind::InvalidData, "some invalid data");
+        let err = Box::new(err) as Box<dyn StdError + Send + Sync + 'static>;
+        let err = Error::from(err);
+
+        assert_eq!(format!("{err}"), "some invalid data");
+        // The original error kind won't be preserved, unfortunately.
+        assert_eq!(err.kind(), ErrorKind::Other);
     }
 
     /// Check that we can format errors as expected.
