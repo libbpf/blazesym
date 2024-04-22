@@ -11,6 +11,7 @@ use std::ops::Deref as _;
 use std::path::Path;
 use std::rc::Rc;
 
+use gimli::AbbreviationsCacheStrategy;
 use gimli::Dwarf;
 
 use crate::elf::ElfParser;
@@ -98,7 +99,14 @@ impl DwarfResolver {
         let static_parser =
             unsafe { mem::transmute::<&ElfParser, &'static ElfParser>(parser.deref()) };
         let mut load_section = |section| reader::load_section(static_parser, section);
-        let dwarf = Dwarf::load(&mut load_section)?;
+        let mut dwarf = Dwarf::load(&mut load_section)?;
+        // Cache abbreviations (which will cause them to be
+        // automatically reused across compilation units), which can
+        // speed up parsing of debug information potentially
+        // dramatically, depending on debug information layout and how
+        // much effort the linker spent on optimizing it.
+        let () = dwarf.populate_abbreviations_cache(AbbreviationsCacheStrategy::Duplicates);
+
         let units = Units::parse(dwarf)?;
         let slf = Self { units, parser };
         Ok(slf)
