@@ -3,98 +3,44 @@
 //! This module contains functionality for symbolizing addresses, i.e., finding
 //! symbol names and other information based on "raw" addresses.
 //!
-//! For example, here we symbolize the backtrace captured via `libc`'s
-//! `backtrace` function:
+//! For example, here we symbolize the address of `libc`'s `fopen` and `fseek`
+//! functions, given their addresses in the current process:
 //! ```no_run
-//! # use std::cmp::min;
-//! # use std::mem::size_of;
-//! # use std::mem::transmute;
-//! # use std::ptr;
-//! use blazesym::symbolize::CodeInfo;
 //! use blazesym::symbolize::Input;
 //! use blazesym::symbolize::Process;
 //! use blazesym::symbolize::Source;
-//! use blazesym::symbolize::Sym;
-//! use blazesym::symbolize::Symbolized;
 //! use blazesym::symbolize::Symbolizer;
 //! use blazesym::Addr;
 //! use blazesym::Pid;
 //!
-//! const ADDR_WIDTH: usize = 16;
+//! let addrs = [libc::fopen as Addr, libc::fseek as Addr];
 //!
-//! fn print_frame(
-//!     name: &str,
-//!     addr_info: Option<(Addr, Addr, usize)>,
-//!     code_info: &Option<CodeInfo>,
-//! ) {
-//!     let code_info = code_info.as_ref().map(|code_info| {
-//!         let path = code_info.to_path();
-//!         let path = path.display();
-//!
-//!         match (code_info.line, code_info.column) {
-//!             (Some(line), Some(col)) => format!(" {path}:{line}:{col}"),
-//!             (Some(line), None) => format!(" {path}:{line}"),
-//!             (None, _) => format!(" {path}"),
-//!         }
-//!     });
-//!
-//!     if let Some((input_addr, addr, offset)) = addr_info {
-//!         // If we have various address information bits we have a new symbol.
-//!         println!(
-//!             "{input_addr:#0width$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
-//!             code_info = code_info.as_deref().unwrap_or(""),
-//!             width = ADDR_WIDTH
-//!         )
-//!     } else {
-//!         // Otherwise we are dealing with an inlined call.
-//!         println!(
-//!             "{:width$}  {name}{code_info} [inlined]",
-//!             " ",
-//!             code_info = code_info
-//!                 .map(|info| format!(" @{info}"))
-//!                 .as_deref()
-//!                 .unwrap_or(""),
-//!             width = ADDR_WIDTH
-//!         )
-//!     }
-//! }
-//!
-//! # assert_eq!(size_of::<*mut libc::c_void>(), size_of::<Addr>());
-//! // Retrieve up to 64 stack frames of the calling thread.
-//! const MAX_CNT: usize = 64;
-//!
-//! let mut addrs_buf = [ptr::null_mut::<libc::c_void>(); MAX_CNT];
-//! let addr_cnt = unsafe { libc::backtrace(addrs_buf.as_mut_ptr(), MAX_CNT as _) } as usize;
-//! let addrs = &addrs_buf[0..min(addr_cnt, MAX_CNT)];
-//! # let addrs = unsafe { transmute::<&[*mut libc::c_void], &[Addr]>(addrs) };
-//!
-//! // Symbolize the addresses for the current process, as that's where
-//! // they were captured.
+//! // Symbolize the addresses for the current process, as that's what they
+//! // belong to. The library also supports other symbolization sources, such as
+//! // arbitrary ELF files.
 //! let src = Source::Process(Process::new(Pid::Slf));
 //! let symbolizer = Symbolizer::new();
-//! let syms = symbolizer.symbolize(&src, Input::AbsAddr(addrs)).unwrap();
+//! let syms = symbolizer.symbolize(&src, Input::AbsAddr(&addrs)).unwrap();
 //!
-//! for (input_addr, sym) in addrs.iter().copied().zip(syms) {
-//!     match sym {
-//!         Symbolized::Sym(Sym {
-//!             name,
-//!             addr,
-//!             offset,
-//!             code_info,
-//!             inlined,
-//!             ..
-//!         }) => {
-//!             print_frame(&name, Some((input_addr, addr, offset)), &code_info);
-//!             for frame in inlined.iter() {
-//!                 print_frame(&frame.name, None, &frame.code_info);
-//!             }
-//!         }
-//!         Symbolized::Unknown(..) => {
-//!             println!("{input_addr:#0width$x}: <no-symbol>", width = ADDR_WIDTH)
-//!         }
-//!     }
-//! }
+//! assert_eq!(syms.len(), 2);
+//!
+//! let fopen = syms[0].as_sym().unwrap();
+//! assert_eq!(fopen.name, "fopen");
+//!
+//! let fseek = syms[1].as_sym().unwrap();
+//! assert_eq!(fseek.name, "fseek");
 //! ```
+//!
+//! The example is contrived, of course, because we already know the names
+//! corresponding to the addresses, but it gets the basic workings across. Also,
+//! the library not only reports the name but additional meta data such as the
+//! symbol's start address and size, and even potentially inlined callees. See
+//! the [`Sym`] type for details.
+//!
+//! In more realistic setting you can envision a backtrace being captured and
+//! symbolized instead. Refer to the runnable
+//! [`backtrace`](https://github.com/libbpf/blazesym/blob/main/examples/backtrace.rs)
+//! example.
 
 mod perf_map;
 mod source;
