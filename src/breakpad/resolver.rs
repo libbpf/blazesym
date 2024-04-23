@@ -15,8 +15,8 @@ use crate::mmap::Mmap;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::InlinedFn;
-use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::Addr;
@@ -101,7 +101,7 @@ impl BreakpadResolver {
 
     fn fill_code_info<'slf>(
         &'slf self,
-        sym: &mut IntSym<'slf>,
+        sym: &mut ResolvedSym<'slf>,
         addr: Addr,
         opts: &FindSymOpts,
         func: &Function,
@@ -166,7 +166,7 @@ impl BreakpadResolver {
 
 impl Symbolize for BreakpadResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
-    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         let func = if let Some(func) = self.symbol_file.find_function(addr) {
             func
         } else {
@@ -178,7 +178,7 @@ impl Symbolize for BreakpadResolver {
             return Ok(Err(reason))
         };
 
-        let mut sym = IntSym {
+        let mut sym = ResolvedSym {
             name: &func.name,
             addr: func.addr,
             size: Some(func.size.try_into().unwrap_or(usize::MAX)),

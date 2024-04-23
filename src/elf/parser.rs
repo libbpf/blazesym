@@ -14,8 +14,8 @@ use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::once::OnceCell;
 use crate::symbolize::FindSymOpts;
-use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::ReadRaw as _;
@@ -58,7 +58,7 @@ fn find_sym<'mmap>(
     strtab: &'mmap [u8],
     addr: Addr,
     type_: SymType,
-) -> Result<Option<IntSym<'mmap>>> {
+) -> Result<Option<ResolvedSym<'mmap>>> {
     match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
         None => Ok(None),
         Some(idx) => {
@@ -77,7 +77,7 @@ fn find_sym<'mmap>(
                     && sym.st_shndx != SHN_UNDEF
                     && (sym.st_size == 0 || addr < sym.st_value + sym.st_size)
                 {
-                    let sym = IntSym {
+                    let sym = ResolvedSym {
                         name: symbol_name(strtab, sym)?,
                         addr: sym.st_value as Addr,
                         size: if sym.st_size == 0 {
@@ -656,7 +656,11 @@ impl ElfParser {
         Ok(index)
     }
 
-    pub fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+    pub fn find_sym(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+    ) -> Result<Result<ResolvedSym<'_>, Reason>> {
         // ELF doesn't carry any source code or inlining information.
         let _opts = opts;
 

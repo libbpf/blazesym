@@ -14,8 +14,8 @@ use crate::mmap::Mmap;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::InlinedFn;
-use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::Addr;
@@ -161,7 +161,7 @@ impl<'dat> GsymResolver<'dat> {
 }
 
 impl Symbolize for GsymResolver<'_> {
-    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         if let Some(idx) = self.ctx.find_addr(addr) {
             let sym_addr = self
                 .ctx
@@ -188,7 +188,7 @@ impl Symbolize for GsymResolver<'_> {
                 })?;
             // Gsym does not carry any source code language information.
             let lang = SrcLang::Unknown;
-            let mut sym = IntSym {
+            let mut sym = ResolvedSym {
                 name,
                 addr: sym_addr,
                 size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
@@ -208,7 +208,7 @@ impl Symbolize for GsymResolver<'_> {
 impl GsymResolver<'_> {
     fn fill_code_info<'slf>(
         &'slf self,
-        sym: &mut IntSym<'slf>,
+        sym: &mut ResolvedSym<'slf>,
         addr: Addr,
         opts: &FindSymOpts,
         sym_addr: Addr,

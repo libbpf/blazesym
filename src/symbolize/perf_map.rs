@@ -13,8 +13,8 @@ use std::str;
 
 use crate::mmap::Mmap;
 use crate::symbolize::FindSymOpts;
-use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
@@ -155,7 +155,7 @@ impl PerfMap {
 }
 
 impl Symbolize for PerfMap {
-    fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         let result = find_match_or_lower_bound_by_key(&self.functions, addr, |l| l.addr);
         match result {
             Some(idx) => {
@@ -168,7 +168,7 @@ impl Symbolize for PerfMap {
                         || (function.addr <= addr && addr < function.addr + function.size as Addr)
                     {
                         let Function { name, addr, size } = function;
-                        let sym = IntSym {
+                        let sym = ResolvedSym {
                             name,
                             addr: *addr,
                             size: Some(*size),

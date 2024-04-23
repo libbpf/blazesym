@@ -61,8 +61,8 @@ use super::source::Process;
 use super::source::Source;
 use super::FindSymOpts;
 use super::Input;
-use super::IntSym;
 use super::Reason;
+use super::ResolvedSym;
 use super::SrcLang;
 use super::Sym;
 use super::Symbolize;
@@ -307,7 +307,7 @@ impl Symbolizer {
         let (sym_name, sym_addr, sym_size, code_info, inlined) = match resolver {
             Resolver::Uncached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
                 Ok(sym) => {
-                    let IntSym {
+                    let ResolvedSym {
                         name,
                         addr,
                         size,
@@ -342,7 +342,7 @@ impl Symbolizer {
             },
             Resolver::Cached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
                 Ok(sym) => {
-                    let IntSym {
+                    let ResolvedSym {
                         name,
                         addr,
                         size,

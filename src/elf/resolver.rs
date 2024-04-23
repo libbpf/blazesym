@@ -13,8 +13,8 @@ use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
 use crate::symbolize::FindSymOpts;
-use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::ResolvedSym;
 use crate::symbolize::Symbolize;
 use crate::symbolize::TranslateFileOffset;
 use crate::Addr;
@@ -145,7 +145,7 @@ impl ElfResolver {
 
 impl Symbolize for ElfResolver {
     #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
-    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         #[cfg(feature = "dwarf")]
         if let ElfBackend::Dwarf(dwarf) = &self.backend {
             if let Ok(sym) = dwarf.find_sym(addr, opts)? {
