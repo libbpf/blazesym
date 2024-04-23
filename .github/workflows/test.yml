@@ -218,6 +218,15 @@ jobs:
       run: rm .cargo/config.toml
     - name: Run tests
       run: cargo miri test --workspace --features=dont-generate-unit-test-files -- "insert_map::" "util::" "::elf_src_validity"
+  test-examples:
+    name: Test examples
+    runs-on: ubuntu-22.04
+    env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+    - run: cargo run --example backtrace
   c-header:
     name: Check generated C header
     runs-on: ubuntu-latest

@@ -71,7 +71,7 @@ fn symbolize_current_bt() {
     let src = Source::Process(Process::new(Pid::Slf));
     let symbolizer = Symbolizer::new();
 
-    let syms = symbolizer.symbolize(&src, Input::VirtOffset(bt)).unwrap();
+    let syms = symbolizer.symbolize(&src, Input::AbsAddr(bt)).unwrap();
     let addrs = bt;
 
     for (input_addr, sym) in addrs.iter().copied().zip(syms) {
