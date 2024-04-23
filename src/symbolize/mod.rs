@@ -240,7 +240,7 @@ pub(crate) enum SrcLang {
 
 /// Our internal representation of a symbol.
 #[derive(Debug, PartialEq)]
-pub(crate) struct IntSym<'src> {
+pub(crate) struct ResolvedSym<'src> {
     /// The name of the symbol.
     pub name: &'src str,
     /// The symbol's normalized address.
@@ -396,7 +396,7 @@ where
     Self: Debug,
 {
     /// Find the symbol corresponding to the given address.
-    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>>;
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>>;
 }
 
 

@@ -13,8 +13,8 @@ use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
 use crate::symbolize::FindSymOpts;
-use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
@@ -31,10 +31,10 @@ pub struct Ksym {
     pub name: String,
 }
 
-impl<'ksym> From<&'ksym Ksym> for IntSym<'ksym> {
+impl<'ksym> From<&'ksym Ksym> for ResolvedSym<'ksym> {
     fn from(other: &'ksym Ksym) -> Self {
         let Ksym { name, addr } = other;
-        IntSym {
+        ResolvedSym {
             name,
             addr: *addr,
             // There is no size information in kallsyms.
@@ -149,8 +149,8 @@ impl KSymResolver {
 }
 
 impl Symbolize for KSymResolver {
-    fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
-        let sym = self.find_ksym(addr).map(IntSym::from);
+    fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
+        let sym = self.find_ksym(addr).map(ResolvedSym::from);
         Ok(sym)
     }
 }

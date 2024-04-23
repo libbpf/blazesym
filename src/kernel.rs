@@ -7,8 +7,8 @@ use std::rc::Rc;
 use crate::elf::ElfResolver;
 use crate::ksym::KSymResolver;
 use crate::symbolize::FindSymOpts;
-use crate::symbolize::IntSym;
 use crate::symbolize::Reason;
+use crate::symbolize::ResolvedSym;
 use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
@@ -39,7 +39,7 @@ impl KernelResolver {
 }
 
 impl Symbolize for KernelResolver {
-    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         // TODO: If an `ElfResolver` is available we probably should give
         //       preference to it, if for no other reason than the fact that it
         //       may report source code location information.
