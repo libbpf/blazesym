@@ -145,7 +145,7 @@ impl Symbolize for DwarfResolver {
             };
             let () = self
                 .units
-                .fill_code_info(&mut sym, addr, opts, function, unit)?;
+                .fill_code_info(&mut sym, addr, opts, Some((function, unit)))?;
 
             Ok(Ok(sym))
         } else {
@@ -238,8 +238,7 @@ impl<'dwarf> Units<'dwarf> {
         sym: &mut IntSym<'slf>,
         addr: Addr,
         opts: &FindSymOpts,
-        function: &'slf Function<'dwarf>,
-        unit: &'slf Unit<'dwarf>,
+        data: Option<(&'slf Function<'dwarf>, &'slf Unit<'dwarf>)>,
     ) -> Result<()> {
         if !opts.code_info() {
             return Ok(())
@@ -267,45 +266,49 @@ impl<'dwarf> Units<'dwarf> {
         };
 
         let inlined = if opts.inlined_fns() {
-            if let Some(inline_stack) = self.find_inlined_functions(addr, function, unit)? {
-                let mut inlined = Vec::<InlinedFn>::with_capacity(inline_stack.len());
-                for result in inline_stack {
-                    let (name, location) = result?;
-                    let mut code_info = location.map(|location| {
-                        let Location {
-                            dir,
-                            file,
-                            line,
-                            column,
-                        } = location;
+            if let Some((function, unit)) = data {
+                if let Some(inline_stack) = self.find_inlined_functions(addr, function, unit)? {
+                    let mut inlined = Vec::<InlinedFn>::with_capacity(inline_stack.len());
+                    for result in inline_stack {
+                        let (name, location) = result?;
+                        let mut code_info = location.map(|location| {
+                            let Location {
+                                dir,
+                                file,
+                                line,
+                                column,
+                            } = location;
 
-                        CodeInfo {
-                            dir: Some(Cow::Borrowed(dir)),
-                            file: Cow::Borrowed(file),
-                            line,
-                            column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
-                            _non_exhaustive: (),
+                            CodeInfo {
+                                dir: Some(Cow::Borrowed(dir)),
+                                file: Cow::Borrowed(file),
+                                line,
+                                column: column.map(|col| col.try_into().unwrap_or(u16::MAX)),
+                                _non_exhaustive: (),
+                            }
+                        });
+
+                        // For each frame we need to move the code information
+                        // up by one layer.
+                        if let Some(ref mut last_code_info) =
+                            inlined.last_mut().map(|f| &mut f.code_info)
+                        {
+                            let () = swap(&mut code_info, last_code_info);
+                        } else if let Some(code_info) = &mut code_info {
+                            let () = swap(code_info, &mut direct_code_info);
                         }
-                    });
 
-                    // For each frame we need to move the code information
-                    // up by one layer.
-                    if let Some(ref mut last_code_info) =
-                        inlined.last_mut().map(|f| &mut f.code_info)
-                    {
-                        let () = swap(&mut code_info, last_code_info);
-                    } else if let Some(code_info) = &mut code_info {
-                        let () = swap(code_info, &mut direct_code_info);
+                        let inlined_fn = InlinedFn {
+                            name: Cow::Borrowed(name),
+                            code_info,
+                            _non_exhaustive: (),
+                        };
+                        let () = inlined.push(inlined_fn);
                     }
-
-                    let inlined_fn = InlinedFn {
-                        name: Cow::Borrowed(name),
-                        code_info,
-                        _non_exhaustive: (),
-                    };
-                    let () = inlined.push(inlined_fn);
+                    inlined
+                } else {
+                    Vec::new()
                 }
-                inlined
             } else {
                 Vec::new()
             }
