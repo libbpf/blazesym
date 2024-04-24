@@ -440,12 +440,6 @@ impl<'dwarf> Units<'dwarf> {
     pub(super) fn dwarf(&self) -> &gimli::Dwarf<R<'dwarf>> {
         &self.dwarf
     }
-
-    /// Check whether no units are present at all.
-    #[inline]
-    pub(crate) fn is_empty(&self) -> bool {
-        self.unit_ranges.is_empty()
-    }
 }
 
 

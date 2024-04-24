@@ -125,7 +125,8 @@ impl DwarfResolver {
 
 impl Symbolize for DwarfResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<IntSym<'_>, Reason>> {
-        if let Some((function, unit)) = self.units.find_function(addr)? {
+        let data = self.units.find_function(addr)?;
+        let mut sym = if let Some((function, unit)) = data {
             let name = function
                 .name
                 .map(|name| name.to_string())
@@ -135,26 +136,32 @@ impl Symbolize for DwarfResolver {
             let size = function
                 .range
                 .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
-            let mut sym = IntSym {
+            IntSym {
                 name,
                 addr: fn_addr,
                 size,
                 lang: unit.language().into(),
                 code_info: None,
                 inlined: Box::new([]),
-            };
-            let () = self
-                .units
-                .fill_code_info(&mut sym, addr, opts, Some((function, unit)))?;
-
-            Ok(Ok(sym))
-        } else {
-            if self.units.is_empty() {
-                Ok(Err(Reason::MissingSyms))
-            } else {
-                Ok(Err(Reason::UnknownAddr))
             }
-        }
+        } else {
+            // Fall back to checking ELF for the symbol corresponding to
+            // the address. This is to mimic behavior of various tools
+            // (e.g., `addr2line`). Basically, what can happen is that a
+            // symbol if not present in DWARF, but source code
+            // information for the address actually is. By checking ELF
+            // as a fall back we support cases where ELF *does* contain
+            // symbol, and we amend its information with the source code
+            // information from DWARF.
+            match self.parser.find_sym(addr, opts)? {
+                Ok(sym) => sym,
+                Err(reason) => return Ok(Err(reason)),
+            }
+        };
+
+        let () = self.units.fill_code_info(&mut sym, addr, opts, data)?;
+
+        Ok(Ok(sym))
     }
 }
 
