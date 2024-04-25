@@ -397,6 +397,7 @@ mod tests {
     use std::os::fd::AsRawFd as _;
 
     use tempfile::NamedTempFile;
+
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
