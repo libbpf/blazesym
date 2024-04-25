@@ -33,14 +33,63 @@
 //!
 //! The example is contrived, of course, because we already know the names
 //! corresponding to the addresses, but it gets the basic workings across. Also,
-//! the library not only reports the name but additional meta data such as the
-//! symbol's start address and size, and even potentially inlined callees. See
-//! the [`Sym`] type for details.
+//! the library not only reports the name but additional metadata such as the
+//! symbol's start address and size, and even inlined callees if asked for and
+//! available. See the [`Sym`] type for details.
 //!
 //! In more realistic setting you can envision a backtrace being captured and
 //! symbolized instead. Refer to the runnable
 //! [`backtrace`](https://github.com/libbpf/blazesym/blob/main/examples/backtrace.rs)
 //! example.
+//!
+//! # Advanced use cases
+//! In many cases symbolization is straight forward: the user provides a
+//! symbolization source -- typically a file of a certain data format -- and the
+//! library knows how to parse it and look up a symbol.
+//!
+//! ### Processes
+//! However, in the case of process symbolization as briefly shown above, a
+//! process is really a form of container. That is to say, it contains a set of
+//! entities (e.g., loaded shared objects, otherwise mapped files etc.) that
+//! addresses can fall into and that each may require different ways of
+//! symbolization. **blazesym** comes with a default way of dealing with the
+//! entities inside such a container, where it honors embedded symbols and debug
+//! information (implicitly used in the above example), but advanced users may
+//! desire more flexibility. For example, envision a case where, instead of
+//! using embedded symbols in an executable, all binaries are stripped and
+//! symbol information is co-located somewhere on the file system. Said symbol
+//! data could also be not in the ELF or DWARF formats, but in the Gsym, which
+//! is optimized for fast lookup and also typically requires much less disk
+//! space.
+//!
+//! In such a setup, a user can install a custom process "dispatcher". This
+//! dispatcher is a callback function that **blazesym** invokes and that it
+//! provides certain information about the "member" that an address falls into
+//! to (in the form of a [`ProcessMemberInfo`] object). It is then the
+//! dispatcher's responsibility to use this information to instantiate and
+//! return a "resolver" that the library will use as part of address
+//! symbolization for addresses mapping to a single entity in inside the process
+//! (e.g., a shared object).
+//!
+//! **blazesym** provides a set of resolvers, that can act as building blocks
+//! for implementing a custom dispatch function. These resolver are all
+//! available in the [`helper`][crate::helper] module.
+//!
+//! A complete example using a custom dispatch function to symbolize addresses
+//! in a process after fetching their debug symbols via a
+//! [`debuginfod`](https://sourceware.org/elfutils/Debuginfod.html) client is
+//! available in the
+//! [`sym-debuginfod`](https://github.com/libbpf/blazesym/blob/main/examples/sym-debuginfod)
+//! example.
+//!
+//! ### APKs
+//! APKs are another container format (common on Android systems) that can be
+//! customized with a dispatcher. Installation of a custom dispatcher works
+//! similar to the process symbolization case, the only difference is that
+//! different data is provided to the dispatch function (refer to
+//! [`ApkMemberInfo`]). Please refer to the
+//! [`gsym-in-apk`](https://github.com/libbpf/blazesym/blob/main/examples/gsym-in-apk)
+//! example, which illustrates the basic workflow.
 
 mod perf_map;
 mod source;
