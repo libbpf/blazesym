@@ -233,11 +233,10 @@ where
                 Err(err) => return Some(Err(err.into())),
                 Ok(0) => break None,
                 Ok(_) => {
-                    let line = trim_ascii(&self.line);
                     // There shouldn't be any empty lines, but we'd just ignore them. We
                     // need to trim anyway.
-                    if !line.is_empty() {
-                        let result = parse_maps_line(line, self.pid);
+                    if !self.line.is_empty() {
+                        let result = parse_maps_line(&self.line, self.pid);
                         break Some(result)
                     }
                 }
@@ -327,8 +326,7 @@ mod tests {
     /// Make sure that we can parse proc maps lines correctly.
     #[test]
     fn map_line_parsing() {
-        let lines = r#"
-00400000-00401000 r--p 00000000 00:29 47459                              /tmp/test/test
+        let lines = r#"00400000-00401000 r--p 00000000 00:29 47459                              /tmp/test/test
 00401000-00402000 r-xp 00001000 00:29 47459                              /tmp/test/test
 00402000-00403000 r--p 00002000 00:29 47459                              /tmp/test/test
 00403000-00404000 r--p 00002000 00:29 47459                              /tmp/test/test
@@ -375,7 +373,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         });
 
         // Parse the first (actual) line.
-        let entry = parse_maps_line(lines.lines().nth(1).unwrap().as_bytes(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().next().unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x400000);
         assert_eq!(entry.range.end, 0x401000);
         assert_eq!(
@@ -389,7 +387,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
             Path::new("/proc/self/map_files/400000-401000")
         );
 
-        let entry = parse_maps_line(lines.lines().nth(7).unwrap().as_bytes(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(6).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4a95cb000);
         assert_eq!(entry.range.end, 0x55f4a95cf000);
         assert_eq!(entry.mode, 0b1011);
@@ -405,7 +403,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         );
         assert_eq!(entry.path_name.as_ref().unwrap().as_component(), None);
 
-        let entry = parse_maps_line(lines.lines().nth(11).unwrap().as_bytes(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(10).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4aa379000);
         assert_eq!(entry.range.end, 0x55f4aa39a000);
         assert_eq!(entry.mode, 0b1101);
@@ -415,7 +413,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         );
         assert_eq!(entry.path_name.as_ref().unwrap().as_path(), None);
 
-        let entry = parse_maps_line(lines.lines().nth(13).unwrap().as_bytes(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(12).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.mode, 0b1001);
         assert_eq!(
             entry
@@ -428,7 +426,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
             Path::new("/proc/self/map_files/7f2321e00000-7f2321e37000")
         );
 
-        let entry = parse_maps_line(lines.lines().nth(24).unwrap().as_bytes(), Pid::Slf).unwrap();
+        let entry = parse_maps_line(lines.lines().nth(23).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x7fa7bb5fa000);
         assert_eq!(entry.range.end, 0x7fa7bb602000);
         assert_eq!(entry.path_name, None);

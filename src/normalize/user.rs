@@ -266,8 +266,7 @@ mod tests {
     #[test]
     fn user_address_normalization_static_maps() {
         fn test(unknown_addr: Addr, reason: Reason) {
-            let maps = r#"
-55d3195b7000-55d3195b9000 r--p 00000000 00:12 2015701                    /bin/cat
+            let maps = r#"55d3195b7000-55d3195b9000 r--p 00000000 00:12 2015701                    /bin/cat
 55d3195b9000-55d3195be000 r-xp 00002000 00:12 2015701                    /bin/cat
 55d3195be000-55d3195c1000 r--p 00007000 00:12 2015701                    /bin/cat
 55d3195c1000-55d3195c2000 r--p 00009000 00:12 2015701                    /bin/cat
