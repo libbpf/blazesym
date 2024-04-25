@@ -465,7 +465,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
 
         let () = b.iter(|| {
             let () = parse_file(lines.as_slice(), Pid::Slf).for_each(|entry| {
-                let _entry = black_box(entry);
+                let _entry = black_box(entry.unwrap());
             });
         });
     }
