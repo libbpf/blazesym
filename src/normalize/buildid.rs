@@ -9,6 +9,7 @@ use crate::log::warn;
 use crate::util::ReadRaw as _;
 use crate::Error;
 use crate::IntoError as _;
+use crate::Mmap;
 use crate::Result;
 
 
@@ -203,10 +204,28 @@ where
     Ok(buildid)
 }
 
+/// Read a build ID of a memory mapped ELF file.
+///
+/// This function is similar in purpose to [`read_elf_build_id`], but is able to
+/// work on an already memory mapped ELF file.
+// TODO: Ideally we'd just provide a byte slice here instead, but that is not
+//       feasible at this point.
+#[inline]
+pub fn read_elf_build_id_from_mmap(mmap: &Mmap) -> Result<Option<BuildId<'static>>> {
+    // TODO: The provided path is only relevant for tracing purposes, but
+    //       eventually we may want to decide whether the `ElfParser` path is
+    //       optional or not.
+    let parser = ElfParser::from_mmap(mmap.clone(), Path::new("<anonymous>"));
+    let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+    Ok(buildid)
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::fs::File;
 
     use test_log::test;
 
@@ -238,6 +257,11 @@ mod tests {
             .join("libtest-so.so");
         let build_id = read_elf_build_id(&elf).unwrap().unwrap();
         // The file contains a sha1 build ID, which is always 20 bytes in length.
+        assert_eq!(build_id.len(), 20, "'{build_id:?}'");
+
+        let file = File::open(&elf).unwrap();
+        let mmap = Mmap::map(&file).unwrap();
+        let build_id = read_elf_build_id_from_mmap(&mmap).unwrap().unwrap();
         assert_eq!(build_id.len(), 20, "'{build_id:?}'");
 
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))

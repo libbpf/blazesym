@@ -118,6 +118,7 @@ pub mod helper {
     use super::*;
 
     pub use crate::normalize::buildid::read_elf_build_id;
+    pub use crate::normalize::buildid::read_elf_build_id_from_mmap;
 
     cfg_breakpad! {
         pub use crate::breakpad::BreakpadResolver;
