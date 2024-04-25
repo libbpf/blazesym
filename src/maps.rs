@@ -272,9 +272,16 @@ pub(crate) fn parse_filtered(pid: Pid) -> Result<impl Iterator<Item = Result<Map
 mod tests {
     use super::*;
 
+    #[cfg(feature = "nightly")]
+    use std::fs::read;
+    #[cfg(feature = "nightly")]
+    use std::hint::black_box;
     use std::path::Path;
 
     use test_log::test;
+
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -421,6 +428,22 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
 
         let () = lines.iter().for_each(|line| {
             let _err = parse_maps_line(line, Pid::Slf).unwrap_err();
+        });
+    }
+
+    /// Benchmark the parsing of a large /proc/[pid]/maps file.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_maps_file_parsing(b: &mut Bencher) {
+        let maps = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("proc-maps-large");
+        let lines = read(&maps).unwrap();
+
+        let () = b.iter(|| {
+            let () = parse_file(lines.as_slice(), Pid::Slf).for_each(|entry| {
+                let _entry = black_box(entry);
+            });
         });
     }
 }
