@@ -17,4 +17,4 @@ blazesym = {version = "=0.2.0-alpha.11", path = "../..", default-features = fals
   "generate-unit-test-files",
 ]}
 goblin = {version = "0.8.0", default-features = false, features = ["elf32", "elf64", "std"]}
-zip = {version = "0.6.4", default-features = false}
+zip = {version = "1.1.2", default-features = false}
