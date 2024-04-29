@@ -3,7 +3,6 @@
 use std::env;
 use std::ffi::OsStr;
 use std::ffi::OsString;
-use std::fs::copy;
 use std::fs::create_dir_all;
 use std::fs::hard_link;
 use std::io::Error;
@@ -131,7 +130,8 @@ fn adjust_mtime(path: &Path) -> Result<()> {
 }
 
 /// Compile `src` into `dst` using the provided compiler.
-fn compile(compiler: &str, src: &Path, dst: &str, options: &[&str]) {
+fn compile(compiler: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+    let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
@@ -177,25 +177,9 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
     let () = adjust_mtime(&dst).unwrap();
 }
 
-/// Run the provided command on a copy of `src` placed at `dst`.
-fn run_on_copy(command: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
-    let dst = src.with_file_name(dst);
-    println!("cargo:rerun-if-changed={}", src.display());
-    println!("cargo:rerun-if-changed={}", dst.display());
-
-    let _bytes = copy(src, &dst).expect("failed to copy file");
-
-    let () = run(
-        OsStr::new(command),
-        options.iter().map(OsStr::new).chain([dst.as_os_str()]),
-    )
-    .unwrap_or_else(|_| panic!("failed to run `{command}`"));
-    let () = adjust_mtime(&dst).unwrap();
-}
-
 /// Invoke `strip` on a copy of `src` placed at `dst`.
 fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
-    run_on_copy("strip", src, dst, options)
+    compile("strip", src, dst, options)
 }
 
 /// Strip all DWARF information from an ELF binary, in an attempt to
