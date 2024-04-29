@@ -269,7 +269,7 @@ fn zip(files: &[PathBuf], dst: &Path) {
     use std::fs::read as read_file;
     use std::fs::File;
     use std::io::Write as _;
-    use zip::write::FileOptions;
+    use zip::write::SimpleFileOptions;
     use zip::CompressionMethod;
     use zip::ZipWriter;
 
@@ -284,20 +284,16 @@ fn zip(files: &[PathBuf], dst: &Path) {
         let dst_dir = dst.parent().unwrap();
 
         let page_size = page_size().unwrap();
-        let options = FileOptions::default().compression_method(CompressionMethod::Stored);
+        let options = SimpleFileOptions::default()
+            .compression_method(CompressionMethod::Stored)
+            // Ensure that members are page aligned so that they can be
+            // mmap'ed directly.
+            .with_alignment(page_size.try_into().unwrap());
         let mut zip = ZipWriter::new(dst_file);
         for file in files {
             let contents = read_file(file).unwrap();
             let path = file.strip_prefix(dst_dir).unwrap();
-            // Ensure that members are page aligned so that they can be
-            // mmap'ed directly.
-            let _align = zip
-                .start_file_aligned(
-                    path.to_str().unwrap(),
-                    options,
-                    page_size.try_into().unwrap(),
-                )
-                .unwrap();
+            let () = zip.start_file(path.to_str().unwrap(), options).unwrap();
             let _count = zip.write(&contents).unwrap();
         }
     }
