@@ -129,33 +129,33 @@ fn adjust_mtime(path: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Compile `src` into `dst` using the provided compiler.
-fn compile(compiler: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+/// Invoke `tool` to convert `src` into `dst`.
+fn toolize(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
 
     let () = run(
-        compiler,
+        tool,
         options
             .iter()
             .map(OsStr::new)
             .chain([src.as_os_str(), "-o".as_ref(), dst.as_os_str()]),
     )
-    .unwrap_or_else(|err| panic!("failed to run `{compiler}`: {err}"));
+    .unwrap_or_else(|err| panic!("failed to run `{tool}`: {err}"));
 
     let () = adjust_mtime(&dst).unwrap();
 }
 
 /// Compile `src` into `dst` using `cc`.
 fn cc(src: &Path, dst: &str, options: &[&str]) {
-    compile("cc", src, dst, options)
+    toolize("cc", src, dst, options)
 }
 
 /// Compile `src` into `dst` using `rustc`.
 fn rustc(src: &Path, dst: &str, options: &[&str]) {
-    compile("rustc", src, dst, options)
+    toolize("rustc", src, dst, options)
 }
 
 /// Convert debug information contained in `src` into GSYM in `dst` using
@@ -179,7 +179,7 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
 
 /// Invoke `strip` on a copy of `src` placed at `dst`.
 fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
-    compile("strip", src, dst, options)
+    toolize("strip", src, dst, options)
 }
 
 /// Strip all DWARF information from an ELF binary, in an attempt to
