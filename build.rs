@@ -8,7 +8,7 @@ use std::fs::hard_link;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
-use std::ops::Deref as _;
+use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
@@ -129,33 +129,55 @@ fn adjust_mtime(path: &Path) -> Result<()> {
     Ok(())
 }
 
+enum ArgSpec {
+    SrcDashODst,
+}
+
 /// Invoke `tool` to convert `src` into `dst`.
-fn toolize(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+fn toolize_impl(
+    tool: &str,
+    arg_spec: ArgSpec,
+    src: &Path,
+    dst: impl AsRef<OsStr>,
+    options: &[&str],
+) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
+
+    let args3;
+    let args = match arg_spec {
+        ArgSpec::SrcDashODst => {
+            args3 = [src.as_os_str(), "-o".as_ref(), dst.as_os_str()];
+            args3.as_slice()
+        }
+    };
 
     let () = run(
         tool,
         options
             .iter()
             .map(OsStr::new)
-            .chain([src.as_os_str(), "-o".as_ref(), dst.as_os_str()]),
+            .chain(args.iter().map(Deref::deref)),
     )
     .unwrap_or_else(|err| panic!("failed to run `{tool}`: {err}"));
 
     let () = adjust_mtime(&dst).unwrap();
 }
 
+fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+    toolize_impl(tool, ArgSpec::SrcDashODst, src, dst, options)
+}
+
 /// Compile `src` into `dst` using `cc`.
 fn cc(src: &Path, dst: &str, options: &[&str]) {
-    toolize("cc", src, dst, options)
+    toolize_o("cc", src, dst, options)
 }
 
 /// Compile `src` into `dst` using `rustc`.
 fn rustc(src: &Path, dst: &str, options: &[&str]) {
-    toolize("rustc", src, dst, options)
+    toolize_o("rustc", src, dst, options)
 }
 
 /// Convert debug information contained in `src` into GSYM in `dst` using
@@ -179,7 +201,7 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
 
 /// Invoke `strip` on a copy of `src` placed at `dst`.
 fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
-    toolize("strip", src, dst, options)
+    toolize_o("strip", src, dst, options)
 }
 
 /// Strip all DWARF information from an ELF binary, in an attempt to
