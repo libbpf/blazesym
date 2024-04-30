@@ -14,6 +14,13 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 
+fn crate_root() -> PathBuf {
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+}
+
+fn data_dir() -> PathBuf {
+    crate_root().join("data")
+}
 
 /// Retrieve the system's page size.
 fn page_size() -> Result<usize> {
@@ -319,8 +326,9 @@ fn zip(_files: &[PathBuf], _dst: &Path) {
 
 
 /// Prepare the various test files.
-fn prepare_test_files(crate_root: &Path) {
-    let src = crate_root.join("data").join("test.rs");
+fn prepare_test_files() {
+    let data_dir = data_dir();
+    let src = data_dir.join("test.rs");
     rustc(
         &src,
         "test-rs.bin",
@@ -343,7 +351,7 @@ fn prepare_test_files(crate_root: &Path) {
         ],
     );
 
-    let src = crate_root.join("data").join("test-so.c");
+    let src = data_dir.join("test-so.c");
     cc(
         &src,
         "libtest-so.so",
@@ -354,7 +362,7 @@ fn prepare_test_files(crate_root: &Path) {
         "libtest-so-no-separate-code.so",
         &["-shared", "-fPIC", "-Wl,--build-id=md5,-z,noseparate-code"],
     );
-    let src = crate_root.join("data").join("libtest-so.so");
+    let src = data_dir.join("libtest-so.so");
     gsym(&src, "libtest-so.gsym");
     strip(&src, "libtest-so-stripped.so", &[]);
     strip(
@@ -363,7 +371,7 @@ fn prepare_test_files(crate_root: &Path) {
         &["--keep-symbol=the_ignored_answer"],
     );
 
-    let src = crate_root.join("data").join("test-exe.c");
+    let src = data_dir.join("test-exe.c");
     cc(&src, "test-no-debug.bin", &["-g0", "-Wl,--build-id=none"]);
     cc(&src, "test-dwarf-v2.bin", &["-gstrict-dwarf", "-gdwarf-2"]);
     cc(&src, "test-dwarf-v3.bin", &["-gstrict-dwarf", "-gdwarf-3"]);
@@ -382,16 +390,16 @@ fn prepare_test_files(crate_root: &Path) {
         );
     }
 
-    let src = crate_root.join("data").join("test-wait.c");
+    let src = data_dir.join("test-wait.c");
     cc(&src, "test-wait.bin", &[]);
 
-    let src = crate_root.join("data").join("test-mnt-ns.c");
+    let src = data_dir.join("test-mnt-ns.c");
     cc(&src, "test-mnt-ns.bin", &[]);
 
-    let src = crate_root.join("data").join("test-stable-addresses.c");
-    let src_cu2 = crate_root.join("data").join("test-stable-addresses-cu2.c");
+    let src = data_dir.join("test-stable-addresses.c");
+    let src_cu2 = data_dir.join("test-stable-addresses-cu2.c");
     let src_cu2 = src_cu2.to_str().unwrap();
-    let ld_script = crate_root.join("data").join("test-stable-addresses.ld");
+    let ld_script = data_dir.join("test-stable-addresses.ld");
     let ld_script = ld_script.to_str().unwrap();
     println!("cargo:rerun-if-changed={ld_script}");
     cc(
@@ -471,7 +479,7 @@ fn prepare_test_files(crate_root: &Path) {
         ],
     );
 
-    let src = crate_root.join("data").join("test-stable-addresses.bin");
+    let src = data_dir.join("test-stable-addresses.bin");
     gsym(&src, "test-stable-addresses.gsym");
     dwarf(&src, "test-stable-addresses-dwarf-only.bin");
     strip(&src, "test-stable-addresses-stripped.bin", &[]);
@@ -479,18 +487,15 @@ fn prepare_test_files(crate_root: &Path) {
         syms(&src, "test-stable-addresses.sym");
     }
 
-    let src = crate_root.join("data").join("kallsyms.xz");
+    let src = data_dir.join("kallsyms.xz");
     let mut dst = src.clone();
     assert!(dst.set_extension(""));
     unpack_xz(&src, &dst);
 
-    let () = create_dir_all(crate_root.join("data").join("zip-dir")).unwrap();
+    let () = create_dir_all(data_dir.join("zip-dir")).unwrap();
     let () = hard_link(
-        crate_root.join("data").join("test-no-debug.bin"),
-        crate_root
-            .join("data")
-            .join("zip-dir")
-            .join("test-no-debug.bin"),
+        data_dir.join("test-no-debug.bin"),
+        data_dir.join("zip-dir").join("test-no-debug.bin"),
     )
     .or_else(|err| {
         if err.kind() == ErrorKind::AlreadyExists {
@@ -502,19 +507,12 @@ fn prepare_test_files(crate_root: &Path) {
     .unwrap();
 
     let files = [
-        crate_root
-            .join("data")
-            .join("test-stable-addresses-dwarf-only.bin"),
-        crate_root
-            .join("data")
-            .join("zip-dir")
-            .join("test-no-debug.bin"),
-        crate_root.join("data").join("libtest-so.so"),
-        crate_root
-            .join("data")
-            .join("libtest-so-no-separate-code.so"),
+        data_dir.join("test-stable-addresses-dwarf-only.bin"),
+        data_dir.join("zip-dir").join("test-no-debug.bin"),
+        data_dir.join("libtest-so.so"),
+        data_dir.join("libtest-so-no-separate-code.so"),
     ];
-    let dst = crate_root.join("data").join("test.zip");
+    let dst = data_dir.join("test.zip");
     zip(files.as_slice(), &dst);
 }
 
@@ -534,27 +532,25 @@ fn download_multi_part(base_url: &reqwest::Url, part_count: usize, dst: &Path) {
 
 /// Download large benchmark related files for later use.
 #[cfg(feature = "reqwest")]
-fn download_bench_files(crate_root: &Path) {
+fn download_bench_files() {
     use reqwest::Url;
 
     let large_file_url =
         Url::parse("https://github.com/danielocfb/blazesym-data/raw/main/").unwrap();
     let file = "vmlinux-5.17.12-100.fc34.x86_64.xz";
-    let dst = crate_root.join("data").join(file);
+    let dst = data_dir().join(file);
     let () = download_multi_part(&large_file_url.join(file).unwrap(), 2, &dst);
     let () = adjust_mtime(&dst).unwrap();
 }
 
 #[cfg(not(feature = "reqwest"))]
-fn download_bench_files(_crate_root: &Path) {
+fn download_bench_files() {
     unimplemented!()
 }
 
 /// Prepare benchmark files.
-fn prepare_bench_files(crate_root: &Path) {
-    let vmlinux_xz = Path::new(crate_root)
-        .join("data")
-        .join("vmlinux-5.17.12-100.fc34.x86_64.xz");
+fn prepare_bench_files() {
+    let vmlinux_xz = data_dir().join("vmlinux-5.17.12-100.fc34.x86_64.xz");
 
     let mut vmlinux = vmlinux_xz.clone();
     assert!(vmlinux.set_extension(""));
@@ -582,16 +578,14 @@ fn prepare_bench_files(crate_root: &Path) {
 }
 
 fn main() {
-    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-
     if cfg!(feature = "generate-unit-test-files")
         && !cfg!(feature = "dont-generate-unit-test-files")
     {
-        prepare_test_files(crate_dir.as_ref());
+        prepare_test_files();
     }
 
     if cfg!(feature = "generate-large-test-files") {
-        download_bench_files(crate_dir.as_ref());
-        prepare_bench_files(crate_dir.as_ref());
+        download_bench_files();
+        prepare_bench_files();
     }
 }
