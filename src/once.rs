@@ -139,13 +139,6 @@ impl<T> OnceCell<T> {
     }
 }
 
-impl<T> Default for OnceCell<T> {
-    #[inline]
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<T: fmt::Debug> fmt::Debug for OnceCell<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut d = f.debug_tuple("OnceCell");
@@ -170,15 +163,6 @@ impl<T: Clone> Clone for OnceCell<T> {
         res
     }
 }
-
-impl<T: PartialEq> PartialEq for OnceCell<T> {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.get() == other.get()
-    }
-}
-
-impl<T: Eq> Eq for OnceCell<T> {}
 
 impl<T> From<T> for OnceCell<T> {
     /// Creates a new `OnceCell<T>` which already contains the given `value`.
