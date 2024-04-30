@@ -392,7 +392,7 @@ mod tests {
     fn lookup_symbol() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-dwarf-only.bin");
+            .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
             sym_type: SymType::Function,
@@ -412,7 +412,7 @@ mod tests {
     fn unsupported_ops() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-dwarf-only.bin");
+            .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
             sym_type: SymType::Variable,

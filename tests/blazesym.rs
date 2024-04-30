@@ -131,7 +131,7 @@ fn symbolize_elf_dwarf_gsym() {
     test(src, false);
 
     for file in [
-        "test-stable-addresses-dwarf-only.bin",
+        "test-stable-addresses-stripped-elf-with-dwarf.bin",
         "test-stable-addresses-lto.bin",
         "test-stable-addresses-compressed-debug-zlib.bin",
         #[cfg(feature = "zstd")]
@@ -353,7 +353,7 @@ fn symbolize_dwarf_gsym_inlined() {
     test(src, false);
 
     for file in [
-        "test-stable-addresses-dwarf-only.bin",
+        "test-stable-addresses-stripped-elf-with-dwarf.bin",
         "test-stable-addresses-compressed-debug-zlib.bin",
         #[cfg(feature = "zstd")]
         "test-stable-addresses-compressed-debug-zstd.bin",
@@ -797,7 +797,7 @@ fn inspect_elf() {
 
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-dwarf-only.bin");
+        .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
     let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
     // Our `DwarfResolver` type does not currently support look up of
     // variables.

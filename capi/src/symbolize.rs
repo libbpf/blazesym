@@ -1320,7 +1320,7 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("data")
-            .join("test-stable-addresses-dwarf-only.bin");
+            .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let elf_src = blaze_symbolize_src_elf {
             path: path_c.as_ptr(),
