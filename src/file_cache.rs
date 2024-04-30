@@ -151,7 +151,7 @@ impl<T> FileCache<T> {
         let meta = EntryMeta::new(path.to_path_buf(), stat.as_ref());
         let entry = self.cache.get_or_try_insert(meta, || {
             // We may end up associating this file with a potentially
-            // outdated `stat` (which could have change), but the only
+            // outdated `stat` (which could have changed), but the only
             // consequence is that we'd create a new entry again in the
             // future. On the bright side, we save one `stat` call.
             let file = File::open(path)
