@@ -619,7 +619,7 @@ mod tests {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("data")
-            .join("test-stable-addresses-dwarf-only.bin");
+            .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
 
         let src = blaze_inspect_elf_src::from(Elf::new(test_dwarf));
         let factorial = CString::new("factorial").unwrap();

@@ -449,7 +449,7 @@ fn prepare_test_files() {
 
     let src = data_dir.join("test-stable-addresses.bin");
     gsym(&src, "test-stable-addresses.gsym");
-    dwarf(&src, "test-stable-addresses-dwarf-only.bin");
+    dwarf(&src, "test-stable-addresses-stripped-elf-with-dwarf.bin");
     strip(&src, "test-stable-addresses-stripped.bin", &[]);
     if cfg!(feature = "dump_syms") {
         syms(&src, "test-stable-addresses.sym");
@@ -475,7 +475,7 @@ fn prepare_test_files() {
     .unwrap();
 
     let files = [
-        data_dir.join("test-stable-addresses-dwarf-only.bin"),
+        data_dir.join("test-stable-addresses-stripped-elf-with-dwarf.bin"),
         data_dir.join("zip-dir").join("test-no-debug.bin"),
         data_dir.join("libtest-so.so"),
         data_dir.join("libtest-so-no-separate-code.so"),
