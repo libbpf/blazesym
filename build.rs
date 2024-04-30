@@ -178,12 +178,12 @@ fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
 }
 
 /// Compile `src` into `dst` using `cc`.
-fn cc(src: &Path, dst: &str, options: &[&str]) {
+fn cc(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("cc", src, dst, options)
 }
 
 /// Compile `src` into `dst` using `rustc`.
-fn rustc(src: &Path, dst: &str, options: &[&str]) {
+fn rustc(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("rustc", src, dst, options)
 }
 
@@ -325,6 +325,28 @@ fn zip(_files: &[PathBuf], _dst: &Path) {
 }
 
 
+fn cc_stable_addrs(dst: impl AsRef<OsStr>, options: &[&str]) {
+    let data_dir = data_dir();
+    let src = data_dir.join("test-stable-addresses.c");
+    let src_cu2 = data_dir.join("test-stable-addresses-cu2.c");
+    let ld_script = data_dir.join("test-stable-addresses.ld");
+    println!("cargo:rerun-if-changed={}", ld_script.display());
+    println!("cargo:rerun-if-changed={}", src_cu2.display());
+
+    let args = [
+        src_cu2.to_str().unwrap(),
+        "-T",
+        ld_script.to_str().unwrap(),
+        "-O0",
+        "-nostdlib",
+    ]
+    .into_iter()
+    .chain(options.iter().map(Deref::deref))
+    .collect::<Vec<_>>();
+
+    cc(&src, dst, &args)
+}
+
 /// Prepare the various test files.
 fn prepare_test_files() {
     let data_dir = data_dir();
@@ -396,86 +418,32 @@ fn prepare_test_files() {
     let src = data_dir.join("test-mnt-ns.c");
     cc(&src, "test-mnt-ns.bin", &[]);
 
-    let src = data_dir.join("test-stable-addresses.c");
-    let src_cu2 = data_dir.join("test-stable-addresses-cu2.c");
-    let src_cu2 = src_cu2.to_str().unwrap();
-    let ld_script = data_dir.join("test-stable-addresses.ld");
-    let ld_script = ld_script.to_str().unwrap();
-    println!("cargo:rerun-if-changed={ld_script}");
-    cc(
-        &src,
+    cc_stable_addrs(
         "test-stable-addresses.bin",
-        &[
-            "-gdwarf-4",
-            "-T",
-            ld_script,
-            "-Wl,--build-id=none",
-            "-O0",
-            "-nostdlib",
-            // TODO: Eventually we may want to make `cc` multi-input-file aware.
-            src_cu2,
-        ],
+        &["-gdwarf-4", "-Wl,--build-id=none", "-O0"],
     );
-    cc(
-        &src,
+    cc_stable_addrs(
         "test-stable-addresses-compressed-debug-zlib.bin",
-        &[
-            "-gdwarf-4",
-            "-T",
-            ld_script,
-            "-Wl,--build-id=none",
-            "-O0",
-            "-nostdlib",
-            "-gz=zlib",
-            // TODO: Eventually we may want to make `cc` multi-input-file aware.
-            src_cu2,
-        ],
+        &["-gdwarf-4", "-Wl,--build-id=none", "-O0", "-gz=zlib"],
     );
     if cfg!(feature = "zstd") {
-        cc(
-            &src,
+        cc_stable_addrs(
             "test-stable-addresses-compressed-debug-zstd.bin",
-            &[
-                "-gdwarf-4",
-                "-T",
-                ld_script,
-                "-Wl,--build-id=none",
-                "-O0",
-                "-nostdlib",
-                "-gz=zstd",
-                // TODO: Eventually we may want to make `cc` multi-input-file aware.
-                src_cu2,
-            ],
+            &["-gdwarf-4", "-Wl,--build-id=none", "-gz=zstd"],
         );
     }
-    cc(
-        &src,
+    cc_stable_addrs(
         "test-stable-addresses-no-dwarf.bin",
-        &[
-            "-g0",
-            "-T",
-            ld_script,
-            "-Wl,--build-id=none",
-            "-O0",
-            "-nostdlib",
-            // TODO: Eventually we may want to make `cc` multi-input-file aware.
-            src_cu2,
-        ],
+        &["-g0", "-Wl,--build-id=none"],
     );
-    cc(
-        &src,
+    cc_stable_addrs(
         "test-stable-addresses-lto.bin",
         &[
             // NB: Keep DWARF 4 for this binary. Cross unit references
             //     as this binary aims to produce only seem to appear in
             //     this version.
             "-gdwarf-4",
-            "-T",
-            ld_script,
-            "-O0",
-            "-nostdlib",
             "-flto",
-            src_cu2,
         ],
     );
 
