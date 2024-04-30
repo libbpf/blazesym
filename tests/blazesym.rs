@@ -353,6 +353,7 @@ fn symbolize_dwarf_gsym_inlined() {
 
     for file in [
         "test-stable-addrs-stripped-elf-with-dwarf.bin",
+        "test-stable-addrs-stripped-with-link.bin",
         "test-stable-addrs-compressed-debug-zlib.bin",
         #[cfg(feature = "zstd")]
         "test-stable-addrs-compressed-debug-zstd.bin",
@@ -364,6 +365,42 @@ fn symbolize_dwarf_gsym_inlined() {
         test(src.clone(), true);
         test(src, false);
     }
+}
+
+/// Make sure that we fail loading linked debug information on CRC
+/// mismatch.
+#[test]
+fn symbolize_dwarf_wrong_debug_link_crc() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-with-link-to-wrong-crc.bin");
+    let src = symbolize::Source::from(symbolize::Elf::new(path));
+    let symbolizer = Symbolizer::new();
+    let err = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("checksum does not match expected one"),
+        "{err:?}"
+    );
+}
+
+/// Check that we do not error out when a debug link does not exist.
+#[test]
+fn symbolize_dwarf_non_existent_debug_link() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-with-link-non-existent.bin");
+    let src = symbolize::Source::from(symbolize::Elf::new(path));
+    let symbolizer = Symbolizer::builder().enable_auto_reload(false).build();
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .unwrap()
+        .into_sym();
+    // Because the binary is stripped, we don't expect any symbol
+    // resolution.
+    assert_eq!(result, None);
 }
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined

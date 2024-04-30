@@ -5,9 +5,13 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fs::create_dir_all;
 use std::fs::hard_link;
+use std::fs::remove_file;
+use std::fs::write;
+use std::fs::File;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Result;
+use std::io::Write as _;
 use std::ops::Deref;
 use std::path::Path;
 use std::path::PathBuf;
@@ -263,7 +267,6 @@ fn syms(_src: &Path, _dst: impl AsRef<OsStr>) {
 /// Unpack an xz compressed file.
 #[cfg(feature = "xz2")]
 fn unpack_xz(src: &Path, dst: &Path) {
-    use std::fs::File;
     use std::io::copy;
     use xz2::read::XzDecoder;
 
@@ -295,8 +298,6 @@ fn unpack_xz(_src: &Path, _dst: &Path) {
 #[cfg(feature = "zip")]
 fn zip(files: &[PathBuf], dst: &Path) {
     use std::fs::read as read_file;
-    use std::fs::File;
-    use std::io::Write as _;
     use zip::write::SimpleFileOptions;
     use zip::CompressionMethod;
     use zip::ZipWriter;
@@ -360,6 +361,16 @@ fn cc_stable_addrs(dst: impl AsRef<OsStr>, options: &[&str]) {
     .collect::<Vec<_>>();
 
     cc(&src, dst, &args)
+}
+
+/// Open the file at `path` for writing and append `data` to it.
+fn append(path: &Path, data: &[u8]) -> Result<()> {
+    {
+        let mut file = File::options().append(true).open(path)?;
+        let () = file.write_all(data)?;
+    }
+    let () = adjust_mtime(path).unwrap();
+    Ok(())
 }
 
 /// Prepare the various test files.
@@ -487,6 +498,31 @@ fn prepare_test_files() {
         ],
     );
 
+    dwarf(&src, "test-stable-addrs-dwarf-only-wrong-crc.dbg");
+    let dbg = data_dir.join("test-stable-addrs-dwarf-only-wrong-crc.dbg");
+    objcopy(
+        &src,
+        "test-stable-addrs-stripped-with-link-to-wrong-crc.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg.display()),
+        ],
+    );
+    append(&dbg, &[0]).unwrap();
+
+
+    let dbg = data_dir.join("test-stable-addrs-dwarf-only-non-existent.dbg");
+    let () = write(&dbg, [0]).unwrap();
+    objcopy(
+        &src,
+        "test-stable-addrs-stripped-with-link-non-existent.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg.display()),
+        ],
+    );
+    let () = remove_file(&dbg).unwrap();
+
     let src = data_dir.join("kallsyms.xz");
     let mut dst = src.clone();
     assert!(dst.set_extension(""));
@@ -519,9 +555,6 @@ fn prepare_test_files() {
 /// Download a multi-part file split into `part_count` pieces.
 #[cfg(feature = "reqwest")]
 fn download_multi_part(base_url: &reqwest::Url, part_count: usize, dst: &Path) {
-    use std::fs::File;
-    use std::io::Write as _;
-
     let mut dst = File::create(dst).unwrap();
     for part in 1..=part_count {
         let url = reqwest::Url::parse(&format!("{}.part{part}", base_url.as_str())).unwrap();
