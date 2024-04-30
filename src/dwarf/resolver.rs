@@ -1,14 +1,15 @@
 use std::borrow::Cow;
 #[cfg(test)]
 use std::env;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::mem;
 use std::mem::swap;
 use std::ops::Deref as _;
-#[cfg(test)]
 use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use gimli::AbbreviationsCacheStrategy;
@@ -19,6 +20,8 @@ use crate::error::IntoCowStr;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
+use crate::log::debug;
+use crate::log::warn;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::InlinedFn;
@@ -29,9 +32,12 @@ use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt;
+use crate::Mmap;
 use crate::Result;
 use crate::SymType;
 
+use super::debug_link::debug_link_crc32;
+use super::debug_link::read_debug_link;
 use super::function::Function;
 use super::location::Location;
 use super::reader;
@@ -75,15 +81,121 @@ impl From<Option<gimli::DwLang>> for SrcLang {
 }
 
 
+/// Find a debug file in a list of default directories.
+///
+/// `linker` is the path to the file containing the debug link. This function
+/// searches a couple of "well-known" locations and then others constructed
+/// based on the canonicalized path of `linker`.
+///
+/// # Notes
+/// This function ignores any errors encountered.
+// TODO: Ideally this discovery functionality would be provided in the
+//       form of an iterator for better testability.
+fn find_debug_file(file: &OsStr, linker: Option<&Path>) -> Option<PathBuf> {
+    macro_rules! return_if_exists {
+        ($path:ident) => {
+            if $path.exists() {
+                debug!("found debug info at {}", $path.display());
+                return Some($path)
+            }
+        };
+    }
+
+    // First check known fixed locations.
+    let path = Path::new("/lib/debug/").join(file);
+    return_if_exists!(path);
+
+    let path = Path::new("/usr/lib/debug/").join(file);
+    return_if_exists!(path);
+
+    // Next check others that depend on the absolute `linker` (which may
+    // not be retrievable). E.g., assuming `linker` is `/usr/lib64/libc.so` and
+    // `file` is `libc.so.debug`, it would also search:
+    // - /usr/lib64/libc.so.debug
+    // - /usr/lib/debug/usr/lib64/libc.so.debug
+    // - /usr/lib/debug/usr/libc.so.debug
+
+    // TODO: Different heuristics may be possible here. E.g., honor
+    //       .debug directories and check the current working directory
+    //       (??). Also, users could want to pass in a directory.
+    if let Some(linker) = linker {
+        if let Ok(mut path) = linker.canonicalize() {
+            let () = path.set_file_name(file);
+            return_if_exists!(path);
+
+            let mut ancestors = path.ancestors();
+            // Remove the file name, as we will always append it anyway.
+            let _ = ancestors.next();
+
+            for ancestor in ancestors {
+                let mut components = ancestor.components();
+                // Remove the root directory to make the path relative. That
+                // allows for joining to work as expected.
+                let _ = components.next();
+
+                // If the remaining path is empty we'd basically just cover
+                // one of the "fixed" cases above, so we can stop.
+                if components.as_path().as_os_str().is_empty() {
+                    break
+                }
+
+                let path = Path::new("/usr/lib/debug/")
+                    .join(components.as_path())
+                    .join(file);
+                return_if_exists!(path);
+            }
+        }
+    }
+    None
+}
+
+
+fn try_deref_debug_link(parser: &ElfParser) -> Result<Option<Rc<ElfParser>>> {
+    if let Some((file, checksum)) = read_debug_link(parser)? {
+        match find_debug_file(file, parser.path()) {
+            Some(path) => {
+                let mmap = Mmap::builder().open(&path).with_context(|| {
+                    format!("failed to open debug link destination `{}`", path.display())
+                })?;
+                let crc = debug_link_crc32(&mmap);
+                if crc != checksum {
+                    return Err(Error::with_invalid_data(format!(
+                        "debug link destination `{}` checksum does not match \
+                         expected one: {crc:x} (actual) != {checksum:x} (expected)",
+                        path.display()
+                    )))
+                }
+
+                let dst_parser = Rc::new(ElfParser::from_mmap(mmap, Some(path)));
+                Ok(Some(dst_parser))
+            }
+            None => {
+                warn!(
+                    "debug link references destination `{}` which was not found in any known location",
+                    Path::new(file).display(),
+                );
+                Ok(None)
+            }
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+
 /// DwarfResolver provides abilities to query DWARF information of binaries.
 pub(crate) struct DwarfResolver {
     /// The lazily parsed compilation units of the DWARF file.
     // SAFETY: We must not hand out references with a 'static lifetime to
     //         this member. Rather, they should never outlive `self`.
     //         Furthermore, this member has to be listed before `parser`
-    //         to make sure we never end up with a dangling reference.
+    //         and `_linkee_parser` to make sure we never end up with a
+    //         dangling reference.
     units: Units<'static>,
     parser: Rc<ElfParser>,
+    /// If the source file contains a valid debug link, this parser
+    /// represents it.
+    _linkee_parser: Option<Rc<ElfParser>>,
 }
 
 impl DwarfResolver {
@@ -93,11 +205,16 @@ impl DwarfResolver {
     }
 
     pub fn from_parser(parser: Rc<ElfParser>) -> Result<Self, Error> {
+        let linkee_parser = try_deref_debug_link(&parser)?;
+
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
         //         is fine to conjure a 'static lifetime here.
-        let static_parser =
-            unsafe { mem::transmute::<&ElfParser, &'static ElfParser>(parser.deref()) };
+        let static_parser = unsafe {
+            mem::transmute::<&ElfParser, &'static ElfParser>(
+                linkee_parser.as_ref().unwrap_or(&parser).deref(),
+            )
+        };
         let mut load_section = |section| reader::load_section(static_parser, section);
         let mut dwarf = Dwarf::load(&mut load_section)?;
         // Cache abbreviations (which will cause them to be
@@ -108,7 +225,11 @@ impl DwarfResolver {
         let () = dwarf.populate_abbreviations_cache(AbbreviationsCacheStrategy::Duplicates);
 
         let units = Units::parse(dwarf)?;
-        let slf = Self { units, parser };
+        let slf = Self {
+            units,
+            parser,
+            _linkee_parser: linkee_parser,
+        };
         Ok(slf)
     }
 
@@ -365,6 +486,24 @@ mod tests {
             .with_context(|| "failed to read")
             .unwrap_err();
         assert_eq!(format!("{err:#}"), format!("failed to read: {inner}"));
+    }
+
+    /// Check that we resolve debug links correctly.
+    #[test]
+    fn debug_link_resolution() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-stripped-with-link.bin");
+        let resolver = DwarfResolver::open(&path).unwrap();
+        assert!(resolver._linkee_parser.is_some());
+
+        let linkee_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-dwarf-only.dbg");
+        assert_eq!(
+            resolver._linkee_parser.as_ref().unwrap().path(),
+            Some(linkee_path.as_path())
+        );
     }
 
     /// Check that we can find the source code location of an address.
