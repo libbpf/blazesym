@@ -1324,7 +1324,7 @@ mod tests {
 
         let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.bin");
+            .join("test-stable-addrs.bin");
         let parser = Rc::new(ElfParser::open(&test_elf).unwrap());
         let resolver = ElfResolver::from_parser(parser, false).unwrap();
         let resolver = Resolver::Cached(&resolver);
@@ -1377,13 +1377,13 @@ mod tests {
     fn unsupported_inputs() {
         let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.bin");
+            .join("test-stable-addrs.bin");
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.gsym");
+            .join("test-stable-addrs.gsym");
         let test_sym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.sym");
+            .join("test-stable-addrs.sym");
         let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.zip");

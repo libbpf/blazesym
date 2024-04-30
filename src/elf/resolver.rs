@@ -218,18 +218,18 @@ mod tests {
     fn debug_repr() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.bin");
+            .join("test-stable-addrs.bin");
 
         let parser = Rc::new(ElfParser::open(&path).unwrap());
         let resolver = ElfResolver::from_parser(parser.clone(), false).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("ELF"), "{dbg}");
-        assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addrs.bin"), "{dbg}");
 
         let resolver = ElfResolver::from_parser(parser, true).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("DWARF"), "{dbg}");
-        assert!(dbg.ends_with("test-stable-addresses.bin"), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addrs.bin"), "{dbg}");
     }
 
     /// Check that we fail finding an offset for an address not
@@ -238,7 +238,7 @@ mod tests {
     fn addr_without_offset() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-no-dwarf.bin");
+            .join("test-stable-addrs-no-dwarf.bin");
         let parser = ElfParser::open(&path).unwrap();
 
         assert_eq!(parser.find_file_offset(0x0).unwrap(), None);

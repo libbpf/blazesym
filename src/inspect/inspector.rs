@@ -231,7 +231,7 @@ mod tests {
     fn elf_resolver_caching() {
         let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-no-dwarf.bin");
+            .join("test-stable-addrs-no-dwarf.bin");
         let mut elf = Elf::new(&test_elf);
         assert!(elf.debug_syms);
 

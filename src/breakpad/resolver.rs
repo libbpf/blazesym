@@ -257,12 +257,12 @@ mod tests {
     fn debug_repr() {
         let sym_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.sym");
+            .join("test-stable-addrs.sym");
 
         let resolver = BreakpadResolver::open(sym_path).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("Breakpad"), "{dbg}");
-        assert!(dbg.ends_with("test-stable-addresses.sym"), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addrs.sym"), "{dbg}");
     }
 
     /// Check that [`BreakpadResolver::find_addr`] and
@@ -271,7 +271,7 @@ mod tests {
     fn unsupported_ops() {
         let sym_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.sym");
+            .join("test-stable-addrs.sym");
 
         let resolver = BreakpadResolver::open(sym_path).unwrap();
         let opts = FindAddrOpts {
