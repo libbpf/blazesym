@@ -1,3 +1,4 @@
+mod debug_link;
 mod function;
 mod lines;
 mod location;

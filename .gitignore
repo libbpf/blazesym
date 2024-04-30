@@ -1,4 +1,5 @@
 /data/*.bin
+/data/*.dbg
 /data/*.gsym
 /data/*.so
 /data/*.sym

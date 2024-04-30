@@ -137,6 +137,7 @@ fn adjust_mtime(path: &Path) -> Result<()> {
 }
 
 enum ArgSpec {
+    SrcDst,
     SrcDashODst,
 }
 
@@ -153,8 +154,13 @@ fn toolize_impl(
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
 
+    let args2;
     let args3;
     let args = match arg_spec {
+        ArgSpec::SrcDst => {
+            args2 = [src.as_os_str(), dst.as_os_str()];
+            args2.as_slice()
+        }
         ArgSpec::SrcDashODst => {
             args3 = [src.as_os_str(), "-o".as_ref(), dst.as_os_str()];
             args3.as_slice()
@@ -171,6 +177,10 @@ fn toolize_impl(
     .unwrap_or_else(|err| panic!("failed to run `{tool}`: {err}"));
 
     let () = adjust_mtime(&dst).unwrap();
+}
+
+fn toolize(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+    toolize_impl(tool, ArgSpec::SrcDst, src, dst, options)
 }
 
 fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
@@ -220,7 +230,12 @@ fn elf(src: &Path, dst: impl AsRef<OsStr>) {
 /// Strip all non-debug information from an ELF binary, in an attempt to
 /// leave only DWARF remains.
 fn dwarf(src: &Path, dst: impl AsRef<OsStr>) {
-    strip(src, dst, &["--keep-section=.debug_*"])
+    strip(src, dst, &["--only-keep-debug"])
+}
+
+/// Invoke `objcopy` on `src` and place the result in `dst`.
+fn objcopy(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+    toolize("objcopy", src, dst, options)
 }
 
 /// Generate a Breakpad .sym file for the given source.
@@ -449,11 +464,28 @@ fn prepare_test_files() {
 
     let src = data_dir.join("test-stable-addrs.bin");
     gsym(&src, "test-stable-addrs.gsym");
-    dwarf(&src, "test-stable-addrs-stripped-elf-with-dwarf.bin");
+    // Poor man's stripping of ELF stuff, mostly just to have an alternative to
+    // `--only-keep-debug` which actually keeps in tact executable bits.
+    strip(
+        &src,
+        "test-stable-addrs-stripped-elf-with-dwarf.bin",
+        &["--keep-section=.debug_*"],
+    );
     strip(&src, "test-stable-addrs-stripped.bin", &[]);
     if cfg!(feature = "dump_syms") {
         syms(&src, "test-stable-addrs.sym");
     }
+
+    dwarf(&src, "test-stable-addrs-dwarf-only.dbg");
+    let dbg = data_dir.join("test-stable-addrs-dwarf-only.dbg");
+    objcopy(
+        &src,
+        "test-stable-addrs-stripped-with-link.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg.display()),
+        ],
+    );
 
     let src = data_dir.join("kallsyms.xz");
     let mut dst = src.clone();

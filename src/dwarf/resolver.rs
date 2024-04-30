@@ -148,7 +148,7 @@ impl Symbolize for DwarfResolver {
             // Fall back to checking ELF for the symbol corresponding to
             // the address. This is to mimic behavior of various tools
             // (e.g., `addr2line`). Basically, what can happen is that a
-            // symbol if not present in DWARF, but source code
+            // symbol is not present in DWARF, but source code
             // information for the address actually is. By checking ELF
             // as a fall back we support cases where ELF *does* contain
             // symbol, and we amend its information with the source code
