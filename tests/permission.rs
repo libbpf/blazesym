@@ -57,7 +57,7 @@ fn symbolize_no_permission() {
 
     let src = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-no-dwarf.bin");
+        .join("test-stable-addrs-no-dwarf.bin");
 
     let tmpfile = NamedTempFile::new().unwrap();
     let path = tmpfile.path();

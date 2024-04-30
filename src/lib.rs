@@ -206,7 +206,7 @@ mod tests {
     fn gsym_resolver() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.gsym");
+            .join("test-stable-addrs.gsym");
 
         let resolver = helper::GsymResolver::open(test_gsym).unwrap();
         let sym = resolver

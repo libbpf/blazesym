@@ -84,7 +84,7 @@ fn symbolize_elf_dwarf_gsym() {
         if has_code_info {
             let code_info = result.code_info.as_ref().unwrap();
             assert_ne!(code_info.dir, None);
-            assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
             assert_eq!(code_info.line, Some(10));
         } else {
             assert_eq!(result.code_info, None);
@@ -116,7 +116,7 @@ fn symbolize_elf_dwarf_gsym() {
             if has_code_info {
                 let code_info = result.code_info.as_ref().unwrap();
                 assert_ne!(code_info.dir, None);
-                assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+                assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
                 assert!(code_info.line.is_some());
             } else {
                 assert_eq!(result.code_info, None);
@@ -126,16 +126,16 @@ fn symbolize_elf_dwarf_gsym() {
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-no-dwarf.bin");
+        .join("test-stable-addrs-no-dwarf.bin");
     let src = symbolize::Source::Elf(symbolize::Elf::new(path));
     test(src, false);
 
     for file in [
-        "test-stable-addresses-stripped-elf-with-dwarf.bin",
-        "test-stable-addresses-lto.bin",
-        "test-stable-addresses-compressed-debug-zlib.bin",
+        "test-stable-addrs-stripped-elf-with-dwarf.bin",
+        "test-stable-addrs-lto.bin",
+        "test-stable-addrs-compressed-debug-zlib.bin",
         #[cfg(feature = "zstd")]
-        "test-stable-addresses-compressed-debug-zstd.bin",
+        "test-stable-addrs-compressed-debug-zstd.bin",
     ] {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -146,7 +146,7 @@ fn symbolize_elf_dwarf_gsym() {
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses.gsym");
+        .join("test-stable-addrs.gsym");
     let src = symbolize::Source::from(symbolize::GsymFile::new(&path));
     test(src, true);
 
@@ -160,7 +160,7 @@ fn symbolize_elf_dwarf_gsym() {
 fn symbolize_breakpad() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses.sym");
+        .join("test-stable-addrs.sym");
     let src = symbolize::Source::Breakpad(symbolize::Breakpad::new(path));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
@@ -175,7 +175,7 @@ fn symbolize_breakpad() {
 
     let code_info = result.code_info.as_ref().unwrap();
     assert_ne!(code_info.dir, None);
-    assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+    assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
     assert_eq!(code_info.line, Some(10));
 
     let size = result.size.unwrap();
@@ -201,7 +201,7 @@ fn symbolize_breakpad() {
 
         let code_info = result.code_info.as_ref().unwrap();
         assert_ne!(code_info.dir, None);
-        assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
         assert!(code_info.line.is_some());
     }
 }
@@ -210,9 +210,8 @@ fn symbolize_breakpad() {
 /// somewhat decent fashion.
 #[test]
 fn symbolize_breakpad_error() {
-    let content =
-        br#"MODULE Linux x86_64 C00D0279606DFBCD53805DDAD2CA66A30 test-stable-addresses.bin
-FILE 0 data/test-stable-addresses-cu2.c
+    let content = br#"MODULE Linux x86_64 C00D0279606DFBCD53805DDAD2CA66A30 test-stable-addrs.bin
+FILE 0 data/test-stable-addrs-cu2.c
 PUBLIC 0 0 main
 FUNC 34 11 0 factorial_wrapper
 34 XXX-this-does-not-belong-here-XXX 4 0
@@ -238,7 +237,7 @@ fn symbolize_elf_variable() {
     fn test(debug_syms: bool) {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.bin");
+            .join("test-stable-addrs.bin");
         let mut elf = symbolize::Elf::new(path);
         elf.debug_syms = debug_syms;
         let src = symbolize::Source::Elf(elf);
@@ -291,7 +290,7 @@ fn symbolize_elf_variable() {
 fn symbolize_elf_stripped() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-stripped.bin");
+        .join("test-stable-addrs-stripped.bin");
     let src = symbolize::Source::Elf(symbolize::Elf::new(path));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
@@ -318,7 +317,7 @@ fn symbolize_dwarf_gsym_inlined() {
         assert_eq!(result.name, "factorial_inline_test");
         let code_info = result.code_info.as_ref().unwrap();
         assert_ne!(code_info.dir, None);
-        assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
         // The Gsym format uses inline information to "refine" the
         // line information associated with an address. As a result,
         // when we ignore inline information we may end up with a
@@ -332,13 +331,13 @@ fn symbolize_dwarf_gsym_inlined() {
             let name = &result.inlined[0].name;
             assert_eq!(*name, "factorial_inline_wrapper");
             let frame = result.inlined[0].code_info.as_ref().unwrap();
-            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(frame.file, OsStr::new("test-stable-addrs.c"));
             assert_eq!(frame.line, Some(28));
 
             let name = &result.inlined[1].name;
             assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
             let frame = result.inlined[1].code_info.as_ref().unwrap();
-            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(frame.file, OsStr::new("test-stable-addrs.c"));
             assert_eq!(frame.line, Some(23));
         } else {
             assert!(result.inlined.is_empty(), "{:#?}", result.inlined);
@@ -347,16 +346,16 @@ fn symbolize_dwarf_gsym_inlined() {
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses.gsym");
+        .join("test-stable-addrs.gsym");
     let src = symbolize::Source::from(symbolize::GsymFile::new(path));
     test(src.clone(), true);
     test(src, false);
 
     for file in [
-        "test-stable-addresses-stripped-elf-with-dwarf.bin",
-        "test-stable-addresses-compressed-debug-zlib.bin",
+        "test-stable-addrs-stripped-elf-with-dwarf.bin",
+        "test-stable-addrs-compressed-debug-zlib.bin",
         #[cfg(feature = "zstd")]
-        "test-stable-addresses-compressed-debug-zstd.bin",
+        "test-stable-addrs-compressed-debug-zstd.bin",
     ] {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -384,7 +383,7 @@ fn symbolize_breakpad_inlined() {
         assert_eq!(result.name, "factorial_inline_test");
         let code_info = result.code_info.as_ref().unwrap();
         assert_ne!(code_info.dir, None);
-        assert_eq!(code_info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
         assert_eq!(code_info.line, Some(if inlined_fns { 34 } else { 23 }));
 
         if inlined_fns {
@@ -393,13 +392,13 @@ fn symbolize_breakpad_inlined() {
             let name = &result.inlined[0].name;
             assert_eq!(*name, "factorial_inline_wrapper");
             let frame = result.inlined[0].code_info.as_ref().unwrap();
-            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(frame.file, OsStr::new("test-stable-addrs.c"));
             assert_eq!(frame.line, Some(28));
 
             let name = &result.inlined[1].name;
             assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
             let frame = result.inlined[1].code_info.as_ref().unwrap();
-            assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+            assert_eq!(frame.file, OsStr::new("test-stable-addrs.c"));
             assert_eq!(frame.line, Some(23));
         } else {
             assert!(result.inlined.is_empty(), "{:#?}", result.inlined);
@@ -408,7 +407,7 @@ fn symbolize_breakpad_inlined() {
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses.sym");
+        .join("test-stable-addrs.sym");
     let src = symbolize::Source::from(symbolize::Breakpad::new(path));
     test(src.clone(), true);
     test(src, false);
@@ -797,7 +796,7 @@ fn inspect_elf() {
 
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
+        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
     let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
     // Our `DwarfResolver` type does not currently support look up of
     // variables.
@@ -806,7 +805,7 @@ fn inspect_elf() {
 
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses.bin");
+        .join("test-stable-addrs.bin");
     for debug_syms in [true, false] {
         let mut elf = inspect::Elf::new(&test_elf);
         elf.debug_syms = debug_syms;
@@ -816,7 +815,7 @@ fn inspect_elf() {
 
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-no-dwarf.bin");
+        .join("test-stable-addrs-no-dwarf.bin");
     let mut elf = inspect::Elf::new(test_elf);
     assert!(elf.debug_syms);
     elf.debug_syms = false;
@@ -830,7 +829,7 @@ fn inspect_elf() {
 fn inspect_breakpad() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses.sym");
+        .join("test-stable-addrs.sym");
     let breakpad = inspect::Breakpad::new(path);
     let src = inspect::Source::from(breakpad);
 
@@ -893,7 +892,7 @@ fn inspect_elf_dynamic_symbol() {
 fn inspect_elf_indirect_function() {
     let bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-no-dwarf.bin");
+        .join("test-stable-addrs-no-dwarf.bin");
 
     let src = inspect::Source::Elf(inspect::Elf::new(&bin));
     let inspector = Inspector::new();
@@ -933,7 +932,7 @@ fn read_4bytes_at(path: &Path, offset: u64) -> [u8; 4] {
 fn inspect_elf_file_offset() {
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-no-dwarf.bin");
+        .join("test-stable-addrs-no-dwarf.bin");
     let elf = inspect::Elf::new(test_elf);
     let src = inspect::Source::Elf(elf);
 
@@ -1001,14 +1000,14 @@ fn inspect_elf_breakpad_all_symbols() {
 
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses-no-dwarf.bin");
+        .join("test-stable-addrs-no-dwarf.bin");
     let elf = inspect::Elf::new(test_elf);
     let src = inspect::Source::Elf(elf);
     test(&src);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-stable-addresses.sym");
+        .join("test-stable-addrs.sym");
     let breakpad = inspect::Breakpad::new(path);
     let src = inspect::Source::Breakpad(breakpad);
     test(&src);

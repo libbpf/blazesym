@@ -327,9 +327,9 @@ fn zip(_files: &[PathBuf], _dst: &Path) {
 
 fn cc_stable_addrs(dst: impl AsRef<OsStr>, options: &[&str]) {
     let data_dir = data_dir();
-    let src = data_dir.join("test-stable-addresses.c");
-    let src_cu2 = data_dir.join("test-stable-addresses-cu2.c");
-    let ld_script = data_dir.join("test-stable-addresses.ld");
+    let src = data_dir.join("test-stable-addrs.c");
+    let src_cu2 = data_dir.join("test-stable-addrs-cu2.c");
+    let ld_script = data_dir.join("test-stable-addrs.ld");
     println!("cargo:rerun-if-changed={}", ld_script.display());
     println!("cargo:rerun-if-changed={}", src_cu2.display());
 
@@ -419,25 +419,25 @@ fn prepare_test_files() {
     cc(&src, "test-mnt-ns.bin", &[]);
 
     cc_stable_addrs(
-        "test-stable-addresses.bin",
+        "test-stable-addrs.bin",
         &["-gdwarf-4", "-Wl,--build-id=none", "-O0"],
     );
     cc_stable_addrs(
-        "test-stable-addresses-compressed-debug-zlib.bin",
+        "test-stable-addrs-compressed-debug-zlib.bin",
         &["-gdwarf-4", "-Wl,--build-id=none", "-O0", "-gz=zlib"],
     );
     if cfg!(feature = "zstd") {
         cc_stable_addrs(
-            "test-stable-addresses-compressed-debug-zstd.bin",
+            "test-stable-addrs-compressed-debug-zstd.bin",
             &["-gdwarf-4", "-Wl,--build-id=none", "-gz=zstd"],
         );
     }
     cc_stable_addrs(
-        "test-stable-addresses-no-dwarf.bin",
+        "test-stable-addrs-no-dwarf.bin",
         &["-g0", "-Wl,--build-id=none"],
     );
     cc_stable_addrs(
-        "test-stable-addresses-lto.bin",
+        "test-stable-addrs-lto.bin",
         &[
             // NB: Keep DWARF 4 for this binary. Cross unit references
             //     as this binary aims to produce only seem to appear in
@@ -447,12 +447,12 @@ fn prepare_test_files() {
         ],
     );
 
-    let src = data_dir.join("test-stable-addresses.bin");
-    gsym(&src, "test-stable-addresses.gsym");
-    dwarf(&src, "test-stable-addresses-stripped-elf-with-dwarf.bin");
-    strip(&src, "test-stable-addresses-stripped.bin", &[]);
+    let src = data_dir.join("test-stable-addrs.bin");
+    gsym(&src, "test-stable-addrs.gsym");
+    dwarf(&src, "test-stable-addrs-stripped-elf-with-dwarf.bin");
+    strip(&src, "test-stable-addrs-stripped.bin", &[]);
     if cfg!(feature = "dump_syms") {
-        syms(&src, "test-stable-addresses.sym");
+        syms(&src, "test-stable-addrs.sym");
     }
 
     let src = data_dir.join("kallsyms.xz");
@@ -475,7 +475,7 @@ fn prepare_test_files() {
     .unwrap();
 
     let files = [
-        data_dir.join("test-stable-addresses-stripped-elf-with-dwarf.bin"),
+        data_dir.join("test-stable-addrs-stripped-elf-with-dwarf.bin"),
         data_dir.join("zip-dir").join("test-no-debug.bin"),
         data_dir.join("libtest-so.so"),
         data_dir.join("libtest-so-no-separate-code.so"),

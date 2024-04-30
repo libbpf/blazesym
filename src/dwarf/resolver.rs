@@ -372,7 +372,7 @@ mod tests {
     fn source_location_finding() {
         let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.bin");
+            .join("test-stable-addrs.bin");
         let resolver = DwarfResolver::open(bin_name.as_ref()).unwrap();
 
         let info = resolver
@@ -382,7 +382,7 @@ mod tests {
             .code_info
             .unwrap();
         assert_ne!(info.dir, Some(Cow::Owned(PathBuf::new())));
-        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
         assert_eq!(info.line, Some(10));
         assert!(info.column.is_some());
     }
@@ -392,7 +392,7 @@ mod tests {
     fn lookup_symbol() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
+            .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
             sym_type: SymType::Function,
@@ -412,7 +412,7 @@ mod tests {
     fn unsupported_ops() {
         let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
+            .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
         let opts = FindAddrOpts {
             offset_in_file: false,
             sym_type: SymType::Variable,

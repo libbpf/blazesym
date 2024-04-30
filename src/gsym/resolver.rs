@@ -340,12 +340,12 @@ mod tests {
     fn debug_repr() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.gsym");
+            .join("test-stable-addrs.gsym");
 
         let resolver = GsymResolver::open(test_gsym).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("GSYM"), "{dbg}");
-        assert!(dbg.ends_with("test-stable-addresses.gsym"), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addrs.gsym"), "{dbg}");
     }
 
     /// Check that we can create a `GsymResolver` using a "raw" slice of data.
@@ -353,7 +353,7 @@ mod tests {
     fn creation_from_raw_data() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.gsym");
+            .join("test-stable-addrs.gsym");
         let data = read_file(test_gsym).unwrap();
 
         let resolver = GsymResolver::with_data(&data).unwrap();
@@ -366,7 +366,7 @@ mod tests {
     fn find_line_info() {
         let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-stable-addresses.gsym");
+            .join("test-stable-addrs.gsym");
         let resolver = GsymResolver::open(test_gsym).unwrap();
 
         // `main` resides at address 0x2000000, and it's located at the given
@@ -380,7 +380,7 @@ mod tests {
 
         let info = sym.code_info.unwrap();
         assert_eq!(info.line, Some(65));
-        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
 
         // `factorial` resides at address 0x2000100, and it's located at the
         // given line.
@@ -393,7 +393,7 @@ mod tests {
 
         let info = sym.code_info.unwrap();
         assert_eq!(info.line, Some(10));
-        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
 
         // Address is hopefully sufficiently far into `factorial_inline_test` to
         // always fall into the inlined region, no matter toolchain. If not, add
@@ -408,18 +408,18 @@ mod tests {
 
         let info = sym.code_info.unwrap();
         assert_eq!(info.line, Some(34));
-        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
 
         let name = &sym.inlined[0].name;
         assert_eq!(*name, "factorial_inline_wrapper");
         let frame = sym.inlined[0].code_info.as_ref().unwrap();
-        assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(frame.file, OsStr::new("test-stable-addrs.c"));
         assert_eq!(frame.line, Some(28));
 
         let name = &sym.inlined[1].name;
         assert_eq!(*name, "factorial_2nd_layer_inline_wrapper");
         let frame = sym.inlined[1].code_info.as_ref().unwrap();
-        assert_eq!(frame.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(frame.file, OsStr::new("test-stable-addrs.c"));
         assert_eq!(frame.line, Some(23));
 
         let sym = resolver
@@ -434,6 +434,6 @@ mod tests {
         // different to that when using inlined function information, because in
         // Gsym this additional data is used to "refine" the result.
         assert_eq!(info.line, Some(23));
-        assert_eq!(info.file, OsStr::new("test-stable-addresses.c"));
+        assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
     }
 }

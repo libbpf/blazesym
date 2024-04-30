@@ -1288,7 +1288,7 @@ mod tests {
                 assert!(!sym.code_info.file.is_null());
                 assert_eq!(
                     unsafe { CStr::from_ptr(sym.code_info.file) },
-                    CStr::from_bytes_with_nul(b"test-stable-addresses.c\0").unwrap()
+                    CStr::from_bytes_with_nul(b"test-stable-addrs.c\0").unwrap()
                 );
                 assert_eq!(sym.code_info.line, 10);
             } else {
@@ -1304,7 +1304,7 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("data")
-            .join("test-stable-addresses-no-dwarf.bin");
+            .join("test-stable-addrs-no-dwarf.bin");
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let elf_src = blaze_symbolize_src_elf {
             path: path_c.as_ptr(),
@@ -1320,7 +1320,7 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("data")
-            .join("test-stable-addresses-stripped-elf-with-dwarf.bin");
+            .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let elf_src = blaze_symbolize_src_elf {
             path: path_c.as_ptr(),
@@ -1336,7 +1336,7 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("data")
-            .join("test-stable-addresses.gsym");
+            .join("test-stable-addrs.gsym");
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let gsym_src = blaze_symbolize_src_gsym_file {
             path: path_c.as_ptr(),
@@ -1351,7 +1351,7 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("data")
-            .join("test-stable-addresses.gsym");
+            .join("test-stable-addrs.gsym");
         let data = read_file(path).unwrap();
         let gsym_src = blaze_symbolize_src_gsym_data {
             data: data.as_ptr(),
