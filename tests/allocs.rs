@@ -23,7 +23,8 @@ use stats_alloc::StatsAlloc;
 static GLOBAL: StatsAlloc<TracingAlloc> = StatsAlloc::new(TracingAlloc);
 
 thread_local! {
-  static TRACING: Cell<bool> = const { Cell::new(false) };
+    static ENABLED: Cell<bool> = const { Cell::new(false) };
+    static TRACING: Cell<bool> = const { Cell::new(false) };
 }
 
 
@@ -34,7 +35,7 @@ unsafe impl GlobalAlloc for TracingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // Capturing a backtrace will allocate itself. Prevent infinite
         // recursion with a flag.
-        if !TRACING.with(|tracing| tracing.replace(true)) {
+        if ENABLED.get() && !TRACING.with(|tracing| tracing.replace(true)) {
             let bt = Backtrace::capture();
             if let BacktraceStatus::Captured = bt.status() {
                 println!("{layout:?}:\n{bt}");
@@ -56,6 +57,7 @@ unsafe impl GlobalAlloc for TracingAlloc {
 fn normalize_process() {
     let region = Region::new(&GLOBAL);
 
+    let () = ENABLED.set(true);
     {
         let normalizer = Normalizer::builder().build();
         let mut addrs = [
@@ -73,6 +75,7 @@ fn normalize_process() {
         assert_eq!(normalized.meta.len(), 2);
         assert_eq!(normalized.outputs.len(), 5);
     }
+    let () = ENABLED.set(false);
 
     // We can't make many assumptions about the allocations here,
     // because a lot of it is system dependent. E.g., more entries in
