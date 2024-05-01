@@ -9,9 +9,8 @@ use std::alloc::Layout;
 use std::alloc::System;
 use std::backtrace::Backtrace;
 use std::backtrace::BacktraceStatus;
+use std::cell::Cell;
 use std::hint::black_box;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
 use std::thread_local;
 
 use blazesym::normalize::Normalizer;
@@ -24,7 +23,7 @@ use stats_alloc::StatsAlloc;
 static GLOBAL: StatsAlloc<TracingAlloc> = StatsAlloc::new(TracingAlloc);
 
 thread_local! {
-  static TRACING: AtomicBool = const { AtomicBool::new(false) };
+  static TRACING: Cell<bool> = const { Cell::new(false) };
 }
 
 
@@ -35,12 +34,12 @@ unsafe impl GlobalAlloc for TracingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         // Capturing a backtrace will allocate itself. Prevent infinite
         // recursion with a flag.
-        if !TRACING.with(|tracing| tracing.swap(true, Ordering::Relaxed)) {
+        if !TRACING.with(|tracing| tracing.replace(true)) {
             let bt = Backtrace::capture();
             if let BacktraceStatus::Captured = bt.status() {
                 println!("{layout:?}:\n{bt}");
             }
-            let () = TRACING.with(|tracing| tracing.store(false, Ordering::Relaxed));
+            let () = TRACING.with(|tracing| tracing.set(false));
         }
         System.alloc(layout)
     }
