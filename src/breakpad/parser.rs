@@ -76,12 +76,7 @@ fn convert_verbose_nom_error(err: VerboseError<&[u8]>) -> VerboseError<Cow<'_, s
     VerboseError { errors }
 }
 
-fn convert_nom_err(err: Err<VerboseError<&[u8]>>) -> Err<VerboseError<Cow<'_, str>>> {
-    err.map(convert_verbose_nom_error)
-}
-
-fn convert_num_err_to_error((input, err): (&[u8], Err<VerboseError<&[u8]>>)) -> Error {
-    let err = convert_nom_err(err);
+fn convert_nom_err_to_error((input, err): (&[u8], Err<VerboseError<&[u8]>>)) -> Error {
     match err {
         Err::Incomplete(needed) => match needed {
             Needed::Unknown => Error::with_invalid_input(
@@ -92,6 +87,7 @@ fn convert_num_err_to_error((input, err): (&[u8], Err<VerboseError<&[u8]>>)) -> 
             )),
         },
         Err::Error(err) | Err::Failure(err) => {
+            let err = convert_verbose_nom_error(err);
             Error::with_invalid_input(stringify_error(String::from_utf8_lossy(input), err))
         }
     }
@@ -105,7 +101,7 @@ impl ErrorExt for (&[u8], Err<VerboseError<&[u8]>>) {
     where
         C: IntoCowStr,
     {
-        convert_num_err_to_error(self).context(context)
+        convert_nom_err_to_error(self).context(context)
     }
 
     fn with_context<C, F>(self, f: F) -> Self::Output
@@ -113,7 +109,7 @@ impl ErrorExt for (&[u8], Err<VerboseError<&[u8]>>) {
         C: IntoCowStr,
         F: FnOnce() -> C,
     {
-        convert_num_err_to_error(self).with_context(f)
+        convert_nom_err_to_error(self).with_context(f)
     }
 }
 
