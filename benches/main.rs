@@ -1,4 +1,8 @@
-#![allow(clippy::let_and_return, clippy::let_unit_value)]
+#![allow(
+    clippy::incompatible_msrv,
+    clippy::let_and_return,
+    clippy::let_unit_value
+)]
 
 macro_rules! bench_fn {
     ($group:expr, $bench_fn:ident) => {

@@ -1,5 +1,6 @@
 #![allow(
     clippy::fn_to_numeric_cast,
+    clippy::incompatible_msrv,
     clippy::let_and_return,
     clippy::let_unit_value
 )]

@@ -73,7 +73,7 @@ impl GsymResolver<'static> {
             // SAFETY: We own the underlying `Mmap` object and never hand out
             //         any 'static references to its data. So it is safe for us
             //         to transmute the lifetime.
-            ctx: unsafe { mem::transmute(ctx) },
+            ctx: unsafe { mem::transmute::<GsymContext<'_>, GsymContext<'static>>(ctx) },
             _data: Data::Mmap(mmap),
         };
 
