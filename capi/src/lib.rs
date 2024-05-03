@@ -186,7 +186,7 @@ fn set_last_err(err: blaze_err) {
 #[no_mangle]
 pub extern "C" fn blaze_err_str(err: blaze_err) -> *const c_char {
     match err as i32 {
-        e if e == blaze_err::BLAZE_ERR_OK as i32 => "success".as_ptr().cast(),
+        e if e == blaze_err::BLAZE_ERR_OK as i32 => b"success\0".as_ptr().cast(),
         e if e == blaze_err::BLAZE_ERR_NOT_FOUND as i32 => {
             ErrorKind::NotFound.as_bytes().as_ptr().cast()
         }
