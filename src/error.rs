@@ -11,6 +11,7 @@ use std::fmt::Result as FmtResult;
 use std::io;
 use std::mem::transmute;
 use std::ops::Deref;
+use std::str;
 
 
 mod private {
@@ -343,6 +344,15 @@ impl ErrorKind {
             Self::WriteZero => b"write zero\0",
             Self::InvalidDwarf => b"DWARF data invalid\0",
         }
+    }
+}
+
+impl Display for ErrorKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let cstr = self.as_bytes();
+        // SAFETY: `as_bytes` always returns a valid string.
+        let s = unsafe { str::from_utf8_unchecked(&cstr[..cstr.len() - 1]) };
+        f.write_str(s)
     }
 }
 
@@ -709,6 +719,17 @@ mod tests {
 
     use test_log::test;
 
+
+    /// Exercise the `Display` representation of various types.
+    #[test]
+    fn display_repr() {
+        assert_eq!(ErrorKind::NotFound.to_string(), "entity not found");
+        assert_eq!(ErrorKind::OutOfMemory.to_string(), "out of memory");
+        assert_eq!(
+            ErrorKind::UnexpectedEof.to_string(),
+            "unexpected end of file"
+        );
+    }
 
     /// Check various features of our `Str` wrapper type.
     #[test]

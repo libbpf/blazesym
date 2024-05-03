@@ -13,6 +13,7 @@ Unreleased
 - Introduced `normalize::Reason` enum to provide best guess at why normalization
   was not successful as part of the `normalize::UserMeta::Unknown` variant
 - Added `From<Box<dyn std::error::Error>>` conversion to `Error`
+- Added `Display` impl to `ErrorKind`
 - Added `read_elf_build_id_from_mmap` function to `helper` module
 - Reduced number of allocations performed on address normalization and
   process symbolization paths
