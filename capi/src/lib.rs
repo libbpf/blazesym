@@ -182,7 +182,7 @@ fn set_last_err(err: blaze_err) {
 }
 
 
-/// Retrieve a textual representation of the error code, if any.
+/// Retrieve a textual representation of the error code.
 #[no_mangle]
 pub extern "C" fn blaze_err_str(err: blaze_err) -> *const c_char {
     match err as i32 {
