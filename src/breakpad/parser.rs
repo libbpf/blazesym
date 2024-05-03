@@ -26,9 +26,9 @@
 //!
 //! See <https://github.com/google/breakpad/blob/main/docs/symbol_files.md>
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::fmt::Write as _;
 use std::mem;
 use std::ops::BitOr;
 use std::ops::Shl;
@@ -46,10 +46,10 @@ use nom::combinator::cut;
 use nom::combinator::map;
 use nom::combinator::map_res;
 use nom::combinator::opt;
-use nom::error::convert_error as stringify_error;
 use nom::error::ErrorKind;
 use nom::error::ParseError;
 use nom::error::VerboseError;
+use nom::error::VerboseErrorKind;
 use nom::multi::separated_list1;
 use nom::sequence::preceded;
 use nom::sequence::terminated;
@@ -57,6 +57,7 @@ use nom::sequence::tuple;
 use nom::Err;
 use nom::IResult;
 use nom::Needed;
+use nom::Offset as _;
 
 use super::types::*;
 
@@ -67,13 +68,114 @@ use crate::ErrorExt;
 use crate::Result;
 
 
-fn convert_verbose_nom_error(err: VerboseError<&[u8]>) -> VerboseError<Cow<'_, str>> {
-    let errors = err
-        .errors
-        .into_iter()
-        .map(|(err, kind)| (String::from_utf8_lossy(err), kind))
-        .collect();
-    VerboseError { errors }
+// Copy of `nom::error::convert_error` without the brokennesss of the original.
+fn stringify_error(input: &[u8], e: VerboseError<&[u8]>) -> String {
+    let mut result = String::new();
+
+    for (i, (substring, kind)) in e.errors.iter().enumerate() {
+        let offset = input.offset(substring);
+
+        if input.is_empty() {
+            match kind {
+                VerboseErrorKind::Char(c) => {
+                    write!(&mut result, "{}: expected '{}', got empty input\n\n", i, c)
+                }
+                VerboseErrorKind::Context(s) => {
+                    write!(&mut result, "{}: in {}, got empty input\n\n", i, s)
+                }
+                VerboseErrorKind::Nom(e) => {
+                    write!(&mut result, "{}: in {:?}, got empty input\n\n", i, e)
+                }
+            }
+        } else {
+            let prefix = &input[..offset];
+
+            // Count the number of newlines in the first `offset` bytes of input
+            let line_number = prefix.iter().filter(|&&b| b == b'\n').count() + 1;
+
+            // Find the line that includes the subslice:
+            // Find the *last* newline before the substring starts
+            let line_begin = prefix
+                .iter()
+                .rev()
+                .position(|&b| b == b'\n')
+                .map(|pos| offset - pos)
+                .unwrap_or(0);
+
+            // Find the full line after that newline
+            let line = input[line_begin..]
+                .split(|b| *b == b'\n')
+                .next()
+                .unwrap_or(&input[line_begin..]);
+            // The (1-indexed) column number is the offset of our substring into that line
+            let column_number = line.offset(substring) + 1;
+            let line = String::from_utf8_lossy(line);
+            let line = line.trim_end();
+
+            match kind {
+                VerboseErrorKind::Char(c) => {
+                    if let Some(actual) = String::from_utf8_lossy(substring).chars().next() {
+                        write!(
+                            &mut result,
+                            "{i}: at line {line_number}:\n\
+               {line}\n\
+               {caret:>column$}\n\
+               expected '{expected}', found {actual}\n\n",
+                            i = i,
+                            line_number = line_number,
+                            line = line,
+                            caret = '^',
+                            column = column_number,
+                            expected = c,
+                            actual = actual,
+                        )
+                    } else {
+                        write!(
+                            &mut result,
+                            "{i}: at line {line_number}:\n\
+               {line}\n\
+               {caret:>column$}\n\
+               expected '{expected}', got end of input\n\n",
+                            i = i,
+                            line_number = line_number,
+                            line = line,
+                            caret = '^',
+                            column = column_number,
+                            expected = c,
+                        )
+                    }
+                }
+                VerboseErrorKind::Context(s) => write!(
+                    &mut result,
+                    "{i}: at line {line_number}, in {context}:\n\
+             {line}\n\
+             {caret:>column$}\n\n",
+                    i = i,
+                    line_number = line_number,
+                    context = s,
+                    line = line,
+                    caret = '^',
+                    column = column_number,
+                ),
+                VerboseErrorKind::Nom(e) => write!(
+                    &mut result,
+                    "{i}: at line {line_number}, in {nom_err:?}:\n\
+             {line}\n\
+             {caret:>column$}\n\n",
+                    i = i,
+                    line_number = line_number,
+                    nom_err = e,
+                    line = line,
+                    caret = '^',
+                    column = column_number,
+                ),
+            }
+        }
+        // Because `write!` to a `String` is infallible, this `unwrap` is fine.
+        .unwrap();
+    }
+
+    result
 }
 
 fn convert_nom_err_to_error((input, err): (&[u8], Err<VerboseError<&[u8]>>)) -> Error {
@@ -87,8 +189,7 @@ fn convert_nom_err_to_error((input, err): (&[u8], Err<VerboseError<&[u8]>>)) -> 
             )),
         },
         Err::Error(err) | Err::Failure(err) => {
-            let err = convert_verbose_nom_error(err);
-            Error::with_invalid_input(stringify_error(String::from_utf8_lossy(input), err))
+            Error::with_invalid_input(stringify_error(input, err))
         }
     }
 }
@@ -650,9 +751,60 @@ impl SymbolParser {
 
 #[cfg(test)]
 mod tests {
-    use nom::error::VerboseErrorKind;
-
     use super::*;
+
+    use nom::character::complete::char;
+    use nom::sequence::pair;
+    use nom::Parser as _;
+
+
+    /// Test various error conversion paths.
+    #[test]
+    fn nom_err_conversion() {
+        let input = b"a";
+
+        let err = pair(char('a'), char('b'))
+            .parse(input.as_slice())
+            .unwrap_err();
+        let err = convert_nom_err_to_error((input, err));
+        assert_eq!(
+            err.to_string(),
+            "0: at line 1:\na\n ^\nexpected \'b\', got end of input\n\n"
+        );
+
+        let input = b"foo bar baz";
+        let err = VerboseError {
+            errors: vec![
+                (&input[1..], VerboseErrorKind::Context("context")),
+                (&input[2..], VerboseErrorKind::Char('y')),
+                (&input[3..], VerboseErrorKind::Nom(ErrorKind::Tag)),
+            ],
+        };
+        let s = stringify_error(input, err.clone());
+        let expected = "\
+0: at line 1, in context:
+foo bar baz
+ ^
+
+1: at line 1:
+foo bar baz
+  ^
+expected 'y', found o
+
+2: at line 1, in Tag:
+foo bar baz
+   ^";
+        assert_eq!(s.trim(), expected);
+
+        let s = stringify_error(b"", err);
+        let expected = "\
+0: in context, got empty input
+
+1: expected 'y', got empty input
+
+2: in Tag, got empty input";
+        assert_eq!(s.trim(), expected);
+    }
 
     #[test]
     fn parse_module_line() {
@@ -779,7 +931,7 @@ mod tests {
         assert_eq!(
             func_line(line),
             Err(Err::Failure(VerboseError {
-                errors: vec![(&line[9..], VerboseErrorKind::Nom(ErrorKind::Space)),],
+                errors: vec![(&line[9..], VerboseErrorKind::Nom(ErrorKind::Space))],
             }))
         );
     }
@@ -1189,5 +1341,13 @@ ffffffffffffffff 2 0 0
         let fun = sym.find_function(1).unwrap();
         assert_eq!(fun.lines.len(), 1);
         assert!(fun.name == "x");
+    }
+
+    /// Regression test making sure that we do not panic on specifically broken
+    /// input.
+    #[test]
+    fn invalid_input() {
+        let input = [31, 139, 8, 8, 85, 135, 48, 102, 2, 255, 108, 105, 98, b'\n'];
+        let _err = SymbolFile::from_bytes(input.as_slice());
     }
 }
