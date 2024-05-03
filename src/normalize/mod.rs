@@ -46,6 +46,7 @@ mod user;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::str;
 
 pub use meta::Apk;
 pub use meta::Elf;
@@ -81,14 +82,23 @@ pub enum Reason {
     Unsupported,
 }
 
+impl Reason {
+    #[doc(hidden)]
+    #[inline]
+    pub fn as_bytes(&self) -> &'static [u8] {
+        match self {
+            Self::Unmapped => b"absolute address not found in virtual memory map of process\0",
+            Self::MissingComponent => b"proc maps entry has no component\0",
+            Self::Unsupported => b"address belongs to unsupprted entity\0",
+        }
+    }
+}
+
 impl Display for Reason {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let s = match self {
-            Self::Unmapped => "absolute address not found in virtual memory map of process",
-            Self::MissingComponent => "proc maps entry has no component",
-            Self::Unsupported => "address belongs to unsupprted entity",
-        };
-
+        let cstr = self.as_bytes();
+        // SAFETY: `as_bytes` always returns a valid string.
+        let s = unsafe { str::from_utf8_unchecked(&cstr[..cstr.len() - 1]) };
         f.write_str(s)
     }
 }
@@ -102,6 +112,14 @@ mod tests {
     /// Exercise the `Display` representation of various types.
     #[test]
     fn display_repr() {
+        assert_eq!(
+            Reason::Unmapped.to_string(),
+            "absolute address not found in virtual memory map of process"
+        );
+        assert_eq!(
+            Reason::MissingComponent.to_string(),
+            "proc maps entry has no component"
+        );
         assert_eq!(
             Reason::Unsupported.to_string(),
             "address belongs to unsupprted entity"

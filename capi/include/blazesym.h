@@ -747,7 +747,7 @@ extern "C" {
 enum blaze_err blaze_err_last(void);
 
 /**
- * Retrieve a textual representation of the error code, if any.
+ * Retrieve a textual representation of the error code.
  */
 const char *blaze_err_str(enum blaze_err err);
 
@@ -855,6 +855,11 @@ blaze_normalizer *blaze_normalizer_new_opts(const struct blaze_normalizer_opts *
  * [`blaze_normalizer_new`].
  */
 void blaze_normalizer_free(blaze_normalizer *normalizer);
+
+/**
+ * Retrieve a textual representation of the reason of a normalization failure.
+ */
+const char *blaze_normalize_reason_str(blaze_normalize_reason err);
 
 /**
  * Normalize a list of user space addresses.

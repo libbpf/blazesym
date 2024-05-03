@@ -8,6 +8,7 @@ Unreleased
     representation
 - Introduced `blaze_normalize_reason` type and extended
   - Added `reason` attribute to `blaze_user_meta_unknown`
+  - Added `blaze_normalize_reason_str` to retrieve textual representation
 - Added `blaze_symbolize_elf_file_offsets` function for symbolization of
   file offsets
 - Removed `BLAZE_INPUT` macro

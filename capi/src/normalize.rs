@@ -328,6 +328,24 @@ impl From<Reason> for blaze_normalize_reason {
 }
 
 
+/// Retrieve a textual representation of the reason of a normalization failure.
+#[no_mangle]
+pub extern "C" fn blaze_normalize_reason_str(err: blaze_normalize_reason) -> *const c_char {
+    match err as i32 {
+        e if e == blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED as i32 => {
+            Reason::Unmapped.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_normalize_reason::BLAZE_NORMALIZE_REASON_MISSING_COMPONENT as i32 => {
+            Reason::MissingComponent.as_bytes().as_ptr().cast()
+        }
+        e if e == blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNSUPPORTED as i32 => {
+            Reason::Unsupported.as_bytes().as_ptr().cast()
+        }
+        _ => b"unknown reason\0".as_ptr().cast(),
+    }
+}
+
+
 /// C compatible version of [`Unknown`].
 #[repr(C)]
 #[derive(Debug)]
@@ -724,6 +742,32 @@ mod tests {
             format!("{user_addrs:?}"),
             "blaze_normalized_user_output { meta_cnt: 0, metas: 0x0, output_cnt: 0, outputs: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }",
         );
+    }
+
+    /// Make sure that we can stringify normalization reasons as expected.
+    #[test]
+    fn reason_stringification() {
+        let data = [
+            (
+                Reason::Unmapped,
+                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
+            ),
+            (
+                Reason::MissingComponent,
+                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
+            ),
+            (
+                Reason::Unsupported,
+                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNSUPPORTED,
+            ),
+        ];
+
+        for (reason, expected) in data {
+            assert_eq!(blaze_normalize_reason::from(reason), expected);
+            let cstr = unsafe { CStr::from_ptr(blaze_normalize_reason_str(expected)) };
+            let expected = CStr::from_bytes_with_nul(reason.as_bytes()).unwrap();
+            assert_eq!(cstr, expected);
+        }
     }
 
     /// Check that we can convert an [`Unknown`] into a
