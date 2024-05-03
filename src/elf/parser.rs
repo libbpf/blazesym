@@ -590,7 +590,7 @@ impl ElfParser {
             // necessity for self-referentiality.
             // SAFETY: We never hand out any 'static references to cache
             //         data.
-            let elf_data = unsafe { mem::transmute(mmap.deref()) };
+            let elf_data = unsafe { mem::transmute::<&[u8], &'static [u8]>(mmap.deref()) };
 
             let parser = ElfParser {
                 _mmap: mmap,

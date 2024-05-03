@@ -1299,6 +1299,7 @@ impl Default for Symbolizer {
 
 
 #[cfg(test)]
+#[allow(clippy::missing_transmute_annotations)]
 mod tests {
     use super::*;
 
