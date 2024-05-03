@@ -17,6 +17,8 @@ Unreleased
 - Reduced number of allocations performed on address normalization and
   process symbolization paths
 - Improved symbolization performance on certain unoptimized DWARF data
+- Fixed potential numeric overflow when parsing non-UTF-8 (invalid) Breakpad
+  files
 - Removed `Clone` impl of `symbolize::Builder` type
 
 
