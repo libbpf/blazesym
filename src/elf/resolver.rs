@@ -135,7 +135,7 @@ impl ElfResolver {
         Ok(resolver)
     }
 
-    pub(crate) fn parser(&self) -> &Rc<ElfParser> {
+    fn parser(&self) -> &Rc<ElfParser> {
         match &self.backend {
             #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(dwarf) => dwarf.parser(),
@@ -145,11 +145,7 @@ impl ElfResolver {
 
     /// Retrieve the path to the ELF file represented by this resolver.
     pub(crate) fn path(&self) -> Option<&Path> {
-        match &self.backend {
-            #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(dwarf) => dwarf.parser().path(),
-            ElfBackend::Elf(parser) => parser.path(),
-        }
+        self.parser().path()
     }
 }
 
