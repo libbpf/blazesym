@@ -381,7 +381,7 @@ mod tests {
         let mmap = Mmap::builder().exec().open(&test_so).unwrap();
         // Look up the address of the `the_answer` function inside of the shared
         // object.
-        let elf_parser = ElfParser::from_mmap(mmap.clone(), test_so);
+        let elf_parser = ElfParser::from_mmap(mmap.clone(), Some(test_so));
         let opts = FindAddrOpts {
             sym_type: SymType::Function,
             ..Default::default()
@@ -445,7 +445,7 @@ mod tests {
 
             // Look up the address of the `the_answer` function inside of the shared
             // object.
-            let elf_parser = ElfParser::from_mmap(elf_mmap.clone(), &test_zip);
+            let elf_parser = ElfParser::from_mmap(elf_mmap.clone(), Some(test_zip.clone()));
             let opts = FindAddrOpts {
                 sym_type: SymType::Function,
                 offset_in_file: true,

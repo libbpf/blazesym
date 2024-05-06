@@ -212,10 +212,7 @@ where
 //       feasible at this point.
 #[inline]
 pub fn read_elf_build_id_from_mmap(mmap: &Mmap) -> Result<Option<BuildId<'static>>> {
-    // TODO: The provided path is only relevant for tracing purposes, but
-    //       eventually we may want to decide whether the `ElfParser` path is
-    //       optional or not.
-    let parser = ElfParser::from_mmap(mmap.clone(), Path::new("<anonymous>"));
+    let parser = ElfParser::from_mmap(mmap.clone(), None);
     let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
     Ok(buildid)
 }

@@ -144,7 +144,7 @@ impl ElfResolver {
     }
 
     /// Retrieve the path to the ELF file represented by this resolver.
-    pub(crate) fn path(&self) -> &Path {
+    pub(crate) fn path(&self) -> Option<&Path> {
         match &self.backend {
             #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(dwarf) => dwarf.parser().path(),
@@ -201,8 +201,16 @@ impl Debug for ElfResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match &self.backend {
             #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(_) => write!(f, "DWARF {}", self.path().display()),
-            ElfBackend::Elf(_) => write!(f, "ELF {}", self.path().display()),
+            ElfBackend::Dwarf(_) => write!(
+                f,
+                "DWARF {}",
+                self.path().unwrap_or_else(|| Path::new("")).display()
+            ),
+            ElfBackend::Elf(_) => write!(
+                f,
+                "ELF {}",
+                self.path().unwrap_or_else(|| Path::new("")).display()
+            ),
         }
     }
 }

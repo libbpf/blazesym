@@ -205,7 +205,7 @@ impl Inspect for DwarfResolver {
                                 .then(|| self.parser.find_file_offset(addr))
                                 .transpose()?
                                 .flatten(),
-                            obj_file_name: Some(Cow::Borrowed(self.parser.path())),
+                            obj_file_name: self.parser.path().map(Cow::Borrowed),
                         };
                         Ok(info)
                     }

@@ -566,8 +566,8 @@ pub(crate) struct ElfParser {
     decompressed: InsertMap<usize, Vec<u8>>,
     /// The memory mapped file.
     _mmap: Mmap,
-    /// The path to the ELF file being worked on.
-    path: PathBuf,
+    /// The path to the ELF file being worked on, if available.
+    path: Option<PathBuf>,
 }
 
 impl ElfParser {
@@ -577,31 +577,24 @@ impl ElfParser {
         P: Into<PathBuf>,
     {
         let mmap = Mmap::map(file).context("failed to memory map file")?;
-        Ok(Self::from_mmap(mmap, path))
+        Ok(Self::from_mmap(mmap, Some(path.into())))
     }
 
     /// Create an `ElfParser` from mmap'ed data.
-    pub fn from_mmap<P>(mmap: Mmap, path: P) -> Self
-    where
-        P: Into<PathBuf>,
-    {
-        fn from_mmap_impl(mmap: Mmap, path: PathBuf) -> ElfParser {
-            // We transmute the mmap's lifetime to static here as that is a
-            // necessity for self-referentiality.
-            // SAFETY: We never hand out any 'static references to cache
-            //         data.
-            let elf_data = unsafe { mem::transmute::<&[u8], &'static [u8]>(mmap.deref()) };
+    pub fn from_mmap(mmap: Mmap, path: Option<PathBuf>) -> Self {
+        // We transmute the mmap's lifetime to static here as that is a
+        // necessity for self-referentiality.
+        // SAFETY: We never hand out any 'static references to cache
+        //         data.
+        let elf_data = unsafe { mem::transmute::<&[u8], &'static [u8]>(mmap.deref()) };
 
-            let parser = ElfParser {
-                _mmap: mmap,
-                decompressed: InsertMap::new(),
-                cache: Cache::new(elf_data),
-                path,
-            };
-            parser
-        }
-
-        from_mmap_impl(mmap, path.into())
+        let parser = ElfParser {
+            _mmap: mmap,
+            decompressed: InsertMap::new(),
+            cache: Cache::new(elf_data),
+            path,
+        };
+        parser
     }
 
     /// Create an `ElfParser` for a path.
@@ -747,7 +740,7 @@ impl ElfParser {
                                 .offset_in_file
                                 .then(|| self.file_offset(shdrs, sym_ref))
                                 .transpose()?,
-                            obj_file_name: Some(Cow::Borrowed(&self.path)),
+                            obj_file_name: self.path().map(Cow::Borrowed),
                         });
                     }
                 }
@@ -902,8 +895,8 @@ impl ElfParser {
 
     /// Retrieve the path to the file this object operates on.
     #[inline]
-    pub fn path(&self) -> &Path {
-        &self.path
+    pub fn path(&self) -> Option<&Path> {
+        self.path.as_deref()
     }
 }
 
