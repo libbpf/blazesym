@@ -796,7 +796,8 @@ foo bar baz
    ^";
         assert_eq!(s.trim(), expected);
 
-        let s = stringify_error(b"", err);
+        let empty = &input[0..0];
+        let s = stringify_error(empty, err);
         let expected = "\
 0: in context, got empty input
 
