@@ -177,7 +177,7 @@ fn default_apk_dispatcher(info: ApkMemberInfo<'_>, debug_syms: bool) -> Result<B
     // Create an Android-style binary-in-APK path for
     // reporting purposes.
     let apk_elf_path = create_apk_elf_path(info.apk_path, info.member_path)?;
-    let parser = Rc::new(ElfParser::from_mmap(info.member_mmap, apk_elf_path));
+    let parser = Rc::new(ElfParser::from_mmap(info.member_mmap, Some(apk_elf_path)));
     let resolver = ElfResolver::from_parser(parser, debug_syms)?;
     let resolver = Box::new(resolver);
     Ok(resolver)
@@ -1460,7 +1460,8 @@ mod tests {
 
         // Look up the address of the `the_answer` function inside of the shared
         // object.
-        let elf_parser = ElfParser::from_mmap(elf_mmap.clone(), Path::new("libtest-so.so"));
+        let elf_parser =
+            ElfParser::from_mmap(elf_mmap.clone(), Some(PathBuf::from("libtest-so.so")));
         let opts = FindAddrOpts {
             sym_type: SymType::Function,
             ..Default::default()

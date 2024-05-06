@@ -63,7 +63,7 @@ impl Debug for KernelResolver {
                 .display(),
             self.elf_resolver
                 .as_ref()
-                .map(|resolver| resolver.path())
+                .and_then(|resolver| resolver.path())
                 .unwrap_or_else(|| Path::new(""))
                 .display(),
         )
