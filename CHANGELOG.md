@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.0-alpha.12
+--------------
 - Added support for advanced symbolization workflows involving containers
   (process or APKs) via configurable dispatch functions
 - Added `cache_maps` and `cache_build_ids` properties to `normalize::Normalizer`

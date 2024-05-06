@@ -11,6 +11,7 @@ Unreleased
 - Added `blaze_symbolize_elf_file_offsets` function for symbolization of
   file offsets
 - Removed `BLAZE_INPUT` macro
+- Bumped `blazesym` dependency to `0.2.0-alpha.12`
 
 
 0.1.0-alpha.1
