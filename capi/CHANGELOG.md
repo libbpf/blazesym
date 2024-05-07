@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.0-alpha.2
+-------------
 - Added `cache_maps` attribute to `blaze_normalizer_opts`
 - Introduced `blaze_err` enum and adjusted all fallible functions to
   set a thread local error
