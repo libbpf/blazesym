@@ -124,11 +124,16 @@ fn symbolize_elf_dwarf_gsym() {
         }
     }
 
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-no-dwarf.bin");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
-    test(src, false);
+    for file in [
+        "test-stable-addrs-no-dwarf.bin",
+        "test-stable-addrs-stripped-with-link-to-elf-only.bin",
+    ] {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(file);
+        let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+        test(src, false);
+    }
 
     for file in [
         "test-stable-addrs-stripped-elf-with-dwarf.bin",

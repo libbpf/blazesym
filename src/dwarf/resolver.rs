@@ -189,13 +189,13 @@ pub(crate) struct DwarfResolver {
     // SAFETY: We must not hand out references with a 'static lifetime to
     //         this member. Rather, they should never outlive `self`.
     //         Furthermore, this member has to be listed before `parser`
-    //         and `_linkee_parser` to make sure we never end up with a
+    //         and `linkee_parser` to make sure we never end up with a
     //         dangling reference.
     units: Units<'static>,
     parser: Rc<ElfParser>,
     /// If the source file contains a valid debug link, this parser
     /// represents it.
-    _linkee_parser: Option<Rc<ElfParser>>,
+    linkee_parser: Option<Rc<ElfParser>>,
 }
 
 impl DwarfResolver {
@@ -228,7 +228,7 @@ impl DwarfResolver {
         let slf = Self {
             units,
             parser,
-            _linkee_parser: linkee_parser,
+            linkee_parser,
         };
         Ok(slf)
     }
@@ -274,7 +274,8 @@ impl Symbolize for DwarfResolver {
             // as a fall back we support cases where ELF *does* contain
             // symbol, and we amend its information with the source code
             // information from DWARF.
-            match self.parser.find_sym(addr, opts)? {
+            let parser = self.linkee_parser.as_ref().unwrap_or(&self.parser).deref();
+            match parser.find_sym(addr, opts)? {
                 Ok(sym) => sym,
                 Err(reason) => return Ok(Err(reason)),
             }
@@ -336,7 +337,7 @@ impl Inspect for DwarfResolver {
             .collect::<Result<Vec<_>>>()?;
 
         if syms.is_empty() {
-            let parser = self._linkee_parser.as_ref().unwrap_or(&self.parser).deref();
+            let parser = self.linkee_parser.as_ref().unwrap_or(&self.parser).deref();
             parser.find_addr(name, opts)
         } else {
             Ok(syms)
@@ -500,13 +501,13 @@ mod tests {
             .join("data")
             .join("test-stable-addrs-stripped-with-link.bin");
         let resolver = DwarfResolver::open(&path).unwrap();
-        assert!(resolver._linkee_parser.is_some());
+        assert!(resolver.linkee_parser.is_some());
 
         let linkee_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs-dwarf-only.dbg");
         assert_eq!(
-            resolver._linkee_parser.as_ref().unwrap().path(),
+            resolver.linkee_parser.as_ref().unwrap().path(),
             Some(linkee_path.as_path())
         );
     }
