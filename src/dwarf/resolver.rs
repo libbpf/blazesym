@@ -38,6 +38,7 @@ use crate::SymType;
 
 use super::debug_link::debug_link_crc32;
 use super::debug_link::read_debug_link;
+use super::debug_link::DebugFileIter;
 use super::function::Function;
 use super::location::Location;
 use super::reader;
@@ -89,63 +90,21 @@ impl From<Option<gimli::DwLang>> for SrcLang {
 ///
 /// # Notes
 /// This function ignores any errors encountered.
-// TODO: Ideally this discovery functionality would be provided in the
-//       form of an iterator for better testability.
 fn find_debug_file(file: &OsStr, linker: Option<&Path>) -> Option<PathBuf> {
-    macro_rules! return_if_exists {
-        ($path:ident) => {
-            if $path.exists() {
-                debug!("found debug info at {}", $path.display());
-                return Some($path)
-            }
-        };
-    }
+    let fixed_dirs = [Path::new("/usr/lib/debug"), Path::new("/lib/debug/")];
+    let canonical_linker = linker.and_then(|linker| linker.canonicalize().ok());
+    let it = DebugFileIter::new(fixed_dirs.as_slice(), canonical_linker.as_deref(), file);
 
-    // First check known fixed locations.
-    let path = Path::new("/lib/debug/").join(file);
-    return_if_exists!(path);
-
-    let path = Path::new("/usr/lib/debug/").join(file);
-    return_if_exists!(path);
-
-    // Next check others that depend on the absolute `linker` (which may
-    // not be retrievable). E.g., assuming `linker` is `/usr/lib64/libc.so` and
-    // `file` is `libc.so.debug`, it would also search:
-    // - /usr/lib64/libc.so.debug
-    // - /usr/lib/debug/usr/lib64/libc.so.debug
-    // - /usr/lib/debug/usr/libc.so.debug
-
-    // TODO: Different heuristics may be possible here. E.g., honor
-    //       .debug directories and check the current working directory
-    //       (??). Also, users could want to pass in a directory.
-    if let Some(linker) = linker {
-        if let Ok(mut path) = linker.canonicalize() {
-            let () = path.set_file_name(file);
-            return_if_exists!(path);
-
-            let mut ancestors = path.ancestors();
-            // Remove the file name, as we will always append it anyway.
-            let _ = ancestors.next();
-
-            for ancestor in ancestors {
-                let mut components = ancestor.components();
-                // Remove the root directory to make the path relative. That
-                // allows for joining to work as expected.
-                let _ = components.next();
-
-                // If the remaining path is empty we'd basically just cover
-                // one of the "fixed" cases above, so we can stop.
-                if components.as_path().as_os_str().is_empty() {
-                    break
-                }
-
-                let path = Path::new("/usr/lib/debug/")
-                    .join(components.as_path())
-                    .join(file);
-                return_if_exists!(path);
-            }
+    for path in it {
+        if path.exists() {
+            debug!("found debug info at {}", path.display());
+            return Some(path)
         }
     }
+    warn!(
+        "debug link references destination `{}` which was not found in any known location",
+        Path::new(file).display(),
+    );
     None
 }
 
@@ -169,13 +128,7 @@ fn try_deref_debug_link(parser: &ElfParser) -> Result<Option<Rc<ElfParser>>> {
                 let dst_parser = Rc::new(ElfParser::from_mmap(mmap, Some(path)));
                 Ok(Some(dst_parser))
             }
-            None => {
-                warn!(
-                    "debug link references destination `{}` which was not found in any known location",
-                    Path::new(file).display(),
-                );
-                Ok(None)
-            }
+            None => Ok(None),
         }
     } else {
         Ok(None)

@@ -14,12 +14,123 @@
 //!   as the crc argument.
 
 use std::ffi::OsStr;
+use std::mem::take;
 use std::os::unix::ffi::OsStrExt as _;
+use std::path::Path;
+use std::path::PathBuf;
 
 use crate::elf::ElfParser;
 use crate::error::IntoError as _;
 use crate::util::ReadRaw as _;
 use crate::Result;
+
+
+enum State {
+    FixedDir {
+        idx: usize,
+    },
+    CanonicalTarget {
+        canonical_linkee: PathBuf,
+    },
+    DynamicDirs {
+        fixed_dir_idx: usize,
+        canonical_rel_linkee: PathBuf,
+        linkee_dir: PathBuf,
+    },
+}
+
+pub(crate) struct DebugFileIter<'path> {
+    /// The fixed directories to search.
+    fixed_dirs: &'path [&'path Path],
+    /// The path to the file containing the debug link.
+    canonical_linker: Option<&'path Path>,
+    /// The debug link target file.
+    linkee: &'path OsStr,
+    /// The iteration state.
+    state: State,
+}
+
+impl<'path> DebugFileIter<'path> {
+    pub(crate) fn new(
+        fixed_dirs: &'path [&'path Path],
+        canonical_linker: Option<&'path Path>,
+        linkee: &'path OsStr,
+    ) -> Self {
+        Self {
+            fixed_dirs,
+            canonical_linker,
+            linkee,
+            state: State::FixedDir { idx: 0 },
+        }
+    }
+}
+
+impl Iterator for DebugFileIter<'_> {
+    type Item = PathBuf;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.state {
+            State::FixedDir { idx } => {
+                if let Some(dir) = self.fixed_dirs.get(*idx) {
+                    *idx += 1;
+                    Some(dir.join(self.linkee))
+                } else {
+                    // We covered all the "fixed" directories. Move on to the
+                    // dynamic stuff, if possible.
+                    if let Some(linker) = self.canonical_linker {
+                        let mut path = linker.to_path_buf();
+                        let () = path.set_file_name(self.linkee);
+
+                        self.state = State::CanonicalTarget {
+                            canonical_linkee: path,
+                        };
+                        return self.next()
+                    }
+                    None
+                }
+            }
+            State::CanonicalTarget { canonical_linkee } => {
+                let path = canonical_linkee.clone();
+                let result = take(canonical_linkee);
+                let mut components = path.components();
+                // Remove the root directory to make the path relative. That
+                // allows for joining to work as expected.
+                let _ = components.next();
+                // Remove the file name, as we will always append it anyway.
+                let _ = components.next_back();
+                let path = components.as_path();
+
+                self.state = State::DynamicDirs {
+                    fixed_dir_idx: 0,
+                    canonical_rel_linkee: path.to_path_buf(),
+                    linkee_dir: path.to_path_buf(),
+                };
+                Some(result)
+            }
+            State::DynamicDirs {
+                fixed_dir_idx,
+                canonical_rel_linkee,
+                linkee_dir,
+            } => {
+                if let Some(fixed_dir) = self.fixed_dirs.get(*fixed_dir_idx) {
+                    let dir = take(linkee_dir);
+                    match dir.parent() {
+                        Some(parent) if !parent.as_os_str().is_empty() => {
+                            *linkee_dir = parent.to_path_buf();
+                        }
+                        _ => {
+                            *linkee_dir = canonical_rel_linkee.to_path_buf();
+                            *fixed_dir_idx += 1;
+                        }
+                    }
+                    Some(fixed_dir.join(dir).join(self.linkee))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+}
 
 
 /// Read the debug link.
@@ -126,5 +237,60 @@ mod tests {
             .join(file);
         let mmap = Mmap::builder().open(dbg).unwrap();
         assert_eq!(crc, debug_link_crc32(&mmap));
+    }
+
+    /// Make sure that we can iterate over all debug file target candidates as
+    /// expected.
+    #[test]
+    fn debug_file_iteration() {
+        let fixed_dirs = [Path::new("/usr/lib/debug")];
+        let files = DebugFileIter::new(fixed_dirs.as_slice(), None, OsStr::new("libc.so.debug"))
+            .collect::<Vec<_>>();
+        let expected = vec![PathBuf::from("/usr/lib/debug/libc.so.debug")];
+        assert_eq!(files, expected);
+
+        let fixed_dirs = [Path::new("/usr/lib/debug/"), Path::new("/lib/debug")];
+        let files = DebugFileIter::new(fixed_dirs.as_slice(), None, OsStr::new("libc.so.debug"))
+            .collect::<Vec<_>>();
+        let expected = vec![
+            PathBuf::from("/usr/lib/debug/libc.so.debug"),
+            PathBuf::from("/lib/debug/libc.so.debug"),
+        ];
+        assert_eq!(files, expected);
+
+        let fixed_dirs = [Path::new("/usr/lib/debug/")];
+        let files = DebugFileIter::new(
+            fixed_dirs.as_slice(),
+            Some(Path::new("/usr/lib64/libc.so")),
+            OsStr::new("libc.so.debug"),
+        )
+        .collect::<Vec<_>>();
+
+        let expected = vec![
+            PathBuf::from("/usr/lib/debug/libc.so.debug"),
+            PathBuf::from("/usr/lib64/libc.so.debug"),
+            PathBuf::from("/usr/lib/debug/usr/lib64/libc.so.debug"),
+            PathBuf::from("/usr/lib/debug/usr/libc.so.debug"),
+        ];
+        assert_eq!(files, expected);
+
+        let fixed_dirs = [Path::new("/usr/lib/debug"), Path::new("/lib/debug/")];
+        let files = DebugFileIter::new(
+            fixed_dirs.as_slice(),
+            Some(Path::new("/usr/lib64/libc.so")),
+            OsStr::new("libc.so.debug"),
+        )
+        .collect::<Vec<_>>();
+
+        let expected = vec![
+            PathBuf::from("/usr/lib/debug/libc.so.debug"),
+            PathBuf::from("/lib/debug/libc.so.debug"),
+            PathBuf::from("/usr/lib64/libc.so.debug"),
+            PathBuf::from("/usr/lib/debug/usr/lib64/libc.so.debug"),
+            PathBuf::from("/usr/lib/debug/usr/libc.so.debug"),
+            PathBuf::from("/lib/debug/usr/lib64/libc.so.debug"),
+            PathBuf::from("/lib/debug/usr/libc.so.debug"),
+        ];
+        assert_eq!(files, expected);
     }
 }
