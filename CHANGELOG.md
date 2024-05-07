@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added support for transparently following debug links in ELF binaries
+
+
 0.2.0-alpha.12
 --------------
 - Added support for advanced symbolization workflows involving containers
@@ -8,7 +13,6 @@
     IDs if `cache_build_ids` is `true`
 - Added support for compressed debug information
   - Added `zlib` (default enabled) and `zstd` (default disabled) features
-- Added support for transparently following debug links in ELF binaries
 - Adjusted `Inspector::for_each` signature to no longer carry explicit state
   around
 - Introduced `normalize::Reason` enum to provide best guess at why normalization
