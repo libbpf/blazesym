@@ -498,6 +498,16 @@ fn prepare_test_files() {
         ],
     );
 
+    let elf = data_dir.join("test-stable-addrs-no-dwarf.bin");
+    objcopy(
+        &src,
+        "test-stable-addrs-stripped-with-link-to-elf-only.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", elf.display()),
+        ],
+    );
+
     dwarf(&src, "test-stable-addrs-dwarf-only-wrong-crc.dbg");
     let dbg = data_dir.join("test-stable-addrs-dwarf-only-wrong-crc.dbg");
     objcopy(
