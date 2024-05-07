@@ -335,7 +335,12 @@ impl Inspect for DwarfResolver {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(syms)
+        if syms.is_empty() {
+            let parser = self._linkee_parser.as_ref().unwrap_or(&self.parser).deref();
+            parser.find_addr(name, opts)
+        } else {
+            Ok(syms)
+        }
     }
 
     fn for_each(&self, _opts: &FindAddrOpts, _f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {

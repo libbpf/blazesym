@@ -174,17 +174,11 @@ impl TranslateFileOffset for ElfResolver {
 
 impl Inspect for ElfResolver {
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
-        #[cfg(feature = "dwarf")]
-        if let ElfBackend::Dwarf(dwarf) = &self.backend {
-            let syms = dwarf.find_addr(name, opts)?;
-            if !syms.is_empty() {
-                return Ok(syms)
-            }
+        match &self.backend {
+            #[cfg(feature = "dwarf")]
+            ElfBackend::Dwarf(dwarf) => dwarf.find_addr(name, opts),
+            ElfBackend::Elf(parser) => parser.find_addr(name, opts),
         }
-
-        let parser = self.parser();
-        let syms = parser.find_addr(name, opts)?;
-        Ok(syms)
     }
 
     fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {

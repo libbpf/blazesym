@@ -967,25 +967,34 @@ fn read_4bytes_at(path: &Path, offset: u64) -> [u8; 4] {
 /// Check that we can correctly retrieve the file offset in an ELF file.
 #[test]
 fn inspect_elf_file_offset() {
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-no-dwarf.bin");
-    let elf = inspect::Elf::new(test_elf);
-    let src = inspect::Source::Elf(elf);
+    fn test(file: &str) {
+        let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(file);
+        let elf = inspect::Elf::new(test_elf);
+        let src = inspect::Source::Elf(elf);
 
-    let inspector = Inspector::new();
-    let results = inspector
-        .lookup(&src, &["dummy"])
-        .unwrap()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
+        let inspector = Inspector::new();
+        let results = inspector
+            .lookup(&src, &["dummy"])
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
 
-    let result = &results[0];
-    assert_ne!(result.file_offset, None);
-    let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset.unwrap());
-    assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);
+        let result = &results[0];
+        assert_ne!(result.file_offset, None);
+        let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset.unwrap());
+        assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);
+    }
+
+    for file in [
+        "test-stable-addrs-no-dwarf.bin",
+        "test-stable-addrs-stripped-with-link.bin",
+    ] {
+        let () = test(file);
+    }
 }
 
 
