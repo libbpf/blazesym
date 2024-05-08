@@ -1526,12 +1526,14 @@ mod tests {
                 mode: 0x1,
                 offset: 0,
                 path_name: Some(PathName::Component("a-component".to_string())),
+                build_id: None,
             }),
             Ok(MapsEntry {
                 range: 0x30000..0x40000,
                 mode: 0x1,
                 offset: 0,
                 path_name: None,
+                build_id: None,
             }),
         ];
         let symbolizer = Symbolizer::new();
