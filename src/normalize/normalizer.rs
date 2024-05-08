@@ -1,16 +1,12 @@
 use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
 use crate::maps;
-use crate::normalize::buildid::BuildIdReader;
-use crate::normalize::buildid::CachingBuildIdReader;
 use crate::util;
 use crate::Addr;
 use crate::Pid;
 use crate::Result;
 
 use super::buildid::BuildId;
-use super::buildid::DefaultBuildIdReader;
-use super::buildid::NoBuildIdReader;
 use super::user;
 use super::user::normalize_sorted_user_addrs_with_entries;
 use super::user::UserOutput;
@@ -167,27 +163,14 @@ impl Normalizer {
         Builder::default()
     }
 
-    fn normalize_user_addrs_impl<A, E, M>(&self, addrs: A, entries: E) -> Result<UserOutput<'_>>
+    fn normalize_user_addrs_impl<A>(&self, addrs: A, pid: Pid) -> Result<UserOutput<'_>>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
-        E: Iterator<Item = Result<M>>,
-        M: AsRef<maps::MapsEntry>,
     {
-        let caching_reader;
         let addrs_cnt = addrs.len();
-        let reader = if self.build_ids {
-            if self.cache_build_ids {
-                caching_reader = CachingBuildIdReader::new(&self.cached_build_ids);
-                &caching_reader as &dyn BuildIdReader
-            } else {
-                &DefaultBuildIdReader as &dyn BuildIdReader
-            }
-        } else {
-            &NoBuildIdReader as &dyn BuildIdReader
-        };
-
-        let mut handler = user::NormalizationHandler::new(reader, addrs_cnt);
-        let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
+        let mut handler = user::NormalizationHandler::new(addrs_cnt);
+        let () =
+            normalize_sorted_user_addrs_with_entries(addrs, pid, self.build_ids, &mut handler)?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     }
@@ -196,23 +179,7 @@ impl Normalizer {
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
-        if !self.cache_maps {
-            let entries = maps::parse_filtered(pid)?;
-            self.normalize_user_addrs_impl(addrs, entries)
-        } else {
-            let parsed = self.cached_entries.get_or_try_insert(pid, || {
-                // If we use the cached maps entries but don't have anything
-                // cached yet, then just parse the file eagerly and take it from
-                // there.
-                let parsed = maps::parse_filtered(pid)?
-                    .collect::<Result<Vec<_>>>()?
-                    .into_boxed_slice();
-                Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
-            })?;
-
-            let entries = parsed.iter().map(Ok);
-            self.normalize_user_addrs_impl(addrs, entries)
-        }
+        self.normalize_user_addrs_impl(addrs, pid)
     }
 
     /// Normalize addresses belonging to a process.

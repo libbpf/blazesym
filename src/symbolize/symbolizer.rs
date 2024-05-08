@@ -808,7 +808,6 @@ impl Symbolizer {
             }
         }
 
-        let entries = maps::parse(pid)?;
         let mut handler = SymbolizeHandler {
             symbolizer: self,
             pid,
@@ -822,8 +821,13 @@ impl Symbolizer {
             addrs,
             |handler: &mut SymbolizeHandler<'_>| handler.all_symbols.as_mut_slice(),
             |sorted_addrs| -> Result<SymbolizeHandler<'_>> {
-                let () =
-                    normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, &mut handler)?;
+                let build_ids = true;
+                let () = normalize_sorted_user_addrs_with_entries(
+                    sorted_addrs,
+                    pid,
+                    build_ids,
+                    &mut handler,
+                )?;
                 Ok(handler)
             },
         )?;
