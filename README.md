@@ -79,7 +79,7 @@ Here is rough roadmap of currently planned features (in no particular order):
 - [x] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)
 - [x] Support remote symbolization (https://github.com/libbpf/blazesym/issues/61)
   - [x] Add APIs for address normalization (https://github.com/libbpf/blazesym/pull/114, https://github.com/libbpf/blazesym/pull/128, ...)
-- [ ] Support advanced symbolization use cases involving [`debuginfod`](https://sourceware.org/elfutils/Debuginfod.html) (https://github.com/libbpf/blazesym/issues/203)
+- [x] Support advanced symbolization use cases involving [`debuginfod`](https://sourceware.org/elfutils/Debuginfod.html) (https://github.com/libbpf/blazesym/issues/203)
 
 ### OS Support
 The library's primary target operating system is Linux (it should work on all
