@@ -9,6 +9,7 @@ use crate::maps;
 use crate::maps::MapsEntry;
 use crate::maps::PathName;
 use crate::Addr;
+use crate::BuildId;
 use crate::Error;
 use crate::Result;
 
@@ -22,14 +23,10 @@ use super::Reason;
 
 
 /// Make a [`UserMeta::Elf`] variant.
-fn make_elf_meta<'src>(
-    path: &Path,
-    maps_file: &Path,
-    build_id_reader: &dyn BuildIdReader<'src>,
-) -> Result<UserMeta<'src>> {
+fn make_elf_meta<'src>(path: &Path, build_id: Option<BuildId<'src>>) -> Result<UserMeta<'src>> {
     let elf = Elf {
         path: path.to_path_buf(),
-        build_id: build_id_reader.read_build_id(maps_file),
+        build_id,
         _non_exhaustive: (),
     };
     let meta = UserMeta::Elf(elf);
@@ -186,7 +183,14 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                         file_off,
                         path,
                         &mut self.meta_lookup,
-                        || make_elf_meta(path, &entry_path.maps_file, self.build_id_reader),
+                        || {
+                            // Attempt reading the build ID, but only if
+                            // one is not already present.
+                            let build_id = entry.build_id.clone().or_else(|| {
+                                self.build_id_reader.read_build_id(&entry_path.maps_file)
+                            });
+                            make_elf_meta(path, build_id)
+                        },
                     ),
                 }
             }
@@ -355,12 +359,14 @@ mod tests {
                 path_name: Some(PathName::Component(
                     "doesntreallymatternowdoesit".to_string(),
                 )),
+                build_id: None,
             }),
             Ok(MapsEntry {
                 range: 0x30000..0x40000,
                 mode: 0x1,
                 offset: 0,
                 path_name: None,
+                build_id: None,
             }),
         ];
         let reader = NoBuildIdReader;
