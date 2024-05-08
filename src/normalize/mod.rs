@@ -89,7 +89,7 @@ impl Reason {
         match self {
             Self::Unmapped => b"absolute address not found in virtual memory map of process\0",
             Self::MissingComponent => b"proc maps entry has no component\0",
-            Self::Unsupported => b"address belongs to unsupprted entity\0",
+            Self::Unsupported => b"address belongs to unsupported entity\0",
         }
     }
 }
@@ -122,7 +122,7 @@ mod tests {
         );
         assert_eq!(
             Reason::Unsupported.to_string(),
-            "address belongs to unsupprted entity"
+            "address belongs to unsupported entity"
         );
     }
 }

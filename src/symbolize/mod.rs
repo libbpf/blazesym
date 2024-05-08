@@ -397,7 +397,7 @@ impl Display for Reason {
             Self::InvalidFileOffset => "file offset does not map to a valid piece of code/data",
             Self::MissingComponent => "proc maps entry has no component",
             Self::MissingSyms => "symbolization source has no or no relevant symbols",
-            Self::Unsupported => "address belongs to unsupprted entity",
+            Self::Unsupported => "address belongs to unsupported entity",
             Self::UnknownAddr => "address not found in symbolization source",
         };
 
