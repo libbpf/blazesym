@@ -178,7 +178,9 @@ impl Symbolize for GsymResolver<'_> {
                 .ctx
                 .addr_info(idx)
                 .ok_or_invalid_data(|| format!("failed to read address information entry {idx}"))?;
-            if addr >= (sym_addr + info.size as Addr) {
+            if (info.size == 0 && sym_addr != addr)
+                || (info.size > 0 && addr >= (sym_addr + info.size as Addr))
+            {
                 return Ok(Err(Reason::UnknownAddr))
             }
 
@@ -379,7 +381,7 @@ mod tests {
         assert!(sym.inlined.is_empty());
 
         let info = sym.code_info.unwrap();
-        assert_eq!(info.line, Some(65));
+        assert_eq!(info.line, Some(75));
         assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
 
         // `factorial` resides at address 0x2000100, and it's located at the

@@ -160,6 +160,40 @@ fn symbolize_elf_dwarf_gsym() {
     test(src, true);
 }
 
+/// Check that we correctly symbolize zero sized symbols.
+// TODO: Extend this test to more formats.
+#[test]
+fn symbolize_zero_size_gsym() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.bin");
+    let src = inspect::Source::Elf(inspect::Elf::new(path));
+    let inspector = Inspector::new();
+    let results = inspector
+        .lookup(&src, &["zero_size"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+    let zero_size = &results[0];
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.gsym");
+    let src = symbolize::Source::from(symbolize::GsymFile::new(path));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(zero_size.addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "zero_size");
+    assert_eq!(result.addr, zero_size.addr);
+    assert_eq!(result.size, Some(0));
+}
+
 /// Check that we can symbolize an address using Breakpad.
 #[test]
 fn symbolize_breakpad() {
