@@ -61,6 +61,16 @@ asm(
 
 extern void dummy(void);
 
+// It's possible to control section placement via `.pushsection` command,
+// which would allow for precise address control. However, gsym conversion
+// ignored the symbol in this case. Play it safe and don't specify the section.
+asm(
+  ".globl zero_size\n"
+  ".type zero_size, @function\n"
+  "zero_size:\n"
+);
+extern void zero_size(void);
+
 __attribute__((section(".text.main"))) int
 main(int argc, const char *argv[]) {
   factorial_wrapper();
@@ -68,6 +78,7 @@ main(int argc, const char *argv[]) {
   foo();
   dummy();
   i_exist_twice();
+  zero_size();
 
   a_variable[0] = 42;
   return 0;

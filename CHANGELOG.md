@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Added support for transparently following debug links in ELF binaries
+- Fixed handling of zero sized symbols in Gsym symbolization logic
 
 
 0.2.0-alpha.12
