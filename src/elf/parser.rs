@@ -617,7 +617,7 @@ impl ElfParser {
                 // Compression header is contained in the actual section
                 // data.
                 let chdr = data
-                    .read_pod_ref::<Elf64_Chdr>()
+                    .read_pod::<Elf64_Chdr>()
                     .ok_or_invalid_data(|| "failed to read Elf64_Chdr")?;
 
                 let decompressed = match chdr.ch_type {
