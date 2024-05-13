@@ -41,7 +41,7 @@ enum State {
 
 pub(crate) struct DebugFileIter<'path> {
     /// The fixed directories to search.
-    fixed_dirs: &'path [&'path Path],
+    fixed_dirs: &'path [PathBuf],
     /// The path to the file containing the debug link.
     canonical_linker: Option<&'path Path>,
     /// The debug link target file.
@@ -52,7 +52,7 @@ pub(crate) struct DebugFileIter<'path> {
 
 impl<'path> DebugFileIter<'path> {
     pub(crate) fn new(
-        fixed_dirs: &'path [&'path Path],
+        fixed_dirs: &'path [PathBuf],
         canonical_linker: Option<&'path Path>,
         linkee: &'path OsStr,
     ) -> Self {
@@ -218,6 +218,7 @@ mod tests {
 
     use std::path::Path;
 
+    use crate::elf::DEFAULT_DEBUG_DIRS;
     use crate::mmap::Mmap;
 
 
@@ -243,13 +244,16 @@ mod tests {
     /// expected.
     #[test]
     fn debug_file_iteration() {
-        let fixed_dirs = [Path::new("/usr/lib/debug")];
+        let fixed_dirs = [PathBuf::from("/usr/lib/debug")];
         let files = DebugFileIter::new(fixed_dirs.as_slice(), None, OsStr::new("libc.so.debug"))
             .collect::<Vec<_>>();
         let expected = vec![PathBuf::from("/usr/lib/debug/libc.so.debug")];
         assert_eq!(files, expected);
 
-        let fixed_dirs = [Path::new("/usr/lib/debug/"), Path::new("/lib/debug")];
+        let fixed_dirs = DEFAULT_DEBUG_DIRS
+            .iter()
+            .map(PathBuf::from)
+            .collect::<Vec<_>>();
         let files = DebugFileIter::new(fixed_dirs.as_slice(), None, OsStr::new("libc.so.debug"))
             .collect::<Vec<_>>();
         let expected = vec![
@@ -258,7 +262,7 @@ mod tests {
         ];
         assert_eq!(files, expected);
 
-        let fixed_dirs = [Path::new("/usr/lib/debug/")];
+        let fixed_dirs = [PathBuf::from("/usr/lib/debug/")];
         let files = DebugFileIter::new(
             fixed_dirs.as_slice(),
             Some(Path::new("/usr/lib64/libc.so")),
@@ -274,7 +278,10 @@ mod tests {
         ];
         assert_eq!(files, expected);
 
-        let fixed_dirs = [Path::new("/usr/lib/debug"), Path::new("/lib/debug/")];
+        let fixed_dirs = [
+            PathBuf::from("/usr/lib/debug"),
+            PathBuf::from("/lib/debug/"),
+        ];
         let files = DebugFileIter::new(
             fixed_dirs.as_slice(),
             Some(Path::new("/usr/lib64/libc.so")),
