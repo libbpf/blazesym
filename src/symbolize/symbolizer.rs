@@ -16,6 +16,8 @@ use crate::breakpad::BreakpadResolver;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::elf::ElfResolverData;
+#[cfg(feature = "dwarf")]
+use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::file_cache::FileCache;
 #[cfg(feature = "gsym")]
 use crate::gsym::GsymResolver;
@@ -190,12 +192,15 @@ impl<F> ProcessDispatch for F where F: Fn(ProcessMemberInfo<'_>) -> Result<Optio
 
 
 #[cfg(feature = "apk")]
-fn default_apk_dispatcher(info: ApkMemberInfo<'_>, debug_syms: bool) -> Result<Box<dyn Resolve>> {
+fn default_apk_dispatcher(
+    info: ApkMemberInfo<'_>,
+    debug_dirs: Option<&[PathBuf]>,
+) -> Result<Box<dyn Resolve>> {
     // Create an Android-style binary-in-APK path for
     // reporting purposes.
     let apk_elf_path = create_apk_elf_path(info.apk_path, info.member_path)?;
     let parser = Rc::new(ElfParser::from_mmap(info.member_mmap, Some(apk_elf_path)));
-    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
+    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
     let resolver = Box::new(resolver);
     Ok(resolver)
 }
@@ -234,6 +239,10 @@ pub struct Builder {
     /// languages are Rust and C++ and the flag will have no effect if
     /// the underlying language does not mangle symbols (such as C).
     demangle: bool,
+    /// List of additional directories in which split debug information
+    /// is looked for.
+    #[cfg(feature = "dwarf")]
+    debug_dirs: Vec<PathBuf>,
     /// The "dispatch" function to use when symbolizing addresses
     /// mapping to members of an APK.
     #[cfg(feature = "apk")]
@@ -276,6 +285,29 @@ impl Builder {
         self
     }
 
+    /// Set debug directories to search for split debug information.
+    ///
+    /// These directories will be consulted (in given order) when resolving
+    /// debug links in binaries. By default `/usr/lib/debug` and `/lib/debug/`
+    /// will be searched. Setting a list here will overwrite these defaults, so
+    /// make sure to include these directories as desired.
+    ///
+    /// Note that the directory containing a symbolization source is always an
+    /// implicit candidate target directory of the highest precedence.
+    #[cfg(feature = "dwarf")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "dwarf")))]
+    pub fn set_debug_dirs<D, P>(mut self, debug_dirs: D) -> Self
+    where
+        D: IntoIterator<Item = P>,
+        P: AsRef<Path>,
+    {
+        self.debug_dirs = debug_dirs
+            .into_iter()
+            .map(|p| p.as_ref().to_path_buf())
+            .collect();
+        self
+    }
+
     /// Set the "dispatch" function to use when symbolizing addresses
     /// mapping to members of an APK.
     #[cfg(feature = "apk")]
@@ -305,6 +337,8 @@ impl Builder {
             code_info,
             inlined_fns,
             demangle,
+            #[cfg(feature = "dwarf")]
+            debug_dirs,
             #[cfg(feature = "apk")]
             apk_dispatch,
             process_dispatch,
@@ -336,6 +370,8 @@ impl Builder {
             process_cache: InsertMap::new(),
             find_sym_opts,
             demangle,
+            #[cfg(feature = "dwarf")]
+            debug_dirs,
             #[cfg(feature = "apk")]
             apk_dispatch,
             process_dispatch,
@@ -350,6 +386,11 @@ impl Default for Builder {
             code_info: true,
             inlined_fns: true,
             demangle: true,
+            #[cfg(feature = "dwarf")]
+            debug_dirs: DEFAULT_DEBUG_DIRS
+                .iter()
+                .map(PathBuf::from)
+                .collect::<Vec<_>>(),
             #[cfg(feature = "apk")]
             apk_dispatch: None,
             process_dispatch: None,
@@ -407,6 +448,8 @@ pub struct Symbolizer {
     process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
     find_sym_opts: FindSymOpts,
     demangle: bool,
+    #[cfg(feature = "dwarf")]
+    debug_dirs: Vec<PathBuf>,
     #[cfg(feature = "apk")]
     apk_dispatch: Option<Dbg<Box<dyn ApkDispatch>>>,
     process_dispatch: Option<Dbg<Box<dyn ProcessDispatch>>>,
@@ -541,7 +584,7 @@ impl Symbolizer {
         apk: &zip::Archive,
         apk_path: &Path,
         file_off: u64,
-        debug_syms: bool,
+        debug_dirs: Option<&[PathBuf]>,
         resolver_map: &'slf InsertMap<Range<u64>, Box<dyn Resolve>>,
     ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
         // Find the APK entry covering the calculated file offset.
@@ -571,10 +614,10 @@ impl Symbolizer {
                         if let Some(resolver) = (apk_dispatch)(info.clone())? {
                             resolver
                         } else {
-                            default_apk_dispatcher(info, debug_syms)?
+                            default_apk_dispatcher(info, debug_dirs)?
                         }
                     } else {
-                        default_apk_dispatcher(info, debug_syms)?
+                        default_apk_dispatcher(info, debug_dirs)?
                     };
 
                     Ok(resolver)
@@ -605,7 +648,8 @@ impl Symbolizer {
             Result::<_, Error>::Ok((apk, resolvers))
         })?;
 
-        let result = self.create_apk_resolver(apk, path, file_off, debug_syms, resolvers);
+        let debug_dirs = self.maybe_debug_dirs(debug_syms);
+        let result = self.create_apk_resolver(apk, path, file_off, debug_dirs, resolvers);
         result
     }
 
@@ -735,7 +779,7 @@ impl Symbolizer {
                 let resolver = self
                     .symbolizer
                     .elf_cache
-                    .elf_resolver(path, self.debug_syms)?;
+                    .elf_resolver(path, self.symbolizer.maybe_debug_dirs(self.debug_syms))?;
 
                 match resolver.file_offset_to_virt_offset(file_off)? {
                     Some(addr) => {
@@ -887,7 +931,9 @@ impl Symbolizer {
         };
 
         let elf_resolver = if let Some(image) = kernel_image {
-            let resolver = self.elf_cache.elf_resolver(image, *debug_syms)?;
+            let resolver = self
+                .elf_cache
+                .elf_resolver(image, self.maybe_debug_dirs(*debug_syms))?;
             Some(resolver)
         } else {
             let release = uname_release()?.to_str().unwrap().to_string();
@@ -899,7 +945,9 @@ impl Symbolizer {
             });
 
             if let Some(image) = kernel_image {
-                let result = self.elf_cache.elf_resolver(&image, *debug_syms);
+                let result = self
+                    .elf_cache
+                    .elf_resolver(&image, self.maybe_debug_dirs(*debug_syms));
                 match result {
                     Ok(resolver) => Some(resolver),
                     Err(err) => {
@@ -1012,7 +1060,9 @@ impl Symbolizer {
                 debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver = self.elf_cache.elf_resolver(path, *debug_syms)?;
+                let resolver = self
+                    .elf_cache
+                    .elf_resolver(path, self.maybe_debug_dirs(*debug_syms))?;
                 match input {
                     Input::VirtOffset(addrs) => addrs
                         .iter()
@@ -1194,7 +1244,9 @@ impl Symbolizer {
                 debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver = self.elf_cache.elf_resolver(path, *debug_syms)?;
+                let resolver = self
+                    .elf_cache
+                    .elf_resolver(path, self.maybe_debug_dirs(*debug_syms))?;
                 let addr = match input {
                     Input::VirtOffset(addr) => addr,
                     Input::AbsAddr(..) => {
@@ -1306,6 +1358,14 @@ impl Symbolizer {
             Source::Phantom(()) => unreachable!(),
         }
     }
+
+    fn maybe_debug_dirs(&self, debug_syms: bool) -> Option<&[PathBuf]> {
+        #[cfg(feature = "dwarf")]
+        let debug_dirs = &self.debug_dirs;
+        #[cfg(not(feature = "dwarf"))]
+        let debug_dirs = &[];
+        debug_syms.then_some(debug_dirs)
+    }
 }
 
 impl Default for Symbolizer {
@@ -1344,7 +1404,7 @@ mod tests {
             .join("data")
             .join("test-stable-addrs.bin");
         let parser = Rc::new(ElfParser::open(&test_elf).unwrap());
-        let resolver = ElfResolver::from_parser(parser, false).unwrap();
+        let resolver = ElfResolver::from_parser(parser, None).unwrap();
         let resolver = Resolver::Cached(&resolver);
         assert_ne!(format!("{resolver:?}"), "");
     }

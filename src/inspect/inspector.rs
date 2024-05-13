@@ -3,10 +3,12 @@ use std::fs::File;
 use std::ops::Deref as _;
 #[cfg(feature = "breakpad")]
 use std::path::Path;
+use std::path::PathBuf;
 
 #[cfg(feature = "breakpad")]
 use crate::breakpad::BreakpadResolver;
 use crate::elf::ElfResolverData;
+use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::file_cache::FileCache;
 use crate::Result;
 
@@ -98,7 +100,19 @@ impl Inspector {
                 debug_syms,
                 _non_exhaustive: (),
             }) => {
-                let resolver = self.elf_cache.elf_resolver(path, *debug_syms)?;
+                let debug_dirs;
+                let resolver = self.elf_cache.elf_resolver(
+                    path,
+                    if *debug_syms {
+                        debug_dirs = DEFAULT_DEBUG_DIRS
+                            .iter()
+                            .map(PathBuf::from)
+                            .collect::<Vec<_>>();
+                        Some(debug_dirs.as_slice())
+                    } else {
+                        None
+                    },
+                )?;
                 resolver.deref() as &dyn Inspect
             }
         };
@@ -168,7 +182,19 @@ impl Inspector {
                         offset_in_file: true,
                         sym_type: SymType::Undefined,
                     };
-                    let resolver = slf.elf_cache.elf_resolver(path, *debug_syms)?;
+                    let debug_dirs;
+                    let resolver = slf.elf_cache.elf_resolver(
+                        path,
+                        if *debug_syms {
+                            debug_dirs = DEFAULT_DEBUG_DIRS
+                                .iter()
+                                .map(PathBuf::from)
+                                .collect::<Vec<_>>();
+                            Some(debug_dirs.as_slice())
+                        } else {
+                            None
+                        },
+                    )?;
                     (resolver.deref() as &dyn Inspect, opts)
                 }
             };

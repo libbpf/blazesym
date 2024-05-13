@@ -3,10 +3,12 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::ops::Deref as _;
 use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 
 #[cfg(feature = "dwarf")]
 use crate::dwarf::DwarfResolver;
+use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::file_cache::FileCache;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::Inspect;
@@ -23,12 +25,14 @@ use crate::Result;
 
 use super::ElfParser;
 
+
 #[derive(Clone, Debug)]
 enum ElfBackend {
     #[cfg(feature = "dwarf")]
     Dwarf(Rc<DwarfResolver>), // ELF w/ DWARF
     Elf(Rc<ElfParser>), // ELF w/o DWARF
 }
+
 
 /// Resolver data associated with a specific source.
 #[derive(Clone, Debug)]
@@ -40,21 +44,27 @@ pub(crate) struct ElfResolverData {
 }
 
 impl FileCache<ElfResolverData> {
+    /// Create an `ElfResolver`.
+    ///
+    /// If `debug_dirs` is `Some` then debug information will be used
+    /// and the provided list of debug directories consulted when
+    /// following debug links.
+    /// If `debug_dirs` is `None` only ELF symbols will be consulted.
     pub(crate) fn elf_resolver<'slf>(
         &'slf self,
         path: &Path,
-        debug_syms: bool,
+        debug_dirs: Option<&[PathBuf]>,
     ) -> Result<&'slf Rc<ElfResolver>> {
         let (file, cell) = self.entry(path)?;
         let resolver = if let Some(data) = cell.get() {
-            if debug_syms {
+            if debug_dirs.is_some() {
                 data.dwarf.get_or_try_init(|| {
                     // SANITY: We *know* a `ElfResolverData` object is
                     //         present and given that we are
                     //         initializing the `dwarf` part of it, the
                     //         `elf` part *must* be present.
                     let parser = data.elf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
+                    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
@@ -65,7 +75,7 @@ impl FileCache<ElfResolverData> {
                     //         initializing the `elf` part of it, the
                     //         `dwarf` part *must* be present.
                     let parser = data.dwarf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(parser, debug_syms)?;
+                    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
@@ -73,12 +83,12 @@ impl FileCache<ElfResolverData> {
             .clone()
         } else {
             let parser = Rc::new(ElfParser::open_file(file, path)?);
-            let resolver = ElfResolver::from_parser(parser, debug_syms)?;
+            let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
             Rc::new(resolver)
         };
 
         let data = cell.get_or_init(|| {
-            if debug_syms {
+            if debug_dirs.is_some() {
                 ElfResolverData {
                     dwarf: OnceCell::from(resolver),
                     elf: OnceCell::new(),
@@ -91,7 +101,7 @@ impl FileCache<ElfResolverData> {
             }
         });
 
-        let resolver = if debug_syms {
+        let resolver = if debug_dirs.is_some() {
             data.dwarf.get()
         } else {
             data.elf.get()
@@ -115,13 +125,28 @@ impl ElfResolver {
     {
         let path = path.as_ref();
         let parser = Rc::new(ElfParser::open(path).unwrap());
-        Self::from_parser(parser, true)
+        Self::from_parser(
+            parser,
+            Some(
+                &DEFAULT_DEBUG_DIRS
+                    .iter()
+                    .map(PathBuf::from)
+                    .collect::<Vec<_>>(),
+            ),
+        )
     }
 
-    pub(crate) fn from_parser(parser: Rc<ElfParser>, _debug_syms: bool) -> Result<Self> {
+    /// Create a new [`ElfResolver`] using `parser`.
+    ///
+    /// If `debug_dirs` is `Some`, interpret DWARF debug information. If it is
+    /// `None`, just look at ELF symbols.
+    pub(crate) fn from_parser(
+        parser: Rc<ElfParser>,
+        debug_dirs: Option<&[PathBuf]>,
+    ) -> Result<Self> {
         #[cfg(feature = "dwarf")]
-        let backend = if _debug_syms {
-            let dwarf = DwarfResolver::from_parser(parser)?;
+        let backend = if let Some(debug_dirs) = debug_dirs {
+            let dwarf = DwarfResolver::from_parser(parser, debug_dirs)?;
             let backend = ElfBackend::Dwarf(Rc::new(dwarf));
             backend
         } else {
@@ -214,12 +239,12 @@ mod tests {
             .join("test-stable-addrs.bin");
 
         let parser = Rc::new(ElfParser::open(&path).unwrap());
-        let resolver = ElfResolver::from_parser(parser.clone(), false).unwrap();
+        let resolver = ElfResolver::from_parser(parser.clone(), None).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("ELF"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin"), "{dbg}");
 
-        let resolver = ElfResolver::from_parser(parser, true).unwrap();
+        let resolver = ElfResolver::from_parser(parser, Some(&[])).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("DWARF"), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin"), "{dbg}");

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::env;
 use std::ffi::CString;
 use std::ffi::OsStr;
+use std::fs::copy;
 use std::fs::read as read_file;
 use std::io::Error;
 use std::io::Read as _;
@@ -43,6 +44,7 @@ use libc::SIGKILL;
 
 use scopeguard::defer;
 
+use tempfile::tempdir;
 use tempfile::NamedTempFile;
 
 use test_log::test;
@@ -440,6 +442,48 @@ fn symbolize_dwarf_non_existent_debug_link() {
     // Because the binary is stripped, we don't expect any symbol
     // resolution.
     assert_eq!(result, None);
+}
+
+/// Check that we honor configured debug directories as one would expect.
+#[test]
+fn symbolize_configurable_debug_dirs() {
+    let dir = tempdir().unwrap();
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-with-link.bin");
+    let dst = dir.path().join("test-stable-addrs-stripped-with-link.bin");
+    let _count = copy(&path, &dst).unwrap();
+
+    let src = symbolize::Source::from(symbolize::Elf::new(dst));
+    let symbolizer = Symbolizer::builder()
+        .set_debug_dirs([] as [&Path; 0])
+        .build();
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .unwrap()
+        .into_sym();
+    // Shouldn't symbolize to anything because the debug link target cannot be
+    // found.
+    assert_eq!(result, None);
+
+    let debug_dir1 = tempdir().unwrap();
+    let debug_dir2 = tempdir().unwrap();
+    let src = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-dwarf-only.dbg");
+    let dst = debug_dir2.path().join("test-stable-addrs-dwarf-only.dbg");
+    let _count = copy(src, dst).unwrap();
+
+    let src = symbolize::Source::from(symbolize::Elf::new(path));
+    let symbolizer = Symbolizer::builder()
+        .set_debug_dirs([debug_dir1, debug_dir2])
+        .build();
+    let sym = symbolizer
+        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(sym.name, "factorial");
 }
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined

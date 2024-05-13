@@ -16,6 +16,8 @@ use gimli::AbbreviationsCacheStrategy;
 use gimli::Dwarf;
 
 use crate::elf::ElfParser;
+#[cfg(test)]
+use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::error::IntoCowStr;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::Inspect;
@@ -90,14 +92,13 @@ impl From<Option<gimli::DwLang>> for SrcLang {
 ///
 /// # Notes
 /// This function ignores any errors encountered.
-fn find_debug_file(file: &OsStr, linker: Option<&Path>) -> Option<PathBuf> {
-    let fixed_dirs = [Path::new("/usr/lib/debug"), Path::new("/lib/debug/")];
+fn find_debug_file(file: &OsStr, linker: Option<&Path>, debug_dirs: &[PathBuf]) -> Option<PathBuf> {
     let canonical_linker = linker.and_then(|linker| linker.canonicalize().ok());
-    let it = DebugFileIter::new(fixed_dirs.as_slice(), canonical_linker.as_deref(), file);
+    let it = DebugFileIter::new(debug_dirs, canonical_linker.as_deref(), file);
 
     for path in it {
         if path.exists() {
-            debug!("found debug info at {}", path.display());
+            debug!("found debug info at `{}`", path.display());
             return Some(path)
         }
     }
@@ -109,9 +110,12 @@ fn find_debug_file(file: &OsStr, linker: Option<&Path>) -> Option<PathBuf> {
 }
 
 
-fn try_deref_debug_link(parser: &ElfParser) -> Result<Option<Rc<ElfParser>>> {
+fn try_deref_debug_link(
+    parser: &ElfParser,
+    debug_dirs: &[PathBuf],
+) -> Result<Option<Rc<ElfParser>>> {
     if let Some((file, checksum)) = read_debug_link(parser)? {
-        match find_debug_file(file, parser.path()) {
+        match find_debug_file(file, parser.path(), debug_dirs) {
             Some(path) => {
                 let mmap = Mmap::builder().open(&path).with_context(|| {
                     format!("failed to open debug link destination `{}`", path.display())
@@ -157,8 +161,11 @@ impl DwarfResolver {
         &self.parser
     }
 
-    pub(crate) fn from_parser(parser: Rc<ElfParser>) -> Result<Self, Error> {
-        let linkee_parser = try_deref_debug_link(&parser)?;
+    pub(crate) fn from_parser(
+        parser: Rc<ElfParser>,
+        debug_dirs: &[PathBuf],
+    ) -> Result<Self, Error> {
+        let linkee_parser = try_deref_debug_link(&parser, debug_dirs)?;
 
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
@@ -193,7 +200,11 @@ impl DwarfResolver {
     #[cfg(test)]
     pub(crate) fn open(filename: &Path) -> Result<Self> {
         let parser = ElfParser::open(filename)?;
-        Self::from_parser(Rc::new(parser))
+        let debug_dirs = DEFAULT_DEBUG_DIRS
+            .iter()
+            .map(PathBuf::from)
+            .collect::<Vec<_>>();
+        Self::from_parser(Rc::new(parser), debug_dirs.as_slice())
     }
 }
 
