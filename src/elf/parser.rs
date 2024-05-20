@@ -38,6 +38,7 @@ use super::types::PT_LOAD;
 use super::types::SHF_COMPRESSED;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
+use super::types::SHT_NOBITS;
 
 
 fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str> {
@@ -250,13 +251,17 @@ impl<'mmap> Cache<'mmap> {
             .get(idx)
             .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?;
 
-        let data = self
-            .elf_data
-            .get(shdr.sh_offset as usize..)
-            .ok_or_invalid_data(|| "failed to read section data: invalid offset")?
-            .read_slice(shdr.sh_size as usize)
-            .ok_or_invalid_data(|| "failed to read section data: invalid size")?;
-        Ok((shdr, data))
+        if shdr.sh_type != SHT_NOBITS {
+            let data = self
+                .elf_data
+                .get(shdr.sh_offset as usize..)
+                .ok_or_invalid_data(|| "failed to read section data: invalid offset")?
+                .read_slice(shdr.sh_size as usize)
+                .ok_or_invalid_data(|| "failed to read section data: invalid size")?;
+            Ok((shdr, data))
+        } else {
+            Ok((shdr, &[]))
+        }
     }
 
     /// Retrieve the raw section data for the ELF section at index
@@ -458,9 +463,14 @@ impl<'mmap> Cache<'mmap> {
         }
 
         let count = syms.len() / mem::size_of::<Elf64_Sym>();
+        // Short-circuit if there are no symbols. The data may not actually be
+        // properly aligned in this case either, so don't attempt to even read.
+        if count == 0 {
+            return Ok(Vec::new())
+        }
         let mut syms = syms
             .read_pod_slice_ref::<Elf64_Sym>(count)
-            .ok_or_invalid_data(|| "failed to read symbol table contents")?
+            .ok_or_invalid_data(|| format!("failed to read {section} symbol table contents"))?
             .iter()
             // Filter out any symbols that we do not support.
             .filter(|sym| sym.matches(SymType::Undefined))
@@ -1264,5 +1274,92 @@ mod tests {
 
         test(&symtab);
         test(&symtab[0..2]);
+    }
+
+    /// Check that we can properly read empty symbol tables, even if not
+    /// correctly aligned, as long as it is empty.
+    #[test]
+    fn empty_symbol_table_reading() {
+        let ehdr = Elf64_Ehdr {
+            e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            e_type: 3,
+            e_machine: 62,
+            e_version: 1,
+            e_entry: 0,
+            e_phoff: 0,
+            e_shoff: 0,
+            e_flags: 0,
+            e_ehsize: 0,
+            e_phentsize: 0,
+            e_phnum: 0,
+            e_shentsize: 0,
+            e_shnum: 3,
+            e_shstrndx: 1,
+        };
+        let ehdr = EhdrExt {
+            ehdr: &ehdr,
+            shnum: 3,
+            phnum: 0,
+        };
+        let shdrs = [
+            Elf64_Shdr {
+                sh_name: 0,
+                sh_type: 0,
+                sh_flags: 0,
+                sh_addr: 0,
+                sh_offset: 0,
+                sh_size: 0,
+                sh_link: 0,
+                sh_info: 0,
+                sh_addralign: 0,
+                sh_entsize: 0,
+            },
+            Elf64_Shdr {
+                sh_name: 0,
+                sh_type: 0,
+                sh_flags: 0,
+                sh_addr: 0,
+                sh_offset: 0,
+                sh_size: 0,
+                sh_link: 0,
+                sh_info: 0,
+                sh_addralign: 0,
+                sh_entsize: 0,
+            },
+            Elf64_Shdr {
+                sh_name: 10,
+                // The section contains no actual data.
+                sh_type: SHT_NOBITS,
+                sh_flags: 0,
+                sh_addr: 0,
+                // One byte into an aligned buffer we will always end up at an
+                // unaligned address. This should result in a failed read of an
+                // Elf64_Sym slice, if we were to actually read data (which we
+                // should not).
+                sh_offset: 1,
+                sh_size: mem::size_of::<Elf64_Sym>() as _,
+                sh_link: 0,
+                sh_info: 0,
+                sh_addralign: 0,
+                sh_entsize: 0,
+            },
+        ];
+        let mut aligned_data = [0u8; 1024].as_slice();
+        let () = aligned_data.align(8).unwrap();
+
+        let cache = Cache {
+            elf_data: aligned_data,
+            ehdr: OnceCell::from(ehdr),
+            shdrs: OnceCell::from(shdrs.as_slice()),
+            shstrtab: OnceCell::from(b".shstrtab\x00.symtab\x00".as_slice()),
+            phdrs: OnceCell::new(),
+            symtab: OnceCell::new(),
+            dynsym: OnceCell::new(),
+        };
+
+        assert_eq!(cache.find_section(".symtab").unwrap(), Some(2));
+
+        let symtab = cache.ensure_symtab().unwrap();
+        assert!(symtab.is_empty());
     }
 }
