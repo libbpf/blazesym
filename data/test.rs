@@ -3,6 +3,9 @@
 
 use core::hint::black_box;
 
+#[no_mangle]
+static rust_eh_personality: [u8; 0] = [];
+
 
 #[inline(never)]
 fn uninlined_call() -> usize {
