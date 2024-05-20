@@ -81,6 +81,7 @@ pub(crate) const SHN_LORESERVE: u16 = 0xff00;
 pub(crate) const SHN_XINDEX: u16 = 0xffff;
 
 pub(crate) const SHT_NOTE: Elf64_Word = 7;
+pub(crate) const SHT_NOBITS: Elf64_Word = 8;
 
 pub(crate) const STT_OBJECT: u8 = 1;
 pub(crate) const STT_FUNC: u8 = 2;
