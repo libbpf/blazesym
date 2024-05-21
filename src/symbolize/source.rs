@@ -221,6 +221,11 @@ impl From<Kernel> for Source<'static> {
 /// expected to be absolute addresses
 /// ([`Input::AbsAddr`][crate::symbolize::Input::AbsAddr]) as valid within the
 /// process identified by the [`pid`][Process::pid] member.
+///
+/// # Notes
+/// Please note that process symbolization is generally a privileged operation
+/// and may require the granting of additional capabilities compared to other
+/// symbolization sources.
 #[derive(Clone)]
 pub struct Process {
     /// The referenced process' ID.
