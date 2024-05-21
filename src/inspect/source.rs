@@ -1,3 +1,6 @@
+use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -7,7 +10,7 @@ use super::Inspector;
 
 cfg_breakpad! {
 /// A Breakpad file.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Breakpad {
     /// The path to the Breakpad (*.sym) file.
     pub path: PathBuf,
@@ -31,11 +34,22 @@ impl From<Breakpad> for Source {
         Source::Breakpad(breakpad)
     }
 }
+
+impl Debug for Breakpad {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Self {
+            path,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(Breakpad)).field(path).finish()
+    }
+}
 }
 
 
 /// An ELF file.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Elf {
     /// The path to the ELF file.
     pub path: PathBuf,
@@ -66,12 +80,24 @@ impl From<Elf> for Source {
     }
 }
 
+impl Debug for Elf {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Self {
+            path,
+            debug_syms: _,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(Elf)).field(path).finish()
+    }
+}
+
 
 /// The source to use for the inspection request.
 ///
 /// Objects of this type are used first and foremost with the
 /// [`Inspector::lookup`] and [`Inspector::for_each`] methods.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Source {
     /// The source is a Breakpad file.
@@ -90,5 +116,42 @@ impl Source {
             Self::Breakpad(breakpad) => Some(&breakpad.path),
             Self::Elf(elf) => Some(&elf.path),
         }
+    }
+}
+
+impl Debug for Source {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        match self {
+            #[cfg(feature = "breakpad")]
+            Self::Breakpad(breakpad) => Debug::fmt(breakpad, f),
+            Self::Elf(elf) => Debug::fmt(elf, f),
+        }
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let breakpad = Breakpad::new("/a-path/with/components.sym");
+        assert_eq!(
+            format!("{breakpad:?}"),
+            "Breakpad(\"/a-path/with/components.sym\")"
+        );
+        let src = Source::from(breakpad);
+        assert_eq!(
+            format!("{src:?}"),
+            "Breakpad(\"/a-path/with/components.sym\")"
+        );
+
+        let elf = Elf::new("/a-path/with/components.elf");
+        assert_eq!(format!("{elf:?}"), "Elf(\"/a-path/with/components.elf\")");
+        let src = Source::from(elf);
+        assert_eq!(format!("{src:?}"), "Elf(\"/a-path/with/components.elf\")");
     }
 }
