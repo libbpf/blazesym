@@ -73,6 +73,7 @@ impl Inspector {
     ///   - no variable support is present
     ///   - file offsets won't be reported
     ///   - addresses are reported as they appear in the symbol source
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, names = ?names)))]
     pub fn lookup<'slf>(
         &'slf self,
         src: &Source,
