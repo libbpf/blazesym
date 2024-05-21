@@ -193,6 +193,18 @@ pub enum Input<T> {
 }
 
 impl<T> Input<T> {
+    fn map<F, U>(&self, f: F) -> Input<U>
+    where
+        T: Copy,
+        F: FnOnce(T) -> U,
+    {
+        match self {
+            Self::AbsAddr(x) => Input::AbsAddr(f(*x)),
+            Self::VirtOffset(x) => Input::VirtOffset(f(*x)),
+            Self::FileOffset(x) => Input::FileOffset(f(*x)),
+        }
+    }
+
     /// Extract the inner payload.
     ///
     /// ```rust

@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::mem::take;
 use std::ops::Deref as _;
@@ -69,6 +71,21 @@ use super::SrcLang;
 use super::Sym;
 use super::Symbolize;
 use super::Symbolized;
+
+
+#[cfg(feature = "tracing")]
+struct Hexify<'addrs>(&'addrs [Addr]);
+
+#[cfg(feature = "tracing")]
+impl Debug for Hexify<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let mut lst = f.debug_list();
+        for addr in self.0 {
+            let _lst = lst.entry(&format_args!("{addr:#x}"));
+        }
+        lst.finish()
+    }
+}
 
 
 #[cfg(feature = "apk")]
@@ -931,7 +948,7 @@ impl Symbolizer {
     /// | Ksym     | symbol size                      | no                   | N/A                    |
     /// |          | source code location information | no                   | N/A                    |
     /// |          | inlined function information     | no                   | N/A                    |
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = format_args!("{input:#x?}"))))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = ?input.map(Hexify))))]
     pub fn symbolize<'slf>(
         &'slf self,
         src: &Source,
