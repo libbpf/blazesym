@@ -2,7 +2,6 @@ use std::backtrace::Backtrace;
 use std::backtrace::BacktraceStatus;
 use std::borrow::Borrow;
 use std::borrow::Cow;
-use std::error;
 use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -269,8 +268,8 @@ impl Display for ErrorImpl {
     }
 }
 
-impl error::Error for ErrorImpl {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+impl StdError for ErrorImpl {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
         match self {
             #[cfg(feature = "dwarf")]
             Self::Dwarf { error, .. } => error.source(),
@@ -516,9 +515,9 @@ impl Display for Error {
     }
 }
 
-impl error::Error for Error {
+impl StdError for Error {
     #[inline]
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self.error.source()
     }
 }

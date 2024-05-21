@@ -125,7 +125,6 @@ fn try_deref_debug_link(parser: &ElfParser) -> Result<Option<Rc<ElfParser>>> {
                     )))
                 }
 
-                debug!("followed debug link to: {}", path.display());
                 let dst_parser = Rc::new(ElfParser::from_mmap(mmap, Some(path)));
                 Ok(Some(dst_parser))
             }
