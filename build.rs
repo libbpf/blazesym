@@ -363,6 +363,18 @@ fn cc_stable_addrs(dst: impl AsRef<OsStr>, options: &[&str]) {
     cc(&src, dst, &args)
 }
 
+fn cc_test_so(dst: impl AsRef<OsStr>, options: &[&str]) {
+    let data_dir = data_dir();
+    let src = data_dir.join("test-so.c");
+    let args = ["-shared", "-fPIC"]
+        .into_iter()
+        .chain(options.iter().map(Deref::deref))
+        .collect::<Vec<_>>();
+
+    cc(&src, dst, &args);
+}
+
+
 /// Open the file at `path` for writing and append `data` to it.
 fn append(path: &Path, data: &[u8]) -> Result<()> {
     {
@@ -399,17 +411,12 @@ fn prepare_test_files() {
         ],
     );
 
-    let src = data_dir.join("test-so.c");
-    cc(
-        &src,
-        "libtest-so.so",
-        &["-shared", "-fPIC", "-Wl,--build-id=sha1"],
-    );
-    cc(
-        &src,
+    cc_test_so("libtest-so.so", &["-Wl,--build-id=sha1"]);
+    cc_test_so(
         "libtest-so-no-separate-code.so",
-        &["-shared", "-fPIC", "-Wl,--build-id=md5,-z,noseparate-code"],
+        &["-Wl,--build-id=md5,-z,noseparate-code"],
     );
+
     let src = data_dir.join("libtest-so.so");
     gsym(&src, "libtest-so.gsym");
     strip(&src, "libtest-so-stripped.so", &[]);
