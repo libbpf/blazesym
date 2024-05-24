@@ -178,9 +178,12 @@ impl Symbolize for GsymResolver<'_> {
                 .ctx
                 .addr_info(idx)
                 .ok_or_invalid_data(|| format!("failed to read address information entry {idx}"))?;
-            if (info.size == 0 && sym_addr != addr)
-                || (info.size > 0 && addr >= (sym_addr + info.size as Addr))
-            {
+            // NB: Never bail out for zero sized symbols. We have seen cases
+            //     where the reported `sym_addr` was (way) before `addr` for
+            //     zero sized symbols, but the majority of tools report the
+            //     result irrespectively and the behavior was deemed the right
+            //     call.
+            if info.size > 0 && addr >= (sym_addr + info.size as Addr) {
                 return Ok(Err(Reason::UnknownAddr))
             }
 
