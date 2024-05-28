@@ -153,11 +153,11 @@ pub(crate) struct DwarfResolver {
 
 impl DwarfResolver {
     /// Retrieve the resolver's underlying `ElfParser`.
-    pub fn parser(&self) -> &Rc<ElfParser> {
+    pub(crate) fn parser(&self) -> &Rc<ElfParser> {
         &self.parser
     }
 
-    pub fn from_parser(parser: Rc<ElfParser>) -> Result<Self, Error> {
+    pub(crate) fn from_parser(parser: Rc<ElfParser>) -> Result<Self, Error> {
         let linkee_parser = try_deref_debug_link(&parser)?;
 
         // SAFETY: We own the `ElfParser` and make sure that it stays
@@ -191,7 +191,7 @@ impl DwarfResolver {
     /// `filename` is the name of an ELF binary/or shared object that
     /// has .debug_line section.
     #[cfg(test)]
-    pub fn open(filename: &Path) -> Result<Self> {
+    pub(crate) fn open(filename: &Path) -> Result<Self> {
         let parser = ElfParser::open(filename)?;
         Self::from_parser(Rc::new(parser))
     }

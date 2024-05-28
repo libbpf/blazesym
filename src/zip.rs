@@ -264,7 +264,7 @@ pub(crate) struct Archive {
 impl Archive {
     /// Open a zip archive at the provided `path`.
     #[cfg(test)]
-    pub fn open<P>(path: P) -> Result<Self>
+    pub(crate) fn open<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
     {
@@ -273,7 +273,7 @@ impl Archive {
     }
 
     /// Create an `Archive` instance using the provided `Mmap`.
-    pub fn with_mmap(mmap: Mmap) -> Result<Self> {
+    pub(crate) fn with_mmap(mmap: Mmap) -> Result<Self> {
         // Check that a central directory is present as at least some form
         // of validation that we are in fact dealing with a valid zip file.
         let (cd_offset, cd_records) = Archive::find_cd(&mmap)?;
@@ -344,7 +344,7 @@ impl Archive {
     }
 
     /// Create an iterator over the entries of the archive.
-    pub fn entries(&self) -> EntryIter<'_> {
+    pub(crate) fn entries(&self) -> EntryIter<'_> {
         let archive_data = &self.mmap;
         // SANITY: The offset has been validated during construction.
         let cd_record_data = self.mmap.get(self.cd_offset as usize..).unwrap();
@@ -360,7 +360,7 @@ impl Archive {
 
     /// Retrieve the [`Mmap`] object used by this `Archive`.
     #[inline]
-    pub fn mmap(&self) -> &Mmap {
+    pub(crate) fn mmap(&self) -> &Mmap {
         &self.mmap
     }
 }

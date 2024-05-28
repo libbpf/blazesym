@@ -76,7 +76,7 @@ pub struct KSymResolver {
 }
 
 impl KSymResolver {
-    pub fn load_file_name(filename: PathBuf) -> Result<Self> {
+    pub(crate) fn load_file_name(filename: PathBuf) -> Result<Self> {
         let f = File::open(&filename)?;
         let mut reader = BufReader::new(f);
         let mut line = String::new();

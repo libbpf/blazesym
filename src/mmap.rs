@@ -28,13 +28,13 @@ impl Builder {
 
     /// Configure the mapping to be executable.
     #[cfg(test)]
-    pub fn exec(mut self) -> Self {
+    pub(crate) fn exec(mut self) -> Self {
         self.protection |= libc::PROT_EXEC;
         self
     }
 
     /// Memory map the file at the provided `path`.
-    pub fn open<P>(self, path: P) -> Result<Mmap>
+    pub(crate) fn open<P>(self, path: P) -> Result<Mmap>
     where
         P: AsRef<Path>,
     {
@@ -43,7 +43,7 @@ impl Builder {
     }
 
     /// Map the provided file into memory, in its entirety.
-    pub fn map(self, file: &File) -> Result<Mmap> {
+    pub(crate) fn map(self, file: &File) -> Result<Mmap> {
         let len = libc::size_t::try_from(file.metadata()?.len())
             .map_err(Error::with_invalid_data)
             .context("file is too large to mmap")?;

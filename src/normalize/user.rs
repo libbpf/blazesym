@@ -136,7 +136,7 @@ pub(super) struct NormalizationHandler<'reader, 'src> {
 
 impl<'reader, 'src> NormalizationHandler<'reader, 'src> {
     /// Instantiate a new `NormalizationHandler` object.
-    pub fn new(reader: &'reader dyn BuildIdReader<'src>, addr_cnt: usize) -> Self {
+    pub(crate) fn new(reader: &'reader dyn BuildIdReader<'src>, addr_cnt: usize) -> Self {
         Self {
             normalized: UserOutput {
                 outputs: Vec::with_capacity(addr_cnt),

@@ -386,7 +386,7 @@ impl<'dwarf> Units<'dwarf> {
 
     /// Find the source file and line corresponding to the given virtual memory
     /// address.
-    pub fn find_location(&self, probe: u64) -> Result<Option<Location<'_>>, gimli::Error> {
+    pub(crate) fn find_location(&self, probe: u64) -> Result<Option<Location<'_>>, gimli::Error> {
         for unit in self.find_units(probe) {
             if let Some(location) = unit.find_location(probe, self)? {
                 return Ok(Some(location))
@@ -395,7 +395,7 @@ impl<'dwarf> Units<'dwarf> {
         Ok(None)
     }
 
-    pub fn find_name<'s, 'slf: 's>(
+    pub(crate) fn find_name<'s, 'slf: 's>(
         &'slf self,
         name: &'s str,
     ) -> impl Iterator<Item = Result<&Function<'dwarf>, gimli::Error>> + 's {

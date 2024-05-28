@@ -146,7 +146,7 @@ impl Function {
     /// have been inlined all the way into A (A being the "outer function"),
     /// then the call A -> B is at level zero, and the call B -> C is at
     /// level one.
-    pub fn find_inlinee_at_depth(&self, depth: u32, addr: u64) -> Option<&Inlinee> {
+    pub(crate) fn find_inlinee_at_depth(&self, depth: u32, addr: u64) -> Option<&Inlinee> {
         let inlinee = match self
             .inlinees
             .binary_search_by_key(&(depth, addr), |inlinee| (inlinee.depth, inlinee.addr))
@@ -170,7 +170,7 @@ impl Function {
         }
     }
 
-    pub fn find_inlinees(&self, addr: u64) -> Vec<&Inlinee> {
+    pub(crate) fn find_inlinees(&self, addr: u64) -> Vec<&Inlinee> {
         let mut inlinees = Vec::new();
         while let Some(inlinee) = self.find_inlinee_at_depth(inlinees.len() as _, addr) {
             let () = inlinees.push(inlinee);
@@ -194,7 +194,7 @@ pub(crate) struct SymbolFile {
 }
 
 impl SymbolFile {
-    pub fn find_function(&self, addr: u64) -> Option<&Function> {
+    pub(crate) fn find_function(&self, addr: u64) -> Option<&Function> {
         let idx = find_match_or_lower_bound_by_key(&self.functions, addr, |f| f.addr)?;
         for func in &self.functions[idx..] {
             if func.addr > addr {
@@ -224,7 +224,7 @@ impl SymbolFile {
     }
 
     /// Find a function symbol based on its name.
-    pub fn find_addr<'s, 'slf: 's>(
+    pub(crate) fn find_addr<'s, 'slf: 's>(
         &'slf self,
         name: &'s str,
     ) -> impl Iterator<Item = &'slf Function> + 's {
