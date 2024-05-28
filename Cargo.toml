@@ -117,7 +117,7 @@ zip = {version = "2.0.0", optional = true, default-features = false}
 
 [dependencies]
 cpp_demangle = {version = "0.4", optional = true}
-gimli = {version = "0.29", optional = true}
+gimli = {version = "0.30", optional = true}
 libc = "0.2.137"
 miniz_oxide = {version = "0.7", default-features = false, features = ["simd", "with-alloc"], optional = true}
 nom = {version = "7", optional = true}
@@ -128,7 +128,7 @@ zstd = {version = "0.13.1", default-features = false, optional = true}
 [dev-dependencies]
 # For performance comparison; pinned, because we use #[doc(hidden)]
 # APIs.
-addr2line = "=0.22.0"
+addr2line = "=0.23.0"
 anyhow = "1.0.71"
 # TODO: Enable `zstd` feature once toolchain support for it is more
 #       widespread (enabled by default in `ld`). Remove conditionals in
