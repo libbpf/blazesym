@@ -556,12 +556,12 @@ pub struct SymbolParser {
 
 impl SymbolParser {
     /// Creates a new [`SymbolParser`].
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::default()
     }
 
     /// Parses and then returns how many bytes of the input was used.
-    pub fn parse(&mut self, mut input: &[u8]) -> Result<usize> {
+    pub(crate) fn parse(&mut self, mut input: &[u8]) -> Result<usize> {
         // We parse the input line-by-line, so trim away any part of the input
         // that comes after the last newline (this is necessary for streaming
         // parsing, as it can otherwise be impossible to tell if a line is
@@ -728,7 +728,7 @@ impl SymbolParser {
     /// Finish the parse and create the final [`SymbolFile`].
     ///
     /// Call this when the parser has consumed all the input.
-    pub fn finish(mut self) -> SymbolFile {
+    pub(crate) fn finish(mut self) -> SymbolFile {
         // If there's a pending multiline item, finish it now.
         if let Some(item) = self.cur_item.take() {
             self.finish_item(item);

@@ -87,13 +87,13 @@ pub(crate) struct Builder<T> {
 
 impl<T> Builder<T> {
     /// Enable/disable auto reloading of files when stale.
-    pub fn enable_auto_reload(mut self, enable: bool) -> Self {
+    pub(crate) fn enable_auto_reload(mut self, enable: bool) -> Self {
         self.auto_reload = enable;
         self
     }
 
     /// Create the [`FileCache`] object.
-    pub fn build(self) -> FileCache<T> {
+    pub(crate) fn build(self) -> FileCache<T> {
         let Builder {
             auto_reload,
             _phantom: _,
@@ -135,12 +135,12 @@ pub(crate) struct FileCache<T> {
 impl<T> FileCache<T> {
     /// Retrieve a [`Builder`] object for configurable construction of a
     /// [`FileCache`].
-    pub fn builder() -> Builder<T> {
+    pub(crate) fn builder() -> Builder<T> {
         Builder::<T>::default()
     }
 
     /// Retrieve an entry for the file at the given `path`.
-    pub fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
+    pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
         let stat = if self.auto_reload {
             let stat = stat(path).with_context(|| format!("failed to stat {}", path.display()))?;
             Some(stat)

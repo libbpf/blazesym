@@ -79,7 +79,7 @@ impl LineTableRow {
     /// * `header` - is a [`LineTableHeader`] returned by
     ///   [`parse_line_table_header()`].
     /// * `symaddr` - the address of the symbol that `header` belongs to.
-    pub fn from_header(header: &LineTableHeader, symaddr: Addr) -> Self {
+    pub(crate) fn from_header(header: &LineTableHeader, symaddr: Addr) -> Self {
         Self {
             addr: symaddr,
             file_idx: 1,
@@ -99,7 +99,7 @@ impl LineTableRow {
 /// * `header` - is a `LineTableHeader`.
 /// * `ops` - is the buffer of the operators following the `LineTableHeader` in
 ///   a GSYM file.
-pub fn run_op(
+pub(crate) fn run_op(
     row: &mut LineTableRow,
     header: &LineTableHeader,
     ops: &mut &[u8],

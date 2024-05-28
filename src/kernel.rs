@@ -21,7 +21,7 @@ pub(crate) struct KernelResolver {
 }
 
 impl KernelResolver {
-    pub fn new(
+    pub(crate) fn new(
         ksym_resolver: Option<Rc<KSymResolver>>,
         elf_resolver: Option<Rc<ElfResolver>>,
     ) -> Result<KernelResolver> {

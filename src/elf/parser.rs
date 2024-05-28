@@ -582,7 +582,7 @@ pub(crate) struct ElfParser {
 
 impl ElfParser {
     /// Create an `ElfParser` from an open file.
-    pub fn open_file<P>(file: &File, path: P) -> Result<Self>
+    pub(crate) fn open_file<P>(file: &File, path: P) -> Result<Self>
     where
         P: Into<PathBuf>,
     {
@@ -591,7 +591,7 @@ impl ElfParser {
     }
 
     /// Create an `ElfParser` from mmap'ed data.
-    pub fn from_mmap(mmap: Mmap, path: Option<PathBuf>) -> Self {
+    pub(crate) fn from_mmap(mmap: Mmap, path: Option<PathBuf>) -> Self {
         // We transmute the mmap's lifetime to static here as that is a
         // necessity for self-referentiality.
         // SAFETY: We never hand out any 'static references to cache
@@ -608,7 +608,7 @@ impl ElfParser {
     }
 
     /// Create an `ElfParser` for a path.
-    pub fn open(path: &Path) -> Result<ElfParser> {
+    pub(crate) fn open(path: &Path) -> Result<ElfParser> {
         let file =
             File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
         Self::open_file(&file, path)
@@ -619,7 +619,7 @@ impl ElfParser {
     ///
     /// If the section is compressed the resulting decompressed data
     /// will be cached for the life time of this object.
-    pub fn section_data(&self, idx: usize) -> Result<&[u8]> {
+    pub(crate) fn section_data(&self, idx: usize) -> Result<&[u8]> {
         let (shdr, mut data) = self.cache.section_data_raw(idx)?;
 
         if shdr.sh_flags & SHF_COMPRESSED != 0 {
@@ -654,12 +654,12 @@ impl ElfParser {
     /// Find the section of a given name.
     ///
     /// This function return the index of the section if found.
-    pub fn find_section(&self, name: &str) -> Result<Option<usize>> {
+    pub(crate) fn find_section(&self, name: &str) -> Result<Option<usize>> {
         let index = self.cache.find_section(name)?;
         Ok(index)
     }
 
-    pub fn find_sym(
+    pub(crate) fn find_sym(
         &self,
         addr: Addr,
         opts: &FindSymOpts,
@@ -905,7 +905,7 @@ impl ElfParser {
 
     /// Retrieve the path to the file this object operates on.
     #[inline]
-    pub fn path(&self) -> Option<&Path> {
+    pub(crate) fn path(&self) -> Option<&Path> {
         self.path.as_deref()
     }
 }

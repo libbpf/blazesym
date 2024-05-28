@@ -115,7 +115,7 @@ pub(crate) fn trim_ascii(bytes: &[u8]) -> &[u8] {
 //       stabilized, we should remove this functionality in favor of the std
 //       version.
 #[inline]
-pub fn split_once<F>(bytes: &[u8], pred: F) -> Option<(&[u8], &[u8])>
+pub(crate) fn split_once<F>(bytes: &[u8], pred: F) -> Option<(&[u8], &[u8])>
 where
     F: FnMut(&u8) -> bool,
 {
@@ -534,7 +534,7 @@ mod tests {
 
     /// Check whether an iterator represents a sorted sequence.
     // Copy of iterator::is_sorted_by used while it is still unstable.
-    pub fn is_sorted_by<I, F>(mut iter: I, compare: F) -> bool
+    fn is_sorted_by<I, F>(mut iter: I, compare: F) -> bool
     where
         I: Iterator,
         F: FnMut(&I::Item, &I::Item) -> Option<Ordering>,

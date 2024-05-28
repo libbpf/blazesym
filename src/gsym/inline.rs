@@ -18,7 +18,7 @@ pub(super) struct InlineInfo {
 
 impl InlineInfo {
     /// Parse Gsym `InlineInfo` from raw bytes.
-    pub fn parse(
+    pub(crate) fn parse(
         data: &mut &[u8],
         base_addr: u64,
         lookup_addr: Option<u64>,
@@ -155,7 +155,7 @@ impl InlineInfo {
         false
     }
 
-    pub fn inline_stack(&self, addr: u64) -> Vec<&Self> {
+    pub(crate) fn inline_stack(&self, addr: u64) -> Vec<&Self> {
         let mut inlined = Vec::new();
         let _done = self.inline_stack_impl(addr, &mut inlined);
         inlined

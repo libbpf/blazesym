@@ -127,7 +127,7 @@ pub(crate) struct PerfMap {
 impl PerfMap {
     /// Retrieve the path to a perf map file representing the process with the
     /// given `pid`.
-    pub fn path(pid: Pid) -> PathBuf {
+    pub(crate) fn path(pid: Pid) -> PathBuf {
         let pid = pid.resolve();
         // The documentation mentions /tmp by name specifically, ignoring
         // `TMPDIR` et al, so that is what we work with as well.
@@ -136,7 +136,7 @@ impl PerfMap {
     }
 
     /// Load the [`PerfMap`] for the process with the given `pid`, if any.
-    pub fn from_file(path: &Path, file: &File) -> Result<Self> {
+    pub(crate) fn from_file(path: &Path, file: &File) -> Result<Self> {
         let mmap = Mmap::map(file)
             .with_context(|| format!("failed to mmap perf map `{}`", path.display()))?;
         // We transmute the mmap's lifetime to static here as that is a

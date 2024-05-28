@@ -65,7 +65,7 @@ use super::types::INFO_TYPE_END_OF_LIST;
 /// The developers should use [`parse_address_data()`],
 /// [`parse_line_table_header()`], and [`linetab::run_op()`] to get
 /// line number information from [`AddrInfo`].
-pub struct GsymContext<'a> {
+pub(crate) struct GsymContext<'a> {
     header: Header,
     addr_tab: &'a [u8],
     addr_data_off_tab: &'a [u32],
@@ -83,7 +83,7 @@ impl GsymContext<'_> {
     ///
     /// Returns a GsymContext, which includes the Header and other important
     /// tables.
-    pub fn parse_header(data: &[u8]) -> Result<GsymContext> {
+    pub(crate) fn parse_header(data: &[u8]) -> Result<GsymContext> {
         fn parse_header_impl(mut data: &[u8]) -> Option<Result<GsymContext>> {
             let head = data;
             let magic = data.read_u32()?;
@@ -146,7 +146,7 @@ impl GsymContext<'_> {
     ///
     /// Callers should check the `AddrInfo` object at the returned index to see
     /// whether the symbol actually covers the provided address.
-    pub fn find_addr(&self, addr: Addr) -> Option<usize> {
+    pub(crate) fn find_addr(&self, addr: Addr) -> Option<usize> {
         fn find_addr_impl<T>(mut addr_tab: &[u8], num_addrs: usize, addr: Addr) -> Option<usize>
         where
             T: Copy + Ord + Into<Addr> + Pod + 'static,
@@ -169,7 +169,7 @@ impl GsymContext<'_> {
     }
 
     /// Get the address of an entry in the Address Table.
-    pub fn addr_at(&self, idx: usize) -> Option<Addr> {
+    pub(crate) fn addr_at(&self, idx: usize) -> Option<Addr> {
         let addr_off_size = self.header.addr_off_size as usize;
         let mut data = self.addr_tab.get(idx.checked_mul(addr_off_size)?..)?;
         let addr = match addr_off_size {
@@ -183,7 +183,7 @@ impl GsymContext<'_> {
     }
 
     /// Get the AddrInfo of an address given by an index.
-    pub fn addr_info(&self, idx: usize) -> Option<AddrInfo> {
+    pub(crate) fn addr_info(&self, idx: usize) -> Option<AddrInfo> {
         let offset = *self.addr_data_off_tab.get(idx)?;
         let mut data = self.raw_data.get(offset as usize..)?;
         let size = data.read_u32()?;
@@ -195,13 +195,13 @@ impl GsymContext<'_> {
 
     /// Get the string at the given offset from the String Table.
     #[inline]
-    pub fn get_str(&self, offset: usize) -> Option<&OsStr> {
+    pub(crate) fn get_str(&self, offset: usize) -> Option<&OsStr> {
         let bytes = self.str_tab.get(offset..)?.read_cstr()?.to_bytes();
         Some(OsStr::from_bytes(bytes))
     }
 
     #[inline]
-    pub fn file_info(&self, idx: usize) -> Option<&FileInfo> {
+    pub(crate) fn file_info(&self, idx: usize) -> Option<&FileInfo> {
         self.file_tab.get(idx)
     }
 }
@@ -216,7 +216,7 @@ impl GsymContext<'_> {
 /// # Arguments
 ///
 /// * `data` - is the slice from AddrInfo::data.
-pub fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData> {
+pub(crate) fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData> {
     iter::from_fn(move || {
         let typ = data.read_u32()?;
         if typ == INFO_TYPE_END_OF_LIST {
