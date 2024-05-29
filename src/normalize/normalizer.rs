@@ -16,6 +16,7 @@ use super::buildid::NoBuildIdReader;
 use super::user;
 use super::user::normalize_sorted_user_addrs_with_entries;
 use super::user::UserOutput;
+use super::NormalizeOpts;
 
 
 /// A type capturing normalized outputs along with captured meta data.
@@ -220,12 +221,7 @@ impl Normalizer {
     /// Normalize addresses belonging to a process.
     ///
     /// Normalize all `addrs` in a given process to their corresponding
-    /// file offsets, which are suitable for later symbolization. The
-    /// `addrs` array has to be sorted in ascending order or an error
-    /// will be returned. By providing a pre-sorted array the library
-    /// does not have to sort internally, which will result in quicker
-    /// normalization. If you don't have sorted addresses, use
-    /// [`Normalizer::normalize_user_addrs`] instead.
+    /// file offsets, which are suitable for later symbolization.
     ///
     /// Unknown addresses are not normalized. They are reported as
     /// [`Unknown`][crate::normalize::Unknown] meta entries in the returned
@@ -241,26 +237,34 @@ impl Normalizer {
     /// Normalized outputs are reported in the exact same order (and in
     /// equal amount) in which the non-normalized ones were provided.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(pid = ?pid, addrs = ?Hexify(addrs))))]
-    pub fn normalize_user_addrs_sorted(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
-        self.normalize_user_addrs_iter(addrs.iter().copied(), pid)
-    }
+    pub fn normalize_user_addrs_opts(
+        &self,
+        pid: Pid,
+        addrs: &[Addr],
+        opts: &NormalizeOpts,
+    ) -> Result<UserOutput> {
+        let NormalizeOpts {
+            sorted_addrs,
+            _non_exhaustive: (),
+        } = *opts;
 
+        if sorted_addrs {
+            self.normalize_user_addrs_iter(addrs.iter().copied(), pid)
+        } else {
+            util::with_ordered_elems(
+                addrs,
+                |normalized: &mut UserOutput| normalized.outputs.as_mut_slice(),
+                |sorted_addrs| self.normalize_user_addrs_iter(sorted_addrs, pid),
+            )
+        }
+    }
 
     /// Normalize addresses belonging to a process.
     ///
-    /// Normalize all `addrs` in a given process. Contrary to
-    /// [`Normalizer::normalize_user_addrs_sorted`], the provided `addrs` array
-    /// does not have to be sorted, but otherwise the functions behave
-    /// identically. If you do happen to know that `addrs` is sorted, using
-    /// [`Normalizer::normalize_user_addrs_sorted`] instead will result in
-    /// slightly faster normalization.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(pid = ?pid, addrs = ?Hexify(addrs))))]
+    /// A convenience wrapper around [`Normalizer::normalize_user_addrs_opts`][]
+    /// that uses the default normalization options.
     pub fn normalize_user_addrs(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
-        util::with_ordered_elems(
-            addrs,
-            |normalized: &mut UserOutput| normalized.outputs.as_mut_slice(),
-            |sorted_addrs| self.normalize_user_addrs_iter(sorted_addrs, pid),
-        )
+        self.normalize_user_addrs_opts(pid, addrs, &NormalizeOpts::default())
     }
 }
 
@@ -301,9 +305,13 @@ mod tests {
         let () = addrs.sort();
         let () = addrs.swap(0, 1);
 
+        let opts = NormalizeOpts {
+            sorted_addrs: true,
+            ..Default::default()
+        };
         let normalizer = Normalizer::new();
         let err = normalizer
-            .normalize_user_addrs_sorted(Pid::Slf, addrs.as_slice())
+            .normalize_user_addrs_opts(Pid::Slf, addrs.as_slice(), &opts)
             .unwrap_err();
         assert!(err.to_string().contains("are not sorted"), "{err}");
     }
@@ -317,7 +325,7 @@ mod tests {
 
         let normalizer = Normalizer::new();
         let normalized = normalizer
-            .normalize_user_addrs_sorted(Pid::Slf, addrs.as_slice())
+            .normalize_user_addrs(Pid::Slf, addrs.as_slice())
             .unwrap();
         assert_eq!(normalized.outputs.len(), 2);
         assert_eq!(normalized.meta.len(), 1);
@@ -401,9 +409,13 @@ mod tests {
         let answer = the_answer_fn();
         assert_eq!(answer, 42);
 
+        let opts = NormalizeOpts {
+            sorted_addrs: true,
+            ..Default::default()
+        };
         let normalizer = Normalizer::new();
         let normalized = normalizer
-            .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
+            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
@@ -465,9 +477,13 @@ mod tests {
             let answer = the_answer_fn();
             assert_eq!(answer, 42);
 
+            let opts = NormalizeOpts {
+                sorted_addrs: true,
+                ..Default::default()
+            };
             let normalizer = Normalizer::new();
             let normalized = normalizer
-                .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
+                .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
                 .unwrap();
             assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);

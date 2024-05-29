@@ -2,6 +2,7 @@
 
 use std::hint::black_box;
 
+use blazesym::normalize::NormalizeOpts;
 use blazesym::normalize::Normalizer;
 use blazesym::Addr;
 
@@ -19,13 +20,21 @@ where
         libc::dlopen as Addr,
         libc::fopen as Addr,
         normalize_process_impl::<M> as Addr,
-        Normalizer::normalize_user_addrs_sorted as Addr,
+        Normalizer::normalize_user_addrs as Addr,
     ];
     let () = addrs.sort();
+    let opts = NormalizeOpts {
+        sorted_addrs: true,
+        ..Default::default()
+    };
 
     let () = b.iter(|| {
         let normalized = normalizer
-            .normalize_user_addrs_sorted(black_box(0.into()), black_box(addrs.as_slice()))
+            .normalize_user_addrs_opts(
+                black_box(0.into()),
+                black_box(addrs.as_slice()),
+                black_box(&opts),
+            )
             .unwrap();
         assert_eq!(normalized.meta.len(), 2);
         assert_eq!(normalized.outputs.len(), 5);
