@@ -6,6 +6,9 @@ Unreleased
   - Introduced `blaze_err_last` to retrieve the last error
   - Introduced `blaze_err_str` function to convert errors to textual
     representation
+- Introduced `blaze_normalize_opts` and added
+  `blaze_normalize_user_addrs_opts` to use it
+  - Removed `blaze_normalize_user_addrs_sorted` function
 - Introduced `blaze_normalize_reason` type and extended
   - Added `reason` attribute to `blaze_user_meta_unknown`
   - Added `blaze_normalize_reason_str` to retrieve textual representation

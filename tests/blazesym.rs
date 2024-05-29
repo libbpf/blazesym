@@ -24,6 +24,7 @@ use blazesym::helper::read_elf_build_id;
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
 use blazesym::inspect::Inspector;
+use blazesym::normalize::NormalizeOpts;
 use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::ProcessDispatch;
@@ -798,9 +799,13 @@ fn normalize_elf_addr() {
         let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
         assert!(!the_answer_addr.is_null());
 
+        let opts = NormalizeOpts {
+            sorted_addrs: true,
+            ..Default::default()
+        };
         let normalizer = Normalizer::new();
         let normalized = normalizer
-            .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
+            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
@@ -851,11 +856,15 @@ fn normalize_build_id_reading() {
         let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
         assert!(!the_answer_addr.is_null());
 
+        let opts = NormalizeOpts {
+            sorted_addrs: true,
+            ..Default::default()
+        };
         let normalizer = Normalizer::builder()
             .enable_build_ids(read_build_ids)
             .build();
         let normalized = normalizer
-            .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
+            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
