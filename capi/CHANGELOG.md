@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added `debug_dirs` attribute to `blaze_symbolizer_opts`
 - Added `cache_maps` attribute to `blaze_normalizer_opts`
 - Introduced `blaze_err` enum and adjusted all fallible functions to
   set a thread local error

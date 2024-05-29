@@ -425,6 +425,19 @@ pub struct blaze_symbolizer_opts {
     /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
     /// ensure compatibility in the presence of member additions.
     pub type_size: usize,
+    /// Array of debug directories to search for split debug information.
+    ///
+    /// These directories will be consulted (in given order) when resolving
+    /// debug links in binaries. By default and when this member is NULL,
+    /// `/usr/lib/debug` and `/lib/debug/` will be searched. Setting an array
+    /// here will overwrite these defaults, so make sure to include these
+    /// directories as desired.
+    ///
+    /// Note that the directory containing a symbolization source is always an
+    /// implicit candidate target directory of the highest precedence.
+    pub debug_dirs: *const *const c_char,
+    /// The number of array elements in `debug_dirs`.
+    pub debug_dirs_len: usize,
     /// Whether or not to automatically reload file system based
     /// symbolization sources that were updated since the last
     /// symbolization operation.
@@ -450,6 +463,8 @@ impl Default for blaze_symbolizer_opts {
     fn default() -> Self {
         Self {
             type_size: mem::size_of::<Self>(),
+            debug_dirs: ptr::null(),
+            debug_dirs_len: 0,
             auto_reload: false,
             code_info: false,
             inlined_fns: false,
@@ -504,6 +519,8 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
 
     let blaze_symbolizer_opts {
         type_size: _,
+        debug_dirs,
+        debug_dirs_len,
         auto_reload,
         code_info,
         inlined_fns,
@@ -511,12 +528,30 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
         reserved: _,
     } = opts;
 
-    let symbolizer = Symbolizer::builder()
+    let builder = Symbolizer::builder()
         .enable_auto_reload(auto_reload)
         .enable_code_info(code_info)
         .enable_inlined_fns(inlined_fns)
-        .enable_demangling(demangle)
-        .build();
+        .enable_demangling(demangle);
+
+    let builder = if debug_dirs.is_null() {
+        builder
+    } else {
+        // SAFETY: The caller ensures that the pointer is valid and the count
+        //         matches.
+        let slice = unsafe { slice_from_user_array(debug_dirs, debug_dirs_len) };
+        let iter = slice.iter().map(|cstr| {
+            Path::new(OsStr::from_bytes(
+                // SAFETY: The caller ensures that valid C strings are
+                //         provided.
+                unsafe { CStr::from_ptr(cstr.cast()) }.to_bytes(),
+            ))
+        });
+
+        builder.set_debug_dirs(Some(iter))
+    };
+
+    let symbolizer = builder.build();
     let symbolizer_box = Box::new(symbolizer);
     let () = set_last_err(blaze_err::BLAZE_ERR_OK);
     Box::into_raw(symbolizer_box)
@@ -955,6 +990,7 @@ mod tests {
     use super::*;
 
     use std::ffi::CString;
+    use std::fs::copy;
     use std::fs::read as read_file;
     use std::hint::black_box;
     use std::io::Error;
@@ -965,6 +1001,8 @@ mod tests {
     use blazesym::normalize;
     use blazesym::symbolize::Reason;
     use blazesym::Pid;
+
+    use tempfile::tempdir;
 
     use crate::blaze_err_last;
 
@@ -978,7 +1016,7 @@ mod tests {
         assert_eq!(mem::size_of::<blaze_symbolize_src_process>(), 16);
         assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_data>(), 24);
         assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_file>(), 16);
-        assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 16);
+        assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_code_info>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_inlined_fn>(), 48);
         assert_eq!(mem::size_of::<blaze_sym>(), 80);
@@ -1084,7 +1122,7 @@ mod tests {
         };
         assert_eq!(
             format!("{opts:?}"),
-            "blaze_symbolizer_opts { type_size: 16, auto_reload: false, code_info: false, inlined_fns: false, demangle: true, reserved: [0, 0, 0, 0] }"
+            "blaze_symbolizer_opts { type_size: 16, debug_dirs: 0x0, debug_dirs_len: 0, auto_reload: false, code_info: false, inlined_fns: false, demangle: true, reserved: [0, 0, 0, 0] }"
         );
     }
 
@@ -1599,6 +1637,105 @@ mod tests {
         };
         assert!(result.is_null());
         assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_NOT_FOUND);
+
+        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
+    /// Check that we can handle no configured debug directories.
+    #[test]
+    fn symbolize_no_debug_dirs() {
+        let dir = tempdir().unwrap();
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addrs-stripped-with-link.bin");
+        let dst = dir.path().join("test-stable-addrs-stripped-with-link.bin");
+        let _count = copy(path, &dst).unwrap();
+
+        let debug_dirs = [];
+        let opts = blaze_symbolizer_opts {
+            debug_dirs: debug_dirs.as_ptr(),
+            debug_dirs_len: debug_dirs.len(),
+            code_info: true,
+            inlined_fns: true,
+            demangle: true,
+            ..Default::default()
+        };
+        let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
+
+        let path_c = CString::new(dst.to_str().unwrap()).unwrap();
+        let elf_src = blaze_symbolize_src_elf {
+            path: path_c.as_ptr(),
+            debug_syms: true,
+            ..Default::default()
+        };
+        let addrs = [0x2000100];
+        let result = unsafe {
+            blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+        };
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+        // Shouldn't have symbolized because the debug link target cannot be
+        // found.
+        assert_eq!(sym.name, ptr::null());
+
+        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
+    /// Make sure that debug directories are configurable.
+    #[test]
+    fn symbolize_configurable_debug_dirs() {
+        let debug_dir1 = tempdir().unwrap();
+        let debug_dir1_c = CString::new(debug_dir1.path().to_str().unwrap()).unwrap();
+        let debug_dir2 = tempdir().unwrap();
+        let debug_dir2_c = CString::new(debug_dir2.path().to_str().unwrap()).unwrap();
+
+        let src = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addrs-dwarf-only.dbg");
+        let dst = debug_dir2.path().join("test-stable-addrs-dwarf-only.dbg");
+        let _count = copy(src, dst).unwrap();
+
+        let debug_dirs = [debug_dir1_c.as_ptr(), debug_dir2_c.as_ptr()];
+        let opts = blaze_symbolizer_opts {
+            debug_dirs: debug_dirs.as_ptr(),
+            debug_dirs_len: debug_dirs.len(),
+            code_info: true,
+            inlined_fns: true,
+            demangle: true,
+            ..Default::default()
+        };
+        let symbolizer = unsafe { blaze_symbolizer_new_opts(&opts) };
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addrs-stripped-with-link.bin");
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let elf_src = blaze_symbolize_src_elf {
+            path: path_c.as_ptr(),
+            debug_syms: true,
+            ..Default::default()
+        };
+        let addrs = [0x2000100];
+        let result = unsafe {
+            blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+        };
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+        let name = unsafe { CStr::from_ptr(sym.name) };
+        assert_eq!(name.to_str().unwrap(), "factorial");
 
         let () = unsafe { blaze_result_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };

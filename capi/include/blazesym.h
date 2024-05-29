@@ -459,6 +459,23 @@ typedef struct blaze_symbolizer_opts {
    */
   size_t type_size;
   /**
+   * Array of debug directories to search for split debug information.
+   *
+   * These directories will be consulted (in given order) when resolving
+   * debug links in binaries. By default and when this member is NULL,
+   * `/usr/lib/debug` and `/lib/debug/` will be searched. Setting an array
+   * here will overwrite these defaults, so make sure to include these
+   * directories as desired.
+   *
+   * Note that the directory containing a symbolization source is always an
+   * implicit candidate target directory of the highest precedence.
+   */
+  const char *const *debug_dirs;
+  /**
+   * The number of array elements in `debug_dirs`.
+   */
+  size_t debug_dirs_len;
+  /**
    * Whether or not to automatically reload file system based
    * symbolization sources that were updated since the last
    * symbolization operation.
