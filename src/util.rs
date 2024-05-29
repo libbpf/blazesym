@@ -16,6 +16,23 @@ use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::slice;
 
+use crate::Addr;
+
+
+#[cfg(feature = "tracing")]
+pub(crate) struct Hexify<'addrs>(pub &'addrs [Addr]);
+
+#[cfg(feature = "tracing")]
+impl Debug for Hexify<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let mut lst = f.debug_list();
+        for addr in self.0 {
+            let _lst = lst.entry(&format_args!("{addr:#x}"));
+        }
+        lst.finish()
+    }
+}
+
 
 /// A type providing a derive for `Debug` for types that
 /// otherwise don't.
@@ -531,6 +548,14 @@ mod tests {
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
+
+    /// Exercise the `Debug` representation of various types.
+    #[test]
+    fn debug_repr() {
+        let addrs = [0x42, 0x1337];
+        let hex = Hexify(&addrs);
+        assert_eq!(format!("{hex:?}"), "[0x42, 0x1337]");
+    }
 
     /// Check whether an iterator represents a sorted sequence.
     // Copy of iterator::is_sorted_by used while it is still unstable.

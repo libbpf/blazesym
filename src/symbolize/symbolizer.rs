@@ -1,8 +1,6 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt::Debug;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::mem::take;
 use std::ops::Deref as _;
@@ -40,6 +38,8 @@ use crate::symbolize::TranslateFileOffset;
 use crate::util;
 use crate::util::uname_release;
 use crate::util::Dbg;
+#[cfg(feature = "tracing")]
+use crate::util::Hexify;
 #[cfg(feature = "apk")]
 use crate::zip;
 use crate::Addr;
@@ -73,21 +73,6 @@ use super::SrcLang;
 use super::Sym;
 use super::Symbolize;
 use super::Symbolized;
-
-
-#[cfg(feature = "tracing")]
-struct Hexify<'addrs>(&'addrs [Addr]);
-
-#[cfg(feature = "tracing")]
-impl Debug for Hexify<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let mut lst = f.debug_list();
-        for addr in self.0 {
-            let _lst = lst.entry(&format_args!("{addr:#x}"));
-        }
-        lst.finish()
-    }
-}
 
 
 #[cfg(feature = "apk")]
@@ -1394,10 +1379,6 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let addrs = [0x42, 0x1337];
-        let hex = Hexify(&addrs);
-        assert_eq!(format!("{hex:?}"), "[0x42, 0x1337]");
-
         let builder = Symbolizer::builder();
         assert_ne!(format!("{builder:?}"), "");
 
