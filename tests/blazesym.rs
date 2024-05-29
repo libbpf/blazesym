@@ -456,7 +456,8 @@ fn symbolize_configurable_debug_dirs() {
 
     let src = symbolize::Source::from(symbolize::Elf::new(dst));
     let symbolizer = Symbolizer::builder()
-        .set_debug_dirs([] as [&Path; 0])
+        .set_debug_dirs(Option::<[&Path; 0]>::None)
+        .set_debug_dirs(Option::<[&Path; 0]>::Some([]))
         .build();
     let result = symbolizer
         .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
@@ -476,7 +477,7 @@ fn symbolize_configurable_debug_dirs() {
 
     let src = symbolize::Source::from(symbolize::Elf::new(path));
     let symbolizer = Symbolizer::builder()
-        .set_debug_dirs([debug_dir1, debug_dir2])
+        .set_debug_dirs(Some([debug_dir1, debug_dir2]))
         .build();
     let sym = symbolizer
         .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
