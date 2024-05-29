@@ -3,6 +3,10 @@ Unreleased
 - Added support for transparently following debug links in ELF binaries
   - Added `symbolize::Builder::set_debug_dirs` for configuring directories
     searched for targets
+- Introduced `normalize::NormalizeOpts` type for configurable address
+  normalization
+  - Removed `normalize::Normalizer::normalize_user_addrs_sorted` in
+    favor of `normalize::Normalizer::normalize_user_addrs_opts`
 - Fixed handling of zero sized symbols in Gsym symbolization logic
 - Fixed reading of ELF section contents of sections without actual data
 

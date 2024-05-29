@@ -14,6 +14,7 @@ use std::slice;
 
 use blazesym::normalize::Apk;
 use blazesym::normalize::Elf;
+use blazesym::normalize::NormalizeOpts;
 use blazesym::normalize::Normalizer;
 use blazesym::normalize::Reason;
 use blazesym::normalize::Unknown;
@@ -67,6 +68,51 @@ impl Default for blaze_normalizer_opts {
             build_ids: false,
             cache_build_ids: false,
             reserved: [0; 5],
+        }
+    }
+}
+
+
+/// Options influencing the address normalization process.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_normalize_opts {
+    /// The size of this object's type.
+    ///
+    /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
+    /// ensure compatibility in the presence of member additions.
+    pub type_size: usize,
+    /// Whether or not addresses are sorted (in ascending order) already.
+    ///
+    /// Normalization always happens on sorted addresses and if the addresses
+    /// are sorted already, the library does not need to sort and later restore
+    /// original ordering, speeding up the normalization process.
+    pub sorted_addrs: bool,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 7],
+}
+
+impl Default for blaze_normalize_opts {
+    fn default() -> Self {
+        Self {
+            type_size: size_of::<Self>(),
+            sorted_addrs: false,
+            reserved: [0; 7],
+        }
+    }
+}
+
+impl From<blaze_normalize_opts> for NormalizeOpts {
+    fn from(opts: blaze_normalize_opts) -> Self {
+        let blaze_normalize_opts {
+            type_size: _,
+            sorted_addrs,
+            reserved: _,
+        } = opts;
+        Self {
+            sorted_addrs,
+            _non_exhaustive: (),
         }
     }
 }
@@ -511,10 +557,13 @@ impl blaze_normalized_user_output {
 
 /// Normalize a list of user space addresses.
 ///
-/// C ABI compatible version of [`Normalizer::normalize_user_addrs`].
+/// C ABI compatible version of [`Normalizer::normalize_user_addrs_opts`].
 ///
 /// `pid` should describe the PID of the process to which the addresses
 /// belongs. It may be `0` if they belong to the calling process.
+///
+/// `opts` should point to a valid [`blaze_normalize_opts`] object or be
+/// NULL, in which case default options are used.
 ///
 /// On success, the function creates a new [`blaze_normalized_user_output`]
 /// object and returns it. The resulting object should be released using
@@ -523,12 +572,6 @@ impl blaze_normalized_user_output {
 /// On error, the function returns `NULL` and sets the thread's last error to
 /// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
 /// error.
-///
-/// Contrary to [`blaze_normalize_user_addrs_sorted`] the provided
-/// `addrs` array does not have to be sorted, but otherwise the
-/// functions behave identically. If you happen to know that `addrs` is
-/// sorted, using [`blaze_normalize_user_addrs_sorted`] instead will
-/// result in slightly faster normalization.
 ///
 /// # Safety
 /// - `addrs` needs to be a valid pointer to `addr_cnt` addresses
@@ -538,14 +581,26 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     pid: u32,
     addrs: *const Addr,
     addr_cnt: usize,
+    opts: *const blaze_normalize_opts,
 ) -> *mut blaze_normalized_user_output {
+    let opts = if opts.is_null() {
+        NormalizeOpts::default()
+    } else {
+        if !input_zeroed!(opts, blaze_normalize_opts) {
+            let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+            return ptr::null_mut()
+        }
+        let opts = input_sanitize!(opts, blaze_normalize_opts);
+        NormalizeOpts::from(opts)
+    };
+
     // SAFETY: The caller needs to ensure that `normalizer` is a valid
     //         pointer.
     let normalizer = unsafe { &*normalizer };
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_cnt` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
-    let result = normalizer.normalize_user_addrs(pid.into(), addrs);
+    let result = normalizer.normalize_user_addrs_opts(pid.into(), addrs, &opts);
     match result {
         Ok(addrs) => {
             let output_box = Box::new(ManuallyDrop::into_inner(
@@ -562,64 +617,11 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
 }
 
 
-/// Normalize a list of user space addresses.
-///
-/// C ABI compatible version of [`Normalizer::normalize_user_addrs_sorted`].
-///
-/// `pid` should describe the PID of the process to which the addresses
-/// belongs. It may be `0` if they belong to the calling process.
-///
-/// The `addrs` array has to be sorted in ascending order. By providing
-/// a pre-sorted array the library does not have to sort internally,
-/// which will result in quicker normalization. If you don't have sorted
-/// addresses, use [`blaze_normalize_user_addrs`] instead.
-///
-/// On success, the function creates a new [`blaze_normalized_user_output`]
-/// object and returns it. The resulting object should be released using
-/// [`blaze_user_output_free`] once it is no longer needed.
-///
-/// On error, the function returns `NULL` and sets the thread's last error to
-/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
-/// error.
-///
-/// # Safety
-/// - `addrs` needs to be a valid pointer to `addr_cnt` addresses
-#[no_mangle]
-pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
-    normalizer: *const blaze_normalizer,
-    pid: u32,
-    addrs: *const Addr,
-    addr_cnt: usize,
-) -> *mut blaze_normalized_user_output {
-    // SAFETY: The caller needs to ensure that `normalizer` is a valid
-    //         pointer.
-    let normalizer = unsafe { &*normalizer };
-    // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
-    //         that it points to `addr_cnt` elements.
-    let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
-    let result = normalizer.normalize_user_addrs_sorted(pid.into(), addrs);
-    match result {
-        Ok(addrs) => {
-            let output_box = Box::new(ManuallyDrop::into_inner(
-                blaze_normalized_user_output::from(addrs),
-            ));
-            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
-            Box::into_raw(output_box)
-        }
-        Err(err) => {
-            let () = set_last_err(err.kind().into());
-            ptr::null_mut()
-        }
-    }
-}
-
-
-/// Free an object as returned by [`blaze_normalize_user_addrs`] or
-/// [`blaze_normalize_user_addrs_sorted`].
+/// Free an object as returned by [`blaze_normalize_user_addrs`].
 ///
 /// # Safety
 /// The provided object should have been created by
-/// [`blaze_normalize_user_addrs`] or [`blaze_normalize_user_addrs_sorted`].
+/// [`blaze_normalize_user_addrs`].
 #[no_mangle]
 pub unsafe extern "C" fn blaze_user_output_free(output: *mut blaze_normalized_user_output) {
     if output.is_null() {
@@ -668,6 +670,7 @@ mod tests {
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
         assert_eq!(size_of::<blaze_normalizer_opts>(), 16);
+        assert_eq!(size_of::<blaze_normalize_opts>(), 16);
         assert_eq!(size_of::<blaze_user_meta_apk>(), 16);
         assert_eq!(size_of::<blaze_user_meta_elf>(), 32);
         assert_eq!(size_of::<blaze_user_meta_unknown>(), 8);
@@ -843,7 +846,13 @@ mod tests {
             ];
 
             let result = unsafe {
-                blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+                blaze_normalize_user_addrs(
+                    normalizer,
+                    0,
+                    addrs.as_slice().as_ptr(),
+                    addrs.len(),
+                    ptr::null(),
+                )
             };
             assert_ne!(result, ptr::null_mut());
 
@@ -892,8 +901,12 @@ mod tests {
         let normalizer = blaze_normalizer_new();
         assert_ne!(normalizer, ptr::null_mut());
 
+        let opts = blaze_normalize_opts {
+            sorted_addrs: true,
+            ..Default::default()
+        };
         let result = unsafe {
-            blaze_normalize_user_addrs_sorted(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+            blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len(), &opts)
         };
         assert_ne!(result, ptr::null_mut());
 
@@ -921,8 +934,12 @@ mod tests {
         let normalizer = blaze_normalizer_new();
         assert_ne!(normalizer, ptr::null_mut());
 
+        let opts = blaze_normalize_opts {
+            sorted_addrs: true,
+            ..Default::default()
+        };
         let result = unsafe {
-            blaze_normalize_user_addrs_sorted(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+            blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len(), &opts)
         };
         assert_eq!(result, ptr::null_mut());
         assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_INVALID_INPUT);
@@ -955,13 +972,18 @@ mod tests {
             let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };
             assert!(!normalizer.is_null());
 
+            let opts = blaze_normalize_opts {
+                sorted_addrs: true,
+                ..Default::default()
+            };
             let addrs = [the_answer_addr as Addr];
             let result = unsafe {
-                blaze_normalize_user_addrs_sorted(
+                blaze_normalize_user_addrs(
                     normalizer,
                     0,
                     addrs.as_slice().as_ptr(),
                     addrs.len(),
+                    &opts,
                 )
             };
             assert!(!result.is_null());

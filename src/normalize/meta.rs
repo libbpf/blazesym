@@ -21,7 +21,7 @@ use super::Reason;
 /// let addr_in_elf_in_apk = capture_addr_in_elf_in_apk();
 /// let normalizer = normalize::Normalizer::new();
 /// let normalized = normalizer
-///     .normalize_user_addrs_sorted(Pid::Slf, [addr_in_elf_in_apk].as_slice())
+///     .normalize_user_addrs(Pid::Slf, [addr_in_elf_in_apk].as_slice())
 ///     .unwrap();
 /// let (output, meta_idx) = normalized.outputs[0];
 /// let meta = &normalized.meta[meta_idx];

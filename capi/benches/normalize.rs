@@ -5,7 +5,8 @@ use std::ptr;
 
 use blazesym::Addr;
 
-use blazesym_c::blaze_normalize_user_addrs_sorted;
+use blazesym_c::blaze_normalize_opts;
+use blazesym_c::blaze_normalize_user_addrs;
 use blazesym_c::blaze_normalizer_free;
 use blazesym_c::blaze_normalizer_new_opts;
 use blazesym_c::blaze_normalizer_opts;
@@ -21,7 +22,7 @@ fn normalize_process_impl(read_build_ids: bool) {
         libc::dlopen as Addr,
         libc::fopen as Addr,
         blaze_normalizer_new_opts as Addr,
-        blaze_normalize_user_addrs_sorted as Addr,
+        blaze_normalize_user_addrs as Addr,
     ];
     let () = addrs.sort();
 
@@ -32,13 +33,18 @@ fn normalize_process_impl(read_build_ids: bool) {
     let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };
     assert_ne!(normalizer, ptr::null_mut());
 
+    let opts = blaze_normalize_opts {
+        sorted_addrs: true,
+        ..Default::default()
+    };
     let pid = 0;
     let result = unsafe {
-        blaze_normalize_user_addrs_sorted(
+        blaze_normalize_user_addrs(
             normalizer,
             black_box(pid),
             black_box(addrs.as_slice().as_ptr()),
             black_box(addrs.len()),
+            black_box(&opts),
         )
     };
     assert_ne!(result, ptr::null_mut());

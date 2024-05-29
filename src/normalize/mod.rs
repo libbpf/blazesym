@@ -64,6 +64,21 @@ pub(crate) use user::normalize_sorted_user_addrs_with_entries;
 pub(crate) use user::Handler;
 
 
+/// Options influencing the address normalization process.
+#[derive(Clone, Debug, Default)]
+pub struct NormalizeOpts {
+    /// Whether or not addresses are sorted (in ascending order) already.
+    ///
+    /// Normalization always happens on sorted addresses and if the addresses
+    /// are sorted already, the library does not need to sort and later restore
+    /// original ordering, speeding up the normalization process.
+    pub sorted_addrs: bool,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
+}
+
+
 /// The reason why normalization failed.
 ///
 /// The reason is generally only meant as a hint. Reasons reported may change

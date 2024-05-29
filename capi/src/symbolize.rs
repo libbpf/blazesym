@@ -1384,7 +1384,7 @@ mod tests {
 
         let normalizer = normalize::Normalizer::new();
         let normalized = normalizer
-            .normalize_user_addrs_sorted(Pid::Slf, [the_answer_addr as Addr].as_slice())
+            .normalize_user_addrs(Pid::Slf, [the_answer_addr as Addr].as_slice())
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
