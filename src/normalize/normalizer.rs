@@ -4,6 +4,8 @@ use crate::maps;
 use crate::normalize::buildid::BuildIdReader;
 use crate::normalize::buildid::CachingBuildIdReader;
 use crate::util;
+#[cfg(feature = "tracing")]
+use crate::util::Hexify;
 use crate::Addr;
 use crate::Pid;
 use crate::Result;
@@ -238,7 +240,7 @@ impl Normalizer {
     ///
     /// Normalized outputs are reported in the exact same order (and in
     /// equal amount) in which the non-normalized ones were provided.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(pid = ?pid, addrs = ?Hexify(addrs))))]
     pub fn normalize_user_addrs_sorted(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
         self.normalize_user_addrs_iter(addrs.iter().copied(), pid)
     }
@@ -252,7 +254,7 @@ impl Normalizer {
     /// identically. If you do happen to know that `addrs` is sorted, using
     /// [`Normalizer::normalize_user_addrs_sorted`] instead will result in
     /// slightly faster normalization.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(pid = ?pid, addrs = ?Hexify(addrs))))]
     pub fn normalize_user_addrs(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
         util::with_ordered_elems(
             addrs,
