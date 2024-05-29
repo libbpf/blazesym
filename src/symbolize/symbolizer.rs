@@ -294,17 +294,26 @@ impl Builder {
     ///
     /// Note that the directory containing a symbolization source is always an
     /// implicit candidate target directory of the highest precedence.
+    ///
+    /// A value of `None` reverts to using the default set of directories.
     #[cfg(feature = "dwarf")]
     #[cfg_attr(docsrs, doc(cfg(feature = "dwarf")))]
-    pub fn set_debug_dirs<D, P>(mut self, debug_dirs: D) -> Self
+    pub fn set_debug_dirs<D, P>(mut self, debug_dirs: Option<D>) -> Self
     where
         D: IntoIterator<Item = P>,
         P: AsRef<Path>,
     {
-        self.debug_dirs = debug_dirs
-            .into_iter()
-            .map(|p| p.as_ref().to_path_buf())
-            .collect();
+        if let Some(debug_dirs) = debug_dirs {
+            self.debug_dirs = debug_dirs
+                .into_iter()
+                .map(|p| p.as_ref().to_path_buf())
+                .collect();
+        } else {
+            self.debug_dirs = DEFAULT_DEBUG_DIRS
+                .iter()
+                .map(PathBuf::from)
+                .collect::<Vec<_>>();
+        }
         self
     }
 
