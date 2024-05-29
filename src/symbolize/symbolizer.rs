@@ -1394,6 +1394,10 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
+        let addrs = [0x42, 0x1337];
+        let hex = Hexify(&addrs);
+        assert_eq!(format!("{hex:?}"), "[0x42, 0x1337]");
+
         let builder = Symbolizer::builder();
         assert_ne!(format!("{builder:?}"), "");
 
@@ -1416,6 +1420,9 @@ mod tests {
         let elf = Path::new("subdir/libc.so");
         let path = create_apk_elf_path(apk, elf).unwrap();
         assert_eq!(path, Path::new("/root/test.apk!/subdir/libc.so"));
+
+        let err = create_apk_elf_path(Path::new(""), elf).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
     }
 
     /// Check that we can correctly construct the source code path to a symbol.
