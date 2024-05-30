@@ -248,6 +248,7 @@ pub struct Process {
     pub perf_map: bool,
     /// Whether to work with `/proc/<pid>/map_files/` entries or with
     /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
+    ///
     /// `map_files` usage is generally strongly encouraged, as symbolic
     /// path usage is unlikely to work reliably in mount namespace
     /// contexts or when files have been deleted from the file system.

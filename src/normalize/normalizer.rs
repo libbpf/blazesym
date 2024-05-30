@@ -170,7 +170,12 @@ impl Normalizer {
         Builder::default()
     }
 
-    fn normalize_user_addrs_impl<A, E, M>(&self, addrs: A, entries: E) -> Result<UserOutput<'_>>
+    fn normalize_user_addrs_impl<A, E, M>(
+        &self,
+        addrs: A,
+        entries: E,
+        map_files: bool,
+    ) -> Result<UserOutput<'_>>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
         E: Iterator<Item = Result<M>>,
@@ -189,19 +194,24 @@ impl Normalizer {
             &NoBuildIdReader as &dyn BuildIdReader
         };
 
-        let mut handler = user::NormalizationHandler::new(reader, addrs_cnt);
+        let mut handler = user::NormalizationHandler::new(reader, addrs_cnt, map_files);
         let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
     }
 
-    fn normalize_user_addrs_iter<A>(&self, addrs: A, pid: Pid) -> Result<UserOutput>
+    fn normalize_user_addrs_iter<A>(
+        &self,
+        addrs: A,
+        pid: Pid,
+        map_files: bool,
+    ) -> Result<UserOutput>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
         if !self.cache_maps {
             let entries = maps::parse_filtered(pid)?;
-            self.normalize_user_addrs_impl(addrs, entries)
+            self.normalize_user_addrs_impl(addrs, entries, map_files)
         } else {
             let parsed = self.cached_entries.get_or_try_insert(pid, || {
                 // If we use the cached maps entries but don't have anything
@@ -214,7 +224,7 @@ impl Normalizer {
             })?;
 
             let entries = parsed.iter().map(Ok);
-            self.normalize_user_addrs_impl(addrs, entries)
+            self.normalize_user_addrs_impl(addrs, entries, map_files)
         }
     }
 
@@ -245,16 +255,17 @@ impl Normalizer {
     ) -> Result<UserOutput> {
         let NormalizeOpts {
             sorted_addrs,
+            map_files,
             _non_exhaustive: (),
         } = *opts;
 
         if sorted_addrs {
-            self.normalize_user_addrs_iter(addrs.iter().copied(), pid)
+            self.normalize_user_addrs_iter(addrs.iter().copied(), pid, map_files)
         } else {
             util::with_ordered_elems(
                 addrs,
                 |normalized: &mut UserOutput| normalized.outputs.as_mut_slice(),
-                |sorted_addrs| self.normalize_user_addrs_iter(sorted_addrs, pid),
+                |sorted_addrs| self.normalize_user_addrs_iter(sorted_addrs, pid, map_files),
             )
         }
     }
