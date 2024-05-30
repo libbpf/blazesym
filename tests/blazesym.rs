@@ -789,17 +789,22 @@ fn symbolize_process_with_custom_dispatch() {
 /// Check that we can normalize addresses in an ELF shared object.
 #[test]
 fn normalize_elf_addr() {
-    fn test(so: &str) {
+    fn test(so: &str, map_files: bool) {
         let test_so = Path::new(&env!("CARGO_MANIFEST_DIR")).join("data").join(so);
         let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
         let handle = unsafe { libc::dlopen(so_cstr.as_ptr(), libc::RTLD_NOW) };
         assert!(!handle.is_null());
+        defer!({
+            let rc = unsafe { libc::dlclose(handle) };
+            assert_eq!(rc, 0, "{}", Error::last_os_error());
+        });
 
         let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
         assert!(!the_answer_addr.is_null());
 
         let opts = NormalizeOpts {
             sorted_addrs: true,
+            map_files,
             ..Default::default()
         };
         let normalizer = Normalizer::new();
@@ -809,12 +814,15 @@ fn normalize_elf_addr() {
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
 
-        let rc = unsafe { libc::dlclose(handle) };
-        assert_eq!(rc, 0, "{}", Error::last_os_error());
-
         let output = normalized.outputs[0];
         let meta = &normalized.meta[output.1];
-        assert_eq!(meta.elf().unwrap().path, test_so);
+        let path = &meta.elf().unwrap().path;
+        assert_eq!(
+            path.to_str().unwrap().contains("/map_files/"),
+            map_files,
+            "{path:?}"
+        );
+        assert_eq!(path.canonicalize().unwrap(), test_so);
 
         let elf = symbolize::Elf::new(test_so);
         let src = symbolize::Source::Elf(elf);
@@ -836,8 +844,10 @@ fn normalize_elf_addr() {
         assert_eq!(sym.name, "the_answer");
     }
 
-    test("libtest-so.so");
-    test("libtest-so-no-separate-code.so");
+    for map_files in [false, true] {
+        test("libtest-so.so", map_files);
+        test("libtest-so-no-separate-code.so", map_files);
+    }
 }
 
 

@@ -421,10 +421,22 @@ typedef struct blaze_normalize_opts {
    */
   bool sorted_addrs;
   /**
+   * Whether to report `/proc/<pid>/map_files/` entry paths or work
+   * with symbolic paths mentioned in `/proc/<pid>/maps` instead.
+   *
+   * Relying on `map_files` may make sense in cases where
+   * symbolization happens on the local system and the reported paths
+   * can be worked with directly. In most other cases where one wants
+   * to attach meaning to symbolic paths on a remote system (e.g., by
+   * using them for file look up) symbolic paths are probably the
+   * better choice.
+   */
+  bool map_files;
+  /**
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[7];
+  uint8_t reserved[6];
 } blaze_normalize_opts;
 
 /**

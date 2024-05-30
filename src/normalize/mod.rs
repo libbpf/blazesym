@@ -73,6 +73,16 @@ pub struct NormalizeOpts {
     /// are sorted already, the library does not need to sort and later restore
     /// original ordering, speeding up the normalization process.
     pub sorted_addrs: bool,
+    /// Whether to report `/proc/<pid>/map_files/` entry paths or work
+    /// with symbolic paths mentioned in `/proc/<pid>/maps` instead.
+    ///
+    /// Relying on `map_files` may make sense in cases where
+    /// symbolization happens on the local system and the reported paths
+    /// can be worked with directly. In most other cases where one wants
+    /// to attach meaning to symbolic paths on a remote system (e.g., by
+    /// using them for file look up) symbolic paths are probably the
+    /// better choice.
+    pub map_files: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),

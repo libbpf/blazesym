@@ -88,9 +88,19 @@ pub struct blaze_normalize_opts {
     /// are sorted already, the library does not need to sort and later restore
     /// original ordering, speeding up the normalization process.
     pub sorted_addrs: bool,
+    /// Whether to report `/proc/<pid>/map_files/` entry paths or work
+    /// with symbolic paths mentioned in `/proc/<pid>/maps` instead.
+    ///
+    /// Relying on `map_files` may make sense in cases where
+    /// symbolization happens on the local system and the reported paths
+    /// can be worked with directly. In most other cases where one wants
+    /// to attach meaning to symbolic paths on a remote system (e.g., by
+    /// using them for file look up) symbolic paths are probably the
+    /// better choice.
+    pub map_files: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 7],
+    pub reserved: [u8; 6],
 }
 
 impl Default for blaze_normalize_opts {
@@ -98,7 +108,8 @@ impl Default for blaze_normalize_opts {
         Self {
             type_size: size_of::<Self>(),
             sorted_addrs: false,
-            reserved: [0; 7],
+            map_files: false,
+            reserved: [0; 6],
         }
     }
 }
@@ -108,10 +119,12 @@ impl From<blaze_normalize_opts> for NormalizeOpts {
         let blaze_normalize_opts {
             type_size: _,
             sorted_addrs,
+            map_files,
             reserved: _,
         } = opts;
         Self {
             sorted_addrs,
+            map_files,
             _non_exhaustive: (),
         }
     }
