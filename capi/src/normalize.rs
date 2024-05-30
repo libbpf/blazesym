@@ -545,7 +545,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs(
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_cnt` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
-    let result = normalizer.normalize_user_addrs(pid.into(), addrs);
+    let result = normalizer.normalize_user_addrs(pid.into(), &addrs);
     match result {
         Ok(addrs) => {
             let output_box = Box::new(ManuallyDrop::into_inner(
@@ -597,7 +597,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_sorted(
     // SAFETY: The caller needs to ensure that `addrs` is a valid pointer and
     //         that it points to `addr_cnt` elements.
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
-    let result = normalizer.normalize_user_addrs_sorted(pid.into(), addrs);
+    let result = normalizer.normalize_user_addrs_sorted(pid.into(), &addrs);
     match result {
         Ok(addrs) => {
             let output_box = Box::new(ManuallyDrop::into_inner(
