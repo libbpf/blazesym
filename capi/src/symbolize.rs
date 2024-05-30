@@ -5,6 +5,7 @@ use std::ffi::CStr;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::mem;
+use std::ops::Deref as _;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
@@ -29,6 +30,7 @@ use crate::blaze_err;
 #[cfg(doc)]
 use crate::blaze_err_last;
 use crate::set_last_err;
+use crate::slice_from_aligned_user_array;
 use crate::slice_from_user_array;
 
 
@@ -259,7 +261,7 @@ impl From<blaze_symbolize_src_gsym_data> for GsymData<'_> {
             reserved: (),
         } = gsym;
         Self {
-            data: unsafe { slice_from_user_array(data, data_len) },
+            data: unsafe { slice_from_aligned_user_array(data, data_len) },
             _non_exhaustive: (),
         }
     }
@@ -684,23 +686,14 @@ unsafe fn blaze_symbolize_impl(
 ) -> *const blaze_result {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
+    // SAFETY: The caller ensures that the pointer is valid and the count
+    //         matches.
+    let addrs = unsafe { slice_from_user_array(*inputs.as_inner_ref(), input_cnt) };
 
     let input = match inputs {
-        Input::AbsAddr(addrs) => {
-            // SAFETY: The caller ensures that the pointer is valid and the count
-            //         matches.
-            Input::AbsAddr(unsafe { slice_from_user_array(addrs, input_cnt) })
-        }
-        Input::VirtOffset(addrs) => {
-            // SAFETY: The caller ensures that the pointer is valid and the count
-            //         matches.
-            Input::VirtOffset(unsafe { slice_from_user_array(addrs, input_cnt) })
-        }
-        Input::FileOffset(offsets) => {
-            // SAFETY: The caller ensures that the pointer is valid and the count
-            //         matches.
-            Input::FileOffset(unsafe { slice_from_user_array(offsets, input_cnt) })
-        }
+        Input::AbsAddr(..) => Input::AbsAddr(addrs.deref()),
+        Input::VirtOffset(..) => Input::VirtOffset(addrs.deref()),
+        Input::FileOffset(..) => Input::FileOffset(addrs.deref()),
     };
 
     let result = symbolizer.symbolize(&src, input);

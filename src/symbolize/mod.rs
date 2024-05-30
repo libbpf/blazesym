@@ -205,6 +205,14 @@ impl<T> Input<T> {
         }
     }
 
+    /// Retrieve a reference to the inner payload.
+    #[inline]
+    pub fn as_inner_ref(&self) -> &T {
+        match self {
+            Self::AbsAddr(x) | Self::VirtOffset(x) | Self::FileOffset(x) => x,
+        }
+    }
+
     /// Extract the inner payload.
     ///
     /// ```rust

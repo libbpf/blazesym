@@ -11,6 +11,8 @@ Unreleased
   - Added `blaze_normalize_reason_str` to retrieve textual representation
 - Added `blaze_symbolize_elf_file_offsets` function for symbolization of
   file offsets
+- Added support for transparently working with input data not in accordance with
+  Rust's alignment requirements
 - Removed `BLAZE_INPUT` macro
 - Bumped `blazesym` dependency to `0.2.0-alpha.12`
 
