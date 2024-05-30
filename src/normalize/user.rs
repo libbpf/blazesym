@@ -7,7 +7,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::maps;
-use crate::maps::EntryPath;
 use crate::maps::MapsEntry;
 use crate::maps::PathName;
 use crate::Addr;
@@ -24,12 +23,13 @@ use super::Reason;
 
 /// Make a [`UserMeta::Elf`] variant.
 fn make_elf_meta<'src>(
-    entry_path: &EntryPath,
+    path: &Path,
+    maps_file: &Path,
     build_id_reader: &dyn BuildIdReader<'src>,
 ) -> Result<UserMeta<'src>> {
     let elf = Elf {
-        path: entry_path.symbolic_path.to_path_buf(),
-        build_id: build_id_reader.read_build_id(&entry_path.maps_file)?,
+        path: path.to_path_buf(),
+        build_id: build_id_reader.read_build_id(maps_file)?,
         _non_exhaustive: (),
     };
     let meta = UserMeta::Elf(elf);
@@ -39,9 +39,9 @@ fn make_elf_meta<'src>(
 
 /// Make a [`UserMeta::Apk`] variant.
 #[cfg(feature = "apk")]
-fn make_apk_meta(entry_path: &EntryPath) -> Result<UserMeta<'static>> {
+fn make_apk_meta(path: &Path) -> Result<UserMeta<'static>> {
     let apk = Apk {
-        path: entry_path.symbolic_path.to_path_buf(),
+        path: path.to_path_buf(),
         _non_exhaustive: (),
     };
     let meta = UserMeta::Apk(apk);
@@ -133,11 +133,17 @@ pub(super) struct NormalizationHandler<'reader, 'src> {
     /// A mapping from [`Reason`] to the index of the `Unknown` entry with this
     /// very reason in `meta_lookup`, if any.
     unknown_cache: HashMap<Reason, usize>,
+    /// Report `map_files` entries instead of symbolic paths.
+    map_files: bool,
 }
 
 impl<'reader, 'src> NormalizationHandler<'reader, 'src> {
     /// Instantiate a new `NormalizationHandler` object.
-    pub(crate) fn new(reader: &'reader dyn BuildIdReader<'src>, addr_cnt: usize) -> Self {
+    pub(crate) fn new(
+        reader: &'reader dyn BuildIdReader<'src>,
+        addr_cnt: usize,
+        map_files: bool,
+    ) -> Self {
         Self {
             normalized: UserOutput {
                 outputs: Vec::with_capacity(addr_cnt),
@@ -146,6 +152,7 @@ impl<'reader, 'src> NormalizationHandler<'reader, 'src> {
             build_id_reader: reader,
             meta_lookup: HashMap::new(),
             unknown_cache: HashMap::new(),
+            map_files,
         }
     }
 }
@@ -162,6 +169,11 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
     fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
         match &entry.path_name {
             Some(PathName::Path(entry_path)) => {
+                let path = if self.map_files {
+                    &entry_path.maps_file
+                } else {
+                    &entry_path.symbolic_path
+                };
                 let file_off = addr - entry.range.start + entry.offset;
                 let ext = entry_path
                     .symbolic_path
@@ -171,15 +183,15 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                     #[cfg(feature = "apk")]
                     Some("apk") | Some("zip") => self.normalized.add_normalized_offset(
                         file_off,
-                        &entry_path.symbolic_path,
+                        path,
                         &mut self.meta_lookup,
-                        || make_apk_meta(entry_path),
+                        || make_apk_meta(path),
                     ),
                     _ => self.normalized.add_normalized_offset(
                         file_off,
-                        &entry_path.symbolic_path,
+                        path,
                         &mut self.meta_lookup,
-                        || make_elf_meta(entry_path, self.build_id_reader),
+                        || make_elf_meta(path, &entry_path.maps_file, self.build_id_reader),
                     ),
                 }
             }
@@ -296,11 +308,12 @@ mod tests {
 
             let pid = Pid::Slf;
             let addrs = [unknown_addr as Addr];
+            let map_files = false;
 
             let entries = maps::parse_file(maps.as_bytes(), pid)
                 .filter(|result| result.as_ref().map(maps::filter_relevant).unwrap_or(true));
             let reader = NoBuildIdReader;
-            let mut handler = NormalizationHandler::new(&reader, addrs.len());
+            let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
