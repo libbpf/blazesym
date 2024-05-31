@@ -29,7 +29,7 @@ use crate::blaze_err;
 use crate::blaze_err_last;
 use crate::from_cstr;
 use crate::set_last_err;
-use crate::slice_from_user_array;
+use crate::util::slice_from_user_array;
 
 
 /// C ABI compatible version of [`blazesym::inspect::Inspector`].

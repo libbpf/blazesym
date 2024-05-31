@@ -26,7 +26,7 @@ use crate::blaze_err;
 #[cfg(doc)]
 use crate::blaze_err_last;
 use crate::set_last_err;
-use crate::slice_from_user_array;
+use crate::util::slice_from_user_array;
 
 
 /// C ABI compatible version of [`blazesym::normalize::Normalizer`].
