@@ -552,10 +552,10 @@ typedef struct blaze_sym {
    * The byte offset of the address that got symbolized from the
    * start of the symbol (i.e., from `addr`).
    *
-   * E.g., when normalizing address 0x1337 of a function that starts at
+   * E.g., when symbolizing address 0x1337 of a function that starts at
    * 0x1330, the offset will be set to 0x07 (and `addr` will be 0x1330). This
    * member is especially useful in contexts when input addresses are not
-   * already normalized, such as when normalizing an address in a process
+   * already normalized, such as when symbolizing an address in a process
    * context (which may have been relocated and/or have layout randomizations
    * applied).
    */
