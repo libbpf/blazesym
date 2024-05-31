@@ -14,7 +14,7 @@ jobs:
     - id: version
       shell: bash
       run: |
-        cd cli
+        cd capi
         cargo generate-lockfile
         version="$(cargo pkgid | cut -d '#' -f2 | cut -d '@' -f2 | grep -o '[^:]*$')"
 
