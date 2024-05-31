@@ -30,8 +30,8 @@ use crate::blaze_err;
 #[cfg(doc)]
 use crate::blaze_err_last;
 use crate::set_last_err;
-use crate::slice_from_aligned_user_array;
-use crate::slice_from_user_array;
+use crate::util::slice_from_aligned_user_array;
+use crate::util::slice_from_user_array;
 
 
 /// The parameters to load symbols and debug information from an ELF.
