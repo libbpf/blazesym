@@ -38,6 +38,7 @@ fn make_elf_meta<'src>(
 
 
 /// Make a [`UserMeta::Apk`] variant.
+#[cfg(feature = "apk")]
 fn make_apk_meta(entry_path: &EntryPath) -> Result<UserMeta<'static>> {
     let apk = Apk {
         path: entry_path.symbolic_path.to_path_buf(),
@@ -167,6 +168,7 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                     .extension()
                     .unwrap_or_else(|| OsStr::new(""));
                 match ext.to_str() {
+                    #[cfg(feature = "apk")]
                     Some("apk") | Some("zip") => self.normalized.add_normalized_offset(
                         file_off,
                         &entry_path.symbolic_path,
