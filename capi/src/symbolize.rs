@@ -966,6 +966,8 @@ mod tests {
     use blazesym::symbolize::Reason;
     use blazesym::Pid;
 
+    use crate::blaze_err_last;
+
 
     /// Check that various types have expected sizes.
     #[test]
@@ -1570,6 +1572,33 @@ mod tests {
             unsafe { CStr::from_ptr(sym.name) },
             CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()
         );
+
+        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
+    /// Check that we report the expected error when attempting to
+    /// symbolize data using a non-existent source.
+    #[test]
+    fn symbolize_elf_non_existent() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("does-not-actually-exist.bin");
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let elf_src = blaze_symbolize_src_elf {
+            path: path_c.as_ptr(),
+            debug_syms: true,
+            ..Default::default()
+        };
+
+        let symbolizer = blaze_symbolizer_new();
+        let addrs = [blaze_symbolizer_new as Addr];
+        let result = unsafe {
+            blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+        };
+        assert!(result.is_null());
+        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_NOT_FOUND);
 
         let () = unsafe { blaze_result_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
