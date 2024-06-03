@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added `--debug-dirs` option to `symbolize elf` sub-command
+
+
 0.1.4
 -----
 - Added `inspect` command

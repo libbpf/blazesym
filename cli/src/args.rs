@@ -187,13 +187,24 @@ pub mod symbolize {
     }
 
     #[derive(Debug, Arguments)]
+    #[group(multiple = false)]
+    pub struct DebugArgs {
+        /// Comma-separated list of debug directories to search when
+        /// resolving debug links.
+        #[clap(long, value_parser, value_delimiter = ',')]
+        pub debug_dirs: Option<Vec<PathBuf>>,
+        /// Disable the use of debug symbols.
+        #[clap(long)]
+        pub no_debug_syms: bool,
+    }
+
+    #[derive(Debug, Arguments)]
     pub struct Elf {
         /// The path to the ELF file.
         #[clap(short, long)]
         pub path: PathBuf,
-        /// Disable the use of debug symbols.
-        #[clap(long)]
-        pub no_debug_syms: bool,
+        #[command(flatten)]
+        pub debug_args: DebugArgs,
         /// The addresses to symbolize.
         ///
         /// Addresses are assumed to already be normalized to the file

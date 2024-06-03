@@ -207,7 +207,7 @@ fn print_frame(
 
 /// The handler for the 'symbolize' command.
 fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
-    let symbolizer = Symbolizer::new();
+    let mut builder = Symbolizer::builder();
     let (src, input, addrs) = match symbolize {
         args::symbolize::Symbolize::Breakpad(args::symbolize::Breakpad { path, ref addrs }) => {
             let src = symbolize::Source::from(symbolize::Breakpad::new(path));
@@ -217,9 +217,15 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
         }
         args::symbolize::Symbolize::Elf(args::symbolize::Elf {
             path,
-            no_debug_syms,
+            debug_args:
+                args::symbolize::DebugArgs {
+                    debug_dirs,
+                    no_debug_syms,
+                },
             ref addrs,
         }) => {
+            builder = builder.set_debug_dirs(debug_dirs);
+
             let mut elf = symbolize::Elf::new(path);
             elf.debug_syms = !no_debug_syms;
             let src = symbolize::Source::from(elf);
@@ -247,6 +253,7 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
         }
     };
 
+    let symbolizer = builder.build();
     let syms = symbolizer
         .symbolize(&src, input)
         .context("failed to symbolize addresses")?;
