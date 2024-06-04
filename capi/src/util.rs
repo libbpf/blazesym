@@ -79,8 +79,11 @@ mod tests {
     use std::ops::Deref as _;
     use std::ptr;
 
+    use test_tag::tag;
+
 
     /// Check that `is_mem_zero` works as it should.
+    #[tag(miri)]
     #[test]
     fn mem_zeroed_checking() {
         let mut bytes = [0u8; 64];
@@ -94,6 +97,7 @@ mod tests {
 
     /// Test the `slice_from_aligned_user_array` helper in the presence of
     /// various inputs.
+    #[tag(miri)]
     #[test]
     fn slice_creation() {
         let slice = unsafe { slice_from_aligned_user_array::<u64>(ptr::null(), 0) };
@@ -112,6 +116,7 @@ mod tests {
 
     /// Make sure that we can create a slice from a potentially unaligned C
     /// array of values.
+    #[tag(miri)]
     #[test]
     fn unaligned_slice_creation() {
         let slice = unsafe { slice_from_user_array(ptr::null::<u64>(), 0) };

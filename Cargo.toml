@@ -140,6 +140,7 @@ scopeguard = "1.2"
 stats_alloc = {version = "0.1.1", features = ["nightly"]}
 tempfile = "3.4"
 test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
+test-tag = "0.1"
 
 # A set of unused dependencies that we require to force correct minimum versions
 # of transitive dependencies, for cases where our dependencies have incorrect
