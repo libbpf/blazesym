@@ -388,6 +388,7 @@ mod tests {
     use std::slice;
 
     use test_log::test;
+    use test_tag::tag;
 
 
     /// Check that various types have expected sizes.
@@ -429,7 +430,7 @@ mod tests {
 
     /// Test that we can correctly validate zeroed "extensions" of a
     /// struct.
-    // NB: If renamed, please adjust Miri CI workflow accordingly.
+    #[tag(miri)]
     #[test]
     fn elf_src_validity() {
         #[repr(C)]

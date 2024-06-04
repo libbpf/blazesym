@@ -70,11 +70,14 @@ impl<K, V> Default for InsertMap<K, V> {
 mod tests {
     use super::*;
 
+    use test_tag::tag;
+
     use crate::Error;
     use crate::ErrorKind;
 
 
     /// Check that value insertion works as it should.
+    #[tag(miri)]
     #[test]
     fn insertion() {
         let map = InsertMap::<usize, &'static str>::new();
@@ -99,6 +102,7 @@ mod tests {
 
     /// Make sure that `InsertMap` does not allow for recursive
     /// access as part of initialization.
+    #[tag(miri)]
     #[test]
     #[should_panic = "already borrowed"]
     fn recursive_access() {

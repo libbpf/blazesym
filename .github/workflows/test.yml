@@ -220,7 +220,7 @@ jobs:
     - name: Remove .cargo/config.toml
       run: rm .cargo/config.toml
     - name: Run tests
-      run: cargo miri test --workspace --features=dont-generate-unit-test-files -- "insert_map::" "util::" "::elf_src_validity"
+      run: cargo miri test --workspace --features=dont-generate-unit-test-files -- ":miri:"
   test-examples:
     name: Test examples
     runs-on: ubuntu-22.04

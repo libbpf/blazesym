@@ -545,11 +545,14 @@ mod tests {
 
     use tempfile::NamedTempFile;
 
+    use test_tag::tag;
+
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
 
     /// Exercise the `Debug` representation of various types.
+    #[tag(miri)]
     #[test]
     fn debug_repr() {
         let addrs = [0x42, 0x1337];
@@ -598,6 +601,7 @@ mod tests {
 
 
     /// Make sure that we can detect sorted slices.
+    #[tag(miri)]
     #[test]
     fn sorted_check() {
         assert!(is_sorted([1, 5, 6].iter()));
@@ -605,6 +609,7 @@ mod tests {
     }
 
     /// Check that our [`Dbg`] type does what it says on the tin.
+    #[tag(miri)]
     #[test]
     fn debug_non_debug() {
         #[repr(transparent)]
@@ -618,6 +623,7 @@ mod tests {
     }
 
     /// Check that we can reorder elements in an array as expected.
+    #[tag(miri)]
     #[test]
     fn array_reordering() {
         let mut array = vec![];
@@ -636,6 +642,7 @@ mod tests {
     }
 
     /// Check that `with_ordered_elems` works as it should.
+    #[tag(miri)]
     #[test]
     fn with_element_ordering() {
         let vec = vec![5u8, 0, 1, 99, 6, 2];
@@ -655,7 +662,6 @@ mod tests {
     /// Check that we can retrieve meta-data about a file using `stat`
     /// and `fstat`.
     #[test]
-    #[cfg_attr(miri, ignore)]
     fn file_stating() {
         let tmpfile = NamedTempFile::new().unwrap();
         let stat1 = stat(tmpfile.path()).unwrap();
@@ -669,6 +675,7 @@ mod tests {
     }
 
     /// Make sure that `[u8]::ensure` works as expected.
+    #[tag(miri)]
     #[test]
     fn u8_slice_len_ensurance() {
         let slice = [0u8; 0].as_slice();
@@ -682,6 +689,7 @@ mod tests {
     }
 
     /// Check that we can align the read pointer on a `[u8]`.
+    #[tag(miri)]
     #[test]
     fn u8_slice_align() {
         let mut buffer = [0u8; 64];
@@ -723,6 +731,7 @@ mod tests {
     }
 
     /// Check that we can read various integers from a slice.
+    #[tag(miri)]
     #[test]
     fn pod_reading() {
         macro_rules! test {
@@ -757,6 +766,7 @@ mod tests {
     }
 
     /// Check that we can read references to `Pod`s.
+    #[tag(miri)]
     #[test]
     fn pod_ref_reading() {
         // This test assumes that `u64`'s required alignment is greater
@@ -792,6 +802,7 @@ mod tests {
 
     /// Test reading of signed and unsigned 16 and 32 bit values against known
     /// results.
+    #[tag(miri)]
     #[test]
     fn word_reading() {
         let data = 0xf936857fu32.to_ne_bytes();
@@ -800,6 +811,7 @@ mod tests {
     }
 
     /// Make sure that we can read leb128 encoded values.
+    #[tag(miri)]
     #[test]
     fn leb128_reading() {
         let data = [0xf4, 0xf3, 0x75];
@@ -813,6 +825,7 @@ mod tests {
     }
 
     /// Check that we can read a NUL terminated string from a slice.
+    #[tag(miri)]
     #[test]
     fn cstr_reading() {
         let mut slice = b"abc\x001234".as_slice();
@@ -826,6 +839,7 @@ mod tests {
     }
 
     /// Test that we correctly binary search for a lowest match.
+    #[tag(miri)]
     #[test]
     fn search_lowest_match() {
         fn test(f: impl Fn(&[u16], &u16) -> Option<usize>) {
@@ -868,6 +882,7 @@ mod tests {
     }
 
     /// Test that we correctly binary search for a match or a lower bound.
+    #[tag(miri)]
     #[test]
     fn search_match_or_lower_bound() {
         let data = [];

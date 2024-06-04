@@ -63,3 +63,4 @@ criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e2
 libc = "0.2.137"
 tempfile = "3.4"
 test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
+test-tag = "0.1"
