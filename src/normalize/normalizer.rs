@@ -281,11 +281,13 @@ impl Normalizer {
 
 
 #[cfg(test)]
-#[allow(clippy::missing_transmute_annotations)]
 mod tests {
     use super::*;
 
+    use std::fs::copy;
     use std::path::Path;
+
+    use tempfile::tempdir;
 
     use test_log::test;
 
@@ -399,13 +401,9 @@ mod tests {
         let mmap = Mmap::builder().exec().open(&test_so).unwrap();
         let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
 
-        let opts = NormalizeOpts {
-            sorted_addrs: true,
-            ..Default::default()
-        };
         let normalizer = Normalizer::new();
         let normalized = normalizer
-            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
+            .normalize_user_addrs(Pid::Slf, [the_answer_addr as Addr].as_slice())
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
@@ -419,6 +417,59 @@ mod tests {
             _non_exhaustive: (),
         };
         assert_eq!(meta, &UserMeta::Elf(expected_elf));
+    }
+
+    /// Check that we can normalize user addresses in a shared object
+    /// that has been deleted already (but is still mapped) without
+    /// errors.
+    #[test]
+    fn user_address_normalization_deleted_so() {
+        fn test(cache_maps: bool, cache_build_ids: bool, use_map_files: bool) {
+            let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("libtest-so.so");
+            let dir = tempdir().unwrap();
+            let tmp_so = dir.path().join("libtest-so.so");
+            let _count = copy(&test_so, &tmp_so).unwrap();
+
+            let mmap = Mmap::builder().exec().open(&tmp_so).unwrap();
+            let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
+
+            // Remove the temporary directory and with it the mapped shared
+            // object.
+            let () = drop(dir);
+
+            let opts = NormalizeOpts {
+                sorted_addrs: false,
+                map_files: use_map_files,
+                ..Default::default()
+            };
+            let normalizer = Normalizer::builder()
+                .enable_maps_caching(cache_maps)
+                .enable_build_id_caching(cache_build_ids)
+                .build();
+            let normalized = normalizer
+                .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
+                .unwrap();
+            assert_eq!(normalized.outputs.len(), 1);
+            assert_eq!(normalized.meta.len(), 1);
+
+            let output = normalized.outputs[0];
+            assert_eq!(output.0, sym.addr);
+            let meta = &normalized.meta[output.1].elf().unwrap();
+            assert_eq!(
+                meta.build_id,
+                Some(read_elf_build_id(&test_so).unwrap().unwrap())
+            );
+        }
+
+        for cache_build_ids in [true, false] {
+            for cache_maps in [true, false] {
+                for use_map_files in [true, false] {
+                    let () = test(cache_build_ids, cache_maps, use_map_files);
+                }
+            }
+        }
     }
 
     /// Check that we can normalize addresses in our own shared object inside a
