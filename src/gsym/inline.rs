@@ -25,8 +25,7 @@ impl InlineInfo {
     ) -> Result<Option<InlineInfo>> {
         let range_cnt = data
             .read_u64_leb128()
-            .ok_or_invalid_data(|| "failed to read range count from inline information")?
-            .0;
+            .ok_or_invalid_data(|| "failed to read range count from inline information")?;
         let range_cnt = usize::try_from(range_cnt)
             .ok()
             .ok_or_invalid_data(|| "range count ({}) is too big")?;
@@ -41,12 +40,10 @@ impl InlineInfo {
             for i in 0..range_cnt {
                 let offset = data
                     .read_u64_leb128()
-                    .ok_or_invalid_data(|| "failed to read offset from inline information")?
-                    .0;
+                    .ok_or_invalid_data(|| "failed to read offset from inline information")?;
                 let size = data
                     .read_u64_leb128()
-                    .ok_or_invalid_data(|| "failed to read size from inline information")?
-                    .0;
+                    .ok_or_invalid_data(|| "failed to read size from inline information")?;
 
                 let start = base_addr
                     .checked_add(offset)
@@ -91,15 +88,13 @@ impl InlineInfo {
         let (call_file, call_line) = if lookup_addr.is_some() {
             let call_file = data
                 .read_u64_leb128()
-                .ok_or_invalid_data(|| "failed to read call file from inline information")?
-                .0;
+                .ok_or_invalid_data(|| "failed to read call file from inline information")?;
             let call_file = u32::try_from(call_file)
                 .ok()
                 .ok_or_invalid_data(|| "call file index ({}) is too big")?;
             let call_line = data
                 .read_u64_leb128()
-                .ok_or_invalid_data(|| "failed to read call line from inline information")?
-                .0;
+                .ok_or_invalid_data(|| "failed to read call line from inline information")?;
             let call_line = u32::try_from(call_line).unwrap_or(u32::MAX);
             (Some(call_file), Some(call_line))
         } else {

@@ -48,9 +48,9 @@ impl LineTableHeader {
     ///
     /// * `data` - is what [`AddrData::data`] is.
     pub(super) fn parse(data: &mut &[u8]) -> Option<Self> {
-        let (min_delta, _bytes) = data.read_i64_leb128()?;
-        let (max_delta, _bytes) = data.read_i64_leb128()?;
-        let (first_line, _bytes) = data.read_u64_leb128()?;
+        let min_delta = data.read_i64_leb128()?;
+        let max_delta = data.read_i64_leb128()?;
+        let first_line = data.read_u64_leb128()?;
 
         let header = Self {
             min_delta,
@@ -108,17 +108,17 @@ pub(crate) fn run_op(
     match op {
         END_SEQUENCE => Some(RunResult::End),
         SET_FILE => {
-            let (f, _bytes) = ops.read_u64_leb128()?;
+            let f = ops.read_u64_leb128()?;
             row.file_idx = f as u32;
             Some(RunResult::Ok)
         }
         ADVANCE_PC => {
-            let (adv, _bytes) = ops.read_u64_leb128()?;
+            let adv = ops.read_u64_leb128()?;
             row.addr += adv as Addr;
             Some(RunResult::NewRow)
         }
         ADVANCE_LINE => {
-            let (adv, _bytes) = ops.read_i64_leb128()?;
+            let adv = ops.read_i64_leb128()?;
             row.file_line = (row.file_line as i64 + adv) as u32;
             Some(RunResult::Ok)
         }
