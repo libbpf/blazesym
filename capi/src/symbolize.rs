@@ -752,9 +752,10 @@ unsafe fn blaze_symbolize_impl(
 
 /// Symbolize a list of process absolute addresses.
 ///
-/// On success, the function returns an array of [`blaze_result`] with
-/// `abs_addr_cnt` elements. The returned object should be released using
-/// [`blaze_result_free`] once it is no longer needed.
+/// On success, the function returns a [`blaze_result`] containing an
+/// array of `abs_addr_cnt` [`blaze_sym`] objects. The returned object
+/// should be released using [`blaze_result_free`] once it is no longer
+/// needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
 /// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
@@ -784,9 +785,10 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
 
 /// Symbolize a list of kernel absolute addresses.
 ///
-/// On success, the function returns an array of [`blaze_result`] with
-/// `abs_addr_cnt` elements. The returned object should be released using
-/// [`blaze_result_free`] once it is no longer needed.
+/// On success, the function returns a [`blaze_result`] containing an
+/// array of `abs_addr_cnt` [`blaze_sym`] objects. The returned object
+/// should be released using [`blaze_result_free`] once it is no longer
+/// needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
 /// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
@@ -816,9 +818,10 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
 
 /// Symbolize virtual offsets in an ELF file.
 ///
-/// On success, the function returns an array of [`blaze_result`] with
-/// `virt_offset_cnt` elements. The returned object should be released using
-/// [`blaze_result_free`] once it is no longer needed.
+/// On success, the function returns a [`blaze_result`] containing an
+/// array of `virt_offset_cnt` [`blaze_sym`] objects. The returned
+/// object should be released using [`blaze_result_free`] once it is no
+/// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
 /// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
@@ -854,9 +857,10 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
 
 /// Symbolize file offsets in an ELF file.
 ///
-/// On success, the function returns an array of [`blaze_result`] with
-/// `file_offset_cnt` elements. The returned object should be released using
-/// [`blaze_result_free`] once it is no longer needed.
+/// On success, the function returns a [`blaze_result`] containing an
+/// array of `file_offset_cnt` [`blaze_sym`] objects. The returned
+/// object should be released using [`blaze_result_free`] once it is no
+/// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
 /// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
@@ -893,9 +897,10 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
 
 /// Symbolize virtual offsets using "raw" Gsym data.
 ///
-/// On success, the function returns an array of [`blaze_result`] with
-/// `virt_offset_cnt` elements. The returned object should be released using
-/// [`blaze_result_free`] once it is no longer needed.
+/// On success, the function returns a [`blaze_result`] containing an
+/// array of `virt_offset_cnt` [`blaze_sym`] objects. The returned
+/// object should be released using [`blaze_result_free`] once it is no
+/// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
 /// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
@@ -931,9 +936,10 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
 
 /// Symbolize virtual offsets in a Gsym file.
 ///
-/// On success, the function returns an array of [`blaze_result`] with
-/// `virt_offset_cnt` elements. The returned object should be released using
-/// [`blaze_result_free`] once it is no longer needed.
+/// On success, the function returns a [`blaze_result`] containing an
+/// array of `virt_offset_cnt` [`blaze_sym`] objects. The returned
+/// object should be released using [`blaze_result_free`] once it is no
+/// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
 /// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
