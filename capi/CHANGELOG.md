@@ -10,9 +10,12 @@ Unreleased
 - Introduced `blaze_normalize_opts` and added
   `blaze_normalize_user_addrs_opts` to use it
   - Removed `blaze_normalize_user_addrs_sorted` function
-- Introduced `blaze_normalize_reason` type and extended
+- Introduced `blaze_normalize_reason` type
   - Added `reason` attribute to `blaze_user_meta_unknown`
   - Added `blaze_normalize_reason_str` to retrieve textual representation
+- Introduced `blaze_symbolize_reason` type
+  - Added `reason` attribute to `blaze_sym`
+  - Added `blaze_symbolize_reason_str` to retrieve textual representation
 - Added `blaze_symbolize_elf_file_offsets` function for symbolization of
   file offsets
 - Added support for transparently working with input data not in accordance with
