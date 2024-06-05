@@ -400,6 +400,7 @@ mod tests {
     }
 
     /// Exercise the `Debug` representation of various types.
+    #[tag(miri)]
     #[test]
     fn debug_repr() {
         let elf = blaze_inspect_elf_src {
@@ -474,6 +475,7 @@ mod tests {
 
     /// Check that we can properly convert a "syms list" into the corresponding
     /// C representation.
+    #[tag(miri)]
     #[test]
     fn syms_list_conversion() {
         fn test(syms: Vec<Vec<SymInfo>>) {
@@ -585,6 +587,7 @@ mod tests {
     }
 
     /// Make sure that we can create and free an inspector instance.
+    #[tag(miri)]
     #[test]
     fn inspector_creation() {
         let inspector = blaze_inspector_new();

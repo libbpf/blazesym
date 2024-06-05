@@ -1004,10 +1004,13 @@ mod tests {
 
     use tempfile::tempdir;
 
+    use test_tag::tag;
+
     use crate::blaze_err_last;
 
 
     /// Check that various types have expected sizes.
+    #[tag(miri)]
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
@@ -1023,6 +1026,7 @@ mod tests {
     }
 
     /// Exercise the `Debug` representation of various types.
+    #[tag(miri)]
     #[test]
     fn debug_repr() {
         let elf = blaze_symbolize_src_elf {
@@ -1128,6 +1132,7 @@ mod tests {
 
     /// Check that we can convert a [`blaze_symbolize_src_kernel`]
     /// reference into a [`Kernel`].
+    #[tag(miri)]
     #[test]
     fn kernel_conversion() {
         let kernel = blaze_symbolize_src_kernel::default();
@@ -1148,6 +1153,7 @@ mod tests {
     }
 
     /// Test the Rust to C symbol conversion.
+    #[tag(miri)]
     #[test]
     fn symbol_conversion() {
         fn touch<X: Clone>(x: &X) {
@@ -1272,6 +1278,7 @@ mod tests {
     }
 
     /// Make sure that we can create and free a symbolizer instance.
+    #[tag(miri)]
     #[test]
     fn symbolizer_creation() {
         let symbolizer = blaze_symbolizer_new();
@@ -1280,6 +1287,7 @@ mod tests {
 
     /// Make sure that we can create and free a symbolizer instance with the
     /// provided options.
+    #[tag(miri)]
     #[test]
     fn symbolizer_creation_with_opts() {
         let opts = blaze_symbolizer_opts {
