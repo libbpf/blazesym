@@ -73,6 +73,8 @@ pub mod normalize;
 mod once;
 mod pid;
 pub mod symbolize;
+#[cfg(test)]
+mod test_helper;
 mod util;
 #[cfg(feature = "apk")]
 mod zip;
