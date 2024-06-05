@@ -102,6 +102,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::path::Path;
+use std::str;
 
 cfg_apk! {
     pub use source::Apk;
@@ -388,7 +389,7 @@ pub struct Sym<'src> {
 /// The reason is generally only meant as a hint. Reasons reported may change
 /// over time and, hence, should not be relied upon for the correctness of the
 /// application.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 #[non_exhaustive]
 pub enum Reason {
     /// The absolute address was not found in the corresponding process' virtual
@@ -410,16 +411,26 @@ pub enum Reason {
     UnknownAddr,
 }
 
+impl Reason {
+    #[doc(hidden)]
+    #[inline]
+    pub fn as_bytes(&self) -> &'static [u8] {
+        match self {
+            Self::Unmapped => b"absolute address not found in virtual memory map of process\0",
+            Self::InvalidFileOffset => b"file offset does not map to a valid piece of code/data\0",
+            Self::MissingComponent => b"proc maps entry has no component\0",
+            Self::MissingSyms => b"symbolization source has no or no relevant symbols\0",
+            Self::Unsupported => b"address belongs to unsupported entity\0",
+            Self::UnknownAddr => b"address not found in symbolization source\0",
+        }
+    }
+}
+
 impl Display for Reason {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let s = match self {
-            Self::Unmapped => "absolute address not found in virtual memory map of process",
-            Self::InvalidFileOffset => "file offset does not map to a valid piece of code/data",
-            Self::MissingComponent => "proc maps entry has no component",
-            Self::MissingSyms => "symbolization source has no or no relevant symbols",
-            Self::Unsupported => "address belongs to unsupported entity",
-            Self::UnknownAddr => "address not found in symbolization source",
-        };
+        let cstr = self.as_bytes();
+        // SAFETY: `as_bytes` always returns a valid string.
+        let s = unsafe { str::from_utf8_unchecked(&cstr[..cstr.len() - 1]) };
 
         f.write_str(s)
     }

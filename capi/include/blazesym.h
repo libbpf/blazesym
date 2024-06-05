@@ -144,6 +144,54 @@ typedef uint8_t blaze_sym_type;
 #endif // __cplusplus
 
 /**
+ * The reason why symbolization failed.
+ *
+ * The reason is generally only meant as a hint. Reasons reported may
+ * change over time and, hence, should not be relied upon for the
+ * correctness of the application.
+ */
+enum blaze_symbolize_reason
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
+  /**
+   * Symbolization was successful.
+   */
+  BLAZE_SYMBOLIZE_REASON_SUCCESS = 0,
+  /**
+   * The absolute address was not found in the corresponding process'
+   * virtual memory map.
+   */
+  BLAZE_SYMBOLIZE_REASON_UNMAPPED,
+  /**
+   * The file offset does not map to a valid piece of code/data.
+   */
+  BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
+  /**
+   * The `/proc/<pid>/maps` entry corresponding to the address does
+   * not have a component (file system path, object, ...) associated
+   * with it.
+   */
+  BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
+  /**
+   * The symbolization source has no or no relevant symbols.
+   */
+  BLAZE_SYMBOLIZE_REASON_MISSING_SYMS,
+  /**
+   * The address could not be found in the symbolization source.
+   */
+  BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR,
+  /**
+   * The address belonged to an entity that is currently unsupported.
+   */
+  BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
+};
+#ifndef __cplusplus
+typedef uint8_t blaze_symbolize_reason;
+#endif // __cplusplus
+
+/**
  * The valid variant kind in [`blaze_user_meta`].
  */
 typedef enum blaze_user_meta_kind {
@@ -602,9 +650,14 @@ typedef struct blaze_sym {
    */
   const struct blaze_symbolize_inlined_fn *inlined;
   /**
+   * On error (i.e., if `name` is NULL), a reason trying to explain
+   * why symbolization failed.
+   */
+  blaze_symbolize_reason reason;
+  /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[8];
+  uint8_t reserved[7];
 } blaze_sym;
 
 /**
@@ -977,6 +1030,12 @@ struct blaze_normalized_user_output *blaze_normalize_user_addrs_opts(const blaze
  * [`blaze_normalize_user_addrs_opts`].
  */
 void blaze_user_output_free(struct blaze_normalized_user_output *output);
+
+/**
+ * Retrieve a textual representation of the reason of a symbolization
+ * failure.
+ */
+const char *blaze_symbolize_reason_str(blaze_symbolize_reason err);
 
 /**
  * Create an instance of a symbolizer.

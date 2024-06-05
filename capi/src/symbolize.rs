@@ -20,6 +20,7 @@ use blazesym::symbolize::InlinedFn;
 use blazesym::symbolize::Input;
 use blazesym::symbolize::Kernel;
 use blazesym::symbolize::Process;
+use blazesym::symbolize::Reason;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolized;
@@ -315,6 +316,81 @@ impl From<blaze_symbolize_src_gsym_file> for GsymFile {
 pub type blaze_symbolizer = Symbolizer;
 
 
+/// The reason why symbolization failed.
+///
+/// The reason is generally only meant as a hint. Reasons reported may
+/// change over time and, hence, should not be relied upon for the
+/// correctness of the application.
+#[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum blaze_symbolize_reason {
+    /// Symbolization was successful.
+    BLAZE_SYMBOLIZE_REASON_SUCCESS = 0,
+    /// The absolute address was not found in the corresponding process'
+    /// virtual memory map.
+    BLAZE_SYMBOLIZE_REASON_UNMAPPED,
+    /// The file offset does not map to a valid piece of code/data.
+    BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
+    /// The `/proc/<pid>/maps` entry corresponding to the address does
+    /// not have a component (file system path, object, ...) associated
+    /// with it.
+    BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
+    /// The symbolization source has no or no relevant symbols.
+    BLAZE_SYMBOLIZE_REASON_MISSING_SYMS,
+    /// The address could not be found in the symbolization source.
+    BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR,
+    /// The address belonged to an entity that is currently unsupported.
+    BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
+}
+
+impl From<Reason> for blaze_symbolize_reason {
+    fn from(reason: Reason) -> Self {
+        use blaze_symbolize_reason::*;
+
+        match reason {
+            Reason::Unmapped => BLAZE_SYMBOLIZE_REASON_UNMAPPED,
+            Reason::InvalidFileOffset => BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
+            Reason::MissingComponent => BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
+            Reason::MissingSyms => BLAZE_SYMBOLIZE_REASON_MISSING_SYMS,
+            Reason::Unsupported => BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
+            Reason::UnknownAddr => BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR,
+            _ => unreachable!(),
+        }
+    }
+}
+
+
+/// Retrieve a textual representation of the reason of a symbolization
+/// failure.
+#[no_mangle]
+pub extern "C" fn blaze_symbolize_reason_str(err: blaze_symbolize_reason) -> *const c_char {
+    use blaze_symbolize_reason::*;
+
+    match err as i32 {
+        e if e == BLAZE_SYMBOLIZE_REASON_SUCCESS as i32 => b"success\0".as_ptr().cast(),
+        e if e == BLAZE_SYMBOLIZE_REASON_UNMAPPED as i32 => {
+            Reason::Unmapped.as_bytes().as_ptr().cast()
+        }
+        e if e == BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET as i32 => {
+            Reason::InvalidFileOffset.as_bytes().as_ptr().cast()
+        }
+        e if e == BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT as i32 => {
+            Reason::MissingComponent.as_bytes().as_ptr().cast()
+        }
+        e if e == BLAZE_SYMBOLIZE_REASON_MISSING_SYMS as i32 => {
+            Reason::MissingSyms.as_bytes().as_ptr().cast()
+        }
+        e if e == BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR as i32 => {
+            Reason::UnknownAddr.as_bytes().as_ptr().cast()
+        }
+        e if e == BLAZE_SYMBOLIZE_REASON_UNSUPPORTED as i32 => {
+            Reason::Unsupported.as_bytes().as_ptr().cast()
+        }
+        _ => b"unknown reason\0".as_ptr().cast(),
+    }
+}
+
+
 /// Source code location information for a symbol or inlined function.
 #[repr(C)]
 #[derive(Debug)]
@@ -384,8 +460,11 @@ pub struct blaze_sym {
     pub inlined_cnt: usize,
     /// An array of `inlined_cnt` symbolized inlined function calls.
     pub inlined: *const blaze_symbolize_inlined_fn,
+    /// On error (i.e., if `name` is NULL), a reason trying to explain
+    /// why symbolization failed.
+    pub reason: blaze_symbolize_reason,
     /// Unused member available for future expansion.
-    pub reserved: [u8; 8],
+    pub reserved: [u8; 7],
 }
 
 /// `blaze_result` is the result of symbolization for C API.
@@ -683,6 +762,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
                 convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut make_cstr);
                 sym_ref.inlined_cnt = sym.inlined.len();
                 sym_ref.inlined = inlined_last;
+                sym_ref.reason = blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_SUCCESS;
 
                 for inlined in sym.inlined.iter() {
                     let inlined_ref = unsafe { &mut *inlined_last };
@@ -698,12 +778,14 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
                     inlined_last = unsafe { inlined_last.add(1) };
                 }
             }
-            Symbolized::Unknown(..) => {
+            Symbolized::Unknown(reason) => {
                 // Unknown symbols/addresses are just represented with all
-                // fields set to zero.
+                // fields set to zero (except for reason).
                 // SAFETY: `syms_last` is pointing to a writable and properly
                 //         aligned `blaze_sym` object.
                 let () = unsafe { syms_last.write_bytes(0, 1) };
+                let sym_ref = unsafe { &mut *syms_last };
+                sym_ref.reason = reason.into();
             }
         }
 
@@ -1099,11 +1181,12 @@ mod tests {
             },
             inlined_cnt: 0,
             inlined: ptr::null(),
-            reserved: [0u8; 8],
+            reason: blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
+            reserved: [0u8; 7],
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let inlined = blaze_symbolize_inlined_fn {
@@ -1135,6 +1218,36 @@ mod tests {
             "blaze_symbolizer_opts { type_size: 16, debug_dirs: 0x0, debug_dirs_len: 0, auto_reload: false, code_info: false, inlined_fns: false, demangle: true, reserved: [0, 0, 0, 0] }"
         );
     }
+
+    /// Make sure that we can stringify symbolization reasons as expected.
+    #[tag(miri)]
+    #[test]
+    fn reason_stringification() {
+        use blaze_symbolize_reason::*;
+
+        let data = [
+            (Reason::Unmapped, BLAZE_SYMBOLIZE_REASON_UNMAPPED),
+            (
+                Reason::InvalidFileOffset,
+                BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
+            ),
+            (
+                Reason::MissingComponent,
+                BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
+            ),
+            (Reason::MissingSyms, BLAZE_SYMBOLIZE_REASON_MISSING_SYMS),
+            (Reason::Unsupported, BLAZE_SYMBOLIZE_REASON_UNSUPPORTED),
+            (Reason::UnknownAddr, BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR),
+        ];
+
+        for (reason, expected) in data {
+            assert_eq!(blaze_symbolize_reason::from(reason), expected);
+            let cstr = unsafe { CStr::from_ptr(blaze_symbolize_reason_str(expected)) };
+            let expected = CStr::from_bytes_with_nul(reason.as_bytes()).unwrap();
+            assert_eq!(cstr, expected);
+        }
+    }
+
 
     /// Check that we can convert a [`blaze_symbolize_src_kernel`]
     /// reference into a [`Kernel`].
@@ -1201,6 +1314,7 @@ mod tests {
                     code_info,
                     inlined_cnt,
                     inlined,
+                    reason,
                     reserved: _,
                 } = sym;
 
@@ -1219,6 +1333,7 @@ mod tests {
                     let () = touch_cstr(*name);
                     let () = touch_code_info(code_info);
                 }
+                let () = touch(reason);
             }
         }
 
@@ -1326,6 +1441,10 @@ mod tests {
             assert_eq!(
                 unsafe { CStr::from_ptr(sym.name) },
                 CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+            );
+            assert_eq!(
+                sym.reason,
+                blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_SUCCESS
             );
             assert_eq!(sym.addr, 0x2000100);
             assert_eq!(sym.offset, 0);
@@ -1697,6 +1816,10 @@ mod tests {
         // Shouldn't have symbolized because the debug link target cannot be
         // found.
         assert_eq!(sym.name, ptr::null());
+        assert_eq!(
+            sym.reason,
+            blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_MISSING_SYMS
+        );
 
         let () = unsafe { blaze_result_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
