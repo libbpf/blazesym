@@ -387,6 +387,8 @@ pub(crate) trait ReadRaw<'data> {
     /// Consume and return `len` bytes.
     fn read_slice(&mut self, len: usize) -> Option<&'data [u8]>;
 
+    fn read_array<const N: usize>(&mut self) -> Option<[u8; N]>;
+
     /// Read a NUL terminated string.
     fn read_cstr(&mut self) -> Option<&'data CStr>;
 
@@ -470,36 +472,55 @@ pub(crate) trait ReadRaw<'data> {
 
     /// Read a `u64` encoded as unsigned variable length little endian base 128
     /// value.
-    ///
-    /// The function returns the value read along with the number of bytes
-    /// consumed.
-    fn read_u64_leb128(&mut self) -> Option<(u64, u8)> {
-        let mut shift = 0;
-        let mut value = 0u64;
-        while let Some(bytes) = self.read_slice(1) {
-            if let [byte] = bytes {
-                value |= ((byte & 0b0111_1111) as u64) << shift;
-                shift += 7;
-                if (byte & 0b1000_0000) == 0 {
-                    return Some((value, shift / 7))
-                }
-            } else {
-                unreachable!()
-            }
+    //
+    // Slightly adjusted copy of `rustc` implementation:
+    // https://github.com/rust-lang/rust/blob/7ebd2bdbf6d798e6e711a0100981b0ff029abf5f/compiler/rustc_serialize/src/leb128.rs#L54
+    fn read_u64_leb128(&mut self) -> Option<u64> {
+        // The first iteration of this loop is unpeeled. This is a
+        // performance win because this code is hot and integer values less
+        // than 128 are very common, typically occurring 50-80% or more of
+        // the time, even for u64 and u128.
+        let [byte] = self.read_array::<1>()?;
+        if (byte & 0x80) == 0 {
+            return Some(byte as u64);
         }
-        None
+        let mut result = (byte & 0x7F) as u64;
+        let mut shift = 7;
+        loop {
+            let [byte] = self.read_array::<1>()?;
+            if (byte & 0x80) == 0 {
+                result |= (byte as u64) << shift;
+                return Some(result);
+            } else {
+                result |= ((byte & 0x7F) as u64) << shift;
+            }
+            shift += 7;
+        }
     }
 
     /// Read a `u64` encoded as signed variable length little endian base 128
     /// value.
-    ///
-    /// The function returns the value read along with the number of bytes
-    /// consumed.
-    fn read_i64_leb128(&mut self) -> Option<(i64, u8)> {
-        let (value, shift) = self.read_u64_leb128()?;
-        let sign_bits = u64::BITS as u8 - shift * 7;
-        let value = ((value as i64) << sign_bits) >> sign_bits;
-        Some((value, shift))
+    fn read_i64_leb128(&mut self) -> Option<i64> {
+        let mut result = 0;
+        let mut shift = 0;
+        let mut byte;
+
+        loop {
+            [byte] = self.read_array::<1>()?;
+            result |= <i64>::from(byte & 0x7F) << shift;
+            shift += 7;
+
+            if (byte & 0x80) == 0 {
+                break;
+            }
+        }
+
+        if (shift < <i64>::BITS) && ((byte & 0x40) != 0) {
+            // sign extend
+            result |= !0 << shift;
+        }
+
+        Some(result)
     }
 }
 
@@ -525,6 +546,16 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
         let (a, b) = self.split_at(len);
         *self = b;
         Some(a)
+    }
+
+    #[inline]
+    fn read_array<const N: usize>(&mut self) -> Option<[u8; N]> {
+        self.ensure(N)?;
+        let (a, b) = self.split_at(N);
+        *self = b;
+        // SAFETY: We *know* that `a` has length `N`.
+        let array = unsafe { <[u8; N]>::try_from(a).unwrap_unchecked() };
+        Some(array)
     }
 
     #[inline]
@@ -815,13 +846,11 @@ mod tests {
     #[test]
     fn leb128_reading() {
         let data = [0xf4, 0xf3, 0x75];
-        let (v, s) = data.as_slice().read_u64_leb128().unwrap();
+        let v = data.as_slice().read_u64_leb128().unwrap();
         assert_eq!(v, 0x1d79f4);
-        assert_eq!(s, 3);
 
-        let (v, s) = data.as_slice().read_i64_leb128().unwrap();
+        let v = data.as_slice().read_i64_leb128().unwrap();
         assert_eq!(v, -165388);
-        assert_eq!(s, 3);
     }
 
     /// Check that we can read a NUL terminated string from a slice.
@@ -941,16 +970,15 @@ mod tests {
         ];
 
         for (data, expected) in data {
-            let (v, _s) = data.as_slice().read_u64_leb128().unwrap();
+            let v = data.as_slice().read_u64_leb128().unwrap();
             assert_eq!(v, expected);
         }
 
         let () = b.iter(|| {
             for (data, _) in data {
                 let mut slice = black_box(data.as_slice());
-                let (v, s) = slice.read_u64_leb128().unwrap();
+                let v = slice.read_u64_leb128().unwrap();
                 black_box(v);
-                black_box(s);
             }
         });
     }
