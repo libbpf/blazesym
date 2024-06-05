@@ -713,6 +713,8 @@ mod tests {
 
     use blazesym::helper::read_elf_build_id;
 
+    use test_tag::tag;
+
     use crate::blaze_err_last;
 
 
@@ -728,6 +730,7 @@ mod tests {
     }
 
     /// Exercise the `Debug` representation of various types.
+    #[tag(miri)]
     #[test]
     fn debug_repr() {
         let output = blaze_normalized_output {
@@ -799,6 +802,7 @@ mod tests {
     }
 
     /// Make sure that we can stringify normalization reasons as expected.
+    #[tag(miri)]
     #[test]
     fn reason_stringification() {
         let data = [
@@ -826,6 +830,7 @@ mod tests {
 
     /// Check that we can convert an [`Unknown`] into a
     /// [`blaze_user_meta_unknown`] and back.
+    #[tag(miri)]
     #[test]
     fn unknown_conversion() {
         let unknown = Unknown {
@@ -843,6 +848,7 @@ mod tests {
 
     /// Check that we can convert an [`Apk`] into a [`blaze_user_meta_apk`] and
     /// back.
+    #[tag(miri)]
     #[test]
     fn apk_conversion() {
         let apk = Apk {
@@ -860,6 +866,7 @@ mod tests {
 
     /// Check that we can convert an [`Elf`] into a [`blaze_user_meta_elf`]
     /// and back.
+    #[tag(miri)]
     #[test]
     fn elf_conversion() {
         let elf = Elf {
@@ -877,6 +884,7 @@ mod tests {
     }
 
     /// Make sure that we can create and free a normalizer instance.
+    #[tag(miri)]
     #[test]
     fn normalizer_creation() {
         let normalizer = blaze_normalizer_new();
@@ -892,7 +900,6 @@ mod tests {
                 libc::__errno_location as Addr,
                 libc::dlopen as Addr,
                 libc::fopen as Addr,
-                elf_conversion as Addr,
                 normalize_user_addrs as Addr,
             ];
 
@@ -903,7 +910,7 @@ mod tests {
 
             let user_addrs = unsafe { &*result };
             assert_eq!(user_addrs.meta_cnt, 3);
-            assert_eq!(user_addrs.output_cnt, 6);
+            assert_eq!(user_addrs.output_cnt, 5);
 
             let meta = unsafe { user_addrs.metas.read() };
             assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN);
@@ -938,7 +945,6 @@ mod tests {
             libc::__errno_location as Addr,
             libc::dlopen as Addr,
             libc::fopen as Addr,
-            elf_conversion as Addr,
             normalize_user_addrs as Addr,
         ];
         let () = addrs.sort();
@@ -963,7 +969,7 @@ mod tests {
 
         let user_addrs = unsafe { &*result };
         assert_eq!(user_addrs.meta_cnt, 2);
-        assert_eq!(user_addrs.output_cnt, 5);
+        assert_eq!(user_addrs.output_cnt, 4);
 
         let () = unsafe { blaze_user_output_free(result) };
         let () = unsafe { blaze_normalizer_free(normalizer) };
@@ -977,7 +983,6 @@ mod tests {
             libc::__errno_location as Addr,
             libc::dlopen as Addr,
             libc::fopen as Addr,
-            elf_conversion as Addr,
             normalize_user_addrs as Addr,
         ];
         let () = addrs.sort_by(|addr1, addr2| addr1.cmp(addr2).reverse());
