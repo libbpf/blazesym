@@ -313,6 +313,7 @@ mod tests {
     use std::path::Path;
 
     use test_log::test;
+    use test_tag::tag;
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
@@ -334,6 +335,7 @@ mod tests {
     }
 
     /// Make sure that we can parse proc maps lines correctly.
+    #[tag(miri)]
     #[test]
     fn map_line_parsing() {
         let lines = r#"00400000-00401000 r--p 00000000 00:29 47459                              /tmp/test/test
@@ -443,6 +445,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
     }
 
     /// Check that we error out as expected on malformed proc maps lines.
+    #[tag(miri)]
     #[test]
     fn malformed_proc_maps_lines() {
         let lines = [

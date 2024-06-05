@@ -205,11 +205,13 @@ mod tests {
     use super::*;
 
     use test_log::test;
+    use test_tag::tag;
 
     use crate::ErrorKind;
 
 
     /// Exercise the `Debug` representation of various types.
+    #[tag(miri)]
     #[test]
     fn debug_repr() {
         let resolver = KSymResolver {
@@ -284,6 +286,7 @@ mod tests {
         ensure_addr_for_name(found.name, addr);
     }
 
+    #[tag(miri)]
     #[test]
     fn find_ksym() {
         let resolver = KSymResolver {
@@ -344,6 +347,7 @@ mod tests {
     }
 
     /// Check that we can correctly iterate over all symbols.
+    #[tag(miri)]
     #[test]
     fn symbol_iteration() {
         let resolver = KSymResolver {
@@ -381,6 +385,7 @@ mod tests {
     /// Check that [`KSymResolver::find_addr`] and
     /// [`KSymResolver::for_each`] behave as expected for variable
     /// inquiries.
+    #[tag(miri)]
     #[test]
     fn variable_operations() {
         let resolver = KSymResolver {

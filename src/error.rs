@@ -717,9 +717,11 @@ mod tests {
     use std::mem::size_of;
 
     use test_log::test;
+    use test_tag::tag;
 
 
     /// Exercise the `Display` representation of various types.
+    #[tag(miri)]
     #[test]
     fn display_repr() {
         assert_eq!(ErrorKind::NotFound.to_string(), "entity not found");
@@ -731,6 +733,7 @@ mod tests {
     }
 
     /// Check various features of our `Str` wrapper type.
+    #[tag(miri)]
     #[test]
     fn str_wrapper() {
         let b = "test string".to_string().into_boxed_str();
@@ -748,6 +751,7 @@ mod tests {
     }
 
     /// Check that we can convert a `dyn std::error::Error` into our `Error`.
+    #[tag(miri)]
     #[test]
     fn std_error_conversion() {
         let err = io::Error::new(io::ErrorKind::InvalidData, "some invalid data");
@@ -760,6 +764,7 @@ mod tests {
     }
 
     /// Check that we can format errors as expected.
+    #[tag(miri)]
     #[test]
     fn error_formatting() {
         let err = io::Error::new(io::ErrorKind::InvalidData, "some invalid data");
