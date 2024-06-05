@@ -22,6 +22,16 @@ some of the functionality we rely on is privileged. Test artifacts are
 transparently created as long as the `generate-unit-test-files` feature is
 active, which is enabled by default for testing.
 
+### Running Miri
+[Miri][miri] is used for testing the crate for any undefined behavior.
+The interpreter is restricted to functionality that does not cross FFI
+boundaries and won't perform I/O. To run all eligible tests, use:
+```sh
+# Miri usage conflicts with custom test runners, so don't over write it.
+$ rm .cargo/config.toml
+$ MIRIFLAGS='-Zmiri-disable-stacked-borrows' cargo miri test --workspace -- ":miri:"
+```
+
 
 ## Benchmarking
 We use a mixture of [Criterion][criterion] end-to-end benchmarks and [`libtest`
@@ -88,3 +98,4 @@ $ RUST_LIB_BACKTRACE=1 cargo test --test=allocs -- normalize_process --nocapture
 [criterion]: https://crates.io/crates/criterion
 [flamegraph]: https://crates.io/crates/flamegraph
 [libtest]: https://doc.rust-lang.org/1.4.0/book/benchmark-tests.html
+[miri]: https://github.com/rust-lang/miri
