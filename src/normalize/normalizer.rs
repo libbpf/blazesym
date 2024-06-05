@@ -285,13 +285,10 @@ impl Normalizer {
 mod tests {
     use super::*;
 
-    use std::mem::transmute;
     use std::path::Path;
 
     use test_log::test;
 
-    use crate::elf::ElfParser;
-    use crate::inspect::FindAddrOpts;
     use crate::mmap::Mmap;
     use crate::normalize::buildid::read_elf_build_id;
     use crate::normalize::Apk;
@@ -301,8 +298,8 @@ mod tests {
     use crate::normalize::UserMeta;
     use crate::symbolize;
     use crate::symbolize::Symbolizer;
+    use crate::test_helper::find_the_answer_fn;
     use crate::zip;
-    use crate::SymType;
 
 
     /// Check that we detect unsorted input addresses.
@@ -400,25 +397,7 @@ mod tests {
             .join("libtest-so.so");
 
         let mmap = Mmap::builder().exec().open(&test_so).unwrap();
-        // Look up the address of the `the_answer` function inside of the shared
-        // object.
-        let elf_parser = ElfParser::from_mmap(mmap.clone(), Some(test_so));
-        let opts = FindAddrOpts {
-            sym_type: SymType::Function,
-            ..Default::default()
-        };
-        let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
-        // There is only one symbol with this address in there.
-        assert_eq!(syms.len(), 1);
-        let sym = syms.first().unwrap();
-
-        let the_answer_addr = unsafe { mmap.as_ptr().add(sym.addr as usize) };
-        // Now just double check that everything worked out and the function
-        // is actually where it was meant to be.
-        let the_answer_fn =
-            unsafe { transmute::<_, extern "C" fn() -> libc::c_int>(the_answer_addr) };
-        let answer = the_answer_fn();
-        assert_eq!(answer, 42);
+        let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
 
         let opts = NormalizeOpts {
             sorted_addrs: true,
@@ -434,12 +413,9 @@ mod tests {
         let output = normalized.outputs[0];
         assert_eq!(output.0, sym.addr);
         let meta = &normalized.meta[output.1];
-        let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("libtest-so.so");
         let expected_elf = Elf {
-            build_id: Some(read_elf_build_id(&so_path).unwrap().unwrap()),
-            path: so_path,
+            build_id: Some(read_elf_build_id(&test_so).unwrap().unwrap()),
+            path: test_so.clone(),
             _non_exhaustive: (),
         };
         assert_eq!(meta, &UserMeta::Elf(expected_elf));
@@ -467,26 +443,7 @@ mod tests {
             let elf_mmap = mmap
                 .constrain(so.data_offset..so.data_offset + so.data.len() as u64)
                 .unwrap();
-
-            // Look up the address of the `the_answer` function inside of the shared
-            // object.
-            let elf_parser = ElfParser::from_mmap(elf_mmap.clone(), Some(test_zip.clone()));
-            let opts = FindAddrOpts {
-                sym_type: SymType::Function,
-                offset_in_file: true,
-            };
-            let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
-            // There is only one symbol with this address in there.
-            assert_eq!(syms.len(), 1);
-            let sym = syms.first().unwrap();
-
-            let the_answer_addr = unsafe { elf_mmap.as_ptr().add(sym.addr as usize) };
-            // Now just double check that everything worked out and the function
-            // is actually where it was meant to be.
-            let the_answer_fn =
-                unsafe { transmute::<_, extern "C" fn() -> libc::c_int>(the_answer_addr) };
-            let answer = the_answer_fn();
-            assert_eq!(answer, 42);
+            let (sym, the_answer_addr) = find_the_answer_fn(&elf_mmap);
 
             let opts = NormalizeOpts {
                 sorted_addrs: true,
@@ -499,8 +456,7 @@ mod tests {
             assert_eq!(normalized.outputs.len(), 1);
             assert_eq!(normalized.meta.len(), 1);
 
-            let expected_offset =
-                so.data_offset + elf_parser.find_file_offset(sym.addr).unwrap().unwrap();
+            let expected_offset = so.data_offset + sym.file_offset.unwrap();
             let output = normalized.outputs[0];
             assert_eq!(output.0, expected_offset);
             let meta = &normalized.meta[output.1];

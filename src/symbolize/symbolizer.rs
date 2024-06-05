@@ -1376,7 +1376,7 @@ mod tests {
 
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
-    use crate::test_helper::find_the_answer_fn;
+    use crate::test_helper::find_the_answer_fn_in_zip;
 
     use test_log::test;
 
@@ -1522,7 +1522,7 @@ mod tests {
             .join("test.zip");
 
         let mmap = Mmap::builder().exec().open(test_zip).unwrap();
-        let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
+        let (sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
 
         // Symbolize the address we just looked up. It should be correctly
         // mapped to the `the_answer` function within our process.
@@ -1564,7 +1564,7 @@ mod tests {
                 .join("test.zip");
 
             let mmap = Mmap::builder().exec().open(test_zip).unwrap();
-            let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
+            let (sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
 
             let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
             let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
@@ -1621,7 +1621,7 @@ mod tests {
                 .join("test.zip");
 
             let mmap = Mmap::builder().exec().open(test_zip).unwrap();
-            let (_sym, the_answer_addr) = find_the_answer_fn(&mmap);
+            let (_sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
 
             let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
             let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
