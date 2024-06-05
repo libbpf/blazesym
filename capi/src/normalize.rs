@@ -375,12 +375,12 @@ pub enum blaze_normalize_reason {
 
 impl From<Reason> for blaze_normalize_reason {
     fn from(reason: Reason) -> Self {
+        use blaze_normalize_reason::*;
+
         match reason {
-            Reason::Unmapped => blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
-            Reason::MissingComponent => {
-                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_MISSING_COMPONENT
-            }
-            Reason::Unsupported => blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNSUPPORTED,
+            Reason::Unmapped => BLAZE_NORMALIZE_REASON_UNMAPPED,
+            Reason::MissingComponent => BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
+            Reason::Unsupported => BLAZE_NORMALIZE_REASON_UNSUPPORTED,
             _ => unreachable!(),
         }
     }
@@ -390,14 +390,16 @@ impl From<Reason> for blaze_normalize_reason {
 /// Retrieve a textual representation of the reason of a normalization failure.
 #[no_mangle]
 pub extern "C" fn blaze_normalize_reason_str(err: blaze_normalize_reason) -> *const c_char {
+    use blaze_normalize_reason::*;
+
     match err as i32 {
-        e if e == blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED as i32 => {
+        e if e == BLAZE_NORMALIZE_REASON_UNMAPPED as i32 => {
             Reason::Unmapped.as_bytes().as_ptr().cast()
         }
-        e if e == blaze_normalize_reason::BLAZE_NORMALIZE_REASON_MISSING_COMPONENT as i32 => {
+        e if e == BLAZE_NORMALIZE_REASON_MISSING_COMPONENT as i32 => {
             Reason::MissingComponent.as_bytes().as_ptr().cast()
         }
-        e if e == blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNSUPPORTED as i32 => {
+        e if e == BLAZE_NORMALIZE_REASON_UNSUPPORTED as i32 => {
             Reason::Unsupported.as_bytes().as_ptr().cast()
         }
         _ => b"unknown reason\0".as_ptr().cast(),
@@ -805,19 +807,15 @@ mod tests {
     #[tag(miri)]
     #[test]
     fn reason_stringification() {
+        use blaze_normalize_reason::*;
+
         let data = [
-            (
-                Reason::Unmapped,
-                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
-            ),
+            (Reason::Unmapped, BLAZE_NORMALIZE_REASON_UNMAPPED),
             (
                 Reason::MissingComponent,
-                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
+                BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
             ),
-            (
-                Reason::Unsupported,
-                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNSUPPORTED,
-            ),
+            (Reason::Unsupported, BLAZE_NORMALIZE_REASON_UNSUPPORTED),
         ];
 
         for (reason, expected) in data {
