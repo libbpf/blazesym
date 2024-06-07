@@ -1,0 +1,9 @@
+ADDRS_0.0.0 {
+  global:
+    the_answer;
+};
+
+ADDRS_0.0.1 {
+  global:
+    the_ignored_answer;
+};
