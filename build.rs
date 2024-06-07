@@ -366,7 +366,11 @@ fn cc_stable_addrs(dst: impl AsRef<OsStr>, options: &[&str]) {
 fn cc_test_so(dst: impl AsRef<OsStr>, options: &[&str]) {
     let data_dir = data_dir();
     let src = data_dir.join("test-so.c");
-    let args = ["-shared", "-fPIC"]
+    let map = data_dir.join("test-so.map");
+    let wl = format!("-Wl,--version-script,{}", map.to_str().unwrap());
+    println!("cargo:rerun-if-changed={}", map.display());
+
+    let args = ["-shared", "-fPIC", &wl]
         .into_iter()
         .chain(options.iter().map(Deref::deref))
         .collect::<Vec<_>>();

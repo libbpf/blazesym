@@ -36,6 +36,7 @@ use super::types::ELFCOMPRESS_ZSTD;
 use super::types::PN_XNUM;
 use super::types::PT_LOAD;
 use super::types::SHF_COMPRESSED;
+use super::types::SHN_LORESERVE;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
 use super::types::SHT_NOBITS;
@@ -704,8 +705,12 @@ impl ElfParser {
     /// # Notes
     /// It is the caller's responsibility to ensure that the symbol's section
     /// index is not `SHN_UNDEF`.
-    fn file_offset(&self, shdrs: &[Elf64_Shdr], sym: &Elf64_Sym) -> Result<u64> {
+    fn file_offset(&self, shdrs: &[Elf64_Shdr], sym: &Elf64_Sym) -> Result<Option<u64>> {
         debug_assert_ne!(sym.st_shndx, SHN_UNDEF);
+
+        if sym.st_shndx >= SHN_LORESERVE {
+            return Ok(None)
+        }
 
         let section = shdrs
             .get(usize::from(sym.st_shndx))
@@ -715,7 +720,7 @@ impl ElfParser {
                     sym.st_shndx, sym.st_value
                 )
             })?;
-        Ok(sym.st_value - section.sh_addr + section.sh_offset)
+        Ok(Some(sym.st_value - section.sh_addr + section.sh_offset))
     }
 
     fn find_addr_impl<'slf>(
@@ -749,7 +754,8 @@ impl ElfParser {
                             file_offset: opts
                                 .offset_in_file
                                 .then(|| self.file_offset(shdrs, sym_ref))
-                                .transpose()?,
+                                .transpose()?
+                                .flatten(),
                             obj_file_name: self.path().map(Cow::Borrowed),
                         });
                     }
@@ -807,7 +813,8 @@ impl ElfParser {
                     file_offset: opts
                         .offset_in_file
                         .then(|| self.file_offset(shdrs, sym))
-                        .transpose()?,
+                        .transpose()?
+                        .flatten(),
                     obj_file_name: None,
                 };
                 let () = f(&sym_info);
@@ -1142,18 +1149,27 @@ mod tests {
     /// other.
     #[test]
     fn file_offset_calculation() {
-        let bin_name = current_exe().unwrap();
-        let opts = FindAddrOpts {
-            offset_in_file: true,
-            sym_type: SymType::Function,
-        };
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let () = parser
-            .for_each(&opts, &mut |sym| {
-                let file_offset = parser.find_file_offset(sym.addr).unwrap();
-                assert_eq!(file_offset, sym.file_offset);
-            })
-            .unwrap();
+        fn test(path: &Path) {
+            let opts = FindAddrOpts {
+                offset_in_file: true,
+                sym_type: SymType::Function,
+            };
+            let parser = ElfParser::open(path).unwrap();
+            let () = parser
+                .for_each(&opts, &mut |sym| {
+                    let file_offset = parser.find_file_offset(sym.addr).unwrap();
+                    assert_eq!(file_offset, sym.file_offset);
+                })
+                .unwrap();
+        }
+
+        let exe = current_exe().unwrap();
+        test(&exe);
+
+        let so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("libtest-so.so");
+        test(&so);
     }
 
     /// Make sure that we can look up a symbol in an ELF file.
