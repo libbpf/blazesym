@@ -73,7 +73,7 @@ impl<'dwarf> Unit<'dwarf> {
         &'unit self,
         units: &Units<'dwarf>,
     ) -> Result<&'unit Functions<'dwarf>, gimli::Error> {
-        let unit = &self.dw_unit;
+        let unit = units.unit_ref(&self.dw_unit);
         let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         Ok(functions)
     }
@@ -84,9 +84,8 @@ impl<'dwarf> Unit<'dwarf> {
         &'unit self,
         units: &Units<'dwarf>,
     ) -> Result<&'unit Functions<'dwarf>, gimli::Error> {
-        let unit = &self.dw_unit;
-
         self.funcs.get_or_try_init(|| {
+            let unit = units.unit_ref(&self.dw_unit);
             let funcs = Functions::parse(unit, units)?;
             let () = funcs.parse_inlined_functions(unit, units)?;
             Ok(funcs)
@@ -95,16 +94,16 @@ impl<'dwarf> Unit<'dwarf> {
 
     pub(super) fn parse_lines(
         &self,
-        units: &Units<'dwarf>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
     ) -> Result<Option<&Lines<'dwarf>>, gimli::Error> {
         // NB: line information is always stored in the main debug file so this does not
         // need to handle DWOs.
-        let ilnp = match self.dw_unit.line_program {
+        let ilnp = match unit.unit.line_program {
             Some(ref ilnp) => ilnp,
             None => return Ok(None),
         };
         self.lines
-            .get_or_try_init(|| Lines::parse(&self.dw_unit, ilnp.clone(), units.dwarf()))
+            .get_or_try_init(|| Lines::parse(unit, ilnp.clone()))
             .map(Some)
     }
 
@@ -125,7 +124,7 @@ impl<'dwarf> Unit<'dwarf> {
 
     fn parse_functions_dwarf_and_unit(
         &self,
-        unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
     ) -> Result<&Functions<'dwarf>, gimli::Error> {
         self.funcs.get_or_try_init(|| Functions::parse(unit, units))
@@ -136,7 +135,7 @@ impl<'dwarf> Unit<'dwarf> {
         probe: u64,
         units: &Units<'dwarf>,
     ) -> Result<Option<&Function<'dwarf>>, gimli::Error> {
-        let unit = &self.dw_unit;
+        let unit = units.unit_ref(&self.dw_unit);
         let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         let function = match functions.find_address(probe) {
             Some(address) => {
@@ -154,7 +153,7 @@ impl<'dwarf> Unit<'dwarf> {
         name: &str,
         units: &Units<'dwarf>,
     ) -> Result<Option<&'slf Function<'dwarf>>, gimli::Error> {
-        let unit = &self.dw_unit;
+        let unit = units.unit_ref(&self.dw_unit);
         let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         for func in functions.functions.iter() {
             let name = Some(name.as_bytes());
