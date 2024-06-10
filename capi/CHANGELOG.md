@@ -21,7 +21,7 @@ Unreleased
 - Added support for transparently working with input data not in accordance with
   Rust's alignment requirements
 - Removed `BLAZE_INPUT` macro
-- Bumped `blazesym` dependency to `0.2.0-alpha.12`
+- Bumped `blazesym` dependency to `0.2.0-rc.0`
 
 
 0.1.0-alpha.1

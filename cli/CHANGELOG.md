@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Added `--debug-dirs` option to `symbolize elf` sub-command
+- Bumped `blazesym` dependency to `0.2.0-rc.0`
 
 
 0.1.4

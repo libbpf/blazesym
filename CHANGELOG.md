@@ -1,4 +1,4 @@
-Unreleased
+0.2.0-rc.0
 ----------
 - Added support for transparently following debug links in ELF binaries
   - Added `symbolize::Builder::set_debug_dirs` for configuring directories
