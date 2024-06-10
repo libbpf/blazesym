@@ -41,7 +41,7 @@ use super::units::Units;
 
 
 fn name_entry<'dwarf>(
-    unit: &gimli::Unit<R<'dwarf>>,
+    unit: gimli::UnitRef<'_, R<'dwarf>>,
     offset: gimli::UnitOffset<<R<'_> as gimli::Reader>::Offset>,
     units: &Units<'dwarf>,
     recursion_limit: usize,
@@ -59,12 +59,12 @@ fn name_entry<'dwarf>(
         match entries.read_attribute(*spec) {
             Ok(ref attr) => match attr.name() {
                 gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                    if let Ok(val) = units.dwarf().attr_string(unit, attr.value()) {
+                    if let Ok(val) = unit.attr_string(attr.value()) {
                         return Ok(Some(val))
                     }
                 }
                 gimli::DW_AT_name => {
-                    if let Ok(val) = units.dwarf().attr_string(unit, attr.value()) {
+                    if let Ok(val) = unit.attr_string(attr.value()) {
                         name = Some(val);
                     }
                 }
@@ -91,7 +91,7 @@ fn name_entry<'dwarf>(
 
 fn name_attr<'dwarf>(
     attr: gimli::AttributeValue<R>,
-    unit: &gimli::Unit<R<'dwarf>>,
+    unit: gimli::UnitRef<'_, R<'dwarf>>,
     units: &Units<'dwarf>,
     recursion_limit: usize,
 ) -> Result<Option<R<'dwarf>>, Error> {
@@ -139,7 +139,7 @@ pub(super) struct InlinedFunctions<'dwarf> {
 impl<'dwarf> InlinedFunctions<'dwarf> {
     pub(crate) fn parse(
         dw_die_offset: gimli::UnitOffset<<R<'dwarf> as gimli::Reader>::Offset>,
-        unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
     ) -> Result<Self, Error> {
         let mut entries = unit.entries_raw(Some(dw_die_offset))?;
@@ -283,7 +283,7 @@ pub(crate) struct Functions<'dwarf> {
 
 impl<'dwarf> Functions<'dwarf> {
     pub(crate) fn parse(
-        unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
     ) -> Result<Self, Error> {
         let mut functions = Vec::new();
@@ -300,16 +300,13 @@ impl<'dwarf> Functions<'dwarf> {
                             Ok(ref attr) => {
                                 match attr.name() {
                                     gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                                        if let Ok(val) =
-                                            units.dwarf().attr_string(unit, attr.value())
-                                        {
+                                        if let Ok(val) = unit.attr_string(attr.value()) {
                                             name = Some(val);
                                         }
                                     }
                                     gimli::DW_AT_name => {
                                         if name.is_none() {
-                                            name =
-                                                units.dwarf().attr_string(unit, attr.value()).ok();
+                                            name = unit.attr_string(attr.value()).ok();
                                         }
                                     }
                                     gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
@@ -322,8 +319,7 @@ impl<'dwarf> Functions<'dwarf> {
                                             ranges.low_pc = Some(val)
                                         }
                                         gimli::AttributeValue::DebugAddrIndex(index) => {
-                                            ranges.low_pc =
-                                                Some(units.dwarf().address(unit, index)?);
+                                            ranges.low_pc = Some(unit.address(index)?);
                                         }
                                         _ => {}
                                     },
@@ -332,8 +328,7 @@ impl<'dwarf> Functions<'dwarf> {
                                             ranges.high_pc = Some(val)
                                         }
                                         gimli::AttributeValue::DebugAddrIndex(index) => {
-                                            ranges.high_pc =
-                                                Some(units.dwarf().address(unit, index)?);
+                                            ranges.high_pc = Some(unit.address(index)?);
                                         }
                                         gimli::AttributeValue::Udata(val) => {
                                             ranges.size = Some(val)
@@ -342,7 +337,7 @@ impl<'dwarf> Functions<'dwarf> {
                                     },
                                     gimli::DW_AT_ranges => {
                                         ranges.ranges_offset =
-                                            units.dwarf().attr_ranges_offset(unit, attr.value())?;
+                                            unit.attr_ranges_offset(attr.value())?;
                                     }
                                     _ => {}
                                 };
@@ -352,7 +347,7 @@ impl<'dwarf> Functions<'dwarf> {
                     }
 
                     let function_index = functions.len();
-                    let added = ranges.for_each_range(units.dwarf(), unit, |range| {
+                    let added = ranges.for_each_range(unit, |range| {
                         addresses.push(FunctionAddress {
                             range,
                             function: function_index,
@@ -394,7 +389,7 @@ impl<'dwarf> Functions<'dwarf> {
     #[cfg(feature = "nightly")]
     pub(crate) fn parse_inlined_functions(
         &self,
-        unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
     ) -> Result<(), Error> {
         for function in &*self.functions {
@@ -422,7 +417,7 @@ impl<'dwarf> Function<'dwarf> {
     fn parse_children(
         entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
         depth: isize,
-        unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
         inlined_functions: &mut Vec<InlinedFunction<'dwarf>>,
         inlined_addresses: &mut Vec<InlinedFunctionAddress>,
@@ -460,7 +455,7 @@ impl<'dwarf> Function<'dwarf> {
 
     pub(super) fn parse_inlined_functions(
         &self,
-        unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
     ) -> Result<&InlinedFunctions<'dwarf>, Error> {
         self.inlined_functions
@@ -490,7 +485,7 @@ impl<'dwarf> InlinedFunction<'dwarf> {
         entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
         abbrev: &gimli::Abbreviation,
         depth: isize,
-        unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
         inlined_functions: &mut Vec<InlinedFunction<'dwarf>>,
         inlined_addresses: &mut Vec<InlinedFunctionAddress>,
@@ -507,30 +502,29 @@ impl<'dwarf> InlinedFunction<'dwarf> {
                     gimli::DW_AT_low_pc => match attr.value() {
                         gimli::AttributeValue::Addr(val) => ranges.low_pc = Some(val),
                         gimli::AttributeValue::DebugAddrIndex(index) => {
-                            ranges.low_pc = Some(units.dwarf().address(unit, index)?);
+                            ranges.low_pc = Some(unit.address(index)?);
                         }
                         _ => {}
                     },
                     gimli::DW_AT_high_pc => match attr.value() {
                         gimli::AttributeValue::Addr(val) => ranges.high_pc = Some(val),
                         gimli::AttributeValue::DebugAddrIndex(index) => {
-                            ranges.high_pc = Some(units.dwarf().address(unit, index)?);
+                            ranges.high_pc = Some(unit.address(index)?);
                         }
                         gimli::AttributeValue::Udata(val) => ranges.size = Some(val),
                         _ => {}
                     },
                     gimli::DW_AT_ranges => {
-                        ranges.ranges_offset =
-                            units.dwarf().attr_ranges_offset(unit, attr.value())?;
+                        ranges.ranges_offset = unit.attr_ranges_offset(attr.value())?;
                     }
                     gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                        if let Ok(val) = units.dwarf().attr_string(unit, attr.value()) {
+                        if let Ok(val) = unit.attr_string(attr.value()) {
                             name = Some(val);
                         }
                     }
                     gimli::DW_AT_name => {
                         if name.is_none() {
-                            name = units.dwarf().attr_string(unit, attr.value()).ok();
+                            name = unit.attr_string(attr.value()).ok();
                         }
                     }
                     gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
@@ -576,7 +570,7 @@ impl<'dwarf> InlinedFunction<'dwarf> {
             call_column,
         });
 
-        ranges.for_each_range(units.dwarf(), unit, |range| {
+        ranges.for_each_range(unit, |range| {
             inlined_addresses.push(InlinedFunctionAddress {
                 range,
                 call_depth: inlined_depth,

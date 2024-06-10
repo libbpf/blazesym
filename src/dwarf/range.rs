@@ -47,8 +47,7 @@ impl<R: gimli::Reader> Default for RangeAttributes<R> {
 impl<R: gimli::Reader> RangeAttributes<R> {
     pub(crate) fn for_each_range<F: FnMut(gimli::Range)>(
         &self,
-        sections: &gimli::Dwarf<R>,
-        unit: &gimli::Unit<R>,
+        unit: gimli::UnitRef<'_, R>,
         mut f: F,
     ) -> Result<bool, gimli::Error> {
         let mut added_any = false;
@@ -59,7 +58,7 @@ impl<R: gimli::Reader> RangeAttributes<R> {
             }
         };
         if let Some(ranges_offset) = self.ranges_offset {
-            let mut range_list = sections.ranges(unit, ranges_offset)?;
+            let mut range_list = unit.ranges(ranges_offset)?;
             while let Some(range) = range_list.next()? {
                 add_range(range);
             }

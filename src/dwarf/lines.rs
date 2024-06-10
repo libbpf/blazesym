@@ -46,12 +46,11 @@ fn path_push<'p>(path: &'p Path, p: &'p Path) -> Cow<'p, Path> {
 }
 
 fn render_file<'dwarf>(
-    dw_unit: &gimli::Unit<R<'dwarf>>,
+    unit: gimli::UnitRef<'_, R<'dwarf>>,
     file: &gimli::FileEntry<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
     header: &gimli::LineProgramHeader<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
-    sections: &gimli::Dwarf<R<'dwarf>>,
 ) -> Result<(Cow<'dwarf, Path>, &'dwarf OsStr), gimli::Error> {
-    let dir = if let Some(ref comp_dir) = dw_unit.comp_dir {
+    let dir = if let Some(ref comp_dir) = unit.comp_dir {
         Path::new(OsStr::from_bytes(comp_dir.slice()))
     } else {
         Path::new("")
@@ -61,7 +60,7 @@ fn render_file<'dwarf>(
     // directory.
     let dir = if file.directory_index() != 0 {
         if let Some(directory) = file.directory(header) {
-            let d = sections.attr_string(dw_unit, directory)?;
+            let d = unit.attr_string(directory)?;
             path_push(dir, Path::new(OsStr::from_bytes(d.slice())))
         } else {
             Cow::default()
@@ -70,7 +69,7 @@ fn render_file<'dwarf>(
         Cow::default()
     };
 
-    let f = sections.attr_string(dw_unit, file.path_name())?;
+    let f = unit.attr_string(file.path_name())?;
     let file = OsStr::from_bytes(f.slice());
     Ok((dir, file))
 }
@@ -96,9 +95,8 @@ pub(crate) struct Lines<'dwarf> {
 
 impl<'dwarf> Lines<'dwarf> {
     pub(crate) fn parse(
-        dw_unit: &gimli::Unit<R<'dwarf>>,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
         ilnp: gimli::IncompleteLineProgram<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
-        sections: &gimli::Dwarf<R<'dwarf>>,
     ) -> Result<Self, gimli::Error> {
         let mut sequences = Vec::new();
         let mut sequence_rows = Vec::<LineRow>::new();
@@ -147,12 +145,12 @@ impl<'dwarf> Lines<'dwarf> {
         let mut files = Vec::new();
         let header = rows.header();
         match header.file(0) {
-            Some(file) => files.push(render_file(dw_unit, file, header, sections)?),
+            Some(file) => files.push(render_file(unit, file, header)?),
             None => files.push(Default::default()), // DWARF version <= 4 may not have 0th index
         }
         let mut index = 1;
         while let Some(file) = header.file(index) {
-            files.push(render_file(dw_unit, file, header, sections)?);
+            files.push(render_file(unit, file, header)?);
             index += 1;
         }
 

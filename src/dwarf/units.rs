@@ -175,7 +175,8 @@ impl<'dwarf> Units<'dwarf> {
                         }
                     }
                 } else {
-                    have_unit_range |= ranges.for_each_range(&sections, &dw_unit, |range| {
+                    let unit = gimli::UnitRef::new(&sections, &dw_unit);
+                    have_unit_range |= ranges.for_each_range(unit, |range| {
                         unit_ranges.push(UnitRange {
                             range,
                             unit_id,
@@ -190,9 +191,10 @@ impl<'dwarf> Units<'dwarf> {
                 // The unit did not declare any ranges.
                 // Try to get some ranges from the line program sequences.
                 if let Some(ref ilnp) = dw_unit.line_program {
-                    if let Ok(lines) =
-                        lines.get_or_try_init(|| Lines::parse(&dw_unit, ilnp.clone(), &sections))
-                    {
+                    if let Ok(lines) = lines.get_or_try_init(|| {
+                        let unit = gimli::UnitRef::new(&sections, &dw_unit);
+                        Lines::parse(unit, ilnp.clone())
+                    }) {
                         for sequence in lines.sequences.iter() {
                             unit_ranges.push(UnitRange {
                                 range: gimli::Range {
@@ -236,7 +238,7 @@ impl<'dwarf> Units<'dwarf> {
         offset: gimli::DebugInfoOffset<<R<'_> as gimli::Reader>::Offset>,
     ) -> Result<
         (
-            &gimli::Unit<R<'dwarf>>,
+            gimli::UnitRef<'_, R<'dwarf>>,
             gimli::UnitOffset<<R<'dwarf> as gimli::Reader>::Offset>,
         ),
         gimli::Error,
@@ -253,6 +255,7 @@ impl<'dwarf> Units<'dwarf> {
         let unit_offset = offset
             .to_unit_offset(&unit.header)
             .ok_or(gimli::Error::NoEntryAtGivenOffset)?;
+        let unit = gimli::UnitRef::new(&self.dwarf, unit);
         Ok((unit, unit_offset))
     }
 
@@ -349,8 +352,9 @@ impl<'dwarf> Units<'dwarf> {
         >,
         gimli::Error,
     > {
-        let inlined_fns = function.parse_inlined_functions(unit.dw_unit(), self)?;
-        let iter = inlined_fns.find_inlined_functions(probe).map(|inlined_fn| {
+        let unit_ref = gimli::UnitRef::new(&self.dwarf, unit.dw_unit());
+        let inlined_fns = function.parse_inlined_functions(unit_ref, self)?;
+        let iter = inlined_fns.find_inlined_functions(probe).map(move |inlined_fn| {
             let name = inlined_fn
                 .name
                 .map(|name| name.to_string())
@@ -358,7 +362,7 @@ impl<'dwarf> Units<'dwarf> {
                 .unwrap_or("");
 
             let code_info = if let Some(call_file) = inlined_fn.call_file {
-                if let Some(lines) = unit.parse_lines(self)? {
+                if let Some(lines) = unit.parse_lines(unit_ref)? {
                     if let Some((dir, file)) = lines.files.get(call_file as usize) {
                         let code_info = Location {
                             dir,
@@ -404,6 +408,15 @@ impl<'dwarf> Units<'dwarf> {
             .filter_map(move |unit| unit.find_name(name, self).transpose())
     }
 
+    /// Retrieve a [`gimli::UnitRef`] for the provided `unit`.
+    #[inline]
+    pub(crate) fn unit_ref<'unit>(
+        &'unit self,
+        unit: &'unit gimli::Unit<R<'dwarf>>,
+    ) -> gimli::UnitRef<'_, R<'dwarf>> {
+        gimli::UnitRef::new(&self.dwarf, unit)
+    }
+
     /// Initialize all function data structures. This is used for benchmarks.
     #[cfg(test)]
     #[cfg(feature = "nightly")]
@@ -430,15 +443,10 @@ impl<'dwarf> Units<'dwarf> {
     #[cfg(feature = "nightly")]
     fn parse_lines(&self) -> Result<(), gimli::Error> {
         for unit in self.units.iter() {
-            let _lines = unit.parse_lines(self)?;
+            let unit_ref = self.unit_ref(unit.dw_unit());
+            let _lines = unit.parse_lines(unit_ref)?;
         }
         Ok(())
-    }
-
-    /// Retrieve the underlying [`gimli::Dwarf`] object.
-    #[inline]
-    pub(super) fn dwarf(&self) -> &gimli::Dwarf<R<'dwarf>> {
-        &self.dwarf
     }
 }
 
