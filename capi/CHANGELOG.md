@@ -1,4 +1,4 @@
-Unreleased
+0.1.0-rc.0
 ----------
 - Added `debug_dirs` attribute to `blaze_symbolizer_opts`
 - Added `cache_maps` attribute to `blaze_normalizer_opts`
