@@ -59,6 +59,9 @@ demangle = ["dep:cpp_demangle", "dep:rustc-demangle"]
 dwarf = ["dep:gimli"]
 # Enable this feature to enable Gsym support.
 gsym = []
+# Emit `tracing` traces and configure spans. User code is responsible for
+# subscribing.
+tracing = ["dep:tracing"]
 # Enable this feature to enable support for zlib decompression. This is
 # currently only used for handling compressed debug information.
 zlib = ["dep:miniz_oxide"]
