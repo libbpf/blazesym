@@ -146,15 +146,7 @@ enum ArgSpec {
 }
 
 /// Invoke `tool` to convert `src` into `dst`.
-fn toolize_impl(
-    tool: &str,
-    arg_spec: ArgSpec,
-    src: &Path,
-    dst: impl AsRef<OsStr>,
-    options: &[&str],
-) {
-    let dst = dst.as_ref();
-    let dst = src.with_file_name(dst);
+fn toolize_impl(tool: &str, arg_spec: ArgSpec, src: &Path, dst: &Path, options: &[&str]) {
     println!("cargo:rerun-if-changed={}", src.display());
     println!("cargo:rerun-if-changed={}", dst.display());
 
@@ -180,15 +172,19 @@ fn toolize_impl(
     )
     .unwrap_or_else(|err| panic!("failed to run `{tool}`: {err}"));
 
-    let () = adjust_mtime(&dst).unwrap();
+    let () = adjust_mtime(dst).unwrap();
 }
 
 fn toolize(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
-    toolize_impl(tool, ArgSpec::SrcDst, src, dst, options)
+    let dst = dst.as_ref();
+    let dst = src.with_file_name(dst);
+    toolize_impl(tool, ArgSpec::SrcDst, src, &dst, options)
 }
 
 fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
-    toolize_impl(tool, ArgSpec::SrcDashODst, src, dst, options)
+    let dst = dst.as_ref();
+    let dst = src.with_file_name(dst);
+    toolize_impl(tool, ArgSpec::SrcDashODst, src, &dst, options)
 }
 
 /// Compile `src` into `dst` using `cc`.
