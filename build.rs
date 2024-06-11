@@ -389,6 +389,13 @@ fn append(path: &Path, data: &[u8]) -> Result<()> {
     Ok(())
 }
 
+/// Adjust the extension of a file represented via the given `path`.
+fn change_ext(path: &Path, ext: &str) -> PathBuf {
+    let mut path = path.to_path_buf();
+    assert!(path.set_extension(ext));
+    path
+}
+
 /// Prepare the various test files.
 fn prepare_test_files() {
     let data_dir = data_dir();
@@ -545,9 +552,7 @@ fn prepare_test_files() {
     let () = remove_file(&dbg).unwrap();
 
     let src = data_dir.join("kallsyms.xz");
-    let mut dst = src.clone();
-    assert!(dst.set_extension(""));
-    unpack_xz(&src, &dst);
+    unpack_xz(&src, &change_ext(&src, ""));
 
     let () = create_dir_all(data_dir.join("zip-dir")).unwrap();
     let () = hard_link(
@@ -606,27 +611,22 @@ fn download_bench_files() {
 fn prepare_bench_files() {
     let vmlinux_xz = data_dir().join("vmlinux-5.17.12-100.fc34.x86_64.xz");
 
-    let mut vmlinux = vmlinux_xz.clone();
-    assert!(vmlinux.set_extension(""));
+    let vmlinux = change_ext(&vmlinux_xz, "");
     unpack_xz(&vmlinux_xz, &vmlinux);
 
-    let mut dst = vmlinux_xz.clone();
-    assert!(dst.set_extension("elf"));
+    let dst = change_ext(&vmlinux_xz, "elf");
     let dst = dst.file_name().unwrap();
     elf(&vmlinux, dst);
 
-    let mut dst = vmlinux_xz.clone();
-    assert!(dst.set_extension("gsym"));
+    let dst = change_ext(&vmlinux_xz, "gsym");
     let dst = dst.file_name().unwrap();
     gsym(&vmlinux, dst);
 
-    let mut dst = vmlinux_xz.clone();
-    assert!(dst.set_extension("dwarf"));
+    let dst = change_ext(&vmlinux_xz, "dwarf");
     let dst = dst.file_name().unwrap();
     dwarf(&vmlinux, dst);
 
-    let mut dst = vmlinux_xz;
-    assert!(dst.set_extension("sym"));
+    let dst = change_ext(&vmlinux_xz, "sym");
     let dst = dst.file_name().unwrap();
     syms(&vmlinux, dst);
 }
