@@ -146,20 +146,27 @@ enum ArgSpec {
 }
 
 /// Invoke `tool` to convert `src` into `dst`.
-fn toolize_impl(tool: &str, arg_spec: ArgSpec, src: &Path, dst: &Path, options: &[&str]) {
-    println!("cargo:rerun-if-changed={}", src.display());
+fn toolize_impl<'p, S, I>(tool: &str, arg_spec: ArgSpec, srcs: S, dst: &Path, options: &[&str])
+where
+    S: IntoIterator<IntoIter = I>,
+    I: Iterator<Item = &'p Path> + Clone,
+{
+    let srcs = srcs.into_iter();
+    for src in srcs.clone() {
+        println!("cargo:rerun-if-changed={}", src.display());
+    }
     println!("cargo:rerun-if-changed={}", dst.display());
 
+    let args1;
     let args2;
-    let args3;
     let args = match arg_spec {
         ArgSpec::SrcDst => {
-            args2 = [src.as_os_str(), dst.as_os_str()];
-            args2.as_slice()
+            args1 = [dst.as_os_str()];
+            args1.as_slice()
         }
         ArgSpec::SrcDashODst => {
-            args3 = [src.as_os_str(), "-o".as_ref(), dst.as_os_str()];
-            args3.as_slice()
+            args2 = ["-o".as_ref(), dst.as_os_str()];
+            args2.as_slice()
         }
     };
 
@@ -168,6 +175,7 @@ fn toolize_impl(tool: &str, arg_spec: ArgSpec, src: &Path, dst: &Path, options: 
         options
             .iter()
             .map(OsStr::new)
+            .chain(srcs.map(|src| src.as_os_str()))
             .chain(args.iter().map(Deref::deref)),
     )
     .unwrap_or_else(|err| panic!("failed to run `{tool}`: {err}"));
@@ -178,13 +186,13 @@ fn toolize_impl(tool: &str, arg_spec: ArgSpec, src: &Path, dst: &Path, options: 
 fn toolize(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
-    toolize_impl(tool, ArgSpec::SrcDst, src, &dst, options)
+    toolize_impl(tool, ArgSpec::SrcDst, [src], &dst, options)
 }
 
 fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
-    toolize_impl(tool, ArgSpec::SrcDashODst, src, &dst, options)
+    toolize_impl(tool, ArgSpec::SrcDashODst, [src], &dst, options)
 }
 
 /// Compile `src` into `dst` using `cc`.
