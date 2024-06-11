@@ -7,14 +7,20 @@ SECTIONS {
     . = ABSOLUTE(0x2000200);
     *(.text.inline)
   }
-  .data (0x2001000): {
+  .data (0x4001000): {
     *(.data)
-    . = ABSOLUTE(0x2001100);
+    . = ABSOLUTE(0x4001100);
     *(.data.var)
   }
-  .bss : {
-    *(.bss)
-  }
+  .bss : { *(.bss) }
+
+  /*
+   * Discarding .shstrtab is not supported by LLD (LLVM LD) and will trigger an
+   * error. Also keep the rest of the control sections to match GNU LD behavior.
+   */
+  .shstrtab : { *(.shstrtab) }
+  .strtab : { *(.strtab) }
+  .symtab : { *(.symtab) }
 
   /* DWARF debug sections.
      Symbols in the DWARF debugging sections are relative to the beginning

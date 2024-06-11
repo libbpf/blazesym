@@ -285,13 +285,13 @@ fn symbolize_elf_variable() {
         let src = symbolize::Source::Elf(elf);
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(0x2001100))
+            .symbolize_single(&src, symbolize::Input::VirtOffset(0x4001100))
             .unwrap()
             .into_sym()
             .unwrap();
 
         assert_eq!(result.name, "a_variable");
-        assert_eq!(result.addr, 0x2001100);
+        assert_eq!(result.addr, 0x4001100);
         assert_eq!(result.offset, 0);
         // Even when using DWARF we don't currently support variable lookup,
         // so no matter what, we won't have source code information
@@ -304,7 +304,7 @@ fn symbolize_elf_variable() {
         let offsets = (1..size).collect::<Vec<_>>();
         let addrs = offsets
             .iter()
-            .map(|offset| (0x2001100 + offset) as Addr)
+            .map(|offset| (0x4001100 + offset) as Addr)
             .collect::<Vec<_>>();
         let results = symbolizer
             .symbolize(&src, symbolize::Input::VirtOffset(&addrs))
@@ -316,7 +316,7 @@ fn symbolize_elf_variable() {
         for (i, symbolized) in results.into_iter().enumerate() {
             let result = symbolized.into_sym().unwrap();
             assert_eq!(result.name, "a_variable");
-            assert_eq!(result.addr, 0x2001100);
+            assert_eq!(result.addr, 0x4001100);
             assert_eq!(result.offset, offsets[i]);
             assert_eq!(result.code_info, None);
         }
@@ -924,7 +924,7 @@ fn inspect_elf() {
             assert!(result.is_empty(), "{result:#x?}");
         } else {
             assert_eq!(result.len(), 1);
-            assert_eq!(result[0].addr, 0x2001100);
+            assert_eq!(result[0].addr, 0x4001100);
             assert_eq!(result[0].sym_type, SymType::Variable);
             assert_ne!(result[0].file_offset, None);
             assert_eq!(
