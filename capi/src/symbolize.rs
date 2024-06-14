@@ -616,18 +616,26 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     let builder = if debug_dirs.is_null() {
         builder
     } else {
-        // SAFETY: The caller ensures that the pointer is valid and the count
-        //         matches.
-        let slice = unsafe { slice_from_user_array(debug_dirs, debug_dirs_len) };
-        let iter = slice.iter().map(|cstr| {
-            Path::new(OsStr::from_bytes(
-                // SAFETY: The caller ensures that valid C strings are
-                //         provided.
-                unsafe { CStr::from_ptr(cstr.cast()) }.to_bytes(),
-            ))
-        });
+        #[cfg(feature = "dwarf")]
+        {
+            // SAFETY: The caller ensures that the pointer is valid and the count
+            //         matches.
+            let slice = unsafe { slice_from_user_array(debug_dirs, debug_dirs_len) };
+            let iter = slice.iter().map(|cstr| {
+                Path::new(OsStr::from_bytes(
+                    // SAFETY: The caller ensures that valid C strings are
+                    //         provided.
+                    unsafe { CStr::from_ptr(cstr.cast()) }.to_bytes(),
+                ))
+            });
 
-        builder.set_debug_dirs(Some(iter))
+            builder.set_debug_dirs(Some(iter))
+        }
+
+        #[cfg(not(feature = "dwarf"))]
+        {
+            builder
+        }
     };
 
     let symbolizer = builder.build();
