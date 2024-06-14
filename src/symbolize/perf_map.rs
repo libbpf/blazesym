@@ -142,7 +142,7 @@ impl PerfMap {
         // We transmute the mmap's lifetime to static here as that is a
         // necessity for self-referentiality.
         // SAFETY: We never hand out any 'static references later on.
-        let data = unsafe { transmute(mmap.deref()) };
+        let data = unsafe { transmute::<&[u8], &'static [u8]>(mmap.deref()) };
         let functions = parse_perf_map(data)
             .with_context(|| format!("failed to parse perf map `{}`", path.display()))?;
 
