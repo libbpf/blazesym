@@ -599,7 +599,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     let blaze_symbolizer_opts {
         type_size: _,
         debug_dirs,
-        debug_dirs_len,
+        debug_dirs_len: _debug_dirs_len,
         auto_reload,
         code_info,
         inlined_fns,
@@ -620,7 +620,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
         {
             // SAFETY: The caller ensures that the pointer is valid and the count
             //         matches.
-            let slice = unsafe { slice_from_user_array(debug_dirs, debug_dirs_len) };
+            let slice = unsafe { slice_from_user_array(debug_dirs, _debug_dirs_len) };
             let iter = slice.iter().map(|cstr| {
                 Path::new(OsStr::from_bytes(
                     // SAFETY: The caller ensures that valid C strings are

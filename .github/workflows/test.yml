@@ -62,6 +62,10 @@ jobs:
             rust: stable
             profile: dev
             args: "--package=blazesym-c"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: release
+            args: "--package=blazesym-c --no-default-features"
     steps:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@master
