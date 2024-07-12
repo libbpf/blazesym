@@ -55,13 +55,9 @@ pub type UserOutput<'src> = Output<UserMeta<'src>>;
 impl<'src> UserOutput<'src> {
     /// Add an unknown (non-normalizable) address to this object.
     ///
-    /// This function accepts `unknown_idx` which, if not `None`, should
-    /// contain the index into [`Self::meta`] at which an [`Unknown`]
-    /// without any build ID resides.
-    ///
-    /// It returns the index of the inserted [`Unknown`] variant. The
-    /// return type is an `Option` only for convenience of callers.
-    /// Returned is always a `Some`.
+    /// If an [`Unknown`] entry with the provided `reason` exists, add
+    /// an output entry pointing to it. Otherwise add one that points to
+    /// a newly created entry containing this very reason.
     fn add_unknown_addr(
         &mut self,
         addr: Addr,
