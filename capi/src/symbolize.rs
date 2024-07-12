@@ -829,7 +829,11 @@ unsafe fn blaze_symbolize_impl(
         }
         Ok(results) => {
             let result = convert_symbolizedresults_to_c(results);
-            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            if result.is_null() {
+                let () = set_last_err(blaze_err::BLAZE_ERR_OUT_OF_MEMORY);
+            } else {
+                let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            }
             result
         }
         Err(err) => {
@@ -1348,6 +1352,8 @@ mod tests {
         // Empty list of symbols.
         let results = vec![];
         let syms = convert_symbolizedresults_to_c(results);
+        assert!(!syms.is_null());
+
         let () = touch_syms(syms);
         let () = unsafe { blaze_syms_free(syms) };
 
@@ -1379,6 +1385,7 @@ mod tests {
             _non_exhaustive: (),
         })];
         let syms = convert_symbolizedresults_to_c(results);
+        assert!(!syms.is_null());
         let () = touch_syms(syms);
         let () = unsafe { blaze_syms_free(syms) };
 
@@ -1402,6 +1409,7 @@ mod tests {
             Symbolized::Unknown(Reason::InvalidFileOffset),
         ];
         let syms = convert_symbolizedresults_to_c(results);
+        assert!(!syms.is_null());
         let () = touch_syms(syms);
         let () = unsafe { blaze_syms_free(syms) };
     }
