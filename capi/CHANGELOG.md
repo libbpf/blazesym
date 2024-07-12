@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Renamed `blaze_result` to `blaze_syms`
+  - Renamed `blaze_result_free` to `blaze_syms_free`
+
+
 0.1.0-rc.0
 ----------
 - Added `debug_dirs` attribute to `blaze_symbolizer_opts`
