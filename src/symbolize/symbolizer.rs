@@ -393,6 +393,150 @@ impl Default for Builder {
 }
 
 
+struct SymbolizeHandler<'sym> {
+    /// The "outer" `Symbolizer` instance.
+    symbolizer: &'sym Symbolizer,
+    /// The PID of the process in which we symbolize.
+    pid: Pid,
+    /// Whether or not to consult debug symbols to satisfy the request
+    /// (if present).
+    debug_syms: bool,
+    /// Whether or not to consult the process' perf map (if any) to
+    /// satisfy the request.
+    perf_map: bool,
+    /// Whether to work with `/proc/<pid>/map_files/` entries or with
+    /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
+    map_files: bool,
+    /// Symbols representing the symbolized addresses.
+    all_symbols: Vec<Symbolized<'sym>>,
+}
+
+impl SymbolizeHandler<'_> {
+    #[cfg(feature = "apk")]
+    fn handle_apk_addr(&mut self, addr: Addr, file_off: u64, entry_path: &EntryPath) -> Result<()> {
+        let apk_path = if self.map_files {
+            &entry_path.maps_file
+        } else {
+            &entry_path.symbolic_path
+        };
+
+        match self
+            .symbolizer
+            .apk_resolver(apk_path, file_off, self.debug_syms)?
+        {
+            Some((elf_resolver, elf_addr)) => {
+                let symbol = self.symbolizer.symbolize_with_resolver(
+                    elf_addr,
+                    &Resolver::Cached(elf_resolver.as_symbolize()),
+                )?;
+                let () = self.all_symbols.push(symbol);
+            }
+            None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
+        }
+        Ok(())
+    }
+
+    fn handle_elf_addr(&mut self, addr: Addr, file_off: u64, entry_path: &EntryPath) -> Result<()> {
+        let path = if self.map_files {
+            &entry_path.maps_file
+        } else {
+            &entry_path.symbolic_path
+        };
+
+        let resolver = self
+            .symbolizer
+            .elf_cache
+            .elf_resolver(path, self.symbolizer.maybe_debug_dirs(self.debug_syms))?;
+
+        match resolver.file_offset_to_virt_offset(file_off)? {
+            Some(addr) => {
+                let symbol = self
+                    .symbolizer
+                    .symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))?;
+                let () = self.all_symbols.push(symbol);
+            }
+            None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
+        }
+        Ok(())
+    }
+
+    fn handle_perf_map_addr(&mut self, addr: Addr) -> Result<()> {
+        if let Some(perf_map) = self.symbolizer.perf_map(self.pid)? {
+            let symbolized = self
+                .symbolizer
+                .symbolize_with_resolver(addr, &Resolver::Cached(perf_map))?;
+            let () = self.all_symbols.push(symbolized);
+        } else {
+            let () = self.handle_unknown_addr(addr, Reason::UnknownAddr);
+        }
+        Ok(())
+    }
+}
+
+impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
+    fn handle_unknown_addr(&mut self, _addr: Addr, reason: Reason) {
+        let () = self.all_symbols.push(Symbolized::Unknown(reason));
+    }
+
+    fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
+        if let Some(path_name) = &entry.path_name {
+            if let Some(resolver) = self
+                .symbolizer
+                .process_dispatch_resolver(entry.range.clone(), path_name)?
+            {
+                let file_off = addr - entry.range.start + entry.offset;
+                let () = match resolver.file_offset_to_virt_offset(file_off)? {
+                    Some(addr) => {
+                        let symbol = self.symbolizer.symbolize_with_resolver(
+                            addr,
+                            &Resolver::Cached(resolver.as_symbolize()),
+                        )?;
+                        let () = self.all_symbols.push(symbol);
+                    }
+                    None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
+                };
+                return Ok(())
+            }
+
+            // If there is no process dispatcher installed or it did
+            // not return a resolver for the entry, we use our
+            // default handling scheme.
+        }
+
+        match &entry.path_name {
+            Some(PathName::Path(entry_path)) => {
+                let file_off = addr - entry.range.start + entry.offset;
+                let ext = entry_path
+                    .symbolic_path
+                    .extension()
+                    .unwrap_or_else(|| OsStr::new(""));
+                match ext.to_str() {
+                    #[cfg(feature = "apk")]
+                    Some("apk") | Some("zip") => self.handle_apk_addr(addr, file_off, entry_path),
+                    _ => self.handle_elf_addr(addr, file_off, entry_path),
+                }
+            }
+            Some(PathName::Component(..)) => {
+                let () = self.handle_unknown_addr(addr, Reason::Unsupported);
+                Ok(())
+            }
+            // If there is no path associated with this entry, we don't
+            // really have any idea what the address may belong to. But
+            // there is a chance that the address is part of the perf
+            // map, so check that.
+            // TODO: It's not entirely clear if a perf map could also
+            //       cover addresses belonging to entries with a path.
+            None if self.perf_map => self.handle_perf_map_addr(addr),
+            None => {
+                let () = self.handle_unknown_addr(addr, Reason::UnknownAddr);
+                Ok(())
+            }
+        }
+    }
+}
+
+
 /// An enumeration helping us to differentiate between cached and uncached
 /// symbol resolvers.
 ///
@@ -710,161 +854,6 @@ impl Symbolizer {
         perf_map: bool,
         map_files: bool,
     ) -> Result<Vec<Symbolized>> {
-        struct SymbolizeHandler<'sym> {
-            /// The "outer" `Symbolizer` instance.
-            symbolizer: &'sym Symbolizer,
-            /// The PID of the process in which we symbolize.
-            pid: Pid,
-            /// Whether or not to consult debug symbols to satisfy the request
-            /// (if present).
-            debug_syms: bool,
-            /// Whether or not to consult the process' perf map (if any) to
-            /// satisfy the request.
-            perf_map: bool,
-            /// Whether to work with `/proc/<pid>/map_files/` entries or with
-            /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
-            map_files: bool,
-            /// Symbols representing the symbolized addresses.
-            all_symbols: Vec<Symbolized<'sym>>,
-        }
-
-        impl SymbolizeHandler<'_> {
-            #[cfg(feature = "apk")]
-            fn handle_apk_addr(
-                &mut self,
-                addr: Addr,
-                file_off: u64,
-                entry_path: &EntryPath,
-            ) -> Result<()> {
-                let apk_path = if self.map_files {
-                    &entry_path.maps_file
-                } else {
-                    &entry_path.symbolic_path
-                };
-
-                match self
-                    .symbolizer
-                    .apk_resolver(apk_path, file_off, self.debug_syms)?
-                {
-                    Some((elf_resolver, elf_addr)) => {
-                        let symbol = self.symbolizer.symbolize_with_resolver(
-                            elf_addr,
-                            &Resolver::Cached(elf_resolver.as_symbolize()),
-                        )?;
-                        let () = self.all_symbols.push(symbol);
-                    }
-                    None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
-                }
-                Ok(())
-            }
-
-            fn handle_elf_addr(
-                &mut self,
-                addr: Addr,
-                file_off: u64,
-                entry_path: &EntryPath,
-            ) -> Result<()> {
-                let path = if self.map_files {
-                    &entry_path.maps_file
-                } else {
-                    &entry_path.symbolic_path
-                };
-
-                let resolver = self
-                    .symbolizer
-                    .elf_cache
-                    .elf_resolver(path, self.symbolizer.maybe_debug_dirs(self.debug_syms))?;
-
-                match resolver.file_offset_to_virt_offset(file_off)? {
-                    Some(addr) => {
-                        let symbol = self
-                            .symbolizer
-                            .symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))?;
-                        let () = self.all_symbols.push(symbol);
-                    }
-                    None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
-                }
-                Ok(())
-            }
-
-            fn handle_perf_map_addr(&mut self, addr: Addr) -> Result<()> {
-                if let Some(perf_map) = self.symbolizer.perf_map(self.pid)? {
-                    let symbolized = self
-                        .symbolizer
-                        .symbolize_with_resolver(addr, &Resolver::Cached(perf_map))?;
-                    let () = self.all_symbols.push(symbolized);
-                } else {
-                    let () = self.handle_unknown_addr(addr, Reason::UnknownAddr);
-                }
-                Ok(())
-            }
-        }
-
-        impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
-            #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
-            fn handle_unknown_addr(&mut self, _addr: Addr, reason: Reason) {
-                let () = self.all_symbols.push(Symbolized::Unknown(reason));
-            }
-
-            fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
-                if let Some(path_name) = &entry.path_name {
-                    if let Some(resolver) = self
-                        .symbolizer
-                        .process_dispatch_resolver(entry.range.clone(), path_name)?
-                    {
-                        let file_off = addr - entry.range.start + entry.offset;
-                        let () = match resolver.file_offset_to_virt_offset(file_off)? {
-                            Some(addr) => {
-                                let symbol = self.symbolizer.symbolize_with_resolver(
-                                    addr,
-                                    &Resolver::Cached(resolver.as_symbolize()),
-                                )?;
-                                let () = self.all_symbols.push(symbol);
-                            }
-                            None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
-                        };
-                        return Ok(())
-                    }
-
-                    // If there is no process dispatcher installed or it did
-                    // not return a resolver for the entry, we use our
-                    // default handling scheme.
-                }
-
-                match &entry.path_name {
-                    Some(PathName::Path(entry_path)) => {
-                        let file_off = addr - entry.range.start + entry.offset;
-                        let ext = entry_path
-                            .symbolic_path
-                            .extension()
-                            .unwrap_or_else(|| OsStr::new(""));
-                        match ext.to_str() {
-                            #[cfg(feature = "apk")]
-                            Some("apk") | Some("zip") => {
-                                self.handle_apk_addr(addr, file_off, entry_path)
-                            }
-                            _ => self.handle_elf_addr(addr, file_off, entry_path),
-                        }
-                    }
-                    Some(PathName::Component(..)) => {
-                        let () = self.handle_unknown_addr(addr, Reason::Unsupported);
-                        Ok(())
-                    }
-                    // If there is no path associated with this entry, we don't
-                    // really have any idea what the address may belong to. But
-                    // there is a chance that the address is part of the perf
-                    // map, so check that.
-                    // TODO: It's not entirely clear if a perf map could also
-                    //       cover addresses belonging to entries with a path.
-                    None if self.perf_map => self.handle_perf_map_addr(addr),
-                    None => {
-                        let () = self.handle_unknown_addr(addr, Reason::UnknownAddr);
-                        Ok(())
-                    }
-                }
-            }
-        }
-
         let entries = maps::parse(pid)?;
         let mut handler = SymbolizeHandler {
             symbolizer: self,
