@@ -1,8 +1,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ffi::OsStr;
-use std::io::Error;
-use std::io::ErrorKind;
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -10,6 +9,7 @@ use crate::maps;
 use crate::maps::MapsEntry;
 use crate::maps::PathName;
 use crate::Addr;
+use crate::Error;
 use crate::Result;
 
 use super::buildid::BuildIdReader;
@@ -212,8 +212,8 @@ where
     R: From<Reason>,
 {
     let mut entry = entries.next().ok_or_else(|| {
-        Error::new(
-            ErrorKind::UnexpectedEof,
+        io::Error::new(
+            io::ErrorKind::UnexpectedEof,
             "proc maps does not contain relevant entries",
         )
     })??;
@@ -224,11 +224,9 @@ where
     // contained in the current entry's range.
     'main: for addr in addrs {
         if addr < prev_addr {
-            return Err(Error::new(
-                ErrorKind::InvalidInput,
+            return Err(Error::with_invalid_input(
                 "addresses to normalize are not sorted",
-            )
-            .into())
+            ))
         }
         prev_addr = addr;
 

@@ -457,7 +457,6 @@ impl Error {
         Self::with_io_error(io::ErrorKind::InvalidData, error)
     }
 
-    #[cfg(feature = "breakpad")]
     #[inline]
     pub(crate) fn with_invalid_input<E>(error: E) -> Self
     where
