@@ -192,9 +192,8 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
         / mem::size_of::<u64>()
         * mem::size_of::<u64>();
     let sym_buf_sz = mem::size_of::<blaze_sym_info>() * sym_cnt;
-    let buf_size = array_sz + sym_buf_sz + str_buf_sz;
-    let raw_buf_with_sz =
-        unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
+    let buf_size = mem::size_of::<u64>() + array_sz + sym_buf_sz + str_buf_sz;
+    let raw_buf_with_sz = unsafe { alloc(Layout::from_size_align(buf_size, 8).unwrap()) };
     if raw_buf_with_sz.is_null() {
         return ptr::null()
     }
@@ -340,7 +339,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_free(syms: *const *const blaze_sym_i
     }
 
     let raw_buf_with_sz = unsafe { (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
-    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
+    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize;
     unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
 }
 

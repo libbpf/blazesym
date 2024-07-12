@@ -718,12 +718,12 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
         Symbolized::Unknown(..) => acc,
     });
 
-    let buf_size = strtab_size
+    let buf_size = mem::size_of::<u64>()
+        + strtab_size
         + mem::size_of::<blaze_syms>()
         + mem::size_of::<blaze_sym>() * results.len()
         + mem::size_of::<blaze_symbolize_inlined_fn>() * inlined_fn_cnt;
-    let raw_buf_with_sz =
-        unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
+    let raw_buf_with_sz = unsafe { alloc(Layout::from_size_align(buf_size, 8).unwrap()) };
     if raw_buf_with_sz.is_null() {
         return ptr::null()
     }
@@ -1080,7 +1080,7 @@ pub unsafe extern "C" fn blaze_syms_free(syms: *const blaze_syms) {
     }
 
     let raw_buf_with_sz = unsafe { (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
-    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
+    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize;
     unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
 }
 
