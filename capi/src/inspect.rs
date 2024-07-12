@@ -195,6 +195,9 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
     let buf_size = array_sz + sym_buf_sz + str_buf_sz;
     let raw_buf_with_sz =
         unsafe { alloc(Layout::from_size_align(buf_size + mem::size_of::<u64>(), 8).unwrap()) };
+    if raw_buf_with_sz.is_null() {
+        return ptr::null()
+    }
 
     unsafe { *(raw_buf_with_sz as *mut u64) = buf_size as u64 };
 
@@ -309,9 +312,13 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
     let result = inspector.lookup(&src, &names);
     match result {
         Ok(syms) => {
-            let sym_info = convert_syms_list_to_c(syms);
-            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
-            sym_info
+            let result = convert_syms_list_to_c(syms);
+            if result.is_null() {
+                let () = set_last_err(blaze_err::BLAZE_ERR_OUT_OF_MEMORY);
+            } else {
+                let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            }
+            result
         }
         Err(err) => {
             let () = set_last_err(err.kind().into());
@@ -481,6 +488,7 @@ mod tests {
         fn test(syms: Vec<Vec<SymInfo>>) {
             let copy = syms.clone();
             let ptr = convert_syms_list_to_c(syms);
+            assert!(!ptr.is_null());
 
             for (i, list) in copy.into_iter().enumerate() {
                 for (j, sym) in list.into_iter().enumerate() {
