@@ -467,13 +467,13 @@ pub struct blaze_sym {
     pub reserved: [u8; 7],
 }
 
-/// `blaze_result` is the result of symbolization for C API.
+/// `blaze_syms` is the result of symbolization of a list of addresses.
 ///
-/// Instances of [`blaze_result`] are returned by any of the `blaze_symbolize_*`
-/// variants. They should be freed by calling [`blaze_result_free`].
+/// Instances of [`blaze_syms`] are returned by any of the `blaze_symbolize_*`
+/// variants. They should be freed by calling [`blaze_syms_free`].
 #[repr(C)]
 #[derive(Debug)]
-pub struct blaze_result {
+pub struct blaze_syms {
     /// The number of symbols being reported.
     pub cnt: usize,
     /// The symbols corresponding to input addresses.
@@ -706,12 +706,12 @@ fn convert_code_info(
         .unwrap_or(0);
 }
 
-/// Convert [`Sym`] objects to [`blaze_result`] ones.
+/// Convert [`Sym`] objects to [`blaze_syms`] ones.
 ///
-/// The returned pointer should be released using [`blaze_result_free`] once
+/// The returned pointer should be released using [`blaze_syms_free`] once
 /// usage concluded.
-fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_result {
-    // Allocate a buffer to contain a blaze_result, all
+fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms {
+    // Allocate a buffer to contain a blaze_syms, all
     // blaze_sym, and C strings of symbol and path.
     let (strtab_size, inlined_fn_cnt) = results.iter().fold((0, 0), |acc, sym| match sym {
         Symbolized::Sym(sym) => (acc.0 + sym_strtab_size(sym), acc.1 + sym.inlined.len()),
@@ -719,7 +719,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
     });
 
     let buf_size = strtab_size
-        + mem::size_of::<blaze_result>()
+        + mem::size_of::<blaze_syms>()
         + mem::size_of::<blaze_sym>() * results.len()
         + mem::size_of::<blaze_symbolize_inlined_fn>() * inlined_fn_cnt;
     let raw_buf_with_sz =
@@ -733,14 +733,14 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
 
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
 
-    let result_ptr = raw_buf as *mut blaze_result;
-    let mut syms_last = unsafe { (*result_ptr).syms.as_mut_slice().as_mut_ptr() };
+    let syms_ptr = raw_buf as *mut blaze_syms;
+    let mut syms_last = unsafe { (*syms_ptr).syms.as_mut_slice().as_mut_ptr() };
     let mut inlined_last = unsafe {
-        raw_buf.add(mem::size_of::<blaze_result>() + mem::size_of::<blaze_sym>() * results.len())
+        raw_buf.add(mem::size_of::<blaze_syms>() + mem::size_of::<blaze_sym>() * results.len())
     } as *mut blaze_symbolize_inlined_fn;
     let mut cstr_last = unsafe {
         raw_buf.add(
-            mem::size_of::<blaze_result>()
+            mem::size_of::<blaze_syms>()
                 + mem::size_of::<blaze_sym>() * results.len()
                 + mem::size_of::<blaze_symbolize_inlined_fn>() * inlined_fn_cnt,
         )
@@ -755,7 +755,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
         cstr
     };
 
-    unsafe { (*result_ptr).cnt = results.len() };
+    unsafe { (*syms_ptr).cnt = results.len() };
 
     // Convert all `Sym`s to `blazesym_sym`s.
     for sym in results {
@@ -800,7 +800,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_resu
         syms_last = unsafe { syms_last.add(1) };
     }
 
-    result_ptr
+    syms_ptr
 }
 
 unsafe fn blaze_symbolize_impl(
@@ -808,7 +808,7 @@ unsafe fn blaze_symbolize_impl(
     src: Source<'_>,
     inputs: Input<*const u64>,
     input_cnt: usize,
-) -> *const blaze_result {
+) -> *const blaze_syms {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
     // SAFETY: The caller ensures that the pointer is valid and the count
@@ -842,9 +842,9 @@ unsafe fn blaze_symbolize_impl(
 
 /// Symbolize a list of process absolute addresses.
 ///
-/// On success, the function returns a [`blaze_result`] containing an
+/// On success, the function returns a [`blaze_syms`] containing an
 /// array of `abs_addr_cnt` [`blaze_sym`] objects. The returned object
-/// should be released using [`blaze_result_free`] once it is no longer
+/// should be released using [`blaze_syms_free`] once it is no longer
 /// needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
@@ -861,7 +861,7 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
     src: *const blaze_symbolize_src_process,
     abs_addrs: *const Addr,
     abs_addr_cnt: usize,
-) -> *const blaze_result {
+) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_process) {
         let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null()
@@ -875,9 +875,9 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
 
 /// Symbolize a list of kernel absolute addresses.
 ///
-/// On success, the function returns a [`blaze_result`] containing an
+/// On success, the function returns a [`blaze_syms`] containing an
 /// array of `abs_addr_cnt` [`blaze_sym`] objects. The returned object
-/// should be released using [`blaze_result_free`] once it is no longer
+/// should be released using [`blaze_syms_free`] once it is no longer
 /// needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
@@ -894,7 +894,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
     src: *const blaze_symbolize_src_kernel,
     abs_addrs: *const Addr,
     abs_addr_cnt: usize,
-) -> *const blaze_result {
+) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_kernel) {
         let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null()
@@ -908,9 +908,9 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
 
 /// Symbolize virtual offsets in an ELF file.
 ///
-/// On success, the function returns a [`blaze_result`] containing an
+/// On success, the function returns a [`blaze_syms`] containing an
 /// array of `virt_offset_cnt` [`blaze_sym`] objects. The returned
-/// object should be released using [`blaze_result_free`] once it is no
+/// object should be released using [`blaze_syms_free`] once it is no
 /// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
@@ -927,7 +927,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
     src: *const blaze_symbolize_src_elf,
     virt_offsets: *const Addr,
     virt_offset_cnt: usize,
-) -> *const blaze_result {
+) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_elf) {
         let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null()
@@ -947,9 +947,9 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
 
 /// Symbolize file offsets in an ELF file.
 ///
-/// On success, the function returns a [`blaze_result`] containing an
+/// On success, the function returns a [`blaze_syms`] containing an
 /// array of `file_offset_cnt` [`blaze_sym`] objects. The returned
-/// object should be released using [`blaze_result_free`] once it is no
+/// object should be released using [`blaze_syms_free`] once it is no
 /// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
@@ -966,7 +966,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
     src: *const blaze_symbolize_src_elf,
     file_offsets: *const Addr,
     file_offset_cnt: usize,
-) -> *const blaze_result {
+) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_elf) {
         let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null()
@@ -987,9 +987,9 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
 
 /// Symbolize virtual offsets using "raw" Gsym data.
 ///
-/// On success, the function returns a [`blaze_result`] containing an
+/// On success, the function returns a [`blaze_syms`] containing an
 /// array of `virt_offset_cnt` [`blaze_sym`] objects. The returned
-/// object should be released using [`blaze_result_free`] once it is no
+/// object should be released using [`blaze_syms_free`] once it is no
 /// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
@@ -1006,7 +1006,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
     src: *const blaze_symbolize_src_gsym_data,
     virt_offsets: *const Addr,
     virt_offset_cnt: usize,
-) -> *const blaze_result {
+) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_gsym_data) {
         let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null()
@@ -1026,9 +1026,9 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
 
 /// Symbolize virtual offsets in a Gsym file.
 ///
-/// On success, the function returns a [`blaze_result`] containing an
+/// On success, the function returns a [`blaze_syms`] containing an
 /// array of `virt_offset_cnt` [`blaze_sym`] objects. The returned
-/// object should be released using [`blaze_result_free`] once it is no
+/// object should be released using [`blaze_syms_free`] once it is no
 /// longer needed.
 ///
 /// On error, the function returns `NULL` and sets the thread's last error to
@@ -1045,7 +1045,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
     src: *const blaze_symbolize_src_gsym_file,
     virt_offsets: *const Addr,
     virt_offset_cnt: usize,
-) -> *const blaze_result {
+) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_gsym_file) {
         let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
         return ptr::null()
@@ -1070,12 +1070,12 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
 /// The pointer must have been returned by any of the `blaze_symbolize_*`
 /// variants.
 #[no_mangle]
-pub unsafe extern "C" fn blaze_result_free(results: *const blaze_result) {
-    if results.is_null() {
+pub unsafe extern "C" fn blaze_syms_free(syms: *const blaze_syms) {
+    if syms.is_null() {
         return
     }
 
-    let raw_buf_with_sz = unsafe { (results as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
+    let raw_buf_with_sz = unsafe { (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
     let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize + mem::size_of::<u64>();
     unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
 }
@@ -1213,8 +1213,8 @@ mod tests {
             "blaze_symbolize_inlined_fn { name: 0x0, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
-        let result = blaze_result { cnt: 0, syms: [] };
-        assert_eq!(format!("{result:?}"), "blaze_result { cnt: 0, syms: [] }");
+        let syms = blaze_syms { cnt: 0, syms: [] };
+        assert_eq!(format!("{syms:?}"), "blaze_syms { cnt: 0, syms: [] }");
 
         let opts = blaze_symbolizer_opts {
             type_size: 16,
@@ -1310,11 +1310,11 @@ mod tests {
             let _x = touch(column);
         }
 
-        /// Touch all "members" of a [`blaze_result`].
-        fn touch_result(result: *const blaze_result) {
-            let result = unsafe { &*result };
-            for i in 0..result.cnt {
-                let sym = unsafe { &*result.syms.as_slice().as_ptr().add(i) };
+        /// Touch all "members" of a [`blaze_syms`].
+        fn touch_syms(syms: *const blaze_syms) {
+            let syms = unsafe { &*syms };
+            for i in 0..syms.cnt {
+                let sym = unsafe { &*syms.syms.as_slice().as_ptr().add(i) };
                 let blaze_sym {
                     name,
                     addr,
@@ -1347,9 +1347,9 @@ mod tests {
 
         // Empty list of symbols.
         let results = vec![];
-        let result = convert_symbolizedresults_to_c(results);
-        let () = touch_result(result);
-        let () = unsafe { blaze_result_free(result) };
+        let syms = convert_symbolizedresults_to_c(results);
+        let () = touch_syms(syms);
+        let () = unsafe { blaze_syms_free(syms) };
 
         // A single symbol with inlined function information.
         let results = vec![Symbolized::Sym(Sym {
@@ -1378,9 +1378,9 @@ mod tests {
             .into_boxed_slice(),
             _non_exhaustive: (),
         })];
-        let result = convert_symbolizedresults_to_c(results);
-        let () = touch_result(result);
-        let () = unsafe { blaze_result_free(result) };
+        let syms = convert_symbolizedresults_to_c(results);
+        let () = touch_syms(syms);
+        let () = unsafe { blaze_syms_free(syms) };
 
         // One symbol and some unsymbolized values.
         let results = vec![
@@ -1401,9 +1401,9 @@ mod tests {
             }),
             Symbolized::Unknown(Reason::InvalidFileOffset),
         ];
-        let result = convert_symbolizedresults_to_c(results);
-        let () = touch_result(result);
-        let () = unsafe { blaze_result_free(result) };
+        let syms = convert_symbolizedresults_to_c(results);
+        let () = touch_syms(syms);
+        let () = unsafe { blaze_syms_free(syms) };
     }
 
     /// Make sure that we can create and free a symbolizer instance.
@@ -1434,7 +1434,7 @@ mod tests {
     fn symbolize_elf_dwarf_gsym() {
         fn test<F>(symbolize: F, has_code_info: bool)
         where
-            F: FnOnce(*mut blaze_symbolizer, *const Addr, usize) -> *const blaze_result,
+            F: FnOnce(*mut blaze_symbolizer, *const Addr, usize) -> *const blaze_syms,
         {
             let symbolizer = blaze_symbolizer_new();
             let addrs = [0x2000100];
@@ -1471,7 +1471,7 @@ mod tests {
                 assert_eq!(sym.code_info.line, 0);
             }
 
-            let () = unsafe { blaze_result_free(result) };
+            let () = unsafe { blaze_syms_free(result) };
             let () = unsafe { blaze_symbolizer_free(symbolizer) };
         }
 
@@ -1597,7 +1597,7 @@ mod tests {
             CStr::from_bytes_with_nul(b"the_answer\0").unwrap()
         );
 
-        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 
@@ -1638,7 +1638,7 @@ mod tests {
             );
 
             if sym.inlined_cnt == 0 {
-                let () = unsafe { blaze_result_free(result) };
+                let () = unsafe { blaze_syms_free(result) };
                 let () = unsafe { blaze_symbolizer_free(symbolizer) };
                 return Err(())
             }
@@ -1651,7 +1651,7 @@ mod tests {
                 name
             );
 
-            let () = unsafe { blaze_result_free(result) };
+            let () = unsafe { blaze_syms_free(result) };
             let () = unsafe { blaze_symbolizer_free(symbolizer) };
 
             // Do it again, this time with demangling enabled.
@@ -1684,7 +1684,7 @@ mod tests {
                 CStr::from_bytes_with_nul(b"test::inlined_call\0").unwrap()
             );
 
-            let () = unsafe { blaze_result_free(result) };
+            let () = unsafe { blaze_syms_free(result) };
             let () = unsafe { blaze_symbolizer_free(symbolizer) };
             Ok(())
         }
@@ -1752,7 +1752,7 @@ mod tests {
             CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()
         );
 
-        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 
@@ -1779,7 +1779,7 @@ mod tests {
         assert!(result.is_null());
         assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_NOT_FOUND);
 
-        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 
@@ -1829,7 +1829,7 @@ mod tests {
             blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_MISSING_SYMS
         );
 
-        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 
@@ -1882,7 +1882,7 @@ mod tests {
         let name = unsafe { CStr::from_ptr(sym.name) };
         assert_eq!(name.to_str().unwrap(), "factorial");
 
-        let () = unsafe { blaze_result_free(result) };
+        let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 }
