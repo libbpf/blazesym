@@ -51,6 +51,9 @@ pub struct blaze_normalizer_opts {
     pub cache_maps: bool,
     /// Whether to read and report build IDs as part of the normalization
     /// process.
+    ///
+    /// Note that build ID read failures will be swallowed without
+    /// failing the normalization operation.
     pub build_ids: bool,
     /// Whether or not to cache build IDs. This flag only has an effect
     /// if build ID reading is enabled in the first place.
@@ -292,7 +295,7 @@ pub struct blaze_user_meta_elf {
     pub path: *mut c_char,
     /// The length of the build ID, in bytes.
     pub build_id_len: usize,
-    /// The optional build ID of the ELF file, if found.
+    /// The optional build ID of the ELF file, if found and readable.
     pub build_id: *mut u8,
     /// Unused member available for future expansion.
     pub reserved: [u8; 8],

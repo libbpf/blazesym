@@ -99,7 +99,22 @@ fn read_build_id_impl(parser: &ElfParser) -> Result<Option<BuildId>> {
 }
 
 pub(super) trait BuildIdReader<'src> {
-    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId<'src>>>;
+    fn read_build_id(&self, path: &Path) -> Option<BuildId<'src>> {
+        #[cfg_attr(
+            feature = "tracing",
+            crate::log::instrument(err, skip_all, fields(path = ?path))
+        )]
+        fn read_build_id<'src, B>(slf: &B, path: &Path) -> Result<Option<BuildId<'src>>>
+        where
+            B: BuildIdReader<'src> + ?Sized,
+        {
+            slf.read_build_id_fallible(path)
+        }
+
+        read_build_id(self, path).ok().flatten()
+    }
+
+    fn read_build_id_fallible(&self, path: &Path) -> Result<Option<BuildId<'src>>>;
 }
 
 
@@ -107,8 +122,7 @@ pub(super) struct DefaultBuildIdReader;
 
 impl BuildIdReader<'_> for DefaultBuildIdReader {
     /// Attempt to read an ELF binary's build ID from a file.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId<'static>>> {
+    fn read_build_id_fallible(&self, path: &Path) -> Result<Option<BuildId<'static>>> {
         let parser = ElfParser::open(path)?;
         let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
         Ok(buildid)
@@ -130,8 +144,7 @@ impl<'cache> CachingBuildIdReader<'cache> {
 
 impl<'src> BuildIdReader<'src> for CachingBuildIdReader<'src> {
     /// Attempt to read an ELF binary's build ID from a file.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip(self)))]
-    fn read_build_id(&self, path: &Path) -> Result<Option<BuildId<'src>>> {
+    fn read_build_id_fallible(&self, path: &Path) -> Result<Option<BuildId<'src>>> {
         let (file, cell) = self.cache.entry(path)?;
         let build_id = cell
             .get_or_try_init(|| {
@@ -151,7 +164,7 @@ pub(super) struct NoBuildIdReader;
 
 impl BuildIdReader<'_> for NoBuildIdReader {
     #[inline]
-    fn read_build_id(&self, _path: &Path) -> Result<Option<BuildId<'static>>> {
+    fn read_build_id_fallible(&self, _path: &Path) -> Result<Option<BuildId<'static>>> {
         Ok(None)
     }
 }

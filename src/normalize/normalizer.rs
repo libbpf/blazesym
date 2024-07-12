@@ -59,6 +59,9 @@ pub struct Builder {
     cache_maps: bool,
     /// Whether to read and report build IDs as part of the normalization
     /// process.
+    ///
+    /// Note that build ID read failures will be swallowed without
+    /// failing the normalization operation.
     build_ids: bool,
     /// Whether or not to cache build IDs. This flag only has an effect
     /// if build ID reading is enabled in the first place.
@@ -142,6 +145,9 @@ pub struct Normalizer {
     cache_maps: bool,
     /// Flag indicating whether or not to read build IDs as part of the
     /// normalization process.
+    ///
+    /// Note that build ID read failures will be swallowed without
+    /// failing the normalization operation.
     build_ids: bool,
     /// Whether or not to cache build IDs. This flag only has an effect
     /// if build ID reading is enabled in the first place.

@@ -29,7 +29,7 @@ fn make_elf_meta<'src>(
 ) -> Result<UserMeta<'src>> {
     let elf = Elf {
         path: path.to_path_buf(),
-        build_id: build_id_reader.read_build_id(maps_file)?,
+        build_id: build_id_reader.read_build_id(maps_file),
         _non_exhaustive: (),
     };
     let meta = UserMeta::Elf(elf);
@@ -272,6 +272,8 @@ mod tests {
     use test_log::test;
 
     use crate::normalize::buildid::NoBuildIdReader;
+    use crate::BuildId;
+    use crate::Error;
     use crate::Pid;
 
 
@@ -336,5 +338,40 @@ mod tests {
         test(0x7fffffff1000, Reason::Unmapped);
         test(0x7fffffff1001, Reason::Unmapped);
         test(0x7fffffffffff, Reason::Unmapped);
+    }
+
+    struct FailingBuildIdReader;
+
+    impl BuildIdReader<'_> for FailingBuildIdReader {
+        #[inline]
+        fn read_build_id_fallible(&self, _path: &Path) -> Result<Option<BuildId<'static>>> {
+            Err(Error::with_unsupported("induced failure"))
+        }
+    }
+
+    /// Check that errors when reading build IDs are handled gracefully.
+    #[test]
+    fn build_id_read_failures() {
+        let addrs = [build_id_read_failures as Addr];
+        let map_files = false;
+
+        let entries = maps::parse_filtered(Pid::Slf).unwrap();
+        let reader = FailingBuildIdReader;
+        let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
+        let () = normalize_sorted_user_addrs_with_entries(
+            addrs.as_slice().iter().copied(),
+            entries,
+            &mut handler,
+        )
+        .unwrap();
+
+        let normalized = handler.normalized;
+        assert_eq!(normalized.outputs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
+        assert!(
+            normalized.meta[0].elf().is_some(),
+            "{:?}",
+            normalized.meta[0]
+        );
     }
 }
