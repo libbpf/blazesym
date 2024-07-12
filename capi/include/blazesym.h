@@ -305,6 +305,9 @@ typedef struct blaze_normalizer_opts {
   /**
    * Whether to read and report build IDs as part of the normalization
    * process.
+   *
+   * Note that build ID read failures will be swallowed without
+   * failing the normalization operation.
    */
   bool build_ids;
   /**
@@ -347,7 +350,7 @@ typedef struct blaze_user_meta_elf {
    */
   size_t build_id_len;
   /**
-   * The optional build ID of the ELF file, if found.
+   * The optional build ID of the ELF file, if found and readable.
    */
   uint8_t *build_id;
   /**

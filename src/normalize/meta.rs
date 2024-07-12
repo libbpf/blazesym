@@ -54,7 +54,7 @@ pub struct Apk {
 pub struct Elf<'src> {
     /// The canonical absolute path to the ELF file, including its name.
     pub path: PathBuf,
-    /// The ELF file's build ID, if available.
+    /// The ELF file's build ID, if available and readable.
     pub build_id: Option<BuildId<'src>>,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]

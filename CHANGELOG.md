@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Adjusted normalization logic to not fail overall operation on build ID
+  read failure
+
+
 0.2.0-rc.0
 ----------
 - Added support for transparently following debug links in ELF binaries
