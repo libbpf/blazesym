@@ -763,6 +763,29 @@ mod tests {
         assert_eq!(err.kind(), ErrorKind::Other);
     }
 
+    /// Check `Error::kind` reports the expected value.
+    #[tag(miri)]
+    #[test]
+    fn error_kind() {
+        let err = Error::from(io::Error::new(io::ErrorKind::AlreadyExists, "oops"));
+        assert_eq!(err.kind(), ErrorKind::AlreadyExists);
+
+        let err = Error::from(io::Error::new(io::ErrorKind::WouldBlock, "would block"));
+        assert_eq!(err.kind(), ErrorKind::WouldBlock);
+
+        let err = Error::from(io::Error::new(io::ErrorKind::TimedOut, "Ba Dum Tss"));
+        assert_eq!(err.kind(), ErrorKind::TimedOut);
+
+        let err = Error::from(io::Error::new(io::ErrorKind::WriteZero, "Nothing there :/"));
+        assert_eq!(err.kind(), ErrorKind::WriteZero);
+
+        let err = Error::from(io::Error::new(io::ErrorKind::UnexpectedEof, "Ohh?"));
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof);
+
+        let err = Error::from(io::Error::new(io::ErrorKind::OutOfMemory, "oom"));
+        assert_eq!(err.kind(), ErrorKind::OutOfMemory);
+    }
+
     /// Check that we can format errors as expected.
     #[tag(miri)]
     #[test]
