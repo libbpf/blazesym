@@ -752,10 +752,10 @@ impl Symbolizer {
                             &Resolver::Cached(elf_resolver.as_symbolize()),
                         )?;
                         let () = self.all_symbols.push(symbol);
-                        Ok(())
                     }
                     None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
                 }
+                Ok(())
             }
 
             fn handle_elf_addr(
@@ -781,10 +781,10 @@ impl Symbolizer {
                             .symbolizer
                             .symbolize_with_resolver(addr, &Resolver::Cached(resolver.deref()))?;
                         let () = self.all_symbols.push(symbol);
-                        Ok(())
                     }
                     None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
                 }
+                Ok(())
             }
 
             fn handle_perf_map_addr(&mut self, addr: Addr) -> Result<()> {
@@ -793,18 +793,17 @@ impl Symbolizer {
                         .symbolizer
                         .symbolize_with_resolver(addr, &Resolver::Cached(perf_map))?;
                     let () = self.all_symbols.push(symbolized);
-                    Ok(())
                 } else {
-                    self.handle_unknown_addr(addr, Reason::UnknownAddr)
+                    let () = self.handle_unknown_addr(addr, Reason::UnknownAddr);
                 }
+                Ok(())
             }
         }
 
         impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
             #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
-            fn handle_unknown_addr(&mut self, _addr: Addr, reason: Reason) -> Result<()> {
+            fn handle_unknown_addr(&mut self, _addr: Addr, reason: Reason) {
                 let () = self.all_symbols.push(Symbolized::Unknown(reason));
-                Ok(())
             }
 
             fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
@@ -814,18 +813,17 @@ impl Symbolizer {
                         .process_dispatch_resolver(entry.range.clone(), path_name)?
                     {
                         let file_off = addr - entry.range.start + entry.offset;
-                        let result = match resolver.file_offset_to_virt_offset(file_off)? {
+                        let () = match resolver.file_offset_to_virt_offset(file_off)? {
                             Some(addr) => {
                                 let symbol = self.symbolizer.symbolize_with_resolver(
                                     addr,
                                     &Resolver::Cached(resolver.as_symbolize()),
                                 )?;
                                 let () = self.all_symbols.push(symbol);
-                                Ok(())
                             }
                             None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
                         };
-                        return result
+                        return Ok(())
                     }
 
                     // If there is no process dispatcher installed or it did
@@ -849,7 +847,8 @@ impl Symbolizer {
                         }
                     }
                     Some(PathName::Component(..)) => {
-                        self.handle_unknown_addr(addr, Reason::Unsupported)
+                        let () = self.handle_unknown_addr(addr, Reason::Unsupported);
+                        Ok(())
                     }
                     // If there is no path associated with this entry, we don't
                     // really have any idea what the address may belong to. But
@@ -858,7 +857,10 @@ impl Symbolizer {
                     // TODO: It's not entirely clear if a perf map could also
                     //       cover addresses belonging to entries with a path.
                     None if self.perf_map => self.handle_perf_map_addr(addr),
-                    None => self.handle_unknown_addr(addr, Reason::UnknownAddr),
+                    None => {
+                        let () = self.handle_unknown_addr(addr, Reason::UnknownAddr);
+                        Ok(())
+                    }
                 }
             }
         }

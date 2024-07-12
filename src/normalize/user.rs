@@ -111,7 +111,7 @@ impl<'src> UserOutput<'src> {
 
 pub(crate) trait Handler<D = ()> {
     /// Handle an unknown address.
-    fn handle_unknown_addr(&mut self, addr: Addr, data: D) -> Result<()>;
+    fn handle_unknown_addr(&mut self, addr: Addr, data: D);
 
     /// Handle an address residing in the provided [`MapsEntry`].
     fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()>;
@@ -155,11 +155,10 @@ impl<'reader, 'src> NormalizationHandler<'reader, 'src> {
 
 impl Handler<Reason> for NormalizationHandler<'_, '_> {
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"))))]
-    fn handle_unknown_addr(&mut self, addr: Addr, reason: Reason) -> Result<()> {
+    fn handle_unknown_addr(&mut self, addr: Addr, reason: Reason) {
         let () = self
             .normalized
             .add_unknown_addr(addr, reason, &mut self.unknown_cache);
-        Ok(())
     }
 
     fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
@@ -191,10 +190,16 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                     ),
                 }
             }
-            Some(PathName::Component(..)) => self.handle_unknown_addr(addr, Reason::Unsupported),
+            Some(PathName::Component(..)) => {
+                let () = self.handle_unknown_addr(addr, Reason::Unsupported);
+                Ok(())
+            }
             // We could still normalize the address and report it, but without a
             // path nobody could really do anything with it.
-            None => self.handle_unknown_addr(addr, Reason::MissingComponent),
+            None => {
+                let () = self.handle_unknown_addr(addr, Reason::MissingComponent);
+                Ok(())
+            }
         }
     }
 }
@@ -238,7 +243,7 @@ where
                 // cannot normalize. We have to assume that addresses
                 // were valid and the ELF object was just unmapped,
                 // similar to above.
-                let () = handler.handle_unknown_addr(addr, R::from(Reason::Unmapped))?;
+                let () = handler.handle_unknown_addr(addr, R::from(Reason::Unmapped));
                 continue 'main
             };
         }
@@ -249,7 +254,7 @@ where
         // happen, for example, if an ELF object was unmapped between
         // address capture and normalization.
         if addr < entry.as_ref().range.start {
-            let () = handler.handle_unknown_addr(addr, R::from(Reason::Unmapped))?;
+            let () = handler.handle_unknown_addr(addr, R::from(Reason::Unmapped));
             continue 'main
         }
 
