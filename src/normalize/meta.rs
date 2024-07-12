@@ -112,6 +112,7 @@ pub enum UserMeta<'src> {
 
 impl<'src> UserMeta<'src> {
     /// Retrieve the [`Apk`] of this enum, if this variant is active.
+    #[inline]
     pub fn apk(&self) -> Option<&Apk> {
         match self {
             Self::Apk(entry) => Some(entry),
@@ -120,6 +121,7 @@ impl<'src> UserMeta<'src> {
     }
 
     /// Retrieve the [`Elf`] of this enum, if this variant is active.
+    #[inline]
     pub fn elf(&self) -> Option<&Elf<'src>> {
         match self {
             Self::Elf(elf) => Some(elf),
@@ -128,6 +130,7 @@ impl<'src> UserMeta<'src> {
     }
 
     /// Retrieve the [`Unknown`] of this enum, if this variant is active.
+    #[inline]
     pub fn unknown(&self) -> Option<&Unknown> {
         match self {
             Self::Unknown(unknown) => Some(unknown),

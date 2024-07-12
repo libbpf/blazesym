@@ -1365,11 +1365,11 @@ impl Default for Symbolizer {
 mod tests {
     use super::*;
 
+    use test_log::test;
+
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::test_helper::find_the_answer_fn_in_zip;
-
-    use test_log::test;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -1503,6 +1503,51 @@ mod tests {
                 assert_eq!(err.kind(), ErrorKind::Unsupported);
             }
         }
+    }
+
+    /// Check that we do not normalize addresses belonging to a
+    /// "component" (as opposed to a file).
+    #[test]
+    fn symbolize_entry_various() {
+        let addrs = [0x10000, 0x30000];
+
+        let entries = [
+            Ok(MapsEntry {
+                range: 0x10000..0x20000,
+                mode: 0x1,
+                offset: 0,
+                path_name: Some(PathName::Component("a-component".to_string())),
+            }),
+            Ok(MapsEntry {
+                range: 0x30000..0x40000,
+                mode: 0x1,
+                offset: 0,
+                path_name: None,
+            }),
+        ];
+        let symbolizer = Symbolizer::new();
+        let mut handler = SymbolizeHandler {
+            symbolizer: &symbolizer,
+            pid: Pid::Slf,
+            debug_syms: false,
+            perf_map: false,
+            map_files: false,
+            all_symbols: Vec::new(),
+        };
+        let () = normalize_sorted_user_addrs_with_entries(
+            addrs.as_slice().iter().copied(),
+            entries.into_iter(),
+            &mut handler,
+        )
+        .unwrap();
+
+        let syms = handler.all_symbols;
+        assert_eq!(syms.len(), 2);
+        assert!(
+            matches!(syms[0], Symbolized::Unknown(Reason::Unsupported)),
+            "{:?}",
+            syms[0]
+        );
     }
 
     /// Check that we can symbolize an address residing in a zip archive.
