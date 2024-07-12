@@ -340,6 +340,48 @@ mod tests {
         test(0x7fffffffffff, Reason::Unmapped);
     }
 
+    /// Check that we do not normalize addresses belonging to a
+    /// "component" (as opposed to a file).
+    #[test]
+    fn normalize_various_entries() {
+        let addrs = [0x10000, 0x30000];
+        let map_files = false;
+
+        let entries = [
+            Ok(MapsEntry {
+                range: 0x10000..0x20000,
+                mode: 0x1,
+                offset: 0,
+                path_name: Some(PathName::Component(
+                    "doesntreallymatternowdoesit".to_string(),
+                )),
+            }),
+            Ok(MapsEntry {
+                range: 0x30000..0x40000,
+                mode: 0x1,
+                offset: 0,
+                path_name: None,
+            }),
+        ];
+        let reader = NoBuildIdReader;
+        let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
+        let () = normalize_sorted_user_addrs_with_entries(
+            addrs.as_slice().iter().copied(),
+            entries.into_iter(),
+            &mut handler,
+        )
+        .unwrap();
+
+        let normalized = handler.normalized;
+        assert_eq!(normalized.outputs.len(), 2);
+        assert_eq!(normalized.meta.len(), 2);
+        assert_eq!(normalized.meta[0], Unknown::new(Reason::Unsupported).into());
+        assert_eq!(
+            normalized.meta[1],
+            Unknown::new(Reason::MissingComponent).into()
+        );
+    }
+
     struct FailingBuildIdReader;
 
     impl BuildIdReader<'_> for FailingBuildIdReader {
