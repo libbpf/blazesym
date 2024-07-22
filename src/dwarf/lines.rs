@@ -29,10 +29,12 @@ use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::mem;
 use std::num::NonZeroU64;
-use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
 
 use super::reader::R;
+
+use crate::util::bytes_to_os_str;
+use crate::util::bytes_to_path;
 
 
 fn path_push<'p>(path: &'p Path, p: &'p Path) -> Cow<'p, Path> {
@@ -51,7 +53,7 @@ fn render_file<'dwarf>(
     header: &gimli::LineProgramHeader<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
 ) -> Result<(Cow<'dwarf, Path>, &'dwarf OsStr), gimli::Error> {
     let dir = if let Some(ref comp_dir) = unit.comp_dir {
-        Path::new(OsStr::from_bytes(comp_dir.slice()))
+        bytes_to_path(comp_dir.slice())?
     } else {
         Path::new("")
     };
@@ -61,7 +63,7 @@ fn render_file<'dwarf>(
     let dir = if file.directory_index() != 0 {
         if let Some(directory) = file.directory(header) {
             let d = unit.attr_string(directory)?;
-            path_push(dir, Path::new(OsStr::from_bytes(d.slice())))
+            path_push(dir, bytes_to_path(d.slice())?)
         } else {
             Cow::default()
         }
@@ -70,7 +72,7 @@ fn render_file<'dwarf>(
     };
 
     let f = unit.attr_string(file.path_name())?;
-    let file = OsStr::from_bytes(f.slice());
+    let file = bytes_to_os_str(f.slice())?;
     Ok((dir, file))
 }
 

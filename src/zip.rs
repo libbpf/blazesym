@@ -8,15 +8,14 @@
 /// operate on pointers to such structures and their members, we
 /// declare the types as packed.
 use std::cmp::min;
-use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::mem::size_of;
-use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
 
 use crate::mmap::Mmap;
+use crate::util::bytes_to_path;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
 use crate::Error;
@@ -180,7 +179,10 @@ impl<'archive> EntryIter<'archive> {
             }
 
             let path = data.read_slice(lfh.file_name_length.into())?;
-            let path = Path::new(OsStr::from_bytes(path));
+            let path = match bytes_to_path(path) {
+                Ok(path) => path,
+                Err(err) => return Some(Err(err.into())),
+            };
 
             let _extra = data.read_slice(lfh.extra_field_length.into())?;
             // SAFETY: Both pointers point into the same underlying byte array.

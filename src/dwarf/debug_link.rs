@@ -15,12 +15,12 @@
 
 use std::ffi::OsStr;
 use std::mem::take;
-use std::os::unix::ffi::OsStrExt as _;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::elf::ElfParser;
 use crate::error::IntoError as _;
+use crate::util::bytes_to_os_str;
 use crate::util::ReadRaw as _;
 use crate::Result;
 
@@ -148,7 +148,7 @@ pub(crate) fn read_debug_link(parser: &ElfParser) -> Result<Option<(&OsStr, u32)
     let file = data
         .read_cstr()
         .ok_or_invalid_data(|| "failed to read debug link file name")?;
-    let file = OsStr::from_bytes(file.to_bytes());
+    let file = bytes_to_os_str(file.to_bytes())?;
     let () = data.align(4).ok_or_invalid_data(|| {
         "debug link section contains insufficient data: checksum not found"
     })?;

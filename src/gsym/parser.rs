@@ -38,8 +38,8 @@
 use std::ffi::OsStr;
 use std::iter;
 use std::mem::align_of;
-use std::os::unix::ffi::OsStrExt as _;
 
+use crate::util::bytes_to_os_str;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
@@ -197,7 +197,7 @@ impl GsymContext<'_> {
     #[inline]
     pub(crate) fn get_str(&self, offset: usize) -> Option<&OsStr> {
         let bytes = self.str_tab.get(offset..)?.read_cstr()?.to_bytes();
-        Some(OsStr::from_bytes(bytes))
+        bytes_to_os_str(bytes).ok()
     }
 
     #[inline]
