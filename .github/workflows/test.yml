@@ -38,6 +38,10 @@ jobs:
             rust: stable
             profile: dev
             args: "--lib --no-default-features --features=apk"
+          - runs-on: windows-latest
+            rust: stable
+            profile: release
+            args: "--lib --no-default-features"
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
