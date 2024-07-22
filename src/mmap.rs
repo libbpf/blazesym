@@ -1,12 +1,11 @@
 use std::fs::File;
-use std::io;
 use std::ops::Deref;
 use std::ops::Range;
-use std::os::unix::io::AsRawFd;
 use std::path::Path;
-use std::ptr::null_mut;
 use std::rc::Rc;
-use std::slice;
+
+use memmap2::Mmap as Mapping;
+use memmap2::MmapOptions;
 
 use crate::Error;
 use crate::ErrorExt as _;
@@ -15,21 +14,18 @@ use crate::Result;
 
 #[derive(Debug)]
 pub(crate) struct Builder {
-    /// The protection flags to use.
-    protection: libc::c_int,
+    exec: bool,
 }
 
 impl Builder {
     fn new() -> Self {
-        Self {
-            protection: libc::PROT_READ,
-        }
+        Self { exec: false }
     }
 
     /// Configure the mapping to be executable.
     #[cfg(test)]
     pub(crate) fn exec(mut self) -> Self {
-        self.protection |= libc::PROT_EXEC;
+        self.exec = true;
         self
     }
 
@@ -51,36 +47,21 @@ impl Builder {
         // The kernel does not allow mmap'ing a region of size 0. We
         // want to enable this case transparently, though.
         let mmap = if len == 0 {
-            let mapping = Mapping {
-                ptr: null_mut(),
-                len: 0,
-            };
             Mmap {
-                mapping: Rc::new(mapping),
+                mapping: None,
                 view: 0..1,
             }
         } else {
-            let offset = 0;
+            let opts = MmapOptions::new();
 
-            // SAFETY: `mmap` with the provided arguments is always safe to call.
-            let ptr = unsafe {
-                libc::mmap(
-                    null_mut(),
-                    len,
-                    self.protection,
-                    libc::MAP_PRIVATE,
-                    file.as_raw_fd(),
-                    offset,
-                )
-            };
+            let mapping = if self.exec {
+                unsafe { opts.map_exec(file) }
+            } else {
+                unsafe { opts.map(file) }
+            }?;
 
-            if ptr == libc::MAP_FAILED {
-                return Err(Error::from(io::Error::last_os_error()))
-            }
-
-            let mapping = Mapping { ptr, len };
             Mmap {
-                mapping: Rc::new(mapping),
+                mapping: Some(Rc::new(mapping)),
                 view: 0..len as u64,
             }
         };
@@ -89,43 +70,11 @@ impl Builder {
 }
 
 
-#[derive(Debug)]
-pub(crate) struct Mapping {
-    ptr: *mut libc::c_void,
-    len: usize,
-}
-
-impl Deref for Mapping {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        if self.ptr.is_null() {
-            &[]
-        } else {
-            // SAFETY: We know that the pointer is valid and represents a region of
-            //         `len` bytes.
-            unsafe { slice::from_raw_parts(self.ptr.cast(), self.len) }
-        }
-    }
-}
-
-impl Drop for Mapping {
-    fn drop(&mut self) {
-        if !self.ptr.is_null() {
-            // SAFETY: The `ptr` is valid.
-            let rc = unsafe { libc::munmap(self.ptr, self.len) };
-            #[rustfmt::skip]
-            assert!(rc == 0, "unable to unmap mmap: {}", io::Error::last_os_error());
-        }
-    }
-}
-
-
 /// A type encapsulating a region of mapped memory.
 #[derive(Clone, Debug)]
 pub struct Mmap {
     /// The actual memory mapping.
-    mapping: Rc<Mapping>,
+    mapping: Option<Rc<Mapping>>,
     /// The view on the memory mapping that this object represents.
     view: Range<u64>,
 }
@@ -160,10 +109,14 @@ impl Deref for Mmap {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        self.mapping
-            .deref()
-            .get(self.view.start as usize..self.view.end as usize)
-            .unwrap_or(&[])
+        if let Some(mapping) = &self.mapping {
+            mapping
+                .deref()
+                .get(self.view.start as usize..self.view.end as usize)
+                .unwrap_or(&[])
+        } else {
+            &[]
+        }
     }
 }
 
