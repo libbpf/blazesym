@@ -10,11 +10,14 @@ use std::iter;
 use std::mem::align_of;
 use std::mem::size_of;
 use std::mem::MaybeUninit;
+#[cfg(unix)]
 use std::os::unix::ffi::OsStrExt as _;
 #[cfg(test)]
 use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::slice;
+#[cfg(not(unix))]
+use std::str::from_utf8;
 
 use crate::Addr;
 
@@ -179,9 +182,43 @@ pub(crate) fn from_radix_16(text: &[u8]) -> Option<u64> {
 }
 
 /// Convert a byte slice into a [`Path`].
+#[cfg(unix)]
 #[inline]
-pub(crate) fn bytes_to_path(bytes: &[u8]) -> &Path {
-    AsRef::<Path>::as_ref(OsStr::from_bytes(bytes))
+pub(crate) fn bytes_to_os_str(bytes: &[u8]) -> io::Result<&OsStr> {
+    Ok(OsStr::from_bytes(bytes))
+}
+
+/// Convert a byte slice into a [`PathBuf`].
+#[cfg(not(unix))]
+#[inline]
+pub(crate) fn bytes_to_os_str(bytes: &[u8]) -> io::Result<&OsStr> {
+    Ok(OsStr::new(from_utf8(bytes).map_err(|err| {
+        io::Error::new(io::ErrorKind::InvalidData, err)
+    })?))
+}
+
+/// Convert a byte slice into a [`Path`].
+#[inline]
+pub(crate) fn bytes_to_path(bytes: &[u8]) -> io::Result<&Path> {
+    Ok(Path::new(bytes_to_os_str(bytes)?))
+}
+
+/// Convert a [`Path`] into a byte slice.
+#[cfg(unix)]
+#[inline]
+pub(crate) fn path_to_bytes(path: &Path) -> io::Result<&[u8]> {
+    Ok(path.as_os_str().as_bytes())
+}
+
+/// Convert a [`Path`] into a byte slice.
+#[cfg(not(unix))]
+#[inline]
+pub(crate) fn path_to_bytes(path: &Path) -> io::Result<&[u8]> {
+    let bytes = path
+        .to_str()
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "path is not valid Unicode"))?
+        .as_bytes();
+    Ok(bytes)
 }
 
 /// Reorder elements of `array` based on index information in `indices`.
@@ -230,7 +267,7 @@ where
 
 pub(crate) fn stat(path: &Path) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
-    let mut path = path.as_os_str().as_bytes().to_vec();
+    let mut path = path_to_bytes(path)?.to_vec();
     let () = path.push(b'\0');
 
     let rc = unsafe { libc::stat(path.as_ptr().cast::<libc::c_char>(), dst.as_mut_ptr()) };
@@ -256,6 +293,7 @@ fn fstat(fd: RawFd) -> io::Result<libc::stat> {
 }
 
 
+#[cfg(not(windows))]
 pub(crate) fn uname_release() -> io::Result<CString> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::uname(dst.as_mut_ptr()) };
@@ -683,7 +721,7 @@ mod tests {
             |iter| {
                 let vec = iter.collect::<Vec<_>>();
                 assert!(is_sorted(vec.iter()));
-                Result::<_, ()>::Ok(vec.into_iter().map(|x| x + 2).collect::<Vec<_>>())
+                io::Result::Ok(vec.into_iter().map(|x| x + 2).collect::<Vec<_>>())
             },
         )
         .unwrap();

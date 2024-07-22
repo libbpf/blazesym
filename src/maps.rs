@@ -191,7 +191,7 @@ fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
         [] => None,
         [b'/', ..] => {
             let symbolic_path =
-                bytes_to_path(path_str.strip_suffix(b" (deleted)").unwrap_or(path_str))
+                bytes_to_path(path_str.strip_suffix(b" (deleted)").unwrap_or(path_str))?
                     .to_path_buf();
             // TODO: May have to resolve the symbolic link in case of
             //       `Pid::Slf` here for remote symbolization use cases.

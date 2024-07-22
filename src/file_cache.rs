@@ -19,6 +19,7 @@ struct FileMeta {
     inode: libc::ino_t,
     size: libc::off_t,
     mtime_sec: libc::time_t,
+    #[cfg(not(windows))]
     mtime_nsec: i64,
 }
 
@@ -31,6 +32,7 @@ impl From<&libc::stat> for FileMeta {
             inode: other.st_ino as _,
             size: other.st_size as _,
             mtime_sec: other.st_mtime,
+            #[cfg(not(windows))]
             mtime_nsec: other.st_mtime_nsec as _,
         }
     }
