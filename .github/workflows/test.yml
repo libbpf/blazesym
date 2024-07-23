@@ -178,7 +178,9 @@ jobs:
       with:
         name: test-stable-addrs
         if-no-files-found: error
-        path: data/test-stable-addrs.bin
+        path: |
+          data/test-stable-addrs.bin
+          data/test-stable-addrs-stripped.bin
   test-windows:
     name: Test on Windows
     runs-on: windows-latest
