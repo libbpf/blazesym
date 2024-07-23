@@ -314,8 +314,8 @@ mod tests {
     #[test]
     fn user_address_normalization_unsorted() {
         let mut addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
+            libc::atexit as Addr,
+            libc::chdir as Addr,
             libc::fopen as Addr,
         ];
         let () = addrs.sort();
@@ -351,6 +351,7 @@ mod tests {
     }
 
     /// Check that we can normalize user addresses.
+    #[cfg(not(windows))]
     #[test]
     fn user_address_normalization() {
         fn test(normalizer: &Normalizer) {

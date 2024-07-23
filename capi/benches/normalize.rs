@@ -18,8 +18,8 @@ use criterion::BenchmarkGroup;
 
 fn normalize_process_impl(read_build_ids: bool) {
     let mut addrs = [
-        libc::__errno_location as Addr,
-        libc::dlopen as Addr,
+        libc::atexit as Addr,
+        libc::chdir as Addr,
         libc::fopen as Addr,
         blaze_normalizer_new_opts as Addr,
         blaze_normalize_user_addrs_opts as Addr,

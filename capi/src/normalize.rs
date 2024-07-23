@@ -898,8 +898,8 @@ mod tests {
         fn test(normalizer: *const blaze_normalizer) {
             let addrs = [
                 0x0 as Addr,
-                libc::__errno_location as Addr,
-                libc::dlopen as Addr,
+                libc::atexit as Addr,
+                libc::chdir as Addr,
                 libc::fopen as Addr,
                 elf_conversion as Addr,
                 normalize_user_addrs as Addr,
@@ -944,8 +944,8 @@ mod tests {
     #[test]
     fn normalize_user_addrs_sorted() {
         let mut addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
+            libc::atexit as Addr,
+            libc::chdir as Addr,
             libc::fopen as Addr,
             elf_conversion as Addr,
             normalize_user_addrs as Addr,
@@ -983,8 +983,8 @@ mod tests {
     #[test]
     fn normalize_user_addrs_unsorted_failure() {
         let mut addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
+            libc::atexit as Addr,
+            libc::chdir as Addr,
             libc::fopen as Addr,
             elf_conversion as Addr,
             normalize_user_addrs as Addr,
