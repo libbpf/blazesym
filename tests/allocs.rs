@@ -4,6 +4,7 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
+#![cfg_attr(windows, allow(dead_code, unused_imports))]
 
 use std::alloc::GlobalAlloc;
 use std::alloc::Layout;
@@ -55,6 +56,7 @@ unsafe impl GlobalAlloc for TracingAlloc {
 
 /// Normalize addresses in the current process and print allocation
 /// statistics.
+#[cfg(not(windows))]
 #[test]
 fn normalize_process() {
     let region = Region::new(&GLOBAL);
@@ -63,8 +65,8 @@ fn normalize_process() {
     {
         let normalizer = Normalizer::builder().build();
         let mut addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
+            libc::atexit as Addr,
+            libc::chdir as Addr,
             libc::fopen as Addr,
             normalize_process as Addr,
             Normalizer::normalize_user_addrs as Addr,

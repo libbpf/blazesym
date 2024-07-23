@@ -3,13 +3,14 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
+#![cfg_attr(windows, allow(dead_code, unused_imports))]
 
+#[cfg(not(windows))]
 mod common;
 
 use std::io::Error;
 use std::io::Read as _;
 use std::io::Write as _;
-use std::os::unix::process::CommandExt as _;
 use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
@@ -21,16 +22,9 @@ use blazesym::Addr;
 use blazesym::ErrorKind;
 use blazesym::Pid;
 
-use libc::getresuid;
-use libc::kill;
-use libc::SIGKILL;
-
 use scopeguard::defer;
 
 use test_log::test;
-
-use common::as_user;
-use common::non_root_uid;
 
 
 fn symbolize_permissionless_impl(pid: Pid, addr: Addr) {
@@ -60,8 +54,16 @@ fn symbolize_permissionless_impl(pid: Pid, addr: Addr) {
 
 /// Check that we can symbolize an address in a process using only
 /// symbolic paths.
+#[cfg(not(windows))]
 #[test]
 fn symbolize_process_symbolic_paths() {
+    use common::as_user;
+    use common::non_root_uid;
+    use libc::getresuid;
+    use libc::kill;
+    use libc::SIGKILL;
+    use std::os::unix::process::CommandExt as _;
+
     let uid = non_root_uid();
     // We run as root. Even if we limit permissions for a root-owned file we can
     // still access it (unlike the behavior for regular users). As such, we have

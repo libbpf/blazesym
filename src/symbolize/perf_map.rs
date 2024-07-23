@@ -204,9 +204,6 @@ mod tests {
     use std::process::Command;
     use std::process::Stdio;
 
-    use libc::kill;
-    use libc::SIGKILL;
-
     use scopeguard::defer;
 
     use tempfile::tempfile;
@@ -314,9 +311,13 @@ mod tests {
     }
 
     /// Check that we can symbolize an address using a perf map.
+    #[cfg(not(windows))]
     #[test]
     #[ignore = "test requires python 3.12 or higher"]
     fn symbolize_perf_map() {
+        use libc::kill;
+        use libc::SIGKILL;
+
         let script = r#"
 import sys
 

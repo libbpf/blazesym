@@ -3,6 +3,7 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
+#![cfg_attr(windows, allow(dead_code, unused_imports))]
 
 use std::collections::HashMap;
 use std::env;
@@ -14,6 +15,7 @@ use std::io::Error;
 use std::io::Read as _;
 use std::io::Write as _;
 use std::ops::Deref as _;
+#[cfg(not(windows))]
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 use std::process::Command;
@@ -40,15 +42,13 @@ use blazesym::Pid;
 use blazesym::Result;
 use blazesym::SymType;
 
-use libc::kill;
-use libc::SIGKILL;
-
 use scopeguard::defer;
 
 use tempfile::tempdir;
 use tempfile::NamedTempFile;
 
 use test_log::test;
+use test_tag::tag;
 
 
 /// Make sure that we fail symbolization when providing a non-existent source.
@@ -274,6 +274,7 @@ FUNC 34 11 0 factorial_wrapper
 
 /// Check that we can symbolize an address mapping to a variable in an
 /// ELF file.
+#[tag(windows)]
 #[test]
 fn symbolize_elf_variable() {
     fn test(debug_syms: bool) {
@@ -685,8 +686,12 @@ fn symbolize_process() {
 
 /// Check that we can symbolize an address in a process using a binary
 /// located in a local mount namespace.
+#[cfg(not(windows))]
 #[test]
 fn symbolize_process_in_mount_namespace() {
+    use libc::kill;
+    use libc::SIGKILL;
+
     let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
@@ -788,6 +793,7 @@ fn symbolize_process_with_custom_dispatch() {
 }
 
 /// Check that we can normalize addresses in an ELF shared object.
+#[cfg(not(windows))]
 #[test]
 fn normalize_elf_addr() {
     fn test(so: &str, map_files: bool) {
@@ -853,6 +859,7 @@ fn normalize_elf_addr() {
 
 
 /// Check that we can enable/disable the reading of build IDs.
+#[cfg(not(windows))]
 #[test]
 fn normalize_build_id_reading() {
     fn test(read_build_ids: bool) {

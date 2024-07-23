@@ -16,8 +16,8 @@ where
     M: Measurement,
 {
     let mut addrs = [
-        libc::__errno_location as Addr,
-        libc::dlopen as Addr,
+        libc::atexit as Addr,
+        libc::chdir as Addr,
         libc::fopen as Addr,
         normalize_process_impl::<M> as Addr,
         Normalizer::normalize_user_addrs as Addr,

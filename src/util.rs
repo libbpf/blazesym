@@ -12,8 +12,6 @@ use std::mem::size_of;
 use std::mem::MaybeUninit;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt as _;
-#[cfg(test)]
-use std::os::unix::io::RawFd;
 use std::path::Path;
 use std::slice;
 #[cfg(not(unix))]
@@ -280,8 +278,10 @@ pub(crate) fn stat(path: &Path) -> io::Result<libc::stat> {
 }
 
 
+#[cfg(not(windows))]
 #[cfg(test)]
-fn fstat(fd: RawFd) -> io::Result<libc::stat> {
+#[allow(clippy::absolute_paths)]
+fn fstat(fd: std::os::unix::io::RawFd) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
     if rc < 0 {
@@ -610,7 +610,6 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     use std::hint::black_box;
-    use std::os::fd::AsRawFd as _;
 
     use tempfile::NamedTempFile;
 
@@ -730,8 +729,11 @@ mod tests {
 
     /// Check that we can retrieve meta-data about a file using `stat`
     /// and `fstat`.
+    #[cfg(not(windows))]
     #[test]
     fn file_stating() {
+        use std::os::fd::AsRawFd as _;
+
         let tmpfile = NamedTempFile::new().unwrap();
         let stat1 = stat(tmpfile.path()).unwrap();
         let stat2 = fstat(tmpfile.as_file().as_raw_fd()).unwrap();
