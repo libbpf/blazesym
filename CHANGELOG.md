@@ -2,6 +2,8 @@ Unreleased
 ----------
 - Adjusted normalization logic to not fail overall operation on build ID
   read failure
+- Added support for file based symbolization support on the Windows operating
+  system
 
 
 0.2.0-rc.0

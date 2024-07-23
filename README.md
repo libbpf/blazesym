@@ -83,9 +83,14 @@ Here is rough roadmap of currently planned features (in no particular order):
 
 ### OS Support
 The library's primary target operating system is Linux (it should work on all
-semi-recent kernel versions and distributions). MacOS is not actively supported
-at this point (though it may work), but we would be happy to incorporate pull
-requests to fix any potential short comings.
+semi-recent kernel versions and distributions).
+
+MacOS is not actively supported at this point (though it may work), but we would
+be happy to incorporate pull requests to fix any potential short comings.
+
+Windows is supported for file based symbolization (i.e., using one of the
+`Breakpad`, `Elf`, or `Gsym` symbolization sources). Standalone address
+normalization as well as process or kernel symbolization are not supported.
 
 
 ## Build & Use
