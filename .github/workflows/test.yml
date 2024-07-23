@@ -163,6 +163,10 @@ jobs:
       with:
         files: lcov.info
   build-test-artifacts:
+    # Only run Windows tests on the final push. They are very unlikely to break
+    # at runtime (we build them anyway), but take quite a bit longer than Linux
+    # based ones.
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     name: Build test artifacts for Windows
     runs-on: ubuntu-22.04
     env:
