@@ -1375,10 +1375,12 @@ mod tests {
     use super::*;
 
     use test_log::test;
+    use test_tag::tag;
 
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::test_helper::find_the_answer_fn_in_zip;
+    use crate::Result;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -1560,6 +1562,7 @@ mod tests {
     }
 
     /// Check that we can symbolize an address residing in a zip archive.
+    #[tag(windows)]
     #[test]
     fn symbolize_zip() {
         let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -1585,6 +1588,7 @@ mod tests {
 
     /// Check that we can symbolize an address residing in a zip archive, using
     /// a custom APK dispatcher.
+    #[tag(windows)]
     #[test]
     fn symbolize_zip_with_custom_dispatch() {
         fn zip_dispatch(info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
@@ -1629,6 +1633,7 @@ mod tests {
 
     /// Check that we correctly propagate errors induced by a custom APK
     /// dispatcher.
+    #[tag(windows)]
     #[test]
     fn symbolize_zip_with_custom_dispatch_errors() {
         fn zip_error_dispatch(_info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {

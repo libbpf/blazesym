@@ -89,7 +89,7 @@ MacOS is not actively supported at this point (though it may work), but we would
 be happy to incorporate pull requests to fix any potential short comings.
 
 Windows is supported for file based symbolization (i.e., using one of the
-`Breakpad`, `Elf`, or `Gsym` symbolization sources). Standalone address
+`Apk`, `Breakpad`, `Elf`, or `Gsym` symbolization sources). Standalone address
 normalization as well as process or kernel symbolization are not supported.
 
 

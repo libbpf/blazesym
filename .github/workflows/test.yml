@@ -181,6 +181,7 @@ jobs:
         path: |
           data/test-stable-addrs*
           data/test-rs.bin
+          data/test.zip
   test-windows:
     name: Test on Windows
     runs-on: windows-latest
