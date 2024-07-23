@@ -329,6 +329,7 @@ fn symbolize_elf_variable() {
 
 /// Check that we "fail" symbolization as expected on a stripped ELF
 /// binary.
+#[tag(windows)]
 #[test]
 fn symbolize_elf_stripped() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
