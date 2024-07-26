@@ -222,7 +222,7 @@ enum Line {
     File(u32, String),
     InlineOrigin(u32, String),
     Public(PublicSymbol),
-    Function(Function, Vec<SourceLine>, Vec<Inlinee>),
+    Function(Function),
     StackWin(()),
     StackCfi(()),
 }
@@ -532,7 +532,7 @@ fn line(input: &[u8]) -> IResult<&[u8], Line, VerboseError<&[u8]>> {
             map(file_line, |(i, f)| Line::File(i, f)),
             map(inline_origin_line, |(i, f)| Line::InlineOrigin(i, f)),
             map(public_line, Line::Public),
-            map(func_line, |f| Line::Function(f, Vec::new(), Vec::new())),
+            map(func_line, Line::Function),
             map(stack_win_line, Line::StackWin),
             map(stack_cfi_init, Line::StackCfi),
             map(module_line, |_| Line::Module),
@@ -597,16 +597,16 @@ impl SymbolParser {
             // We `take` and then reconstitute the item for borrowing/move
             // reasons.
             match self.cur_item.take() {
-                Some(Line::Function(cur, mut lines, mut inlinees)) => {
-                    match self.parse_func_subline(input, &mut lines, &mut inlinees) {
+                Some(Line::Function(mut cur)) => {
+                    match self.parse_func_subline(input, &mut cur.lines, &mut cur.inlinees) {
                         Ok((new_input, ())) => {
                             input = new_input;
-                            self.cur_item = Some(Line::Function(cur, lines, inlinees));
+                            self.cur_item = Some(Line::Function(cur));
                             self.lines += 1;
                             continue
                         }
                         Err(_) => {
-                            self.finish_item(Line::Function(cur, lines, inlinees));
+                            self.finish_item(Line::Function(cur));
                             continue
                         }
                     }
@@ -709,13 +709,9 @@ impl SymbolParser {
     /// We now have all the sublines, so it's complete.
     fn finish_item(&mut self, item: Line) {
         match item {
-            Line::Function(mut cur, mut lines, mut inlinees) => {
-                let () = lines.sort_by_key(|x| (x.addr, x.size));
-                cur.lines = lines;
-
-                let () = inlinees.sort_by_key(|x| (x.depth, x.addr));
-                cur.inlinees = inlinees;
-
+            Line::Function(mut cur) => {
+                let () = cur.lines.sort_by_key(|x| (x.addr, x.size));
+                let () = cur.inlinees.sort_by_key(|x| (x.depth, x.addr));
                 let () = self.functions.push(cur);
             }
             Line::StackCfi(..) => {}
