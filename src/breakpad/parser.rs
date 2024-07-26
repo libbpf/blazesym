@@ -37,11 +37,8 @@ use std::str;
 use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::bytes::complete::take_while;
-use nom::character::complete::hex_digit1;
 use nom::character::complete::multispace0;
 use nom::character::complete::space1;
-use nom::character::is_digit;
-use nom::character::is_hex_digit;
 use nom::combinator::cut;
 use nom::combinator::map;
 use nom::combinator::map_res;
@@ -288,11 +285,6 @@ fn decimal_u32(input: &[u8]) -> IResult<&[u8], u32, VerboseError<&[u8]>> {
     Ok((remaining, res))
 }
 
-/// Take 0 or more non-space bytes.
-fn non_space(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
-    take_while(|c: u8| c != b' ')(input)
-}
-
 /// Accept `\n` with an arbitrary number of preceding `\r` bytes.
 ///
 /// This is different from `line_ending` which doesn't accept `\r` if it isn't
@@ -309,37 +301,18 @@ fn not_my_eol(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
     take_while(|b| b != b'\r' && b != b'\n')(input)
 }
 
-/// Parse a single byte if it matches the predicate.
-///
-/// nom has `satisfy`, which is similar. It differs in the argument type of the
-/// predicate: `satisfy`'s predicate takes `char`, whereas `single`'s predicate
-/// takes `u8`.
-fn single(predicate: fn(u8) -> bool) -> impl Fn(&[u8]) -> IResult<&[u8], u8, VerboseError<&[u8]>> {
-    move |i: &[u8]| match i.split_first() {
-        Some((b, rest)) if predicate(*b) => Ok((rest, *b)),
-        _ => Err(Err::Error(VerboseError::from_error_kind(
-            i,
-            ErrorKind::Satisfy,
-        ))),
-    }
-}
-
 /// Matches a MODULE record.
 fn module_line(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("MODULE"), space1)(input)?;
-    let (input, _) = cut(tuple((
-        terminated(non_space, space1),  // os
-        terminated(non_space, space1),  // cpu
-        terminated(hex_digit1, space1), // debug id
-        terminated(not_my_eol, my_eol), // filename
-    )))(input)?;
+    let (input, _) = cut(terminated(not_my_eol, my_eol))(input)?;
+
     Ok((input, ()))
 }
 
 /// Matches an INFO URL record.
 fn info_url(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("INFO URL"), space1)(input)?;
-    let (input, _url) = cut(terminated(map_res(not_my_eol, str::from_utf8), my_eol))(input)?;
+    let (input, _) = cut(terminated(not_my_eol, my_eol))(input)?;
     Ok((input, ()))
 }
 
@@ -468,34 +441,7 @@ fn inline_line(input: &[u8]) -> IResult<&[u8], impl Iterator<Item = Inlinee>, Ve
 /// Matches a STACK WIN record.
 fn stack_win_line(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("STACK WIN"), space1)(input)?;
-    let (
-        input,
-        (
-            _ty,
-            _address,
-            _code_size,
-            _prologue_size,
-            _epilogue_size,
-            _parameter_size,
-            _saved_register_size,
-            _local_size,
-            _max_stack_size,
-            _has_program_string,
-            _rest,
-        ),
-    ) = cut(tuple((
-        terminated(single(is_hex_digit), space1), // ty
-        terminated(hex_str::<u64>, space1),       // addr
-        terminated(hex_str::<u32>, space1),       // code_size
-        terminated(hex_str::<u32>, space1),       // prologue_size
-        terminated(hex_str::<u32>, space1),       // epilogue_size
-        terminated(hex_str::<u32>, space1),       // parameter_size
-        terminated(hex_str::<u32>, space1),       // saved_register_size
-        terminated(hex_str::<u32>, space1),       // local_size
-        terminated(hex_str::<u32>, space1),       // max_stack_size
-        terminated(map(single(is_digit), |b| b == b'1'), space1), // has_program_string
-        terminated(map_res(not_my_eol, str::from_utf8), my_eol),
-    )))(input)?;
+    let (input, _) = cut(terminated(not_my_eol, my_eol))(input)?;
 
     Ok((input, ()))
 }
@@ -503,10 +449,7 @@ fn stack_win_line(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
 /// Matches a STACK CFI record.
 fn stack_cfi(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("STACK CFI"), space1)(input)?;
-    let (input, (_address, _rules)) = cut(tuple((
-        terminated(hex_str::<u64>, space1),
-        terminated(map_res(not_my_eol, str::from_utf8), my_eol),
-    )))(input)?;
+    let (input, _) = cut(terminated(not_my_eol, my_eol))(input)?;
 
     Ok((input, ()))
 }
@@ -514,11 +457,7 @@ fn stack_cfi(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
 /// Matches a STACK CFI INIT record.
 fn stack_cfi_init(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("STACK CFI INIT"), space1)(input)?;
-    let (input, (_address, _size, _rules)) = cut(tuple((
-        terminated(hex_str::<u64>, space1),
-        terminated(hex_str::<u32>, space1),
-        terminated(map_res(not_my_eol, str::from_utf8), my_eol),
-    )))(input)?;
+    let (input, _) = cut(terminated(not_my_eol, my_eol))(input)?;
 
     Ok((input, ()))
 }
@@ -1170,7 +1109,6 @@ STACK CFI INIT badf00d abc init rules
 STACK CFI deadf00d some rules
 STACK CFI deadbeef more rules
 STACK CFI INIT f00f f0 more init rules
-
 "[..];
         let sym = SymbolFile::from_bytes(bytes).unwrap();
         assert_eq!(sym.files.len(), 2);
@@ -1257,7 +1195,7 @@ FUNC 1001 10 10 some func overlap contained
 FILE 0 foo.c
 "[..]
         )
-        .is_err(),);
+        .is_ok(),);
 
         assert!(SymbolFile::from_bytes(
             &b"MODULE Linux x86 abcd1234 foo
