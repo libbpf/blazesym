@@ -22,7 +22,7 @@ keywords = [
   "stacktrace",
   "tracing",
 ]
-include = ["src/**/*", "include/**/*", "!**/examples/**/*", "README.md", "CHANGELOG.md", "examples/input-struct-init.c", "build.rs"]
+include = ["src/**/*", "include/**/*", "!**/examples/**/*", "LICENSE", "README.md", "CHANGELOG.md", "examples/input-struct-init.c", "build.rs"]
 autobenches = false
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
