@@ -1,0 +1,65 @@
+name: Build Linux
+
+on:
+  workflow_call:
+    outputs:
+      kernel-artifact-url:
+        description: "URL of the built (and uploaded) Linux kernel"
+        value: ${{ github.api_url }}/repos/${{ github.repository }}/actions/artifacts/${{ jobs.build.outputs.kernel-artifact-id }}/zip
+
+jobs:
+  build:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    outputs:
+      kernel-artifact-id: ${{ steps.upload-linux-kernel.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache/restore@v4
+        id: restore-cached-kernel
+        with:
+          path: build/arch/x86/boot/bzImage
+          # TODO: We ultimately should include the kernel rev in the key
+          #       as well.
+          key: linux-kernel-${{ hashFiles('data/config') }}
+      - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: 'torvalds/linux'
+          # TODO: Bump to v6.11 once tagged.
+          ref: 44eacec2cec1c5f83074e74d00208d15390b00bc
+          fetch-depth: 1
+          path: linux/
+      - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+        name: Install required tools
+        run: sudo apt-get install -y libelf-dev
+      - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+        name: Build kernel
+        run: |
+          config=$(readlink --canonicalize-existing data/config)
+          build=$(pwd)/build/
+
+          cd linux/
+          export KBUILD_OUTPUT="${build}"
+          mkdir "${KBUILD_OUTPUT}"
+
+          KCONFIG_ALLCONFIG="${config}" make O="${KBUILD_OUTPUT}" allnoconfig
+
+          echo "::group::config"
+          cat "${KBUILD_OUTPUT}/.config"
+          echo "::endgroup::"
+
+          make O="${KBUILD_OUTPUT}" --jobs $(($(nproc) * 2))
+      - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build/arch/x86/boot/bzImage
+          key: linux-kernel-${{ hashFiles('data/config') }}
+      - uses: actions/upload-artifact@v4
+        id: upload-linux-kernel
+        with:
+          name: linux-kernel
+          if-no-files-found: error
+          # The kernel image is already compressed.
+          compression-level: 0
+          path: build/arch/x86/boot/bzImage
