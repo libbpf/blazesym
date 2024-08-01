@@ -109,8 +109,8 @@ jobs:
       - run: cargo +nightly -Z minimal-versions update
       - uses: dtolnay/rust-toolchain@master
         with:
-          # Please adjust README and rust-version field in Cargo.toml files when
-          # bumping version.
+          # Please adjust README, `rust-version` field in Cargo.toml,
+          # and `msrv` in .clippy.toml when bumping version.
           toolchain: 1.65.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --features="apk,backtrace,demangle,dwarf,gsym,tracing"
