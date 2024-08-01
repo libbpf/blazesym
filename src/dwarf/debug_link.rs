@@ -150,13 +150,23 @@ pub(crate) fn read_debug_link(parser: &ElfParser) -> Result<Option<(&OsStr, u32)
 
 
 fn parse_debug_link_section_data(mut data: &[u8]) -> Result<Option<(&OsStr, u32)>> {
+    let data_start = data;
     let file = data
         .read_cstr()
         .ok_or_invalid_data(|| "failed to read debug link file name")?;
     let file = bytes_to_os_str(file.to_bytes())?;
-    let () = data.align(4).ok_or_invalid_data(|| {
-        "debug link section contains insufficient data: checksum not found"
-    })?;
+
+    // TODO: Use `std::ptr::byte_offset_from` once our MSRV is 1.75.
+    let cur_offset = data.as_ptr() as usize - data_start.as_ptr() as usize;
+    // The offset is aligned to the next four byte boundary relative to
+    // the start of the section.
+    let align = 4;
+    let crc_offset = (cur_offset + (align - 1)) & !(align - 1);
+    let () = data
+        .advance(crc_offset - cur_offset)
+        .ok_or_invalid_data(|| {
+            "debug link section contains insufficient data: checksum not found"
+        })?;
     // TODO: The CRC value is in the same endianess as the ELF file itself. Once
     //       we support non-host endianesses we need to take that into account.
     let crc = data
@@ -221,11 +231,40 @@ pub(crate) fn debug_link_crc32(data: &[u8]) -> u32 {
 mod tests {
     use super::*;
 
+    use std::mem::size_of_val;
     use std::path::Path;
+    use std::slice;
 
     use crate::elf::DEFAULT_DEBUG_DIRS;
     use crate::mmap::Mmap;
 
+
+    /// Check that we can correctly read a CRC checksum from aligned
+    /// debug link section data.
+    #[test]
+    fn unaligned_debug_link_parsing() {
+        let section_data = [
+            b'p', b'r', b'o', b'g', b'r', b'a', b'm', b'.', b'd', b'e', b'b', b'u', b'g', 0x0, 0x0,
+            0x0, 0x69, 0xc4, 0xd4, 0xa6,
+        ];
+
+        let mut buffer = [0u64; 8];
+        let buffer = unsafe {
+            slice::from_raw_parts_mut(
+                buffer.as_mut_ptr().cast::<u8>(),
+                buffer.len() * size_of_val(&buffer[0]),
+            )
+        };
+
+        // Make the buffer unaligned.
+        let buffer = &mut buffer[3..3 + section_data.len()];
+        // Now write the section data into it.
+        let () = buffer.copy_from_slice(&section_data);
+
+        let (file, crc) = parse_debug_link_section_data(buffer).unwrap().unwrap();
+        assert_eq!(file, OsStr::new("program.debug"));
+        assert_eq!(crc, 0xa6d4c469, "{crc:#x}");
+    }
 
     /// Check that we can successfully read an ELF file's debug link.
     #[test]

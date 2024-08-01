@@ -5,6 +5,8 @@ Unreleased
 - Added support for file based symbolization support on the Windows operating
   system
 - Improved performance for parsing Breakpad files
+- Fixed potentially invalid reading of debug link checksum when
+  `.gnu_debuglink` section is unaligned
 
 
 0.2.0-rc.0
