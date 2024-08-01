@@ -116,7 +116,7 @@ dump_syms = {version = "2.3", optional = true, default-features = false}
 libc = "0.2.137"
 reqwest = {version = "0.12.0", optional = true, features = ["blocking"]}
 xz2 = {version = "0.1.7", optional = true}
-zip = {version = "2.0.0, <2.1.4", optional = true, default-features = false}
+zip = {version = "2.0.0", optional = true, default-features = false}
 
 [dependencies]
 cpp_demangle = {version = "0.4", optional = true}
