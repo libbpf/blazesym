@@ -235,12 +235,15 @@ mod tests {
     use std::path::Path;
     use std::slice;
 
+    use test_tag::tag;
+
     use crate::elf::DEFAULT_DEBUG_DIRS;
     use crate::mmap::Mmap;
 
 
     /// Check that we can correctly read a CRC checksum from aligned
     /// debug link section data.
+    #[tag(miri)]
     #[test]
     fn unaligned_debug_link_parsing() {
         let section_data = [
