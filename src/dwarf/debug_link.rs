@@ -144,7 +144,12 @@ pub(crate) fn read_debug_link(parser: &ElfParser) -> Result<Option<(&OsStr, u32)
 
     // SANITY: We just found the index so the section should always be
     //         found.
-    let mut data = parser.section_data(idx).unwrap();
+    let data = parser.section_data(idx).unwrap();
+    parse_debug_link_section_data(data)
+}
+
+
+fn parse_debug_link_section_data(mut data: &[u8]) -> Result<Option<(&OsStr, u32)>> {
     let file = data
         .read_cstr()
         .ok_or_invalid_data(|| "failed to read debug link file name")?;
