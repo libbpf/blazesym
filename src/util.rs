@@ -619,6 +619,7 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     use std::hint::black_box;
+    use std::mem::size_of_val;
 
     use tempfile::NamedTempFile;
 
@@ -853,31 +854,29 @@ mod tests {
         // than 1.
         assert!(align_of::<u64>() > 1, "{}", align_of::<u64>());
 
-        let mut buffer = [0u8; 64];
-        let ptr = buffer.as_mut_ptr();
+        let mut buffer = [0u64; 2];
+        // Write that data that we read back subsequently.
+        buffer[0] = 1337;
 
-        let aligned_ptr = match ptr.align_offset(align_of::<u64>()) {
-            offset if offset < size_of::<u64>() => unsafe { ptr.add(offset) },
-            _ => unreachable!(),
+        let buffer = unsafe {
+            slice::from_raw_parts(
+                buffer.as_ptr().cast::<u8>(),
+                buffer.len() * size_of_val(&buffer[0]),
+            )
         };
 
-        // Write some data at the aligned location so that we can read
-        // it back.
-        let () = unsafe { aligned_ptr.cast::<u64>().write(1337) };
-
-        // We are sure that we have at least space for two `u64` (16
-        // bytes) in the buffer, even after alignment.
-        let mut slice = unsafe { slice::from_raw_parts(aligned_ptr, 16) };
-        assert_eq!(slice.read_pod_ref::<u64>(), Some(&1337));
+        let mut aligned = buffer;
+        assert_eq!(aligned.read_pod_ref::<u64>(), Some(&1337));
 
         // Make sure that we fail if there is insufficient space.
-        let mut slice = unsafe { slice::from_raw_parts(aligned_ptr, 4) };
-        assert_eq!(slice.read_pod_ref::<u64>(), None);
+        let mut aligned = &buffer[0..4];
+        assert_eq!(aligned.read_pod_ref::<u64>(), None);
 
         // Now also try with an unaligned pointer. It is guaranteed to
         // be unaligned if we add a one byte offset.
-        let mut slice = unsafe { slice::from_raw_parts(aligned_ptr.add(1), 15) };
-        assert_eq!(slice.read_pod_ref::<u64>(), None);
+        let mut unaligned = buffer;
+        let () = unaligned.advance(1).unwrap();
+        assert_eq!(unaligned.read_pod_ref::<u64>(), None);
     }
 
     /// Test reading of signed and unsigned 16 and 32 bit values against known
