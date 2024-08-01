@@ -416,6 +416,9 @@ pub(crate) trait ReadRaw<'data> {
     /// Ensure that `len` bytes are available for consumption.
     fn ensure(&self, len: usize) -> Option<()>;
 
+    /// Advance the read pointer by `cnt` bytes.
+    fn advance(&mut self, cnt: usize) -> Option<()>;
+
     /// Align the read pointer to the next multiple of `align_to`.
     ///
     /// # Panics
@@ -572,9 +575,15 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
     }
 
     #[inline]
+    fn advance(&mut self, cnt: usize) -> Option<()> {
+        let _ = self.read_slice(cnt)?;
+        Some(())
+    }
+
+    #[inline]
     fn align(&mut self, align_to: usize) -> Option<()> {
         let offset = self.as_ptr().align_offset(align_to);
-        let _slice = self.read_slice(offset)?;
+        let () = self.advance(offset)?;
         Some(())
     }
 
