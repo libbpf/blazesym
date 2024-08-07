@@ -46,10 +46,14 @@ pub struct Output<M> {
 
 /// A builder for configurable construction of [`Normalizer`] objects.
 ///
-/// By default reading of build IDs is enabled but they are not being
-/// cached. The caching of `/proc/<pid>/maps` entries is also disabled.
+/// By default `/proc/<pid>/maps` contents are parsed to query available
+/// VMA ranges (instead of using the `PROCMAP_QUERY` ioctl). Reading of
+/// build IDs is enabled, but they are not being cached. The caching of
+/// VMA ranges is also disabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
+    /// See [`Builder::enable_procmap_query`].
+    use_procmap_query: bool,
     /// See [`Builder::enable_vma_caching`].
     cache_vmas: bool,
     /// See [`Builder::enable_build_ids`].
@@ -59,12 +63,34 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Enable/disable the caching of `/proc/<pid>/maps` entries.
+    /// Enable/disable the usage of the `PROCMAP_QUERY` ioctl instead of
+    /// parsing `/proc/<pid>/maps` for getting available VMA ranges.
+    ///
+    /// # Notes
+    ///
+    /// Support for this ioctl is only present in very recent kernels
+    /// (likely: 6.11+). See <https://lwn.net/Articles/979931/> for
+    /// details.
+    ///
+    /// Furthermore, the ioctl will also be used for retrieving build
+    /// IDs (if enabled). Build ID reading logic in the kernel is known
+    /// to be incomplete, with a fix slated to be included only with
+    /// 6.12.
+    pub fn enable_procmap_query(mut self, enable: bool) -> Builder {
+        self.use_procmap_query = enable;
+        self
+    }
+
+    /// Enable/disable caching VMA ranges and meta data (excluding build
+    /// IDs).
     ///
     /// Setting this flag to `true` is not generally recommended, because it
     /// could result in addresses corresponding to mappings added after caching
     /// may not be normalized successfully, as there is no reasonable way of
     /// detecting staleness.
+    ///
+    /// Please note than if the `PROCMAP_QUERY` ioctl is being used, VMA
+    /// caching implies build ID caching as well.
     pub fn enable_vma_caching(mut self, enable: bool) -> Builder {
         self.cache_vmas = enable;
         self
@@ -92,12 +118,14 @@ impl Builder {
     /// Create the [`Normalizer`] object.
     pub fn build(self) -> Normalizer {
         let Builder {
+            use_procmap_query,
             cache_vmas,
             build_ids,
             cache_build_ids,
         } = self;
 
         Normalizer {
+            use_procmap_query,
             cache_vmas,
             build_ids,
             cache_build_ids: build_ids && cache_build_ids,
@@ -110,6 +138,7 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
+            use_procmap_query: false,
             cache_vmas: false,
             build_ids: true,
             cache_build_ids: false,
@@ -134,6 +163,8 @@ impl Default for Builder {
 /// `Normalizer` instance regularly to free up cached data.
 #[derive(Debug, Default)]
 pub struct Normalizer {
+    /// See [`Builder::enable_procmap_query`].
+    use_procmap_query: bool,
     /// See [`Builder::enable_maps_caching`].
     cache_vmas: bool,
     /// See [`Builder::enable_build_ids`].
