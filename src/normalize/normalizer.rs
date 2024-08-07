@@ -50,32 +50,30 @@ pub struct Output<M> {
 /// cached. The caching of `/proc/<pid>/maps` entries is also disabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    /// Whether or not to cache `/proc/<pid>/maps` contents.
-    ///
-    /// Setting this flag to `true` is not generally recommended, because it
-    /// could result in addresses corresponding to mappings added after caching
-    /// may not be normalized successfully, as there is no reasonable way of
-    /// detecting staleness.
+    /// See [`Builder::enable_maps_caching`].
     cache_maps: bool,
-    /// Whether to read and report build IDs as part of the normalization
-    /// process.
-    ///
-    /// Note that build ID read failures will be swallowed without
-    /// failing the normalization operation.
+    /// See [`Builder::enable_build_ids`].
     build_ids: bool,
-    /// Whether or not to cache build IDs. This flag only has an effect
-    /// if build ID reading is enabled in the first place.
+    /// See [`Builder::enable_build_id_caching`].
     cache_build_ids: bool,
 }
 
 impl Builder {
     /// Enable/disable the caching of `/proc/<pid>/maps` entries.
+    ///
+    /// Setting this flag to `true` is not generally recommended, because it
+    /// could result in addresses corresponding to mappings added after caching
+    /// may not be normalized successfully, as there is no reasonable way of
+    /// detecting staleness.
     pub fn enable_maps_caching(mut self, enable: bool) -> Builder {
         self.cache_maps = enable;
         self
     }
 
-    /// Enable/disable the reading of build IDs.
+    /// Enable/disable the reading of build IDs as appropriate.
+    ///
+    /// Note that build ID read failures will be swallowed without
+    /// failing the normalization operation.
     pub fn enable_build_ids(mut self, enable: bool) -> Builder {
         self.build_ids = enable;
         self
@@ -85,7 +83,7 @@ impl Builder {
     ///
     /// # Notes
     /// This property only has a meaning if reading of build IDs is
-    /// enabled as well.
+    /// enabled as well and it is not auto-enabled by this method.
     pub fn enable_build_id_caching(mut self, enable: bool) -> Builder {
         self.cache_build_ids = enable;
         self
@@ -136,21 +134,11 @@ impl Default for Builder {
 /// `Normalizer` instance regularly to free up cached data.
 #[derive(Debug, Default)]
 pub struct Normalizer {
-    /// Whether or not to cache `/proc/<pid>/maps` contents.
-    ///
-    /// Setting this flag to `true` is not generally recommended, because it
-    /// could result in addresses corresponding to mappings added after caching
-    /// may not be normalized successfully, as there is no reasonable way of
-    /// detecting staleness.
+    /// See [`Builder::enable_maps_caching`].
     cache_maps: bool,
-    /// Flag indicating whether or not to read build IDs as part of the
-    /// normalization process.
-    ///
-    /// Note that build ID read failures will be swallowed without
-    /// failing the normalization operation.
+    /// See [`Builder::enable_build_ids`].
     build_ids: bool,
-    /// Whether or not to cache build IDs. This flag only has an effect
-    /// if build ID reading is enabled in the first place.
+    /// See [`Builder::enable_build_id_caching`].
     cache_build_ids: bool,
     /// If `cache_maps` is `true`, the cached parsed
     /// [`MapsEntry`][maps::MapsEntry] objects.
