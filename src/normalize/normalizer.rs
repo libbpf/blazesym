@@ -100,7 +100,7 @@ impl Builder {
         Normalizer {
             cache_maps,
             build_ids,
-            cache_build_ids,
+            cache_build_ids: build_ids && cache_build_ids,
             cached_entries: InsertMap::new(),
             cached_build_ids: FileCache::default(),
         }
@@ -185,6 +185,9 @@ impl Normalizer {
                 &DefaultBuildIdReader as &dyn BuildIdReader
             }
         } else {
+            // Build ID caching always implies reading of build IDs to
+            // begin with.
+            debug_assert!(!self.cache_build_ids);
             &NoBuildIdReader as &dyn BuildIdReader
         };
 
