@@ -48,7 +48,7 @@ pub struct blaze_normalizer_opts {
     /// could result in addresses corresponding to mappings added after caching
     /// may not be normalized successfully, as there is no reasonable way of
     /// detecting staleness.
-    pub cache_maps: bool,
+    pub cache_vmas: bool,
     /// Whether to read and report build IDs as part of the normalization
     /// process.
     ///
@@ -67,7 +67,7 @@ impl Default for blaze_normalizer_opts {
     fn default() -> Self {
         Self {
             type_size: size_of::<Self>(),
-            cache_maps: false,
+            cache_vmas: false,
             build_ids: false,
             cache_build_ids: false,
             reserved: [0; 5],
@@ -180,14 +180,14 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
 
     let blaze_normalizer_opts {
         type_size: _,
-        cache_maps,
+        cache_vmas,
         build_ids,
         cache_build_ids,
         reserved: _,
     } = opts;
 
     let normalizer = Normalizer::builder()
-        .enable_maps_caching(cache_maps)
+        .enable_vma_caching(cache_vmas)
         .enable_build_ids(build_ids)
         .enable_build_id_caching(cache_build_ids)
         .build();
@@ -930,7 +930,7 @@ mod tests {
         let () = unsafe { blaze_normalizer_free(normalizer) };
 
         let opts = blaze_normalizer_opts {
-            cache_maps: true,
+            cache_vmas: true,
             ..Default::default()
         };
         let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };
