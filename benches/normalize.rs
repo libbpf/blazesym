@@ -57,7 +57,7 @@ where
     M: Measurement,
 {
     let normalizer = Normalizer::builder()
-        .enable_maps_caching(true)
+        .enable_vma_caching(true)
         .enable_build_ids(true)
         .enable_build_id_caching(false)
         .build();
@@ -80,7 +80,7 @@ where
     M: Measurement,
 {
     let normalizer = Normalizer::builder()
-        .enable_maps_caching(true)
+        .enable_vma_caching(true)
         .enable_build_ids(true)
         .enable_build_id_caching(true)
         .build();
@@ -103,7 +103,7 @@ where
     M: Measurement,
 {
     let normalizer = Normalizer::builder()
-        .enable_maps_caching(true)
+        .enable_vma_caching(true)
         .enable_build_ids(false)
         .build();
     normalize_process_impl(&normalizer, b)

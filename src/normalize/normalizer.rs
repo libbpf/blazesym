@@ -50,8 +50,8 @@ pub struct Output<M> {
 /// cached. The caching of `/proc/<pid>/maps` entries is also disabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    /// See [`Builder::enable_maps_caching`].
-    cache_maps: bool,
+    /// See [`Builder::enable_vma_caching`].
+    cache_vmas: bool,
     /// See [`Builder::enable_build_ids`].
     build_ids: bool,
     /// See [`Builder::enable_build_id_caching`].
@@ -65,8 +65,8 @@ impl Builder {
     /// could result in addresses corresponding to mappings added after caching
     /// may not be normalized successfully, as there is no reasonable way of
     /// detecting staleness.
-    pub fn enable_maps_caching(mut self, enable: bool) -> Builder {
-        self.cache_maps = enable;
+    pub fn enable_vma_caching(mut self, enable: bool) -> Builder {
+        self.cache_vmas = enable;
         self
     }
 
@@ -92,13 +92,13 @@ impl Builder {
     /// Create the [`Normalizer`] object.
     pub fn build(self) -> Normalizer {
         let Builder {
-            cache_maps,
+            cache_vmas,
             build_ids,
             cache_build_ids,
         } = self;
 
         Normalizer {
-            cache_maps,
+            cache_vmas,
             build_ids,
             cache_build_ids: build_ids && cache_build_ids,
             cached_entries: InsertMap::new(),
@@ -110,7 +110,7 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
-            cache_maps: false,
+            cache_vmas: false,
             build_ids: true,
             cache_build_ids: false,
         }
@@ -135,12 +135,12 @@ impl Default for Builder {
 #[derive(Debug, Default)]
 pub struct Normalizer {
     /// See [`Builder::enable_maps_caching`].
-    cache_maps: bool,
+    cache_vmas: bool,
     /// See [`Builder::enable_build_ids`].
     build_ids: bool,
     /// See [`Builder::enable_build_id_caching`].
     cache_build_ids: bool,
-    /// If `cache_maps` is `true`, the cached parsed
+    /// If `cache_vmas` is `true`, the cached parsed
     /// [`MapsEntry`][maps::MapsEntry] objects.
     cached_entries: InsertMap<Pid, Box<[maps::MapsEntry]>>,
     /// A cache of build IDs.
@@ -206,7 +206,7 @@ impl Normalizer {
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
-        if !self.cache_maps {
+        if !self.cache_vmas {
             let entries = maps::parse_filtered(pid)?;
             self.normalize_user_addrs_impl(addrs, entries, map_files)
         } else {
@@ -386,7 +386,7 @@ mod tests {
         let normalizer = Normalizer::new();
         test(&normalizer);
 
-        let normalizer = Normalizer::builder().enable_maps_caching(true).build();
+        let normalizer = Normalizer::builder().enable_vma_caching(true).build();
         test(&normalizer);
         test(&normalizer);
     }
@@ -424,7 +424,7 @@ mod tests {
     /// errors.
     #[test]
     fn user_address_normalization_deleted_so() {
-        fn test(cache_maps: bool, cache_build_ids: bool, use_map_files: bool) {
+        fn test(cache_vmas: bool, cache_build_ids: bool, use_map_files: bool) {
             let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join("libtest-so.so");
@@ -445,7 +445,7 @@ mod tests {
                 ..Default::default()
             };
             let normalizer = Normalizer::builder()
-                .enable_maps_caching(cache_maps)
+                .enable_vma_caching(cache_vmas)
                 .enable_build_id_caching(cache_build_ids)
                 .build();
             let normalized = normalizer
@@ -464,9 +464,9 @@ mod tests {
         }
 
         for cache_build_ids in [true, false] {
-            for cache_maps in [true, false] {
+            for cache_vmas in [true, false] {
                 for use_map_files in [true, false] {
-                    let () = test(cache_build_ids, cache_maps, use_map_files);
+                    let () = test(cache_build_ids, cache_vmas, use_map_files);
                 }
             }
         }

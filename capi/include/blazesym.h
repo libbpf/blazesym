@@ -301,7 +301,7 @@ typedef struct blaze_normalizer_opts {
    * may not be normalized successfully, as there is no reasonable way of
    * detecting staleness.
    */
-  bool cache_maps;
+  bool cache_vmas;
   /**
    * Whether to read and report build IDs as part of the normalization
    * process.
