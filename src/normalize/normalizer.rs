@@ -203,7 +203,7 @@ impl Normalizer {
     ) -> Result<UserOutput<'_>>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
-        E: Iterator<Item = Result<M>>,
+        E: FnMut(Addr) -> Option<Result<M>>,
         M: AsRef<maps::MapsEntry>,
     {
         let caching_reader;
@@ -238,7 +238,8 @@ impl Normalizer {
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
         if !self.cache_vmas {
-            let entries = maps::parse_filtered(pid)?;
+            let mut entry_iter = maps::parse_filtered(pid)?;
+            let entries = |_addr| entry_iter.next();
             self.normalize_user_addrs_impl(addrs, entries, map_files)
         } else {
             let parsed = self.cached_entries.get_or_try_insert(pid, || {
@@ -251,7 +252,8 @@ impl Normalizer {
                 Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
             })?;
 
-            let entries = parsed.iter().map(Ok);
+            let mut entry_iter = parsed.iter().map(Ok);
+            let entries = |_addr| entry_iter.next();
             self.normalize_user_addrs_impl(addrs, entries, map_files)
         }
     }
