@@ -23,26 +23,26 @@ use super::Reason;
 
 
 /// Make a [`UserMeta::Elf`] variant.
-fn make_elf_meta<'src>(path: &Path, build_id: Option<BuildId<'src>>) -> Result<UserMeta<'src>> {
+fn make_elf_meta<'src>(path: &Path, build_id: Option<BuildId<'src>>) -> UserMeta<'src> {
     let elf = Elf {
         path: path.to_path_buf(),
         build_id,
         _non_exhaustive: (),
     };
     let meta = UserMeta::Elf(elf);
-    Ok(meta)
+    meta
 }
 
 
 /// Make a [`UserMeta::Apk`] variant.
 #[cfg(feature = "apk")]
-fn make_apk_meta(path: &Path) -> Result<UserMeta<'static>> {
+fn make_apk_meta(path: &Path) -> UserMeta<'static> {
     let apk = Apk {
         path: path.to_path_buf(),
         _non_exhaustive: (),
     };
     let meta = UserMeta::Apk(apk);
-    Ok(meta)
+    meta
 }
 
 
@@ -88,12 +88,12 @@ impl<'src> UserOutput<'src> {
         create_meta: F,
     ) -> Result<()>
     where
-        F: FnOnce() -> Result<UserMeta<'src>>,
+        F: FnOnce() -> UserMeta<'src>,
     {
         let meta_idx = if let Some(meta_idx) = meta_lookup.get(key) {
             *meta_idx
         } else {
-            let meta = create_meta()?;
+            let meta = create_meta();
             let meta_idx = self.meta.len();
             let () = self.meta.push(meta);
             let _ref = meta_lookup.insert(key.to_path_buf(), meta_idx);
