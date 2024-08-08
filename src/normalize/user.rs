@@ -216,18 +216,18 @@ pub(crate) fn normalize_sorted_user_addrs_with_entries<A, E, M, R>(
 ) -> Result<()>
 where
     A: Iterator<Item = Addr> + Clone,
-    E: Iterator<Item = Result<M>>,
+    E: FnMut(Addr) -> Option<Result<M>>,
     M: AsRef<maps::MapsEntry>,
     R: From<Reason>,
 {
-    let mut entry = entries.next().ok_or_else(|| {
+    let mut prev_addr = addrs.clone().next().unwrap_or_default();
+    let mut entry = entries(prev_addr).ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::UnexpectedEof,
             "proc maps does not contain relevant entries",
         )
     })??;
 
-    let mut prev_addr = addrs.clone().next().unwrap_or_default();
     // We effectively do a single pass over `addrs`, advancing to the next
     // proc maps entry whenever the current address is not (or no longer)
     // contained in the current entry's range.
@@ -240,7 +240,7 @@ where
         prev_addr = addr;
 
         while addr >= entry.as_ref().range.end {
-            entry = if let Some(entry) = entries.next() {
+            entry = if let Some(entry) = entries(addr) {
                 entry?
             } else {
                 // If there are no proc maps entries left to check, we
@@ -315,8 +315,10 @@ mod tests {
             let addrs = [unknown_addr as Addr];
             let map_files = false;
 
-            let entries = maps::parse_file(maps.as_bytes(), pid)
+            let mut entry_iter = maps::parse_file(maps.as_bytes(), pid)
                 .filter(|result| result.as_ref().map(maps::filter_relevant).unwrap_or(true));
+            let entries = |_addr| entry_iter.next();
+
             let reader = NoBuildIdReader;
             let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
             let () = normalize_sorted_user_addrs_with_entries(
@@ -351,7 +353,7 @@ mod tests {
         let addrs = [0x10000, 0x30000];
         let map_files = false;
 
-        let entries = [
+        let mut entry_iter = [
             Ok(MapsEntry {
                 range: 0x10000..0x20000,
                 mode: 0x1,
@@ -368,12 +370,15 @@ mod tests {
                 path_name: None,
                 build_id: None,
             }),
-        ];
+        ]
+        .into_iter();
+        let entries = |_addr| entry_iter.next();
+
         let reader = NoBuildIdReader;
         let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
-            entries.into_iter(),
+            entries,
             &mut handler,
         )
         .unwrap();
@@ -403,7 +408,9 @@ mod tests {
         let addrs = [build_id_read_failures as Addr];
         let map_files = false;
 
-        let entries = maps::parse_filtered(Pid::Slf).unwrap();
+        let mut entry_iter = maps::parse_filtered(Pid::Slf).unwrap();
+        let entries = |_addr| entry_iter.next();
+
         let reader = FailingBuildIdReader;
         let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
         let () = normalize_sorted_user_addrs_with_entries(
