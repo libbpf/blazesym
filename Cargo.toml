@@ -123,7 +123,7 @@ cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.31", optional = true}
 libc = "0.2.137"
 memmap2 = {version = "0.9", default-features = false}
-miniz_oxide = {version = "0.7", default-features = false, features = ["simd", "with-alloc"], optional = true}
+miniz_oxide = {version = "0.8", default-features = false, features = ["simd", "with-alloc"], optional = true}
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1.4", optional = true}
 tracing = {version = "0.1.27", default-features = false, features = ["attributes"], optional = true}
