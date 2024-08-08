@@ -1,3 +1,5 @@
+use std::fs::File;
+
 use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
 use crate::maps;
@@ -7,12 +9,14 @@ use crate::util;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
 use crate::Addr;
+use crate::ErrorExt as _;
 use crate::Pid;
 use crate::Result;
 
 use super::buildid::BuildId;
 use super::buildid::DefaultBuildIdReader;
 use super::buildid::NoBuildIdReader;
+use super::ioctl::query_procmap;
 use super::user;
 use super::user::normalize_sorted_user_addrs_with_entries;
 use super::user::UserOutput;
@@ -237,24 +241,52 @@ impl Normalizer {
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
-        if !self.cache_vmas {
-            let mut entry_iter = maps::parse_filtered(pid)?;
-            let entries = |_addr| entry_iter.next();
-            self.normalize_user_addrs_impl(addrs, entries, map_files)
-        } else {
-            let parsed = self.cached_entries.get_or_try_insert(pid, || {
-                // If we use the cached maps entries but don't have anything
-                // cached yet, then just parse the file eagerly and take it from
-                // there.
-                let parsed = maps::parse_filtered(pid)?
-                    .collect::<Result<Vec<_>>>()?
-                    .into_boxed_slice();
-                Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
-            })?;
+        if self.use_procmap_query {
+            let path = format!("/proc/{pid}/maps");
+            let file = File::open(&path)
+                .with_context(|| format!("failed to open `{path}` for reading"))?;
 
-            let mut entry_iter = parsed.iter().map(Ok);
-            let entries = |_addr| entry_iter.next();
-            self.normalize_user_addrs_impl(addrs, entries, map_files)
+            if !self.cache_vmas {
+                let entries =
+                    move |addr| query_procmap(&file, pid, addr, self.build_ids).transpose();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            } else {
+                let entries = self.cached_entries.get_or_try_insert(pid, || {
+                    let mut entries = Vec::new();
+                    let mut next_addr = 0;
+                    while let Some(entry) = query_procmap(&file, pid, next_addr, self.build_ids)? {
+                        next_addr = entry.range.end;
+                        if maps::filter_relevant(&entry) {
+                            let () = entries.push(entry);
+                        }
+                    }
+                    Ok(entries.into_boxed_slice())
+                })?;
+
+                let mut entry_iter = entries.iter().map(Ok);
+                let entries = |_addr| entry_iter.next();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            }
+        } else {
+            if !self.cache_vmas {
+                let mut entry_iter = maps::parse_filtered(pid)?;
+                let entries = |_addr| entry_iter.next();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            } else {
+                let parsed = self.cached_entries.get_or_try_insert(pid, || {
+                    // If we use the cached maps entries but don't have anything
+                    // cached yet, then just parse the file eagerly and take it from
+                    // there.
+                    let parsed = maps::parse_filtered(pid)?
+                        .collect::<Result<Vec<_>>>()?
+                        .into_boxed_slice();
+                    Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
+                })?;
+
+                let mut entry_iter = parsed.iter().map(Ok);
+                let entries = |_addr| entry_iter.next();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            }
         }
     }
 
@@ -452,12 +484,13 @@ mod tests {
         assert_eq!(meta, &UserMeta::Elf(expected_elf));
     }
 
-    /// Check that we can normalize user addresses in a shared object
-    /// that has been deleted already (but is still mapped) without
-    /// errors.
-    #[test]
-    fn user_address_normalization_deleted_so() {
-        fn test(cache_vmas: bool, cache_build_ids: bool, use_map_files: bool) {
+    fn test_user_address_normalization_deleted_so(use_procmap_query: bool) {
+        fn test(
+            use_procmap_query: bool,
+            cache_vmas: bool,
+            cache_build_ids: bool,
+            use_map_files: bool,
+        ) {
             let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join("libtest-so.so");
@@ -478,6 +511,7 @@ mod tests {
                 ..Default::default()
             };
             let normalizer = Normalizer::builder()
+                .enable_procmap_query(use_procmap_query)
                 .enable_vma_caching(cache_vmas)
                 .enable_build_id_caching(cache_build_ids)
                 .build();
@@ -499,10 +533,32 @@ mod tests {
         for cache_build_ids in [true, false] {
             for cache_vmas in [true, false] {
                 for use_map_files in [true, false] {
-                    let () = test(cache_build_ids, cache_vmas, use_map_files);
+                    let () = test(
+                        use_procmap_query,
+                        cache_build_ids,
+                        cache_vmas,
+                        use_map_files,
+                    );
                 }
             }
         }
+    }
+
+    /// Check that we can normalize user addresses in a shared object
+    /// that has been deleted already (but is still mapped) without
+    /// errors.
+    #[test]
+    fn user_address_normalization_deleted_so_proc_maps() {
+        test_user_address_normalization_deleted_so(false)
+    }
+
+    /// Check that we can normalize user addresses in a shared object
+    /// that has been deleted already (but is still mapped) without
+    /// errors.
+    #[test]
+    #[ignore = "test requires PROCMAP_QUERY ioctl kernel support"]
+    fn user_address_normalization_deleted_so_ioctl() {
+        test_user_address_normalization_deleted_so(true)
     }
 
     /// Check that we can normalize addresses in our own shared object inside a

@@ -185,7 +185,12 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                         &mut self.meta_lookup,
                         || {
                             // Attempt reading the build ID, but only if
-                            // one is not already present.
+                            // one is not already present. A build ID
+                            // should only ever be present at this point
+                            // if the user opted for PROCMAP_QUERY ioctl
+                            // usage. Note that "reading" here could be a
+                            // cheap cache look up if build ID caching
+                            // is enabled.
                             let build_id = entry.build_id.clone().or_else(|| {
                                 self.build_id_reader.read_build_id(&entry_path.maps_file)
                             });
@@ -229,7 +234,7 @@ where
     })??;
 
     // We effectively do a single pass over `addrs`, advancing to the next
-    // proc maps entry whenever the current address is not (or no longer)
+    // VMA entry whenever the current address is not (or no longer)
     // contained in the current entry's range.
     'main: for addr in addrs {
         if addr < prev_addr {

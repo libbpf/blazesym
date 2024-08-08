@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Added support for using `PROCMAP_QUERY` ioctl during address normalization
+  - Added `enable_procmap_query` to `normalize::Normalizer`
 - Adjusted normalization logic to not fail overall operation on build ID
   read failure
 - Added support for file based symbolization support on the Windows operating
