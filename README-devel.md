@@ -32,6 +32,13 @@ $ rm .cargo/config.toml
 $ MIRIFLAGS='-Zmiri-disable-stacked-borrows' cargo miri test --workspace -- ":miri:"
 ```
 
+### Documentation
+To generate the documentation as it would appear on `docs.rs` once a
+new release is published, run:
+```sh
+RUSTDOCFLAGS='--cfg docsrs' cargo doc --open --features="apk,backtrace,breakpad,demangle,dwarf,gsym"
+```
+
 
 ## Benchmarking
 We use a mixture of [Criterion][criterion] end-to-end benchmarks and [`libtest`
