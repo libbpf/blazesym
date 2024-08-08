@@ -42,6 +42,20 @@ pub struct blaze_normalizer_opts {
     /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
     /// ensure compatibility in the presence of member additions.
     pub type_size: usize,
+    /// Whether or not to use the `PROCMAP_QUERY` ioctl instead of
+    /// parsing `/proc/<pid>/maps` for getting available VMA ranges.
+    ///
+    /// # Notes
+    ///
+    /// Support for this ioctl is only present in very recent kernels
+    /// (likely: 6.11+). See <https://lwn.net/Articles/979931/> for
+    /// details.
+    ///
+    /// Furthermore, the ioctl will also be used for retrieving build
+    /// IDs (if enabled). Build ID reading logic in the kernel is known
+    /// to be incomplete, with a fix slated to be included only with
+    /// 6.12.
+    pub use_procmap_query: bool,
     /// Whether or not to cache `/proc/<pid>/maps` contents.
     ///
     /// Setting this flag to `true` is not generally recommended, because it
@@ -60,17 +74,18 @@ pub struct blaze_normalizer_opts {
     pub cache_build_ids: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 5],
+    pub reserved: [u8; 4],
 }
 
 impl Default for blaze_normalizer_opts {
     fn default() -> Self {
         Self {
             type_size: size_of::<Self>(),
+            use_procmap_query: false,
             cache_vmas: false,
             build_ids: false,
             cache_build_ids: false,
-            reserved: [0; 5],
+            reserved: [0; 4],
         }
     }
 }
@@ -180,6 +195,7 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
 
     let blaze_normalizer_opts {
         type_size: _,
+        use_procmap_query,
         cache_vmas,
         build_ids,
         cache_build_ids,
@@ -187,6 +203,7 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
     } = opts;
 
     let normalizer = Normalizer::builder()
+        .enable_procmap_query(use_procmap_query)
         .enable_vma_caching(cache_vmas)
         .enable_build_ids(build_ids)
         .enable_build_id_caching(cache_build_ids)
@@ -940,9 +957,7 @@ mod tests {
         let () = unsafe { blaze_normalizer_free(normalizer) };
     }
 
-    /// Check that we can normalize sorted user space addresses.
-    #[test]
-    fn normalize_user_addrs_sorted() {
+    fn test_normalize_user_addrs_sorted(use_procmap_query: bool) {
         let mut addrs = [
             libc::atexit as Addr,
             libc::chdir as Addr,
@@ -952,7 +967,11 @@ mod tests {
         ];
         let () = addrs.sort();
 
-        let normalizer = blaze_normalizer_new();
+        let opts = blaze_normalizer_opts {
+            use_procmap_query,
+            ..Default::default()
+        };
+        let normalizer = unsafe { blaze_normalizer_new_opts(&opts) };
         assert_ne!(normalizer, ptr::null_mut());
 
         let opts = blaze_normalize_opts {
@@ -976,6 +995,20 @@ mod tests {
 
         let () = unsafe { blaze_user_output_free(result) };
         let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
+
+    /// Check that we can normalize sorted user space addresses.
+    #[test]
+    fn normalize_user_addrs_sorted_proc_maps() {
+        test_normalize_user_addrs_sorted(false)
+    }
+
+    /// Check that we can normalize sorted user space addresses using
+    /// the `PROCMAP_QUERY` ioctl.
+    #[test]
+    #[ignore = "test requires PROCMAP_QUERY ioctl kernel support"]
+    fn normalize_user_addrs_sorted_ioctl() {
+        test_normalize_user_addrs_sorted(true)
     }
 
     /// Check that we fail normalizing unsorted addresses with a function that
