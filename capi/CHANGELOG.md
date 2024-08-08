@@ -1,7 +1,10 @@
 Unreleased
 ----------
+- Added `procmap_query_ioctl` attribute to `blaze_normalizer_opts`
 - Renamed `blaze_result` to `blaze_syms`
   - Renamed `blaze_result_free` to `blaze_syms_free`
+- Renamed `cache_maps` attribute of `blaze_normalizer_opts` to
+  `cache_vmas`
 
 
 0.1.0-rc.0

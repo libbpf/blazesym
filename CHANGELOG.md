@@ -7,6 +7,8 @@ Unreleased
 - Improved performance for parsing Breakpad files
 - Fixed potentially invalid reading of debug link checksum when
   `.gnu_debuglink` section is unaligned
+- Renamed `enable_maps_caching` method of `normalize::Normalizer` to
+  `enable_vma_caching`
 
 
 0.2.0-rc.0

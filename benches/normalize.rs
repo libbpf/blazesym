@@ -57,7 +57,7 @@ where
     M: Measurement,
 {
     let normalizer = Normalizer::builder()
-        .enable_maps_caching(true)
+        .enable_vma_caching(true)
         .enable_build_ids(true)
         .enable_build_id_caching(false)
         .build();
@@ -80,7 +80,7 @@ where
     M: Measurement,
 {
     let normalizer = Normalizer::builder()
-        .enable_maps_caching(true)
+        .enable_vma_caching(true)
         .enable_build_ids(true)
         .enable_build_id_caching(true)
         .build();
@@ -103,7 +103,82 @@ where
     M: Measurement,
 {
     let normalizer = Normalizer::builder()
-        .enable_maps_caching(true)
+        .enable_vma_caching(true)
+        .enable_build_ids(false)
+        .build();
+    normalize_process_impl(&normalizer, b)
+}
+
+fn normalize_process_uncached_build_ids_uncached_ioctl<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    let normalizer = Normalizer::builder()
+        .enable_procmap_query_ioctl(true)
+        .enable_build_ids(true)
+        .build();
+    normalize_process_impl(&normalizer, b)
+}
+
+fn normalize_process_uncached_build_ids_cached_ioctl<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    let normalizer = Normalizer::builder()
+        .enable_procmap_query_ioctl(true)
+        .enable_vma_caching(true)
+        .enable_build_ids(true)
+        .enable_build_id_caching(false)
+        .build();
+    normalize_process_impl(&normalizer, b)
+}
+
+fn normalize_process_cached_build_ids_uncached_ioctl<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    let normalizer = Normalizer::builder()
+        .enable_procmap_query_ioctl(true)
+        .enable_build_ids(true)
+        .enable_build_id_caching(false)
+        .build();
+    normalize_process_impl(&normalizer, b)
+}
+
+fn normalize_process_cached_build_ids_cached_ioctl<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    let normalizer = Normalizer::builder()
+        .enable_procmap_query_ioctl(true)
+        .enable_vma_caching(true)
+        .enable_build_ids(true)
+        .enable_build_id_caching(true)
+        .build();
+    normalize_process_impl(&normalizer, b)
+}
+
+/// Normalize addresses in the current process, but don't read build IDs.
+fn normalize_process_no_build_ids_uncached_ioctl<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    let normalizer = Normalizer::builder()
+        .enable_procmap_query_ioctl(true)
+        .enable_build_ids(false)
+        .build();
+    normalize_process_impl(&normalizer, b)
+}
+
+/// Normalize addresses in the current process, read and parse the
+/// `/proc/self/maps` file only once, and don't read build IDs.
+fn normalize_process_no_build_ids_cached_ioctl<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    let normalizer = Normalizer::builder()
+        .enable_procmap_query_ioctl(true)
+        .enable_vma_caching(true)
         .enable_build_ids(false)
         .build();
     normalize_process_impl(&normalizer, b)
@@ -119,4 +194,13 @@ where
     bench_sub_fn!(group, normalize_process_cached_build_ids_cached_maps);
     bench_sub_fn!(group, normalize_process_no_build_ids_uncached_maps);
     bench_sub_fn!(group, normalize_process_no_build_ids_cached_maps);
+
+    if cfg!(has_procmap_query_ioctl) {
+        bench_sub_fn!(group, normalize_process_uncached_build_ids_uncached_ioctl);
+        bench_sub_fn!(group, normalize_process_uncached_build_ids_cached_ioctl);
+        bench_sub_fn!(group, normalize_process_cached_build_ids_uncached_ioctl);
+        bench_sub_fn!(group, normalize_process_cached_build_ids_cached_ioctl);
+        bench_sub_fn!(group, normalize_process_no_build_ids_uncached_ioctl);
+        bench_sub_fn!(group, normalize_process_no_build_ids_cached_ioctl);
+    }
 }

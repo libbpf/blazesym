@@ -16,6 +16,7 @@ use crate::util::from_radix_16;
 use crate::util::split_bytes;
 use crate::util::trim_ascii;
 use crate::Addr;
+use crate::BuildId;
 use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Pid;
@@ -82,6 +83,7 @@ pub(crate) struct MapsEntry {
     pub mode: u8,
     pub offset: u64,
     pub path_name: Option<PathName>,
+    pub build_id: Option<BuildId<'static>>,
 }
 
 impl AsRef<MapsEntry> for MapsEntry {
@@ -98,6 +100,7 @@ impl Debug for MapsEntry {
             mode,
             offset,
             path_name,
+            build_id: _,
         } = self;
 
         f.debug_struct(stringify!(MapsEntry))
@@ -218,6 +221,7 @@ fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
         mode,
         offset,
         path_name,
+        build_id: None,
     };
     Ok(entry)
 }
@@ -283,6 +287,8 @@ pub(crate) fn parse(pid: Pid) -> Result<impl Iterator<Item = Result<MapsEntry>>>
 /// symbolization efforts.
 pub(crate) fn filter_relevant(entry: &MapsEntry) -> bool {
     // Only readable (r---) or executable (--x-) entries are of relevance.
+    // NB: Please keep this logic in sync with flags being used by in
+    //     `procmap_query`.
     if (entry.mode & 0b1010) == 0 {
         return false
     }

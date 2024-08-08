@@ -855,7 +855,9 @@ impl Symbolizer {
         perf_map: bool,
         map_files: bool,
     ) -> Result<Vec<Symbolized>> {
-        let entries = maps::parse(pid)?;
+        let mut entry_iter = maps::parse(pid)?;
+        let entries = |_addr| entry_iter.next();
+
         let mut handler = SymbolizeHandler {
             symbolizer: self,
             pid,
@@ -1520,20 +1522,25 @@ mod tests {
     fn symbolize_entry_various() {
         let addrs = [0x10000, 0x30000];
 
-        let entries = [
+        let mut entry_iter = [
             Ok(MapsEntry {
                 range: 0x10000..0x20000,
                 mode: 0x1,
                 offset: 0,
                 path_name: Some(PathName::Component("a-component".to_string())),
+                build_id: None,
             }),
             Ok(MapsEntry {
                 range: 0x30000..0x40000,
                 mode: 0x1,
                 offset: 0,
                 path_name: None,
+                build_id: None,
             }),
-        ];
+        ]
+        .into_iter();
+        let entries = |_addr| entry_iter.next();
+
         let symbolizer = Symbolizer::new();
         let mut handler = SymbolizeHandler {
             symbolizer: &symbolizer,
@@ -1545,7 +1552,7 @@ mod tests {
         };
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
-            entries.into_iter(),
+            entries,
             &mut handler,
         )
         .unwrap();

@@ -1,3 +1,6 @@
+use std::fs::File;
+use std::os::fd::AsFd as _;
+
 use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
 use crate::maps;
@@ -7,12 +10,14 @@ use crate::util;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
 use crate::Addr;
+use crate::ErrorExt as _;
 use crate::Pid;
 use crate::Result;
 
 use super::buildid::BuildId;
 use super::buildid::DefaultBuildIdReader;
 use super::buildid::NoBuildIdReader;
+use super::ioctl::query_procmap;
 use super::user;
 use super::user::normalize_sorted_user_addrs_with_entries;
 use super::user::UserOutput;
@@ -46,12 +51,16 @@ pub struct Output<M> {
 
 /// A builder for configurable construction of [`Normalizer`] objects.
 ///
-/// By default reading of build IDs is enabled but they are not being
-/// cached. The caching of `/proc/<pid>/maps` entries is also disabled.
+/// By default `/proc/<pid>/maps` contents are parsed to query available
+/// VMA ranges (instead of using the `PROCMAP_QUERY` ioctl). Reading of
+/// build IDs is enabled, but they are not being cached. The caching of
+/// VMA ranges is also disabled.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    /// See [`Builder::enable_maps_caching`].
-    cache_maps: bool,
+    /// See [`Builder::enable_procmap_query_ioctl`].
+    procmap_query_ioctl: bool,
+    /// See [`Builder::enable_vma_caching`].
+    cache_vmas: bool,
     /// See [`Builder::enable_build_ids`].
     build_ids: bool,
     /// See [`Builder::enable_build_id_caching`].
@@ -59,14 +68,36 @@ pub struct Builder {
 }
 
 impl Builder {
-    /// Enable/disable the caching of `/proc/<pid>/maps` entries.
+    /// Enable/disable the usage of the `PROCMAP_QUERY` ioctl instead of
+    /// parsing `/proc/<pid>/maps` for getting available VMA ranges.
+    ///
+    /// # Notes
+    ///
+    /// Support for this ioctl is only present in very recent kernels
+    /// (likely: 6.11+). See <https://lwn.net/Articles/979931/> for
+    /// details.
+    ///
+    /// Furthermore, the ioctl will also be used for retrieving build
+    /// IDs (if enabled). Build ID reading logic in the kernel is known
+    /// to be incomplete, with a fix slated to be included only with
+    /// 6.12.
+    pub fn enable_procmap_query_ioctl(mut self, enable: bool) -> Builder {
+        self.procmap_query_ioctl = enable;
+        self
+    }
+
+    /// Enable/disable caching VMA ranges and meta data (excluding build
+    /// IDs).
     ///
     /// Setting this flag to `true` is not generally recommended, because it
     /// could result in addresses corresponding to mappings added after caching
     /// may not be normalized successfully, as there is no reasonable way of
     /// detecting staleness.
-    pub fn enable_maps_caching(mut self, enable: bool) -> Builder {
-        self.cache_maps = enable;
+    ///
+    /// Please note than if the `PROCMAP_QUERY` ioctl is being used, VMA
+    /// caching implies build ID caching as well.
+    pub fn enable_vma_caching(mut self, enable: bool) -> Builder {
+        self.cache_vmas = enable;
         self
     }
 
@@ -92,13 +123,15 @@ impl Builder {
     /// Create the [`Normalizer`] object.
     pub fn build(self) -> Normalizer {
         let Builder {
-            cache_maps,
+            procmap_query_ioctl,
+            cache_vmas,
             build_ids,
             cache_build_ids,
         } = self;
 
         Normalizer {
-            cache_maps,
+            procmap_query_ioctl,
+            cache_vmas,
             build_ids,
             cache_build_ids: build_ids && cache_build_ids,
             cached_entries: InsertMap::new(),
@@ -110,7 +143,8 @@ impl Builder {
 impl Default for Builder {
     fn default() -> Self {
         Self {
-            cache_maps: false,
+            procmap_query_ioctl: false,
+            cache_vmas: false,
             build_ids: true,
             cache_build_ids: false,
         }
@@ -134,13 +168,15 @@ impl Default for Builder {
 /// `Normalizer` instance regularly to free up cached data.
 #[derive(Debug, Default)]
 pub struct Normalizer {
+    /// See [`Builder::enable_procmap_query_ioctl`].
+    procmap_query_ioctl: bool,
     /// See [`Builder::enable_maps_caching`].
-    cache_maps: bool,
+    cache_vmas: bool,
     /// See [`Builder::enable_build_ids`].
     build_ids: bool,
     /// See [`Builder::enable_build_id_caching`].
     cache_build_ids: bool,
-    /// If `cache_maps` is `true`, the cached parsed
+    /// If `cache_vmas` is `true`, the cached parsed
     /// [`MapsEntry`][maps::MapsEntry] objects.
     cached_entries: InsertMap<Pid, Box<[maps::MapsEntry]>>,
     /// A cache of build IDs.
@@ -172,7 +208,7 @@ impl Normalizer {
     ) -> Result<UserOutput<'_>>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
-        E: Iterator<Item = Result<M>>,
+        E: FnMut(Addr) -> Option<Result<M>>,
         M: AsRef<maps::MapsEntry>,
     {
         let caching_reader;
@@ -206,22 +242,53 @@ impl Normalizer {
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
-        if !self.cache_maps {
-            let entries = maps::parse_filtered(pid)?;
-            self.normalize_user_addrs_impl(addrs, entries, map_files)
-        } else {
-            let parsed = self.cached_entries.get_or_try_insert(pid, || {
-                // If we use the cached maps entries but don't have anything
-                // cached yet, then just parse the file eagerly and take it from
-                // there.
-                let parsed = maps::parse_filtered(pid)?
-                    .collect::<Result<Vec<_>>>()?
-                    .into_boxed_slice();
-                Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
-            })?;
+        if self.procmap_query_ioctl {
+            let pid = Pid::Slf;
+            let path = format!("/proc/{pid}/maps");
+            let file = File::open(&path)
+                .with_context(|| format!("failed to open `{path}` for reading"))?;
 
-            let entries = parsed.iter().map(Ok);
-            self.normalize_user_addrs_impl(addrs, entries, map_files)
+            if !self.cache_vmas {
+                let entries =
+                    move |addr| query_procmap(file.as_fd(), pid, addr, self.build_ids).transpose();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            } else {
+                let entries = self.cached_entries.get_or_try_insert(pid, || {
+                    let mut entries = Vec::new();
+                    let mut next_addr = 0;
+                    while let Some(entry) =
+                        query_procmap(file.as_fd(), pid, next_addr, self.build_ids)?
+                    {
+                        next_addr = entry.range.end;
+                        let () = entries.push(entry);
+                    }
+                    Ok(entries.into_boxed_slice())
+                })?;
+
+                let mut entry_iter = entries.iter().map(Ok);
+                let entries = |_addr| entry_iter.next();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            }
+        } else {
+            if !self.cache_vmas {
+                let mut entry_iter = maps::parse_filtered(pid)?;
+                let entries = |_addr| entry_iter.next();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            } else {
+                let parsed = self.cached_entries.get_or_try_insert(pid, || {
+                    // If we use the cached maps entries but don't have anything
+                    // cached yet, then just parse the file eagerly and take it from
+                    // there.
+                    let parsed = maps::parse_filtered(pid)?
+                        .collect::<Result<Vec<_>>>()?
+                        .into_boxed_slice();
+                    Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
+                })?;
+
+                let mut entry_iter = parsed.iter().map(Ok);
+                let entries = |_addr| entry_iter.next();
+                self.normalize_user_addrs_impl(addrs, entries, map_files)
+            }
         }
     }
 
@@ -384,7 +451,7 @@ mod tests {
         let normalizer = Normalizer::new();
         test(&normalizer);
 
-        let normalizer = Normalizer::builder().enable_maps_caching(true).build();
+        let normalizer = Normalizer::builder().enable_vma_caching(true).build();
         test(&normalizer);
         test(&normalizer);
     }
@@ -422,7 +489,7 @@ mod tests {
     /// errors.
     #[test]
     fn user_address_normalization_deleted_so() {
-        fn test(cache_maps: bool, cache_build_ids: bool, use_map_files: bool) {
+        fn test(cache_vmas: bool, cache_build_ids: bool, use_map_files: bool) {
             let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join("libtest-so.so");
@@ -443,7 +510,7 @@ mod tests {
                 ..Default::default()
             };
             let normalizer = Normalizer::builder()
-                .enable_maps_caching(cache_maps)
+                .enable_vma_caching(cache_vmas)
                 .enable_build_id_caching(cache_build_ids)
                 .build();
             let normalized = normalizer
@@ -462,9 +529,9 @@ mod tests {
         }
 
         for cache_build_ids in [true, false] {
-            for cache_maps in [true, false] {
+            for cache_vmas in [true, false] {
                 for use_map_files in [true, false] {
-                    let () = test(cache_build_ids, cache_maps, use_map_files);
+                    let () = test(cache_build_ids, cache_vmas, use_map_files);
                 }
             }
         }
