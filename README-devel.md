@@ -44,12 +44,17 @@ RUSTDOCFLAGS='--cfg docsrs' cargo doc --open --features="apk,backtrace,breakpad,
 We use a mixture of [Criterion][criterion] end-to-end benchmarks and [`libtest`
 based][libtest] unit-test style ones.
 
-To run the full benchmark suite, use:
+To run the benchmark suite, use:
 ```sh
 # Perform one-time setup of required data.
 $ cargo check --features=generate-large-test-files
 $ cargo bench --features=nightly
 ```
+
+Some benchmarks require the `PROCMAP_QUERY` ioctl kernel functionality,
+which is not yet widely available. As such, they are disabled by
+default. To enable them set the `RUSTFLAGS` environment variable to
+`--cfg has_procmap_query_ioctl`.
 
 For all Criterion powered benchmarks, a run will automatically establish a new
 base line. You can check out a different change, re-run the above command, and

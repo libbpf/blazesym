@@ -158,3 +158,6 @@ _simd-adler32_unused = { package = "simd-adler32", version = "0.3.3" }
 features = ["apk", "backtrace", "breakpad", "demangle", "dwarf", "gsym"]
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
+
+[lints.rust]
+unexpected_cfgs = {level = "warn", check-cfg = ['cfg(has_procmap_query_ioctl)']}
