@@ -294,6 +294,22 @@ typedef struct blaze_normalizer_opts {
    */
   size_t type_size;
   /**
+   * Whether or not to use the `PROCMAP_QUERY` ioctl instead of
+   * parsing `/proc/<pid>/maps` for getting available VMA ranges.
+   *
+   * # Notes
+   *
+   * Support for this ioctl is only present in very recent kernels
+   * (likely: 6.11+). See <https://lwn.net/Articles/979931/> for
+   * details.
+   *
+   * Furthermore, the ioctl will also be used for retrieving build
+   * IDs (if enabled). Build ID reading logic in the kernel is known
+   * to be incomplete, with a fix slated to be included only with
+   * 6.12.
+   */
+  bool use_procmap_query;
+  /**
    * Whether or not to cache `/proc/<pid>/maps` contents.
    *
    * Setting this flag to `true` is not generally recommended, because it
@@ -319,7 +335,7 @@ typedef struct blaze_normalizer_opts {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[5];
+  uint8_t reserved[4];
 } blaze_normalizer_opts;
 
 /**
