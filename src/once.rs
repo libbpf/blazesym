@@ -93,6 +93,7 @@ impl<T> OnceCell<T> {
     where
         F: FnOnce() -> T,
     {
+        #[allow(unreachable_patterns)]
         match self.get_or_try_init(|| Ok::<T, Infallible>(f())) {
             Ok(val) => val,
             Err(_) => unsafe { unreachable_unchecked() },
