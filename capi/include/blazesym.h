@@ -1224,7 +1224,7 @@ const struct blaze_syms *blaze_symbolize_gsym_file_virt_offsets(blaze_symbolizer
 void blaze_syms_free(const struct blaze_syms *syms);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* __blazesym_h_ */
+#endif  /* __blazesym_h_ */
