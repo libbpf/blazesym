@@ -343,6 +343,8 @@ mod tests {
 
     /// Check that we can normalize user addresses.
     #[cfg(not(windows))]
+    // `libc` on Arm doesn't have `__errno_location`.
+    #[cfg(not(any(target_arch = "arm", target_arch = "aarch64")))]
     #[test]
     fn user_address_normalization() {
         fn test(normalizer: &Normalizer) {
