@@ -45,6 +45,11 @@ pub struct blaze_normalizer_opts {
     /// Whether or not to use the `PROCMAP_QUERY` ioctl instead of
     /// parsing `/proc/<pid>/maps` for getting available VMA ranges.
     ///
+    /// Refer to
+    /// [`blaze_supports_procmap_query`][crate::helper::blaze_supports_procmap_query]
+    /// as a way to check whether your system supports this
+    /// functionality.
+    ///
     /// # Notes
     ///
     /// Support for this ioctl is only present in very recent kernels

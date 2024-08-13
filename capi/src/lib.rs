@@ -82,6 +82,7 @@ macro_rules! input_sanitize {
 }
 
 
+mod helper;
 #[allow(non_camel_case_types)]
 mod inspect;
 #[allow(non_camel_case_types)]
@@ -95,6 +96,7 @@ use std::ffi::c_char;
 
 use blazesym::ErrorKind;
 
+pub use helper::*;
 pub use inspect::*;
 pub use normalize::*;
 pub use symbolize::*;
