@@ -280,6 +280,7 @@ mod tests {
 
     use test_log::test;
 
+    use crate::maps::Perm;
     use crate::normalize::buildid::NoBuildIdReader;
     use crate::BuildId;
     use crate::Error;
@@ -361,7 +362,7 @@ mod tests {
         let mut entry_iter = [
             Ok(MapsEntry {
                 range: 0x10000..0x20000,
-                mode: 0x1,
+                perm: Perm::default(),
                 offset: 0,
                 path_name: Some(PathName::Component(
                     "doesntreallymatternowdoesit".to_string(),
@@ -370,7 +371,7 @@ mod tests {
             }),
             Ok(MapsEntry {
                 range: 0x30000..0x40000,
-                mode: 0x1,
+                perm: Perm::default(),
                 offset: 0,
                 path_name: None,
                 build_id: None,

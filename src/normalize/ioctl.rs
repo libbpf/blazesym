@@ -10,6 +10,7 @@ use libc::ENOENT;
 use libc::ENOTTY;
 
 use crate::maps::MapsEntry;
+use crate::maps::Perm;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
@@ -26,6 +27,7 @@ type procmap_query_flags = c_int;
 const PROCMAP_QUERY_VMA_READABLE: procmap_query_flags = 0x01;
 const PROCMAP_QUERY_VMA_WRITABLE: procmap_query_flags = 0x02;
 const PROCMAP_QUERY_VMA_EXECUTABLE: procmap_query_flags = 0x04;
+#[cfg(test)]
 const PROCMAP_QUERY_VMA_SHARED: procmap_query_flags = 0x08;
 const PROCMAP_QUERY_COVERING_OR_NEXT_VMA: procmap_query_flags = 0x10;
 
@@ -117,25 +119,20 @@ struct procmap_query {
 }
 
 
-fn vma_flags_to_mode(vma_flags: u64) -> u8 {
+fn vma_flags_to_perm(vma_flags: u64) -> Perm {
     let vma_flags = vma_flags as i32;
-    let mut mode = 0;
+    let mut perm = Perm::default();
 
     if vma_flags & PROCMAP_QUERY_VMA_READABLE != 0 {
-        mode |= 0b1000;
+        perm |= Perm::R;
     }
     if vma_flags & PROCMAP_QUERY_VMA_WRITABLE != 0 {
-        mode |= 0b0100;
+        perm |= Perm::W;
     }
     if vma_flags & PROCMAP_QUERY_VMA_EXECUTABLE != 0 {
-        mode |= 0b0010;
+        perm |= Perm::X;
     }
-    // Note that our mode treats the lowest bit as the "private" flag,
-    // which is the inverse of shared.
-    if vma_flags & PROCMAP_QUERY_VMA_SHARED == 0 {
-        mode |= 0b0001;
-    }
-    mode
+    perm
 }
 
 
@@ -211,7 +208,7 @@ pub(crate) fn query_procmap(
 
     let mut entry = MapsEntry {
         range: query.vma_start..query.vma_end,
-        mode: vma_flags_to_mode(query.vma_flags),
+        perm: vma_flags_to_perm(query.vma_flags),
         offset: query.vma_offset,
         path_name,
         build_id: None,
@@ -267,23 +264,23 @@ mod tests {
     use super::super::buildid::read_elf_build_id;
 
 
-    /// Check that we can convert VMA flags to our "mode" thingy.
+    /// Check that we can convert VMA flags into a [`Perm`].
     #[test]
     fn vma_flags_conversion() {
         let flags = 0;
-        assert_eq!(vma_flags_to_mode(flags as _), 0b0001);
+        assert_eq!(vma_flags_to_perm(flags as _), Perm::default());
 
         let flags = PROCMAP_QUERY_VMA_READABLE;
-        assert_eq!(vma_flags_to_mode(flags as _), 0b1001);
+        assert_eq!(vma_flags_to_perm(flags as _), Perm::R);
 
         let flags = PROCMAP_QUERY_VMA_READABLE | PROCMAP_QUERY_VMA_WRITABLE;
-        assert_eq!(vma_flags_to_mode(flags as _), 0b1101);
+        assert_eq!(vma_flags_to_perm(flags as _), Perm::RW);
 
         let flags = PROCMAP_QUERY_VMA_EXECUTABLE | PROCMAP_QUERY_VMA_SHARED;
-        assert_eq!(vma_flags_to_mode(flags as _), 0b0010);
+        assert_eq!(vma_flags_to_perm(flags as _), Perm::X);
 
         let flags = PROCMAP_QUERY_COVERING_OR_NEXT_VMA | PROCMAP_QUERY_VMA_EXECUTABLE;
-        assert_eq!(vma_flags_to_mode(flags as _), 0b0011);
+        assert_eq!(vma_flags_to_perm(flags as _), Perm::X);
     }
 
     /// Test that we can check whether the `PROCMAP_QUERY` ioctl is
@@ -323,8 +320,8 @@ mod tests {
                 entry.range
             );
             // The region should be readable (r---) and executable (--x-), as
-            // it's code. It also should be private (---p).
-            assert_eq!(entry.mode, 0b1011);
+            // it's code.
+            assert_eq!(entry.perm, Perm::RX);
             let exe = current_exe().unwrap();
             assert_eq!(
                 entry
