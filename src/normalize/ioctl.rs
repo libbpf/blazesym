@@ -12,6 +12,8 @@ use libc::ENOTTY;
 use crate::maps::MapsEntry;
 use crate::Addr;
 use crate::Error;
+use crate::ErrorExt as _;
+use crate::ErrorKind;
 use crate::Pid;
 use crate::Result;
 
@@ -236,6 +238,23 @@ pub(crate) fn query_procmap(
 }
 
 
+/// Check whether the `PROCMAP_QUERY` ioctl is supported by the system.
+pub fn is_procmap_query_supported() -> Result<bool> {
+    let pid = Pid::Slf;
+    let path = format!("/proc/{pid}/maps");
+    let file = File::open(&path).with_context(|| format!("failed to open `{path}` for reading"))?;
+    let addr = 0;
+    let build_ids = false;
+
+    let result = query_procmap(&file, pid, addr, build_ids);
+    match result {
+        Ok(..) => Ok(true),
+        Err(err) if err.kind() == ErrorKind::Unsupported => Ok(false),
+        Err(err) => Err(err),
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,6 +284,13 @@ mod tests {
 
         let flags = PROCMAP_QUERY_COVERING_OR_NEXT_VMA | PROCMAP_QUERY_VMA_EXECUTABLE;
         assert_eq!(vma_flags_to_mode(flags as _), 0b0011);
+    }
+
+    /// Test that we can check whether the `PROCMAP_QUERY` ioctl is
+    /// supported.
+    #[test]
+    fn procmap_query_supported() {
+        let _supported = is_procmap_query_supported().unwrap();
     }
 
     /// Check that we can query an invalid VMA region using the

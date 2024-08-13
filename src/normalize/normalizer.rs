@@ -70,6 +70,11 @@ impl Builder {
     /// Enable/disable the usage of the `PROCMAP_QUERY` ioctl instead of
     /// parsing `/proc/<pid>/maps` for getting available VMA ranges.
     ///
+    /// Refer to
+    /// [`helper::is_procmap_query_supported`][crate::helper::is_procmap_query_supported]
+    /// as a way to check whether your system supports this
+    /// functionality.
+    ///
     /// # Notes
     ///
     /// Support for this ioctl is only present in very recent kernels
