@@ -39,7 +39,7 @@
 //! ```
 
 pub(crate) mod buildid;
-mod ioctl;
+pub(crate) mod ioctl;
 mod meta;
 mod normalizer;
 mod user;

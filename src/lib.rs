@@ -123,6 +123,7 @@ pub mod helper {
 
     pub use crate::normalize::buildid::read_elf_build_id;
     pub use crate::normalize::buildid::read_elf_build_id_from_mmap;
+    pub use crate::normalize::ioctl::is_procmap_query_supported;
 
     cfg_breakpad! {
         pub use crate::breakpad::BreakpadResolver;
