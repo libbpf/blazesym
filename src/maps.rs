@@ -110,6 +110,39 @@ impl Debug for MapsEntry {
 }
 
 
+pub(crate) fn parse_path_name(
+    path: &[u8],
+    pid: Pid,
+    vma_start: Addr,
+    vma_end: Addr,
+) -> Result<Option<PathName>> {
+    let path_name = match path {
+        [] => None,
+        [b'/', ..] => {
+            let symbolic_path =
+                bytes_to_path(path.strip_suffix(b" (deleted)").unwrap_or(path))?.to_path_buf();
+            // TODO: May have to resolve the symbolic link in case of
+            //       `Pid::Slf` here for remote symbolization use cases.
+            let maps_file =
+                PathBuf::from(format!("/proc/{pid}/map_files/{vma_start:x}-{vma_end:x}"));
+            Some(PathName::Path(EntryPath {
+                maps_file,
+                symbolic_path,
+                _non_exhaustive: (),
+            }))
+        }
+        // This variant would typically capture components such as `[vdso]` or
+        // `[heap]`, but we can't rely on square brackets being present
+        // unconditionally, as variants such as `anon_inode:bpf-map` are also
+        // possible.
+        [..] => Some(PathName::Component(
+            String::from_utf8_lossy(path).to_string(),
+        )),
+    };
+    Ok(path_name)
+}
+
+
 /// Parse a line of a proc maps file.
 fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
     let full_line = line;
@@ -186,32 +219,7 @@ fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
     let path_str = split_once_opt(line)
         .map(|(_inode, line)| trim_ascii(line))
         .unwrap_or(b"");
-
-    let path_name = match path_str {
-        [] => None,
-        [b'/', ..] => {
-            let symbolic_path =
-                bytes_to_path(path_str.strip_suffix(b" (deleted)").unwrap_or(path_str))?
-                    .to_path_buf();
-            // TODO: May have to resolve the symbolic link in case of
-            //       `Pid::Slf` here for remote symbolization use cases.
-            let maps_file = PathBuf::from(format!(
-                "/proc/{pid}/map_files/{loaded_addr:x}-{end_addr:x}"
-            ));
-            Some(PathName::Path(EntryPath {
-                maps_file,
-                symbolic_path,
-                _non_exhaustive: (),
-            }))
-        }
-        // This variant would typically capture components such as `[vdso]` or
-        // `[heap]`, but we can't rely on square brackets being present
-        // unconditionally, as variants such as `anon_inode:bpf-map` are also
-        // possible.
-        [..] => Some(PathName::Component(
-            String::from_utf8_lossy(path_str).to_string(),
-        )),
-    };
+    let path_name = parse_path_name(path_str, pid, loaded_addr, end_addr)?;
 
     let entry = MapsEntry {
         range: (loaded_addr..end_addr),
