@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
@@ -7,6 +8,10 @@ use std::io::BufReader;
 use std::io::Error;
 use std::io::ErrorKind;
 use std::io::Read;
+use std::ops::BitAnd;
+use std::ops::BitAndAssign;
+use std::ops::BitOr;
+use std::ops::BitOrAssign;
 use std::ops::Range;
 use std::path::PathBuf;
 
@@ -15,6 +20,7 @@ use crate::util::bytes_to_path;
 use crate::util::from_radix_16;
 use crate::util::split_bytes;
 use crate::util::trim_ascii;
+use crate::util::ReadRaw as _;
 use crate::Addr;
 use crate::BuildId;
 use crate::ErrorExt as _;
@@ -76,11 +82,70 @@ impl PathName {
 }
 
 
+/// A type encapsulating the permissions of/for an entity.
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
+#[repr(transparent)]
+pub(crate) struct Perm(u8);
+
+impl Perm {
+    pub const R: Perm = Perm(0b100);
+    pub const W: Perm = Perm(0b010);
+    pub const X: Perm = Perm(0b001);
+    #[cfg(test)]
+    pub const RW: Perm = Perm(0b110);
+    #[cfg(test)]
+    pub const RX: Perm = Perm(0b101);
+}
+
+impl BitAnd for Perm {
+    type Output = Perm;
+
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Self(self.0 & rhs.0)
+    }
+}
+
+impl BitAndAssign for Perm {
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.0 &= other.0;
+    }
+}
+
+impl BitOr for Perm {
+    type Output = Perm;
+
+    #[inline]
+    fn bitor(self, other: Self) -> Self::Output {
+        let mut result = self;
+        result |= other;
+        result
+    }
+}
+
+impl BitOrAssign for Perm {
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.0 |= other.0;
+    }
+}
+
+impl Display for Perm {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let () = f.write_str(if *self & Self::R == Self::R { "r" } else { "-" })?;
+        let () = f.write_str(if *self & Self::W == Self::W { "w" } else { "-" })?;
+        let () = f.write_str(if *self & Self::X == Self::X { "x" } else { "-" })?;
+        Ok(())
+    }
+}
+
+
 #[derive(Clone, PartialEq)]
 pub(crate) struct MapsEntry {
     /// The virtual address range covered by this entry.
     pub range: Range<Addr>,
-    pub mode: u8,
+    pub perm: Perm,
     pub offset: u64,
     pub path_name: Option<PathName>,
     pub build_id: Option<BuildId<'static>>,
@@ -97,7 +162,7 @@ impl Debug for MapsEntry {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let Self {
             range,
-            mode,
+            perm,
             offset,
             path_name,
             build_id: _,
@@ -105,7 +170,7 @@ impl Debug for MapsEntry {
 
         f.debug_struct(stringify!(MapsEntry))
             .field(stringify!(range), &format_args!("{range:#x?}"))
-            .field(stringify!(mode), &format_args!("{mode:#06b}"))
+            .field(stringify!(perm), &format_args!("{perm}"))
             .field(stringify!(offset), &format_args!("{offset:#x}"))
             .field(stringify!(path_name), &path_name)
             .finish()
@@ -145,6 +210,19 @@ pub(crate) fn parse_path_name(
     Ok(path_name)
 }
 
+fn parse_mode_str(mut mode: &[u8]) -> Option<Perm> {
+    let mut perm = Perm::default();
+    if mode.read_u8()? == b'r' {
+        perm |= Perm::R;
+    }
+    if mode.read_u8()? == b'w' {
+        perm |= Perm::W;
+    }
+    if mode.read_u8()? == b'x' {
+        perm |= Perm::X;
+    }
+    Some(perm)
+}
 
 /// Parse a line of a proc maps file.
 fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
@@ -201,9 +279,15 @@ fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
     })?;
 
     let (mode_str, line) = split_once(line, "permissions component")?;
-    let mode = mode_str
-        .iter()
-        .fold(0, |mode, b| (mode << 1) | u8::from(*b != b'-'));
+    let perm = parse_mode_str(mode_str).ok_or_else(|| {
+        Error::new(
+            ErrorKind::InvalidData,
+            format!(
+                "encountered malformed mode string in proc maps line: {}",
+                String::from_utf8_lossy(full_line)
+            ),
+        )
+    })?;
 
     let (offset_str, line) = split_once(line, "offset component")?;
     let offset = from_radix_16(offset_str).ok_or_else(|| {
@@ -226,7 +310,7 @@ fn parse_maps_line<'line>(line: &'line [u8], pid: Pid) -> Result<MapsEntry> {
 
     let entry = MapsEntry {
         range: (loaded_addr..end_addr),
-        mode,
+        perm,
         offset,
         path_name,
         build_id: None,
@@ -297,7 +381,7 @@ pub(crate) fn filter_relevant(entry: &MapsEntry) -> bool {
     // Only readable (r---) or executable (--x-) entries are of relevance.
     // NB: Please keep this logic in sync with flags being used by in
     //     `procmap_query`.
-    if (entry.mode & 0b1010) == 0 {
+    if (entry.perm & (Perm::R | Perm::X)) == Perm::default() {
         return false
     }
 
@@ -416,7 +500,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         let entry = parse_maps_line(lines.lines().nth(6).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4a95cb000);
         assert_eq!(entry.range.end, 0x55f4a95cf000);
-        assert_eq!(entry.mode, 0b1011);
+        assert_eq!(entry.perm, Perm::RX);
         assert_eq!(
             entry
                 .path_name
@@ -432,7 +516,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         let entry = parse_maps_line(lines.lines().nth(10).unwrap().as_bytes(), Pid::Slf).unwrap();
         assert_eq!(entry.range.start, 0x55f4aa379000);
         assert_eq!(entry.range.end, 0x55f4aa39a000);
-        assert_eq!(entry.mode, 0b1101);
+        assert_eq!(entry.perm, Perm::RW);
         assert_eq!(
             entry.path_name.as_ref().unwrap().as_component().unwrap(),
             "[heap]",
@@ -440,7 +524,7 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
         assert_eq!(entry.path_name.as_ref().unwrap().as_path(), None);
 
         let entry = parse_maps_line(lines.lines().nth(12).unwrap().as_bytes(), Pid::Slf).unwrap();
-        assert_eq!(entry.mode, 0b1001);
+        assert_eq!(entry.perm, Perm::R);
         assert_eq!(
             entry
                 .path_name
