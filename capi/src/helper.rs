@@ -14,16 +14,13 @@ use crate::set_last_err;
 /// this error.
 #[no_mangle]
 pub extern "C" fn blaze_supports_procmap_query() -> bool {
-    match is_procmap_query_supported() {
-        Ok(supported) => {
-            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
-            supported
-        }
-        Err(err) => {
-            let () = set_last_err(err.kind().into());
-            false
-        }
-    }
+    let result = is_procmap_query_supported();
+    let err = result
+        .as_ref()
+        .map(|_| blaze_err::BLAZE_ERR_OK)
+        .unwrap_or_else(|err| err.kind().into());
+    let () = set_last_err(err);
+    result.unwrap_or(false)
 }
 
 
