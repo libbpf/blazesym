@@ -885,6 +885,11 @@ const char *blaze_err_str(enum blaze_err err);
 
 /**
  * Check whether the `PROCMAP_QUERY` ioctl is supported by the system.
+ *
+ * This function returns `true` if the system supports the
+ * `PROCMAP_QUERY` ioctl and `false` in all other cases, including when
+ * an error occurred. Use [`blaze_err_last`] to optionally retrieve
+ * this error.
  */
 bool blaze_supports_procmap_query(void);
 
