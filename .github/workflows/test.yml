@@ -177,8 +177,8 @@ jobs:
         echo "export PYTHON=${PYTHON}" >> env.sh
         source env.sh
 
-        tests=$(IFS='' cargo test --no-run --workspace --all-targets --features=nightly,generate-large-test-files 2>&1 >/dev/null |
-          grep Executable |
+        cargo test --no-run --workspace --all-targets --features=nightly,generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
+        tests=$(IFS='' grep Executable /tmp/cargo-build.log |
           awk '{print $NF}' |
           sed 's@[()]@@g' |
           sed 's@.*@\0 --include-ignored@'
