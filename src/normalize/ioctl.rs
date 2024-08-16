@@ -351,25 +351,46 @@ mod tests {
     #[test]
     #[ignore = "test requires PROCMAP_QUERY ioctl kernel support"]
     fn vma_comparison() {
-        let pid = Pid::Slf;
-        let from_text = maps::parse_filtered(pid)
-            .unwrap()
-            .collect::<Result<Vec<_>>>()
-            .unwrap();
-        let from_ioctl = {
+        fn parse_maps(pid: Pid, from_text: &mut Vec<MapsEntry>) {
+            let () = from_text.clear();
+
+            let it = maps::parse_filtered(pid).unwrap();
+            for result in it {
+                let vma = result.unwrap();
+                let () = from_text.push(vma);
+            }
+        }
+
+        fn parse_ioctl(pid: Pid, from_ioctl: &mut Vec<MapsEntry>) {
+            let () = from_ioctl.clear();
+
             let path = format!("/proc/{pid}/maps");
             let file = File::open(path).unwrap();
             let build_ids = false;
-            let mut entries = Vec::new();
             let mut next_addr = 0;
             while let Some(entry) = query_procmap(&file, pid, next_addr, build_ids).unwrap() {
                 next_addr = entry.range.end;
                 if maps::filter_relevant(&entry) {
-                    let () = entries.push(entry);
+                    let () = from_ioctl.push(entry);
                 }
             }
-            entries
-        };
+        }
+
+        let pid = Pid::Slf;
+        let mut from_text = Vec::new();
+        let mut from_ioctl = Vec::new();
+
+        // The gathering itself has the potential to affect VMAs (e.g.,
+        // if the heap has to grow), meaning that we could see
+        // mismatches for good reason. So we give it a few attempts.
+        for _ in 0..5 {
+            let () = parse_maps(pid, &mut from_text);
+            let () = parse_ioctl(pid, &mut from_ioctl);
+
+            if from_text == from_ioctl {
+                break
+            }
+        }
 
         assert_eq!(from_text, from_ioctl, "{from_text:#x?}\n{from_ioctl:#x?}");
     }
