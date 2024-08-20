@@ -206,7 +206,7 @@ mod tests {
 
     use scopeguard::defer;
 
-    use tempfile::tempfile;
+    use tempfile::NamedTempFile;
 
     use crate::symbolize::Input;
     use crate::symbolize::Process;
@@ -257,9 +257,9 @@ mod tests {
         };
         assert_ne!(format!("{func:?}"), "");
 
-        let mut file = tempfile().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
         let () = file.write_all(SAMPLE_PERF_MAP).unwrap();
-        let perf_map = PerfMap::from_file(Path::new("SAMPLE_PERF_MAP"), &file).unwrap();
+        let perf_map = PerfMap::from_file(file.path(), file.as_file()).unwrap();
         assert_ne!(format!("{perf_map:?}"), "");
     }
 
@@ -295,9 +295,9 @@ mod tests {
     /// Check that we can load a perf map and use it to symbolize an address.
     #[test]
     fn perf_map_symbolization() {
-        let mut file = tempfile().unwrap();
+        let mut file = NamedTempFile::new().unwrap();
         let () = file.write_all(SAMPLE_PERF_MAP).unwrap();
-        let perf_map = PerfMap::from_file(Path::new("SAMPLE_PERF_MAP"), &file).unwrap();
+        let perf_map = PerfMap::from_file(file.path(), file.as_file()).unwrap();
 
         for offset in 0..0xb {
             let sym = perf_map
