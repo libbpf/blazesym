@@ -128,7 +128,7 @@ mod tests {
     use std::ffi::CStr;
     use std::io::Write;
 
-    use tempfile::tempfile;
+    use tempfile::NamedTempFile;
     use test_log::test;
 
     use crate::util::ReadRaw;
@@ -144,20 +144,22 @@ mod tests {
     /// Check that we can `mmap` an empty file.
     #[test]
     fn mmap_empty_file() {
-        let file = tempfile().unwrap();
-        let mmap = Mmap::map(&file).unwrap();
+        let file = NamedTempFile::new().unwrap();
+        let file = file.as_file();
+        let mmap = Mmap::map(file).unwrap();
         assert_eq!(mmap.deref(), &[]);
     }
 
     /// Check that we can `mmap` a file.
     #[test]
     fn mmap() {
-        let mut file = tempfile().unwrap();
+        let file = NamedTempFile::new().unwrap();
+        let mut file = file.as_file();
         let cstr = b"Daniel was here. Briefly.\0";
         let () = file.write_all(cstr).unwrap();
         let () = file.sync_all().unwrap();
 
-        let mmap = Mmap::map(&file).unwrap();
+        let mmap = Mmap::map(file).unwrap();
         let mut data = mmap.deref();
         let s = data.read_cstr().unwrap();
         assert_eq!(
@@ -169,12 +171,13 @@ mod tests {
     /// Check that we can properly restrict the view of a `Mmap`.
     #[test]
     fn view_constraining() {
-        let mut file = tempfile().unwrap();
+        let file = NamedTempFile::new().unwrap();
+        let mut file = file.as_file();
         let s = b"abcdefghijklmnopqrstuvwxyz";
         let () = file.write_all(s).unwrap();
         let () = file.sync_all().unwrap();
 
-        let mmap = Mmap::map(&file).unwrap();
+        let mmap = Mmap::map(file).unwrap();
         assert_eq!(mmap.deref(), b"abcdefghijklmnopqrstuvwxyz");
 
         let mmap = mmap.constrain(1..15).unwrap();
