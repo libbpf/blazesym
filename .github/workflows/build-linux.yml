@@ -67,7 +67,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: build/arch/x86/boot/bzImage
-          key: linux-kernel-${{ hashFiles(inputs.config) }}
+          key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - uses: actions/upload-artifact@v4
         id: upload-linux-kernel
         # TODO: Having a single path/name may be problematic should we
