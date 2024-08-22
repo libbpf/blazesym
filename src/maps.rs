@@ -432,6 +432,14 @@ mod tests {
         assert_ne!(maps.map(|entry| entry.unwrap()).count(), 0);
     }
 
+    /// Check that various operations on the `Perm` type work as
+    /// expected.
+    #[test]
+    fn perm_ops() {
+        assert_eq!(Perm::X | Perm::R, Perm::RX);
+        assert_eq!(Perm::RX & Perm::R, Perm::R);
+    }
+
     /// Make sure that we can parse proc maps lines correctly.
     #[tag(miri)]
     #[test]
