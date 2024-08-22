@@ -8,6 +8,8 @@ Unreleased
 - Added support for file based symbolization support on the Windows operating
   system
 - Improved performance for parsing Breakpad files
+- Made sure to not emit "self" component in normalized paths when
+  `map_files` is in use
 - Fixed potentially invalid reading of debug link checksum when
   `.gnu_debuglink` section is unaligned
 - Renamed `enable_maps_caching` method of `normalize::Normalizer` to
