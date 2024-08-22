@@ -635,4 +635,30 @@ mod tests {
         test("libtest-so.so");
         test("libtest-so-no-separate-code.so");
     }
+
+    /// Make sure that when using the `map_files` normalization option,
+    /// we never end up reporting a path referencing "self".
+    #[test]
+    fn normalize_no_self_vma_path_reporting() {
+        let opts = NormalizeOpts {
+            sorted_addrs: true,
+            map_files: true,
+            ..Default::default()
+        };
+        let normalizer = Normalizer::new();
+        let normalized = normalizer
+            .normalize_user_addrs_opts(
+                Pid::Slf,
+                [normalize_no_self_vma_path_reporting as Addr].as_slice(),
+                &opts,
+            )
+            .unwrap();
+
+        assert_eq!(normalized.outputs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
+        let output = normalized.outputs[0];
+        let meta = &normalized.meta[output.1];
+        let elf = meta.elf().unwrap();
+        assert!(!elf.path.to_string_lossy().contains("self"), "{elf:?}");
+    }
 }
