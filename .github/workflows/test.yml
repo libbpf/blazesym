@@ -208,7 +208,7 @@ jobs:
         EOF
         chmod a+x main.sh
     - name: Test and gather coverage
-      uses: danobi/vmtest-action@master
+      uses: danobi/vmtest-action@f8c84191b5925c3290595743fc46eaaafd827bf3
       with:
         kernel: bzImage
         command: sh -c 'cd ${{ github.workspace }} && ./main.sh'
