@@ -101,8 +101,10 @@ impl BitAnd for Perm {
     type Output = Perm;
 
     #[inline]
-    fn bitand(self, rhs: Self) -> Self::Output {
-        Self(self.0 & rhs.0)
+    fn bitand(self, other: Self) -> Self::Output {
+        let mut result = self;
+        result &= other;
+        result
     }
 }
 
