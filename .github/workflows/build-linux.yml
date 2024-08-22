@@ -2,6 +2,22 @@ name: Build Linux
 
 on:
   workflow_call:
+    inputs:
+      kernel-repo:
+        description: 'The Linux kernel repository to use.'
+        default: 'torvalds/linux'
+        required: false
+        type: string
+      rev:
+        description: 'The revision to build at.'
+        # By default just use the default branch HEAD.
+        default: ''
+        required: false
+        type: string
+      config:
+        description: 'Path to the kernel configuration to use.'
+        required: true
+        type: string
     outputs:
       kernel-artifact-url:
         description: "URL of the built (and uploaded) Linux kernel"
@@ -19,15 +35,12 @@ jobs:
         id: restore-cached-kernel
         with:
           path: build/arch/x86/boot/bzImage
-          # TODO: We ultimately should include the kernel rev in the key
-          #       as well.
-          key: linux-kernel-${{ hashFiles('data/config') }}
+          key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
-          repository: 'torvalds/linux'
-          # TODO: Bump to v6.11 once tagged.
-          ref: 44eacec2cec1c5f83074e74d00208d15390b00bc
+          repository: ${{ inputs.kernel-repo }}
+          ref: ${{ inputs.rev }}
           fetch-depth: 1
           path: linux/
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
@@ -36,7 +49,7 @@ jobs:
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         name: Build kernel
         run: |
-          config=$(readlink --canonicalize-existing data/config)
+          config=$(readlink --canonicalize-existing ${{ inputs.config }})
           build=$(pwd)/build/
 
           cd linux/
@@ -54,9 +67,12 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: build/arch/x86/boot/bzImage
-          key: linux-kernel-${{ hashFiles('data/config') }}
+          key: linux-kernel-${{ hashFiles(inputs.config) }}
       - uses: actions/upload-artifact@v4
         id: upload-linux-kernel
+        # TODO: Having a single path/name may be problematic should we
+        #       ever opt to reusing this workflow multiple times with
+        #       different inputs.
         with:
           name: linux-kernel
           if-no-files-found: error

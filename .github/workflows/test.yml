@@ -16,6 +16,10 @@ jobs:
   build-linux-kernel:
     uses: ./.github/workflows/build-linux.yml
     secrets: inherit
+    with:
+      # TODO: Bump to v6.11 once tagged.
+      rev: 44eacec2cec1c5f83074e74d00208d15390b00bc
+      config: 'data/config'
   build:
     name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}, ${{ matrix.args }}]
     runs-on: ${{ matrix.runs-on }}
