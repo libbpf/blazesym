@@ -14,6 +14,7 @@ Unreleased
   `.gnu_debuglink` section is unaligned
 - Renamed `enable_maps_caching` method of `normalize::Normalizer` to
   `enable_vma_caching`
+- Renamed `UserMeta::{apk,elf,unknown}` methods by prefixing them with `as_`
 
 
 0.2.0-rc.0

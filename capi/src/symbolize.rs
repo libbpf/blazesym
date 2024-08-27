@@ -1576,7 +1576,7 @@ mod tests {
 
         let output = normalized.outputs[0];
         let meta = &normalized.meta[output.1];
-        assert_eq!(meta.elf().unwrap().path, test_so);
+        assert_eq!(meta.as_elf().unwrap().path, test_so);
 
         let symbolizer = blaze_symbolizer_new();
         let elf_src = blaze_symbolize_src_elf {

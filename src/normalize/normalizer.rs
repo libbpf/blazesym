@@ -444,7 +444,7 @@ mod tests {
 
             let errno_meta_idx = outputs[errno_idx].1;
             assert!(meta[errno_meta_idx]
-                .elf()
+                .as_elf()
                 .unwrap()
                 .path
                 .file_name()
@@ -528,7 +528,7 @@ mod tests {
 
             let output = normalized.outputs[0];
             assert_eq!(output.0, sym.addr);
-            let meta = &normalized.meta[output.1].elf().unwrap();
+            let meta = &normalized.meta[output.1].as_elf().unwrap();
             assert_eq!(
                 meta.build_id,
                 Some(read_elf_build_id(&test_so).unwrap().unwrap())
@@ -658,7 +658,7 @@ mod tests {
         assert_eq!(normalized.meta.len(), 1);
         let output = normalized.outputs[0];
         let meta = &normalized.meta[output.1];
-        let elf = meta.elf().unwrap();
+        let elf = meta.as_elf().unwrap();
         assert!(!elf.path.to_string_lossy().contains("self"), "{elf:?}");
     }
 }
