@@ -25,7 +25,7 @@ use super::Reason;
 ///     .unwrap();
 /// let (output, meta_idx) = normalized.outputs[0];
 /// let meta = &normalized.meta[meta_idx];
-/// let apk = meta.apk().unwrap();
+/// let apk = meta.as_apk().unwrap();
 ///
 /// // We assume that we have the APK lying around at the same path as on the
 /// // "remote" system.
@@ -113,7 +113,7 @@ pub enum UserMeta<'src> {
 impl<'src> UserMeta<'src> {
     /// Retrieve the [`Apk`] of this enum, if this variant is active.
     #[inline]
-    pub fn apk(&self) -> Option<&Apk> {
+    pub fn as_apk(&self) -> Option<&Apk> {
         match self {
             Self::Apk(entry) => Some(entry),
             _ => None,
@@ -122,7 +122,7 @@ impl<'src> UserMeta<'src> {
 
     /// Retrieve the [`Elf`] of this enum, if this variant is active.
     #[inline]
-    pub fn elf(&self) -> Option<&Elf<'src>> {
+    pub fn as_elf(&self) -> Option<&Elf<'src>> {
         match self {
             Self::Elf(elf) => Some(elf),
             _ => None,
@@ -131,7 +131,7 @@ impl<'src> UserMeta<'src> {
 
     /// Retrieve the [`Unknown`] of this enum, if this variant is active.
     #[inline]
-    pub fn unknown(&self) -> Option<&Unknown> {
+    pub fn as_unknown(&self) -> Option<&Unknown> {
         match self {
             Self::Unknown(unknown) => Some(unknown),
             _ => None,
@@ -153,25 +153,25 @@ mod tests {
             path: PathBuf::from("/tmp/archive.apk"),
             _non_exhaustive: (),
         });
-        assert!(meta.apk().is_some());
-        assert!(meta.elf().is_none());
-        assert!(meta.unknown().is_none());
+        assert!(meta.as_apk().is_some());
+        assert!(meta.as_elf().is_none());
+        assert!(meta.as_unknown().is_none());
 
         let meta = UserMeta::Elf(Elf {
             path: PathBuf::from("/tmp/executable.bin"),
             build_id: None,
             _non_exhaustive: (),
         });
-        assert!(meta.apk().is_none());
-        assert!(meta.elf().is_some());
-        assert!(meta.unknown().is_none());
+        assert!(meta.as_apk().is_none());
+        assert!(meta.as_elf().is_some());
+        assert!(meta.as_unknown().is_none());
 
         let meta = UserMeta::Unknown(Unknown {
             reason: Reason::Unsupported,
             _non_exhaustive: (),
         });
-        assert!(meta.apk().is_none());
-        assert!(meta.elf().is_none());
-        assert!(meta.unknown().is_some());
+        assert!(meta.as_apk().is_none());
+        assert!(meta.as_elf().is_none());
+        assert!(meta.as_unknown().is_some());
     }
 }

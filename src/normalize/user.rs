@@ -430,7 +430,7 @@ mod tests {
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
         assert!(
-            normalized.meta[0].elf().is_some(),
+            normalized.meta[0].as_elf().is_some(),
             "{:?}",
             normalized.meta[0]
         );

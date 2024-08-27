@@ -835,7 +835,7 @@ fn normalize_elf_addr() {
 
         let output = normalized.outputs[0];
         let meta = &normalized.meta[output.1];
-        let path = &meta.elf().unwrap().path;
+        let path = &meta.as_elf().unwrap().path;
         assert_eq!(
             path.to_str().unwrap().contains("/map_files/"),
             map_files,
@@ -903,7 +903,7 @@ fn normalize_build_id_reading() {
 
         let output = normalized.outputs[0];
         let meta = &normalized.meta[output.1];
-        let elf = meta.elf().unwrap();
+        let elf = meta.as_elf().unwrap();
         assert_eq!(elf.path, test_so);
         if read_build_ids {
             let expected = read_elf_build_id(&test_so).unwrap().unwrap();
