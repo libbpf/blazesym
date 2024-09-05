@@ -56,5 +56,5 @@ jobs:
       env:
         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
   build-artifacts:
-    uses: ./.github/workflows/build.yml
+    uses: ./.github/workflows/build-cli.yml
     secrets: inherit
