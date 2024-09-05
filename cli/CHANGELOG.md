@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added `--procmap-query` option to `normalize user` sub-command
 - Bumped `blazesym` dependency to `0.2.0-rc.1`
 
 

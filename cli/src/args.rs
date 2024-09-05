@@ -156,6 +156,10 @@ pub mod normalize {
         /// Disable the reading of build IDs of the corresponding binaries.
         #[clap(long)]
         pub no_build_ids: bool,
+        /// Enable the usage of the `PROCMAP_QUERY` ioctl instead of
+        /// parsing `/proc/<pid>/maps` for getting available VMA ranges.
+        #[clap(long)]
+        pub procmap_query: bool,
     }
 }
 
