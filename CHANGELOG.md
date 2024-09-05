@@ -1,4 +1,4 @@
-Unreleased
+0.2.0-rc.1
 ----------
 - Added support for using `PROCMAP_QUERY` ioctl during address normalization
   - Added `enable_procmap_query` to `normalize::Normalizer`

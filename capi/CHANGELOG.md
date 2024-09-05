@@ -6,6 +6,7 @@ Unreleased
 - Renamed `cache_maps` attribute of `blaze_normalizer_opts` to
   `cache_vmas`
 - Introduced `blaze_supports_procmap_query` helper
+- Bumped `blazesym` dependency to `0.2.0-rc.1`
 
 
 0.1.0-rc.0
