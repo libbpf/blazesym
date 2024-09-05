@@ -378,8 +378,7 @@ if __name__ == "__main__":
         });
 
         // "Signal" the child to terminate gracefully.
-        #[allow(clippy::byte_char_slices)]
-        let () = child.stdin.as_ref().unwrap().write_all(&[b'\n']).unwrap();
+        let () = child.stdin.as_ref().unwrap().write_all(b"\n").unwrap();
         let _status = child.wait().unwrap();
     }
 }
