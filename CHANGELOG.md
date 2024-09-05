@@ -5,7 +5,7 @@
   - Added `is_procmap_query_supported` function to `helper` module
 - Adjusted normalization logic to not fail overall operation on build ID
   read failure
-- Added support for file based symbolization support on the Windows operating
+- Added support for file based symbolization on the Windows operating
   system
 - Improved performance for parsing Breakpad files
 - Made sure to not emit "self" component in normalized paths when
