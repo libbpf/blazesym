@@ -137,9 +137,11 @@ fn normalize(normalize: args::normalize::Normalize) -> Result<()> {
             pid,
             addrs,
             no_build_ids,
+            procmap_query,
         }) => {
             let normalizer = Normalizer::builder()
                 .enable_build_ids(!no_build_ids)
+                .enable_procmap_query(procmap_query)
                 .build();
             let normalized = normalizer
                 .normalize_user_addrs(pid, addrs.as_slice())
