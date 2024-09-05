@@ -1,4 +1,4 @@
-Unreleased
+0.1.0-rc.1
 ----------
 - Added `procmap_query_ioctl` attribute to `blaze_normalizer_opts`
 - Renamed `blaze_result` to `blaze_syms`
