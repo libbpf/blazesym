@@ -6,7 +6,7 @@ on:
 
 jobs:
   build:
-    name: Build
+    name: Build blazecli
     runs-on: ubuntu-latest
     strategy:
       matrix:
