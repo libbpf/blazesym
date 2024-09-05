@@ -69,6 +69,10 @@ impl Inspector {
     /// Look up information (address etc.) about a list of symbols,
     /// given their names.
     ///
+    /// On success, this returns a vector of vectors of symbol information.
+    /// For each symbol name, a vector of addresses is returned, i.e. a given
+    /// symbol name can correspond to more than one address.
+    ///
     /// # Notes
     /// - no symbol name demangling is performed currently
     /// - for the [`Breakpad`](Source::Breakpad) source:
