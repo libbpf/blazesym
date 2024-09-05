@@ -697,7 +697,7 @@ impl Symbolizer {
         &'slf self,
         addrs: &[Addr],
         resolver: &Resolver<'_, 'slf>,
-    ) -> Result<Vec<Symbolized>> {
+    ) -> Result<Vec<Symbolized<'slf>>> {
         addrs
             .iter()
             .map(|addr| self.symbolize_with_resolver(*addr, resolver))

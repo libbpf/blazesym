@@ -402,7 +402,7 @@ impl<'dwarf> Units<'dwarf> {
     pub(crate) fn find_name<'s, 'slf: 's>(
         &'slf self,
         name: &'s str,
-    ) -> impl Iterator<Item = Result<&Function<'dwarf>, gimli::Error>> + 's {
+    ) -> impl Iterator<Item = Result<&'slf Function<'dwarf>, gimli::Error>> + 's {
         self.units
             .iter()
             .filter_map(move |unit| unit.find_name(name, self).transpose())
@@ -413,7 +413,7 @@ impl<'dwarf> Units<'dwarf> {
     pub(crate) fn unit_ref<'unit>(
         &'unit self,
         unit: &'unit gimli::Unit<R<'dwarf>>,
-    ) -> gimli::UnitRef<'_, R<'dwarf>> {
+    ) -> gimli::UnitRef<'unit, R<'dwarf>> {
         gimli::UnitRef::new(&self.dwarf, unit)
     }
 
