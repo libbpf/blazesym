@@ -1,7 +1,13 @@
-name: Build
+name: Build blazecli
 
 on:
   workflow_call:
+    inputs:
+      upload-release:
+        description: 'The release to upload artifacts to, if any'
+        default: ''
+        required: false
+        type: string
   workflow_dispatch:
 
 jobs:
@@ -29,3 +35,10 @@ jobs:
         with:
           name: blazecli-${{ matrix.target }}
           path: bin/blazecli
+      - if: ${{ inputs.upload-release != '' }}
+        name: Upload release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mv bin/blazecli blazecli-${{ matrix.target }}
+          gh release upload ${{ inputs.upload-release }} blazecli-${{ matrix.target }}
