@@ -39,7 +39,7 @@ struct Function<'mmap> {
 
 
 /// Parse a line of a perf map file.
-fn parse_perf_map_line<'line>(line: &'line [u8]) -> Result<Function<'_>> {
+fn parse_perf_map_line<'line>(line: &'line [u8]) -> Result<Function<'line>> {
     let full_line = line;
 
     let split_once = |line: &'line [u8], component| -> Result<(&'line [u8], &'line [u8])> {
@@ -378,6 +378,7 @@ if __name__ == "__main__":
         });
 
         // "Signal" the child to terminate gracefully.
+        #[allow(clippy::byte_char_slices)]
         let () = child.stdin.as_ref().unwrap().write_all(&[b'\n']).unwrap();
         let _status = child.wait().unwrap();
     }
