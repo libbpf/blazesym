@@ -313,8 +313,12 @@ jobs:
       MIRIFLAGS: '-Zmiri-disable-stacked-borrows'
     steps:
     - uses: actions/checkout@v4
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@master
       with:
+        # TODO: Recent nightly versions fail with what *seems* to be a
+        #       false positive. Fall back to a known good version. We
+        #       should come back to this eventually.
+        toolchain: nightly-2024-08-06
         components: miri
     # Miri would honor our custom test runner, but doesn't work with it. We
     # could conceivably override that by specifying
