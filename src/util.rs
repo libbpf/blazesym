@@ -263,7 +263,8 @@ where
 }
 
 
-pub(crate) fn stat(path: &Path) -> io::Result<libc::stat> {
+#[doc(hidden)]
+pub fn stat(path: &Path) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
     let mut path = path_to_bytes(path)?.to_vec();
     let () = path.push(b'\0');

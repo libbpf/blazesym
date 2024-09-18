@@ -6,12 +6,10 @@
 
 use std::env::current_exe;
 use std::io::Error;
-use std::io::Result;
-use std::mem::MaybeUninit;
-use std::os::unix::ffi::OsStrExt as _;
 use std::panic::catch_unwind;
 use std::panic::UnwindSafe;
-use std::path::Path;
+
+use blazesym::__private::stat;
 
 use libc::uid_t;
 
@@ -52,23 +50,6 @@ where
     F: FnOnce() -> R + UnwindSafe,
 {
     unimplemented!()
-}
-
-
-// TODO: Copy of logic from the main crate. If usage proliferates we
-//       should think of a way to share.
-fn stat(path: &Path) -> Result<libc::stat> {
-    let mut dst = MaybeUninit::uninit();
-    let mut path = path.as_os_str().as_bytes().to_vec();
-    let () = path.push(b'\0');
-
-    let rc = unsafe { libc::stat(path.as_ptr().cast::<libc::c_char>(), dst.as_mut_ptr()) };
-    if rc < 0 {
-        return Err(Error::last_os_error())
-    }
-
-    // SAFETY: The object is initialized on success of `stat`.
-    Ok(unsafe { dst.assume_init() })
 }
 
 /// Attempt to infer a usable non-root UID on the system.
