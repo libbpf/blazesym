@@ -162,6 +162,14 @@ pub mod helper {
     }
 }
 
+/// Implementation details shared with other closely related crates.
+///
+/// NOT PART OF PUBLIC API SURFACE!
+#[doc(hidden)]
+pub mod __private {
+    pub use crate::util::stat;
+}
+
 
 #[cfg(feature = "tracing")]
 #[macro_use]
