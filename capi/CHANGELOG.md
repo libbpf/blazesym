@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Introduced `blaze_read_elf_build_id` helper
+
+
 0.1.0-rc.1
 ----------
 - Added `procmap_query_ioctl` attribute to `blaze_normalizer_opts`

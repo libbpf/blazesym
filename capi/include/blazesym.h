@@ -894,6 +894,33 @@ const char *blaze_err_str(enum blaze_err err);
 bool blaze_supports_procmap_query(void);
 
 /**
+ * Read the build ID of an ELF file located at the given path.
+ *
+ * Build IDs can have variable length, depending on which flavor is
+ * used (e.g., 20 bytes for `sha1` flavor). Build IDs are
+ * reported as "raw" bytes. If you need a hexadecimal representation as
+ * reported by tools such as `readelf(1)`, a post processing step is
+ * necessary.
+ *
+ * On success and when a build ID present, the function returns a
+ * pointer to the "raw" build ID bytes and `len`, if provided, is set
+ * to the build ID's length. The resulting buffer should be released
+ * using libc's `free` function once it is no longer needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last
+ * error to indicate the problem encountered. Use [`blaze_err_last`] to
+ * retrieve this error.
+ *
+ * Similarly, if no build ID is present `NULL` is returned and the last
+ * error will be set to [`BLAZE_ERR_OK`][blaze_err::BLAZE_ERR_OK].
+ *
+ * # Safety
+ * - `path` needs to be a valid pointer to a NUL terminated string
+ */
+uint8_t *blaze_read_elf_build_id(const char *path,
+                                 size_t *len);
+
+/**
  * Lookup symbol information in an ELF file.
  *
  * On success, returns an array with `name_cnt` elements. Each such element, in
