@@ -239,6 +239,8 @@ mod tests {
 
     use test_log::test;
 
+    use crate::ErrorKind;
+
 
     /// Check that we can read a binary's build ID based on the ELF section name
     /// as well as ELF section type.
@@ -287,5 +289,11 @@ mod tests {
             .join("test-no-debug.bin");
         let build_id = read_elf_build_id(&elf).unwrap();
         assert_eq!(build_id, None);
+
+        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("does-not-exist");
+        let err = read_elf_build_id(&elf).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
     }
 }
