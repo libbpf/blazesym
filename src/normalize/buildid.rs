@@ -210,7 +210,7 @@ impl BuildIdReader<'_> for NoBuildIdReader {
 #[inline]
 pub fn read_elf_build_id<P>(path: &P) -> Result<Option<BuildId<'static>>>
 where
-    P: AsRef<Path>,
+    P: AsRef<Path> + ?Sized,
 {
     let parser = ElfParser::open(path.as_ref())?;
     let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));

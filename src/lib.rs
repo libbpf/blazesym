@@ -167,6 +167,7 @@ pub mod helper {
 /// NOT PART OF PUBLIC API SURFACE!
 #[doc(hidden)]
 pub mod __private {
+    pub use crate::util::bytes_to_path;
     pub use crate::util::stat;
 }
 

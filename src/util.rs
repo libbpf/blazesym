@@ -196,8 +196,9 @@ pub(crate) fn bytes_to_os_str(bytes: &[u8]) -> io::Result<&OsStr> {
 }
 
 /// Convert a byte slice into a [`Path`].
+#[doc(hidden)]
 #[inline]
-pub(crate) fn bytes_to_path(bytes: &[u8]) -> io::Result<&Path> {
+pub fn bytes_to_path(bytes: &[u8]) -> io::Result<&Path> {
     Ok(Path::new(bytes_to_os_str(bytes)?))
 }
 

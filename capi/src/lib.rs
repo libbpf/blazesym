@@ -1,4 +1,5 @@
-//! C API bindings for [`blazesym`].
+//! C API bindings for [`blazesym`]. Please refer to its documentation
+//! for a high level overview of the functionality provided.
 //!
 //! # Error handling
 //! Fallible functions generally return a `NULL` pointer. To provide
