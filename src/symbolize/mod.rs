@@ -175,7 +175,7 @@ impl FindSymOpts {
 
 /// A enumeration of the different input types the symbolization APIs
 /// support.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Input<T> {
     /// An absolute address.
     ///
@@ -584,6 +584,24 @@ mod tests {
             Reason::MissingSyms.to_string(),
             "symbolization source has no or no relevant symbols"
         );
+    }
+
+    /// Check that the [`Input::map`] helper works as expected.
+    #[test]
+    fn input_mapping() {
+        fn test<F>(f: F)
+        where
+            F: Fn(usize) -> Input<usize>,
+        {
+            let input = f(0x1337);
+            let input = input.map(|x| 2 * x);
+            assert_eq!(input, f(2 * 0x1337));
+            assert_eq!(input.into_inner(), 2 * 0x1337);
+        }
+
+        for variant in [Input::AbsAddr, Input::VirtOffset, Input::FileOffset] {
+            let () = test(variant);
+        }
     }
 
     /// Check that we can convert `normalize::Reason` objects into
