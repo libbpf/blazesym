@@ -12,26 +12,25 @@ use std::io::Error;
 use std::io::Read as _;
 use std::io::Write as _;
 use std::panic::UnwindSafe;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
 use std::str;
 
 use blazesym::helper::read_elf_build_id;
+use blazesym::normalize::NormalizeOpts;
+use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::ErrorKind;
 use blazesym::Pid;
-use blazesym::normalize::Normalizer;
-use blazesym::normalize::NormalizeOpts;
 
 use scopeguard::defer;
 
 use test_log::test;
 
-
-fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &PathBuf) {
+fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
     let process = symbolize::Process::new(pid);
     assert!(process.map_files);
 
@@ -55,11 +54,11 @@ fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &PathBuf) {
     assert_eq!(result.name, "await_input");
 }
 
-fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &PathBuf) {
+fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
     let normalizer = Normalizer::builder().enable_build_ids(true).build();
     let opts = NormalizeOpts {
         sorted_addrs: false,
-        map_files : false,
+        map_files: false,
         _non_exhaustive: (),
     };
 
@@ -68,16 +67,17 @@ fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &PathBuf) {
         .unwrap();
 
     let output = normalized.outputs[0];
-    let meta =  &normalized.meta[output.1].as_elf().unwrap();
+    let meta = &normalized.meta[output.1].as_elf().unwrap();
 
     assert_eq!(
         meta.build_id,
-        Some(read_elf_build_id(&test_lib).unwrap().unwrap()));
+        Some(read_elf_build_id(&test_lib).unwrap().unwrap())
+    );
 }
 
-fn run_test<F>(callback_fn : F)
+fn run_test<F>(callback_fn: F)
 where
-    F : FnOnce(Pid, u64, &PathBuf) -> () + UnwindSafe,
+    F: FnOnce(Pid, u64, &Path) + UnwindSafe,
 {
     use common::as_user;
     use common::non_root_uid;
@@ -147,7 +147,7 @@ where
 #[cfg(not(windows))]
 #[test]
 fn symbolize_process_symbolic_paths() {
-    run_test(|pid, addr, test_lib| symbolize_permissionless_impl(pid, addr, test_lib))
+    run_test(symbolize_permissionless_impl)
 }
 
 /// Check that we can symbolize an address in a process using only
@@ -155,5 +155,5 @@ fn symbolize_process_symbolic_paths() {
 #[cfg(not(windows))]
 #[test]
 fn normalize_process_symbolic_paths() {
-    run_test(|pid, addr, test_lib| normalize_permissionless_impl(pid, addr, test_lib))
+    run_test(normalize_permissionless_impl)
 }

@@ -8,7 +8,6 @@ use std::path::PathBuf;
 use crate::maps;
 use crate::maps::MapsEntry;
 use crate::maps::PathName;
-use crate::util;
 use crate::Addr;
 use crate::BuildId;
 use crate::Error;
@@ -162,10 +161,7 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
     fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
         match &entry.path_name {
             Some(PathName::Path(entry_path)) => {
-                // In case, we want to extract the build_id using the symbolic path,
-                // we have to check that the file still exists on disk
-                let file_stat = util::stat(&entry_path.symbolic_path);
-                let path = if self.map_files || file_stat.is_err(){
+                let path = if self.map_files {
                     &entry_path.maps_file
                 } else {
                     &entry_path.symbolic_path
@@ -195,9 +191,10 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                             // usage. Note that "reading" here could be a
                             // cheap cache look up if build ID caching
                             // is enabled.
-                            let build_id = entry.build_id.clone().or_else(|| {
-                                self.build_id_reader.read_build_id(path)
-                            });
+                            let build_id = entry
+                                .build_id
+                                .clone()
+                                .or_else(|| { self.build_id_reader.read_build_id(path)});
                             make_elf_meta(path, build_id)
                         },
                     ),
