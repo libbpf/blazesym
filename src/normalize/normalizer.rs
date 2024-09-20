@@ -529,10 +529,13 @@ mod tests {
             let output = normalized.outputs[0];
             assert_eq!(output.0, sym.addr);
             let meta = &normalized.meta[output.1].as_elf().unwrap();
-            assert_eq!(
-                meta.build_id,
+            let expected_build_id = if use_map_files || use_procmap_query {
                 Some(read_elf_build_id(&test_so).unwrap().unwrap())
-            );
+            } else {
+                None
+            };
+
+            assert_eq!(meta.build_id, expected_build_id);
         }
 
         for cache_build_ids in [true, false] {
