@@ -192,7 +192,7 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                             // cheap cache look up if build ID caching
                             // is enabled.
                             let build_id = entry.build_id.clone().or_else(|| {
-                                self.build_id_reader.read_build_id(&entry_path.maps_file)
+                                self.build_id_reader.read_build_id(&path)
                             });
                             make_elf_meta(path, build_id)
                         },
