@@ -11,11 +11,15 @@ mod common;
 use std::io::Error;
 use std::io::Read as _;
 use std::io::Write as _;
+use std::panic::UnwindSafe;
 use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
 use std::str;
 
+use blazesym::helper::read_elf_build_id;
+use blazesym::normalize::NormalizeOpts;
+use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
@@ -26,8 +30,7 @@ use scopeguard::defer;
 
 use test_log::test;
 
-
-fn symbolize_permissionless_impl(pid: Pid, addr: Addr) {
+fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
     let process = symbolize::Process::new(pid);
     assert!(process.map_files);
 
@@ -51,12 +54,31 @@ fn symbolize_permissionless_impl(pid: Pid, addr: Addr) {
     assert_eq!(result.name, "await_input");
 }
 
+fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
+    let normalizer = Normalizer::builder().enable_build_ids(true).build();
+    let opts = NormalizeOpts {
+        sorted_addrs: false,
+        map_files: false,
+        _non_exhaustive: (),
+    };
 
-/// Check that we can symbolize an address in a process using only
-/// symbolic paths.
-#[cfg(not(windows))]
-#[test]
-fn symbolize_process_symbolic_paths() {
+    let normalized = normalizer
+        .normalize_user_addrs_opts(pid, &[addr], &opts)
+        .unwrap();
+
+    let output = normalized.outputs[0];
+    let meta = &normalized.meta[output.1].as_elf().unwrap();
+
+    assert_eq!(
+        meta.build_id,
+        Some(read_elf_build_id(&test_lib).unwrap().unwrap())
+    );
+}
+
+fn run_test<F>(callback_fn: F)
+where
+    F: FnOnce(Pid, u64, &Path) + UnwindSafe,
+{
     use common::as_user;
     use common::non_root_uid;
     use libc::getresuid;
@@ -87,7 +109,7 @@ fn symbolize_process_symbolic_paths() {
         .join("test-wait.bin");
 
     let mut child = Command::new(mnt_ns)
-        .arg(test_so)
+        .arg(&test_so)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::inherit())
@@ -113,9 +135,25 @@ fn symbolize_process_symbolic_paths() {
     let addr_str = str::from_utf8(&buf[0..count]).unwrap().trim_end();
     let addr = Addr::from_str_radix(addr_str.trim_start_matches("0x"), 16).unwrap();
     let pid = Pid::from(child.id());
-    let () = as_user(ruid, uid, || symbolize_permissionless_impl(pid, addr));
+    let () = as_user(ruid, uid, || callback_fn(pid, addr, &test_so));
 
     // "Signal" the child to terminate gracefully.
     let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
     let _status = child.wait().unwrap();
+}
+
+/// Check that we can symbolize an address in a process using only
+/// symbolic paths.
+#[cfg(not(windows))]
+#[test]
+fn symbolize_process_symbolic_paths() {
+    run_test(symbolize_permissionless_impl)
+}
+
+/// Check that we can normalize an address in a process using only
+/// symbolic paths.
+#[cfg(not(windows))]
+#[test]
+fn normalize_process_symbolic_paths() {
+    run_test(normalize_permissionless_impl)
 }
