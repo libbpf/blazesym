@@ -14,7 +14,6 @@ path = "main.rs"
 anyhow = "1.0"
 blazesym = {version = "=0.2.0-rc.1", path = "../..", features = ["tracing"]}
 clap = {version = "4.4", features = ["derive", "string"]}
-debuginfod = {version = "0.1", features = ["fs-cache", "tracing"]}
-dirs = "5.0.1"
+debuginfod = {version = "0.1.1", features = ["fs-cache", "tracing"]}
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["ansi", "env-filter", "fmt"]}

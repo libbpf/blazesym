@@ -1,7 +1,5 @@
 #![allow(clippy::collapsible_if)]
 
-use std::env::temp_dir;
-
 use anyhow::Context as _;
 use anyhow::Error;
 use anyhow::Result;
@@ -26,8 +24,6 @@ use clap::Parser;
 
 use debuginfod::CachingClient;
 use debuginfod::Client;
-
-use dirs::cache_dir;
 
 use tracing::subscriber::set_global_default as set_global_subscriber;
 use tracing_subscriber::filter::LevelFilter;
@@ -172,16 +168,10 @@ fn main() -> Result<()> {
 
     set_global_subscriber(subscriber).with_context(|| "failed to set tracing subscriber")?;
 
-    let cache_dir = cache_dir()
-        .or_else(|| Some(temp_dir()))
-        .context("failed to determine cache directory")?
-        .join("blazesym")
-        .join("debuginfod");
-
     let client = Client::from_env()
         .context("failed to create debuginfod client")?
         .context("failed to find valid URLs in DEBUGINFOD_URLS environment variable")?;
-    let client = CachingClient::new(client, cache_dir)?;
+    let client = CachingClient::from_env(client)?;
 
     let src = symbolize::Source::Process(symbolize::Process::new(Pid::from(args.pid)));
     let symbolizer = Symbolizer::builder()
