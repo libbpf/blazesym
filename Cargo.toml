@@ -95,6 +95,10 @@ name = "addr2ln_pid"
 [[example]]
 name = "backtrace"
 
+[[example]]
+name = "inspect-mangled"
+required-features = ["demangle", "generate-unit-test-files"]
+
 [[bench]]
 name = "main"
 harness = false

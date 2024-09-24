@@ -73,8 +73,14 @@ impl Inspector {
     /// For each symbol name, a vector of addresses is returned, i.e. a given
     /// symbol name can correspond to more than one address.
     ///
+    /// If you require some kind of advanced look up scheme, e.g., based on a
+    /// regular expression matching or on demangled names when the source
+    /// contains only mangled symbols, this will have to be built on top of the
+    /// [`Inspector::for_each`] functionality.
+    ///
     /// # Notes
-    /// - no symbol name demangling is performed currently
+    /// - no symbol name demangling is performed and data is reported as it
+    ///   appears in the symbol source
     /// - for the [`Breakpad`](Source::Breakpad) source:
     ///   - no variable support is present
     ///   - file offsets won't be reported
