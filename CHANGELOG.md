@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Adjusted normalization logic to use "symbolic path" for reading build
+  IDs when normalizing with `NormalizeOpts::map_files` equal to `false`
+
+
 0.2.0-rc.1
 ----------
 - Added support for using `PROCMAP_QUERY` ioctl during address normalization
