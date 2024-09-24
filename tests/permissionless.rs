@@ -75,6 +75,7 @@ fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
     );
 }
 
+#[cfg(not(windows))]
 fn run_test<F>(callback_fn: F)
 where
     F: FnOnce(Pid, u64, &Path) + UnwindSafe,
