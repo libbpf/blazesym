@@ -67,8 +67,6 @@ impl<'dwarf> Unit<'dwarf> {
         }
     }
 
-    #[cfg(test)]
-    #[cfg(feature = "nightly")]
     pub(super) fn parse_functions<'unit>(
         &'unit self,
         units: &Units<'dwarf>,

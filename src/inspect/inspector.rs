@@ -154,13 +154,13 @@ impl Inspector {
     /// callback function.
     ///
     /// # Notes
-    /// - no symbol name demangling is performed currently
-    /// - currently only function symbols (as opposed to variables) are reported
+    /// - no symbol name demangling is performed and data is reported as it
+    ///   appears in the symbol source
     /// - undefined symbols (such as ones referencing a different shared object)
     ///   are not reported
-    /// - for the [`Elf`](Source::Elf) source, at present DWARF symbols are
-    ///   ignored (irrespective of the [`debug_syms`][Elf::debug_syms]
-    ///   configuration)
+    /// - for the [`Elf`](Source::Elf) source:
+    ///   - if `debug_syms` is set, *only* debug symbols are consulted and no
+    ///     support for variables is present
     /// - for the [`Breakpad`](Source::Breakpad) source:
     ///   - no variable support is present
     ///   - file offsets won't be reported

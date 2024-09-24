@@ -25,6 +25,8 @@
 // > IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // > DEALINGS IN THE SOFTWARE.
 
+use std::ops::ControlFlow;
+
 use crate::log::warn;
 use crate::once::OnceCell;
 use crate::ErrorExt as _;
@@ -406,6 +408,22 @@ impl<'dwarf> Units<'dwarf> {
         self.units
             .iter()
             .filter_map(move |unit| unit.find_name(name, self).transpose())
+    }
+
+    pub(crate) fn for_each_function<F>(&self, mut f: F) -> Result<(), gimli::Error>
+    where
+        F: FnMut(&Function<'dwarf>) -> ControlFlow<()>,
+    {
+        for unit in self.units.iter() {
+            let functions = unit.parse_functions(self)?;
+
+            for function in functions.functions.iter() {
+                if let ControlFlow::Break(()) = f(function) {
+                    return Ok(())
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Retrieve a [`gimli::UnitRef`] for the provided `unit`.
