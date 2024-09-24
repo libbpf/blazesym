@@ -206,6 +206,46 @@ impl DwarfResolver {
             .collect::<Vec<_>>();
         Self::from_parser(Rc::new(parser), debug_dirs.as_slice())
     }
+
+    /// Try converting a `Function` into a `SymInfo`.
+    ///
+    /// # Notes
+    /// This method only returns `None` if `function` does not have the `name`
+    /// attribute set.
+    fn function_to_sym_info<'slf>(
+        &'slf self,
+        function: &'slf Function,
+        offset_in_file: bool,
+    ) -> Result<Option<SymInfo<'slf>>> {
+        let name = if let Some(name) = function.name {
+            name.to_string().unwrap()
+        } else {
+            return Ok(None)
+        };
+        let addr = function
+            .range
+            .as_ref()
+            .map(|range| range.begin as Addr)
+            .unwrap_or(0);
+        let size = function
+            .range
+            .as_ref()
+            .and_then(|range| range.end.checked_sub(range.begin))
+            .map(|size| usize::try_from(size).unwrap_or(usize::MAX))
+            .unwrap_or(0);
+        let info = SymInfo {
+            name: Cow::Borrowed(name),
+            addr,
+            size,
+            sym_type: SymType::Function,
+            file_offset: offset_in_file
+                .then(|| self.parser.find_file_offset(addr))
+                .transpose()?
+                .flatten(),
+            obj_file_name: self.parser.path().map(Cow::Borrowed),
+        };
+        Ok(Some(info))
+    }
 }
 
 impl Symbolize for DwarfResolver {
@@ -268,31 +308,11 @@ impl Inspect for DwarfResolver {
                 match result {
                     Ok(function) => {
                         // SANITY: We found the function by name, so it must have the
-                        //         name attribute set.
-                        let name = function.name.unwrap().to_string().unwrap();
-                        let addr = function
-                            .range
-                            .as_ref()
-                            .map(|range| range.begin as Addr)
-                            .unwrap_or(0);
-                        let size = function
-                            .range
-                            .as_ref()
-                            .and_then(|range| range.end.checked_sub(range.begin))
-                            .map(|size| usize::try_from(size).unwrap_or(usize::MAX))
-                            .unwrap_or(0);
-                        let info = SymInfo {
-                            name: Cow::Borrowed(name),
-                            addr,
-                            size,
-                            sym_type: SymType::Function,
-                            file_offset: opts
-                                .offset_in_file
-                                .then(|| self.parser.find_file_offset(addr))
-                                .transpose()?
-                                .flatten(),
-                            obj_file_name: self.parser.path().map(Cow::Borrowed),
-                        };
+                        //         name attribute set. `function_to_sym_info`
+                        //         only returns `None` if no name is present.
+                        let info = self
+                            .function_to_sym_info(function, opts.offset_in_file)?
+                            .unwrap();
                         Ok(info)
                     }
                     Err(err) => Err(Error::from(err)),
