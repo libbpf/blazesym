@@ -7,6 +7,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::mem;
 use std::mem::swap;
+use std::ops::ControlFlow;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::path::PathBuf;
@@ -329,11 +330,24 @@ impl Inspect for DwarfResolver {
         }
     }
 
-    fn for_each(&self, _opts: &FindAddrOpts, _f: &mut ForEachFn<'_>) -> Result<()> {
-        // TODO: Implement this functionality.
-        Err(Error::with_unsupported(
-            "DWARF logic does not currently support symbol iteration",
-        ))
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut ForEachFn<'_>) -> Result<()> {
+        if let SymType::Variable = opts.sym_type {
+            return Err(Error::with_unsupported("not implemented"))
+        }
+
+        let mut overall_result = Ok(());
+        let () = self.units.for_each_function(|func| {
+            let result = self.function_to_sym_info(func, opts.offset_in_file);
+            match result {
+                Ok(Some(sym_info)) => f(&sym_info),
+                Ok(None) => ControlFlow::Continue(()),
+                Err(err) => {
+                    overall_result = Err(err);
+                    ControlFlow::Break(())
+                }
+            }
+        })?;
+        overall_result
     }
 }
 
@@ -349,7 +363,7 @@ impl Debug for DwarfResolver {
 // directly.
 impl<'dwarf> Units<'dwarf> {
     /// Fill in source code information for an address to the provided
-    /// `IntSym`.
+    /// `ResolvedSym`.
     ///
     /// `addr` is a normalized address.
     fn fill_code_info<'slf>(

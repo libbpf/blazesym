@@ -1121,11 +1121,18 @@ fn inspect_elf_file_offset() {
 }
 
 
-/// Check that we can iterate over all symbols in an ELF file.
+/// Check that we can iterate over all symbols in a symbolization source.
 #[test]
-fn inspect_elf_breakpad_all_symbols() {
+fn inspect_elf_dwarf_breakpad_all_symbols() {
     fn test(src: &inspect::Source) {
         let breakpad = matches!(src, inspect::Source::Breakpad(..));
+        let dwarf = matches!(
+            src,
+            inspect::Source::Elf(inspect::Elf {
+                debug_syms: true,
+                ..
+            })
+        );
         let inspector = Inspector::new();
         let mut syms = HashMap::<String, inspect::SymInfo>::new();
         let () = inspector
@@ -1135,8 +1142,8 @@ fn inspect_elf_breakpad_all_symbols() {
             })
             .unwrap();
 
-        // Breakpad doesn't contain any or any reasonable information for
-        // some symbols.
+        // Breakpad and DWARF don't contain any or any reasonable information
+        // for some symbols.
         if !breakpad {
             let sym = syms.get("main").unwrap();
             assert_eq!(sym.sym_type, SymType::Function);
@@ -1151,7 +1158,7 @@ fn inspect_elf_breakpad_all_symbols() {
         let sym = syms.get("factorial_inline_test").unwrap();
         assert_eq!(sym.sym_type, SymType::Function);
 
-        if !breakpad {
+        if !breakpad && !dwarf {
             let sym = syms.get("indirect_func").unwrap();
             assert_eq!(sym.sym_type, SymType::Function);
         }
@@ -1162,16 +1169,24 @@ fn inspect_elf_breakpad_all_symbols() {
         let sym = syms.get("resolve_indirect_func").unwrap();
         assert_eq!(sym.sym_type, SymType::Function);
 
-        if !breakpad {
+        if !breakpad && !dwarf {
             let sym = syms.get("a_variable").unwrap();
             assert_eq!(sym.sym_type, SymType::Variable);
         }
     }
 
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-no-dwarf.bin");
-    let elf = inspect::Elf::new(test_elf);
+    let mut elf = inspect::Elf::new(path);
+    elf.debug_syms = false;
+    let src = inspect::Source::Elf(elf);
+    test(&src);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
+    let elf = inspect::Elf::new(path);
     let src = inspect::Source::Elf(elf);
     test(&src);
 
@@ -1186,7 +1201,7 @@ fn inspect_elf_breakpad_all_symbols() {
 
 /// Check that early stopping of symbol iteration works as expected.
 #[test]
-fn inspect_elf_breakpad_early_iter_stop() {
+fn inspect_elf_dwarf_breakpad_early_iter_stop() {
     fn test(src: &inspect::Source) {
         let mut i = 0;
         let inspector = Inspector::new();
@@ -1202,10 +1217,18 @@ fn inspect_elf_breakpad_early_iter_stop() {
             .unwrap();
     }
 
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-no-dwarf.bin");
-    let elf = inspect::Elf::new(test_elf);
+    let mut elf = inspect::Elf::new(path);
+    elf.debug_syms = false;
+    let src = inspect::Source::Elf(elf);
+    test(&src);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
+    let elf = inspect::Elf::new(path);
     let src = inspect::Source::Elf(elf);
     test(&src);
 
@@ -1218,14 +1241,41 @@ fn inspect_elf_breakpad_early_iter_stop() {
 }
 
 
+/// Make sure that the `debug_syms` flag is honored.
+#[test]
+fn inspect_debug_syms_flag() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-no-dwarf.bin");
+    let mut elf = inspect::Elf::new(path);
+    elf.debug_syms = true;
+    let src = inspect::Source::Elf(elf);
+    let inspector = Inspector::new();
+    // There aren't any debug symbols in the source (although there are ELF
+    // symbols).
+    let () = inspector.for_each(&src, |_sym| panic!()).unwrap();
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
+    let mut elf = inspect::Elf::new(path);
+    elf.debug_syms = false;
+    let src = inspect::Source::Elf(elf);
+    // There aren't any ELF symbols in the source (although there are DWARF
+    // symbols).
+    let () = inspector.for_each(&src, |_sym| panic!()).unwrap();
+}
+
+
 /// Check that we can iterate over all symbols in an ELF file, without
 /// encountering duplicates caused by dynamic/static symbol overlap.
 #[test]
 fn inspect_elf_all_symbols_without_duplicates() {
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
-    let elf = inspect::Elf::new(test_elf);
+    let mut elf = inspect::Elf::new(path);
+    elf.debug_syms = false;
     let src = inspect::Source::Elf(elf);
 
     let inspector = Inspector::new();

@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::ops::Deref as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -203,8 +202,11 @@ impl Inspect for ElfResolver {
     }
 
     fn for_each(&self, opts: &FindAddrOpts, f: &mut ForEachFn<'_>) -> Result<()> {
-        let parser = self.parser();
-        parser.deref().for_each(opts, f)
+        match &self.backend {
+            #[cfg(feature = "dwarf")]
+            ElfBackend::Dwarf(dwarf) => dwarf.for_each(opts, f),
+            ElfBackend::Elf(parser) => parser.for_each(opts, f),
+        }
     }
 }
 

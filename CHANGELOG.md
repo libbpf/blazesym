@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added support for iteration over DWARF symbols to `inspect::Inspector`
 - Adjusted normalization logic to use "symbolic path" for reading build
   IDs when normalizing with `NormalizeOpts::map_files` equal to `false`
 - Adjusted `inspect::Inspector::for_each` to accept callback returning
