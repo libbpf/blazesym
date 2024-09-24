@@ -109,10 +109,11 @@ pub unsafe extern "C" fn blaze_read_elf_build_id(path: *const c_char, len: *mut 
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     use std::ffi::CString;
     use std::path::Path;
-
-    use super::*;
+    use std::slice;
 
     use crate::blaze_err;
     use crate::blaze_err_last;
@@ -140,6 +141,14 @@ mod tests {
         assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
         // The file contains a sha1 build ID, which is always 20 bytes in length.
         assert_eq!(len, 20);
+
+        // Also smoke test that the build ID equals what the Rust API
+        // reports.
+        let build_id_rs = read_elf_build_id(&path).unwrap().unwrap();
+        assert_eq!(
+            unsafe { slice::from_raw_parts(build_id, len) },
+            &*build_id_rs
+        );
         let () = unsafe { libc::free(build_id.cast()) };
 
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
