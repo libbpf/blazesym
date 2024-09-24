@@ -67,7 +67,9 @@ format supports and whether **blazesym** can currently use this feature:
 Here is rough roadmap of currently planned features (in no particular order):
 
 - [ ] Fully support handling of kernel addresses
-  - currently normalization APIs, for example, only support user space addresses
+  - [ ] Support BPF program symbolization (https://github.com/libbpf/blazesym/issues/826)
+  - [ ] Support symbolization of kernel module addresses
+  - [ ] Support remote symbolization use cases for kernel addresses
 - [x] Switch to using [`gimli`](https://crates.io/crates/gimli) for DWARF parsing
   - doing so will allow us to:
     - [x] Support more versions of the DWARF standard (https://github.com/libbpf/blazesym/issues/42 & https://github.com/libbpf/blazesym/issues/57)
