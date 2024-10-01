@@ -10,6 +10,7 @@ use crate::breakpad::BreakpadResolver;
 use crate::elf::ElfResolverData;
 use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::file_cache::FileCache;
+use crate::inspect::ForEachFn;
 use crate::Result;
 
 #[cfg(feature = "breakpad")]
@@ -164,11 +165,7 @@ impl Inspector {
     where
         F: FnMut(&SymInfo<'_>),
     {
-        fn for_each_impl(
-            slf: &Inspector,
-            src: &Source,
-            f: &mut dyn FnMut(&SymInfo<'_>),
-        ) -> Result<()> {
+        fn for_each_impl(slf: &Inspector, src: &Source, f: &mut ForEachFn<'_>) -> Result<()> {
             let (resolver, opts) = match src {
                 #[cfg(feature = "breakpad")]
                 Source::Breakpad(Breakpad {

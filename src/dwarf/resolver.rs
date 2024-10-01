@@ -20,6 +20,7 @@ use crate::elf::ElfParser;
 use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::error::IntoCowStr;
 use crate::inspect::FindAddrOpts;
+use crate::inspect::ForEachFn;
 use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::log::debug;
@@ -328,7 +329,7 @@ impl Inspect for DwarfResolver {
         }
     }
 
-    fn for_each(&self, _opts: &FindAddrOpts, _f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {
+    fn for_each(&self, _opts: &FindAddrOpts, _f: &mut ForEachFn<'_>) -> Result<()> {
         // TODO: Implement this functionality.
         Err(Error::with_unsupported(
             "DWARF logic does not currently support symbol iteration",

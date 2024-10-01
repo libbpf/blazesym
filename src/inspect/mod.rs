@@ -86,6 +86,10 @@ pub(crate) struct FindAddrOpts {
 }
 
 
+/// The signature of a function for iterating over symbols.
+pub(crate) type ForEachFn<'f> = dyn FnMut(&SymInfo<'_>) + 'f;
+
+
 /// The trait providing inspection functionality.
 pub(crate) trait Inspect
 where
@@ -95,5 +99,5 @@ where
     fn find_addr(&self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'_>>>;
 
     /// Perform an operation on each symbol.
-    fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()>;
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut ForEachFn<'_>) -> Result<()>;
 }

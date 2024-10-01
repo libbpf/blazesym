@@ -11,6 +11,7 @@ use crate::dwarf::DwarfResolver;
 use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::file_cache::FileCache;
 use crate::inspect::FindAddrOpts;
+use crate::inspect::ForEachFn;
 use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
@@ -201,7 +202,7 @@ impl Inspect for ElfResolver {
         }
     }
 
-    fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut ForEachFn<'_>) -> Result<()> {
         let parser = self.parser();
         parser.deref().for_each(opts, f)
     }
