@@ -9,6 +9,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::inspect::FindAddrOpts;
+use crate::inspect::ForEachFn;
 use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
@@ -180,7 +181,7 @@ impl Inspect for KSymResolver {
         Ok(syms)
     }
 
-    fn for_each(&self, opts: &FindAddrOpts, f: &mut dyn FnMut(&SymInfo<'_>)) -> Result<()> {
+    fn for_each(&self, opts: &FindAddrOpts, f: &mut ForEachFn<'_>) -> Result<()> {
         if let SymType::Variable = opts.sym_type {
             return Ok(())
         }

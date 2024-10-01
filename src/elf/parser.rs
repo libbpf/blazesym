@@ -10,6 +10,7 @@ use std::path::PathBuf;
 
 use crate::insert_map::InsertMap;
 use crate::inspect::FindAddrOpts;
+use crate::inspect::ForEachFn;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::once::OnceCell;
@@ -790,7 +791,7 @@ impl ElfParser {
         opts: &FindAddrOpts,
         syms: &[&Elf64_Sym],
         str2sym: &[(&str, usize)],
-        f: &mut dyn FnMut(&SymInfo<'_>),
+        f: &mut ForEachFn<'_>,
     ) -> Result<()> {
         let shdrs = self.cache.ensure_shdrs()?;
 
@@ -823,18 +824,14 @@ impl ElfParser {
 
     /// Perform an operation on each symbol.
     #[allow(clippy::needless_borrows_for_generic_args)]
-    pub(crate) fn for_each(
-        &self,
-        opts: &FindAddrOpts,
-        mut f: &mut dyn FnMut(&SymInfo<'_>),
-    ) -> Result<()> {
+    pub(crate) fn for_each(&self, opts: &FindAddrOpts, f: &mut ForEachFn) -> Result<()> {
         let symtab = self.cache.ensure_symtab()?;
         let str2symtab = self.cache.ensure_str2symtab()?;
-        let () = self.for_each_sym_impl(opts, symtab, str2symtab, &mut f)?;
+        let () = self.for_each_sym_impl(opts, symtab, str2symtab, f)?;
 
         let dynsym = self.cache.ensure_dynsym()?;
         let str2dynsym = self.cache.ensure_str2dynsym()?;
-        let () = self.for_each_sym_impl(opts, dynsym, str2dynsym, &mut f)?;
+        let () = self.for_each_sym_impl(opts, dynsym, str2dynsym, f)?;
 
         Ok(())
     }
