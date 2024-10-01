@@ -1,6 +1,7 @@
 //! An example illustrating how to look up a (mangled) symbol (and its
 //! meta data) based on its expected demangled name.
 
+use std::ops::ControlFlow;
 use std::path::Path;
 
 use anyhow::Result;
@@ -16,13 +17,16 @@ use rustc_demangle::demangle;
 const TEST_FN: &str = "test::test_function";
 
 
-fn find_test_function(sym: &SymInfo<'_>, test_fn: &mut Option<SymInfo<'static>>) {
+fn find_test_function(
+    sym: &SymInfo<'_>,
+    test_fn: &mut Option<SymInfo<'static>>,
+) -> ControlFlow<()> {
     let name = format!("{:#}", demangle(&sym.name));
     if name == TEST_FN {
-        if let Some(prev) = test_fn.replace(sym.to_owned()) {
-            // There should exist only a single symbol by that name.
-            panic!("already found one `{TEST_FN}` symbol: {prev:?}")
-        }
+        let _none = test_fn.replace(sym.to_owned());
+        ControlFlow::Break(())
+    } else {
+        ControlFlow::Continue(())
     }
 }
 

@@ -3,6 +3,7 @@
 mod args;
 
 use std::cmp::max;
+use std::ops::ControlFlow;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -113,6 +114,7 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
             let mut sym_infos = Vec::new();
             let () = inspector.for_each(&src, |sym| {
                 let () = sym_infos.push(sym.to_owned());
+                ControlFlow::Continue(())
             })?;
             let () = sym_infos.sort_by_key(|sym| sym.addr);
             let () = print_sym_infos(&sym_infos);

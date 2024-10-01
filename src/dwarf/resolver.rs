@@ -449,6 +449,7 @@ mod tests {
 
     use std::env::current_exe;
     use std::ffi::OsStr;
+    use std::ops::ControlFlow;
     use std::path::PathBuf;
 
     use test_log::test;
@@ -552,7 +553,9 @@ mod tests {
         let err = resolver.find_addr("factorial", &opts).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
 
-        let err = resolver.for_each(&opts, &mut |_| ()).unwrap_err();
+        let err = resolver
+            .for_each(&opts, &mut |_| ControlFlow::Continue(()))
+            .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }

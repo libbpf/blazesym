@@ -4,6 +4,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::mem;
+use std::ops::ControlFlow;
 use std::ops::Deref as _;
 use std::path::Path;
 use std::path::PathBuf;
@@ -815,7 +816,9 @@ impl ElfParser {
                         .flatten(),
                     obj_file_name: None,
                 };
-                let () = f(&sym_info);
+                if let ControlFlow::Break(()) = f(&sym_info) {
+                    return Ok(())
+                }
             }
         }
 
@@ -1154,6 +1157,7 @@ mod tests {
                 .for_each(&opts, &mut |sym| {
                     let file_offset = parser.find_file_offset(sym.addr).unwrap();
                     assert_eq!(file_offset, sym.file_offset);
+                    ControlFlow::Continue(())
                 })
                 .unwrap();
         }

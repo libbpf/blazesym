@@ -14,6 +14,7 @@ use std::fs::read as read_file;
 use std::io::Error;
 use std::io::Read as _;
 use std::io::Write as _;
+use std::ops::ControlFlow;
 use std::ops::Deref as _;
 #[cfg(not(windows))]
 use std::os::unix::ffi::OsStringExt as _;
@@ -1130,6 +1131,7 @@ fn inspect_elf_breakpad_all_symbols() {
         let () = inspector
             .for_each(src, |sym| {
                 let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
+                ControlFlow::Continue(())
             })
             .unwrap();
 
@@ -1182,6 +1184,40 @@ fn inspect_elf_breakpad_all_symbols() {
 }
 
 
+/// Check that early stopping of symbol iteration works as expected.
+#[test]
+fn inspect_elf_breakpad_early_iter_stop() {
+    fn test(src: &inspect::Source) {
+        let mut i = 0;
+        let inspector = Inspector::new();
+        let () = inspector
+            .for_each(src, |_sym| {
+                if i == 0 {
+                    i += 1;
+                    ControlFlow::Break(())
+                } else {
+                    panic!()
+                }
+            })
+            .unwrap();
+    }
+
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-no-dwarf.bin");
+    let elf = inspect::Elf::new(test_elf);
+    let src = inspect::Source::Elf(elf);
+    test(&src);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.sym");
+    let breakpad = inspect::Breakpad::new(path);
+    let src = inspect::Source::Breakpad(breakpad);
+    test(&src);
+}
+
+
 /// Check that we can iterate over all symbols in an ELF file, without
 /// encountering duplicates caused by dynamic/static symbol overlap.
 #[test]
@@ -1197,6 +1233,7 @@ fn inspect_elf_all_symbols_without_duplicates() {
     let () = inspector
         .for_each(&src, |sym| {
             let () = syms.push(sym.name.to_string());
+            ControlFlow::Continue(())
         })
         .unwrap();
 

@@ -20,6 +20,7 @@ mod source;
 
 use std::borrow::Cow;
 use std::fmt::Debug;
+use std::ops::ControlFlow;
 use std::path::Path;
 
 use crate::Addr;
@@ -87,7 +88,7 @@ pub(crate) struct FindAddrOpts {
 
 
 /// The signature of a function for iterating over symbols.
-pub(crate) type ForEachFn<'f> = dyn FnMut(&SymInfo<'_>) + 'f;
+pub(crate) type ForEachFn<'f> = dyn FnMut(&SymInfo<'_>) -> ControlFlow<()> + 'f;
 
 
 /// The trait providing inspection functionality.
