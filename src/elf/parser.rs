@@ -785,16 +785,13 @@ impl ElfParser {
         Ok(syms)
     }
 
-    fn for_each_sym_impl<F>(
+    fn for_each_sym_impl(
         &self,
         opts: &FindAddrOpts,
         syms: &[&Elf64_Sym],
         str2sym: &[(&str, usize)],
-        mut f: F,
-    ) -> Result<()>
-    where
-        F: FnMut(&SymInfo<'_>),
-    {
+        f: &mut dyn FnMut(&SymInfo<'_>),
+    ) -> Result<()> {
         let shdrs = self.cache.ensure_shdrs()?;
 
         for (name, idx) in str2sym {
