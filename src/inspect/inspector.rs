@@ -1,5 +1,6 @@
 #[cfg(feature = "breakpad")]
 use std::fs::File;
+use std::ops::ControlFlow;
 use std::ops::Deref as _;
 #[cfg(feature = "breakpad")]
 use std::path::Path;
@@ -149,6 +150,9 @@ impl Inspector {
     /// Symbols are reported in implementation defined order that should
     /// not be relied on.
     ///
+    /// To stop symbol iteration early, return [`ControlFlow::Break`] from the
+    /// callback function.
+    ///
     /// # Notes
     /// - no symbol name demangling is performed currently
     /// - currently only function symbols (as opposed to variables) are reported
@@ -163,7 +167,7 @@ impl Inspector {
     ///   - addresses are reported as they appear in the symbol source
     pub fn for_each<F>(&self, src: &Source, mut f: F) -> Result<()>
     where
-        F: FnMut(&SymInfo<'_>),
+        F: FnMut(&SymInfo<'_>) -> ControlFlow<()>,
     {
         fn for_each_impl(slf: &Inspector, src: &Source, f: &mut ForEachFn<'_>) -> Result<()> {
             let (resolver, opts) = match src {

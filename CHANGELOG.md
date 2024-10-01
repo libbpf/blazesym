@@ -2,6 +2,8 @@ Unreleased
 ----------
 - Adjusted normalization logic to use "symbolic path" for reading build
   IDs when normalizing with `NormalizeOpts::map_files` equal to `false`
+- Adjusted `inspect::Inspector::for_each` to accept callback returning
+  `std::ops::ControlFlow` to facilitate early termination
 
 
 0.2.0-rc.1

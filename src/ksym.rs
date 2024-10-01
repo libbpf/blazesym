@@ -5,6 +5,7 @@ use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
+use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -188,7 +189,9 @@ impl Inspect for KSymResolver {
 
         for ksym in &self.syms {
             let sym = SymInfo::from(ksym);
-            let () = f(&sym);
+            if let ControlFlow::Break(()) = f(&sym) {
+                return Ok(())
+            }
         }
         Ok(())
     }
@@ -377,7 +380,10 @@ mod tests {
         let opts = FindAddrOpts::default();
         let mut syms = Vec::with_capacity(resolver.syms.len());
         let () = resolver
-            .for_each(&opts, &mut |sym| syms.push(sym.name.to_string()))
+            .for_each(&opts, &mut |sym| {
+                let () = syms.push(sym.name.to_string());
+                ControlFlow::Continue(())
+            })
             .unwrap();
         let () = syms.sort();
         assert_eq!(syms, vec!["a", "b", "j", "z"]);

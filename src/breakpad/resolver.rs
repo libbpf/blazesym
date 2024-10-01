@@ -5,6 +5,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::mem::swap;
+use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -231,7 +232,9 @@ impl Inspect for BreakpadResolver {
 
         for func in &self.symbol_file.functions {
             let sym = SymInfo::from(func);
-            let () = f(&sym);
+            if let ControlFlow::Break(()) = f(&sym) {
+                return Ok(())
+            }
         }
         Ok(())
     }
@@ -282,7 +285,9 @@ mod tests {
         let err = resolver.find_addr("a_variable", &opts).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
 
-        let err = resolver.for_each(&opts, &mut |_| ()).unwrap_err();
+        let err = resolver
+            .for_each(&opts, &mut |_| ControlFlow::Continue(()))
+            .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
     }
 }
