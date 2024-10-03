@@ -479,7 +479,7 @@ mod tests {
         assert_eq!(normalized.meta.len(), 1);
 
         let output = normalized.outputs[0];
-        assert_eq!(output.0, sym.addr);
+        assert_eq!(output.0, sym.file_offset.unwrap());
         let meta = &normalized.meta[output.1];
         let expected_elf = Elf {
             build_id: Some(read_elf_build_id(&test_so).unwrap().unwrap()),
@@ -527,7 +527,7 @@ mod tests {
             assert_eq!(normalized.meta.len(), 1);
 
             let output = normalized.outputs[0];
-            assert_eq!(output.0, sym.addr);
+            assert_eq!(output.0, sym.file_offset.unwrap());
             let meta = &normalized.meta[output.1].as_elf().unwrap();
             let expected_build_id = if use_map_files || use_procmap_query {
                 Some(read_elf_build_id(&test_so).unwrap().unwrap())
