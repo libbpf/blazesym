@@ -96,6 +96,9 @@ name = "addr2ln_pid"
 name = "backtrace"
 
 [[example]]
+name = "normalize-virt-offset"
+
+[[example]]
 name = "inspect-mangled"
 required-features = ["demangle", "generate-unit-test-files"]
 
