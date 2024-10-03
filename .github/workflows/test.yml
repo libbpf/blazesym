@@ -338,6 +338,8 @@ jobs:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo run --example backtrace
+    - run: cargo run --example inspect-mangled
+    - run: cargo run --example normalize-virt-offset
     - run: cargo run --package gsym-in-apk
   c-header:
     name: Check generated C header
