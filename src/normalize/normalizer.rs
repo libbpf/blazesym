@@ -161,9 +161,9 @@ impl Default for Builder {
 /// Address normalization is the process of taking virtual absolute
 /// addresses as they are seen by, say, a process (which include
 /// relocation and process specific layout randomizations, among other
-/// things) and converting them to "normalized" virtual addresses as
-/// they are present in, say, an ELF binary or a DWARF debug info file,
-/// and one would be able to see them using tools such as readelf(1).
+/// things) and converting them to file offsets. This is typically a
+/// very fast running operation. The file offsets can subsequently be
+/// used as symbolization input.
 ///
 /// If caching of data is enabled, an instance of this type is the unit
 /// at which caching happens. If you are normalizing address in a large
