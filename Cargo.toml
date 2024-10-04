@@ -139,7 +139,7 @@ zstd = {version = "0.13.1", default-features = false, optional = true}
 [dev-dependencies]
 # For performance comparison; pinned, because we use #[doc(hidden)]
 # APIs.
-addr2line = "=0.24.1"
+addr2line = "=0.24.2"
 anyhow = "1.0.71"
 # TODO: Enable `zstd` feature once toolchain support for it is more
 #       widespread (enabled by default in `ld`). Remove conditionals in
