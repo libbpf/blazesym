@@ -75,7 +75,7 @@ impl<'ksym> From<&'ksym Ksym> for SymInfo<'ksym> {
 pub(crate) struct KSymResolver {
     /// An index over `syms` that is sorted by name.
     by_name_idx: OnceCell<Box<[usize]>>,
-    syms: Vec<Ksym>,
+    syms: Box<[Ksym]>,
     file_name: PathBuf,
 }
 
@@ -119,7 +119,7 @@ impl KSymResolver {
         syms.sort_by(|a, b| a.addr.cmp(&b.addr));
 
         let slf = Self {
-            syms,
+            syms: syms.into_boxed_slice(),
             by_name_idx: OnceCell::new(),
             file_name: path.to_path_buf(),
         };
@@ -197,7 +197,7 @@ impl Inspect for KSymResolver {
             return Ok(())
         }
 
-        for ksym in &self.syms {
+        for ksym in self.syms.iter() {
             let sym = SymInfo::from(ksym);
             if let ControlFlow::Break(()) = f(&sym) {
                 return Ok(())
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn debug_repr() {
         let resolver = KSymResolver {
-            syms: Vec::new(),
+            syms: Box::default(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
         };
@@ -321,7 +321,8 @@ mod tests {
                     addr: 0x12345,
                     name: "3".to_string(),
                 },
-            ],
+            ]
+            .into_boxed_slice(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
         };
@@ -382,7 +383,8 @@ mod tests {
                     addr: 0x12345,
                     name: "z".to_string(),
                 },
-            ],
+            ]
+            .into_boxed_slice(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
         };
@@ -423,7 +425,8 @@ mod tests {
                     addr: 0x12345,
                     name: "z".to_string(),
                 },
-            ],
+            ]
+            .into_boxed_slice(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
         };
