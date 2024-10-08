@@ -95,25 +95,31 @@ impl KSymResolver {
         let mut syms = Vec::with_capacity(DFL_KSYM_CAP);
 
         loop {
+            let () = line.clear();
             let sz = reader.read_line(&mut line)?;
             if sz == 0 {
                 break
             }
-            let tokens = line.split_whitespace().collect::<Vec<_>>();
-            if tokens.len() < 3 {
-                break
-            }
-            let (addr, _symbol, func) = (tokens[0], tokens[1], tokens[2]);
+
+            let mut tokens = line.split_ascii_whitespace();
+
+            #[rustfmt::skip]
+            let (addr, name) = {
+                let addr = if let Some(token) = tokens.next() { token } else { continue };
+                let _typ = if let Some(token) = tokens.next() { token } else { continue };
+                let name = if let Some(token) = tokens.next() { token } else { continue };
+                (addr, name)
+            };
+
             if let Ok(addr) = Addr::from_str_radix(addr, 16) {
                 if addr == 0 {
-                    line.truncate(0);
                     continue
                 }
-                let name = String::from(func);
-                syms.push(Ksym { addr, name });
+                syms.push(Ksym {
+                    addr,
+                    name: name.to_string(),
+                });
             }
-
-            line.truncate(0);
         }
 
         syms.sort_by(|a, b| a.addr.cmp(&b.addr));
