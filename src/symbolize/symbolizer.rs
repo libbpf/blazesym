@@ -1381,6 +1381,7 @@ mod tests {
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::test_helper::find_the_answer_fn_in_zip;
+    use crate::test_helper::with_bpf_symbolization_target_addrs;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -1686,5 +1687,13 @@ mod tests {
 
         let () = test(zip_error_dispatch);
         let () = test(zip_delayed_error_dispatch);
+    }
+
+    /// Test symbolization of a kernel address inside a BPF program.
+    #[test]
+    fn symbolize_kernel_bpf_program() {
+        with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
+            println!("handle_getpid: {handle_getpid:#x}, subprogram: {subprogram:#x}");
+        })
     }
 }
