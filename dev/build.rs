@@ -1,10 +1,12 @@
 #![allow(clippy::let_unit_value)]
 
 use std::env;
+use std::env::consts::ARCH;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fs::create_dir_all;
 use std::fs::hard_link;
+use std::fs::read_dir;
 use std::fs::remove_file;
 use std::fs::write;
 use std::fs::File;
@@ -591,6 +593,101 @@ fn prepare_test_files() {
     zip(files.as_slice(), &dst);
 }
 
+
+/// Extract vendored libbpf header files into a directory.
+#[cfg(feature = "libbpf-sys")]
+fn extract_libbpf_headers(target_dir: &Path) {
+    use std::fs;
+    use std::fs::OpenOptions;
+    use std::io::Write;
+
+    let dir = target_dir.join("bpf");
+    let () = fs::create_dir_all(&dir).unwrap();
+    for (filename, contents) in libbpf_sys::API_HEADERS.iter() {
+        let path = dir.as_path().join(filename);
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .unwrap();
+        file.write_all(contents.as_bytes()).unwrap();
+    }
+}
+
+
+#[cfg(feature = "libbpf-sys")]
+fn with_bpf_headers<F>(f: F)
+where
+    F: FnOnce(&Path),
+{
+    use tempfile::tempdir;
+
+    let header_parent_dir = tempdir().unwrap();
+    let () = extract_libbpf_headers(header_parent_dir.path());
+    let () = f(header_parent_dir.path());
+}
+
+#[cfg(not(feature = "libbpf-sys"))]
+fn with_bpf_headers<F>(_f: F)
+where
+    F: FnOnce(&Path),
+{
+    unimplemented!()
+}
+
+
+/// Prepare BPF object files that we need for testing purposes.
+fn prepare_bpf_files() {
+    let crate_root = crate_root();
+    let bpf_dir = crate_root.join("tests").join("bpf");
+    let src_dir = bpf_dir.join("src");
+    let include = vmlinux::include_path_root().join(ARCH);
+
+    with_bpf_headers(|bpf_hdr_dir| {
+        for result in read_dir(&src_dir).unwrap() {
+            let entry = result.unwrap();
+            let src = entry.file_name();
+            let obj = Path::new(&src).with_extension("o");
+            let src = src_dir.join(&src);
+            let dst = bpf_dir.join(obj);
+            let arch = env::var("CARGO_CFG_TARGET_ARCH");
+            let arch = arch.as_deref().unwrap_or(ARCH);
+            let arch = match arch {
+                "x86_64" => "x86",
+                "aarch64" => "arm64",
+                "powerpc64" => "powerpc",
+                "s390x" => "s390",
+                "riscv64" => "riscv",
+                "loongarch64" => "loongarch",
+                "sparc64" => "sparc",
+                "mips64" => "mips",
+                x => x,
+            };
+
+            toolize_o(
+                "clang",
+                &src,
+                &dst,
+                &[
+                    "-g",
+                    "-O2",
+                    "-target",
+                    "bpf",
+                    "-c",
+                    "-I",
+                    include.to_str().unwrap(),
+                    "-I",
+                    &format!("{}", bpf_hdr_dir.display()),
+                    "-D",
+                    &format!("__TARGET_ARCH_{arch}"),
+                ],
+            );
+        }
+    })
+}
+
+
 /// Download a multi-part file split into `part_count` pieces.
 #[cfg(feature = "reqwest")]
 fn download_multi_part(base_url: &reqwest::Url, part_count: usize, dst: &Path) {
@@ -649,6 +746,7 @@ fn main() {
         && !cfg!(feature = "dont-generate-unit-test-files")
     {
         prepare_test_files();
+        prepare_bpf_files();
     }
 
     if cfg!(feature = "generate-large-test-files") {

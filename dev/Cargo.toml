@@ -15,7 +15,13 @@ path = "lib.rs"
 zstd = ["dep:zstd"]
 # Enable this feature to opt in to the generation of unit test files.
 # Having these test files created is necessary for running tests.
-generate-unit-test-files = ["dump_syms", "xz2", "zip"]
+generate-unit-test-files = [
+  "dep:tempfile",
+  "dump_syms",
+  "libbpf-sys/vendored-libbpf",
+  "xz2",
+  "zip",
+]
 # Enable this feature to opt in to the generation of large benchmark
 # files (also used for regression testing).
 generate-large-test-files = ["dump_syms", "reqwest", "xz2"]
@@ -27,6 +33,11 @@ dont-generate-unit-test-files = []
 dump_syms = {version = "2.3", optional = true, default-features = false}
 libc = "0.2.137"
 reqwest = {version = "0.12.0", optional = true, features = ["blocking"]}
+tempfile = {version = "3.3", optional = true}
+vmlinux = {git = "https://github.com/libbpf/vmlinux.h.git", rev = "a9c092aa771310bf8b00b5018f7d40a1fdb6ec82"}
 xz2 = {version = "0.1.7", optional = true}
 zip = {version = "2.0.0", optional = true, default-features = false}
 zstd = {version = "0.13.1", default-features = false, optional = true}
+
+[target.'cfg(target_os = "linux")'.build-dependencies]
+libbpf-sys = {version = "1.4.1", default-features = false, optional = true}
