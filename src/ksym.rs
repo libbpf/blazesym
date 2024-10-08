@@ -218,6 +218,9 @@ impl Debug for KSymResolver {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
+
     use test_log::test;
     use test_tag::tag;
 
@@ -441,5 +444,24 @@ mod tests {
         let () = resolver
             .for_each(&opts, &mut |_sym| unreachable!())
             .unwrap();
+    }
+
+    /// Benchmark the parsing a kallsyms file.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_parse_kallsyms(b: &mut Bencher) {
+        use std::fs::read;
+        use std::hint::black_box;
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("kallsyms");
+        let kallsyms = read(&path).unwrap();
+
+        let () = b.iter(|| {
+            let _resolver = black_box(
+                KSymResolver::load_from_reader(black_box(&mut kallsyms.as_slice()), &path).unwrap(),
+            );
+        });
     }
 }
