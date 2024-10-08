@@ -30,14 +30,14 @@ pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
 
 #[derive(Debug)]
-pub struct Ksym {
-    pub addr: Addr,
-    pub name: Box<str>,
+struct Kfunc {
+    addr: Addr,
+    name: Box<str>,
 }
 
-impl<'ksym> From<&'ksym Ksym> for ResolvedSym<'ksym> {
-    fn from(other: &'ksym Ksym) -> Self {
-        let Ksym { name, addr } = other;
+impl<'kfunc> From<&'kfunc Kfunc> for ResolvedSym<'kfunc> {
+    fn from(other: &'kfunc Kfunc) -> Self {
+        let Kfunc { name, addr } = other;
         ResolvedSym {
             name,
             addr: *addr,
@@ -53,9 +53,9 @@ impl<'ksym> From<&'ksym Ksym> for ResolvedSym<'ksym> {
     }
 }
 
-impl<'ksym> From<&'ksym Ksym> for SymInfo<'ksym> {
-    fn from(other: &'ksym Ksym) -> Self {
-        let Ksym { name, addr } = other;
+impl<'kfunc> From<&'kfunc Kfunc> for SymInfo<'kfunc> {
+    fn from(other: &'kfunc Kfunc) -> Self {
+        let Kfunc { name, addr } = other;
         SymInfo {
             name: Cow::Borrowed(name),
             addr: *addr,
@@ -75,7 +75,7 @@ impl<'ksym> From<&'ksym Ksym> for SymInfo<'ksym> {
 pub(crate) struct KSymResolver {
     /// An index over `syms` that is sorted by name.
     by_name_idx: OnceCell<Box<[usize]>>,
-    syms: Box<[Ksym]>,
+    syms: Box<[Kfunc]>,
     file_name: PathBuf,
 }
 
@@ -115,7 +115,7 @@ impl KSymResolver {
                 if addr == 0 {
                     continue
                 }
-                syms.push(Ksym {
+                syms.push(Kfunc {
                     addr,
                     name: Box::from(name),
                 });
@@ -132,8 +132,8 @@ impl KSymResolver {
         Ok(slf)
     }
 
-    fn find_ksym(&self, addr: Addr) -> Result<&Ksym, Reason> {
-        let result = find_match_or_lower_bound_by_key(&self.syms, addr, |ksym: &Ksym| ksym.addr)
+    fn find_ksym(&self, addr: Addr) -> Result<&Kfunc, Reason> {
+        let result = find_match_or_lower_bound_by_key(&self.syms, addr, |kfunc: &Kfunc| kfunc.addr)
             .and_then(|idx| self.syms.get(idx));
         match result {
             Some(sym) => Ok(sym),
@@ -147,7 +147,7 @@ impl KSymResolver {
         }
     }
 
-    fn create_by_name_idx(syms: &[Ksym]) -> Vec<usize> {
+    fn create_by_name_idx(syms: &[Kfunc]) -> Vec<usize> {
         let mut by_name_idx = (0..syms.len()).collect::<Vec<_>>();
         let () = by_name_idx.sort_by(|idx1, idx2| {
             let sym1 = &syms[*idx1];
@@ -244,11 +244,11 @@ mod tests {
         };
         assert_ne!(format!("{resolver:?}"), "");
 
-        let ksym = Ksym {
+        let kfunc = Kfunc {
             addr: 0x1337,
             name: Box::from("3l33t"),
         };
-        assert_ne!(format!("{ksym:?}"), "");
+        assert_ne!(format!("{kfunc:?}"), "");
     }
 
     /// Check that we can use a `KSymResolver` to find symbols.
@@ -314,19 +314,19 @@ mod tests {
     fn find_ksym() {
         let resolver = KSymResolver {
             syms: vec![
-                Ksym {
+                Kfunc {
                     addr: 0x123,
                     name: Box::from("1"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x123,
                     name: Box::from("1.5"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x1234,
                     name: Box::from("2"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x12345,
                     name: Box::from("3"),
                 },
@@ -376,19 +376,19 @@ mod tests {
     fn symbol_iteration() {
         let resolver = KSymResolver {
             syms: vec![
-                Ksym {
+                Kfunc {
                     addr: 0x123,
                     name: Box::from("j"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x123,
                     name: Box::from("b"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x1234,
                     name: Box::from("a"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x12345,
                     name: Box::from("z"),
                 },
@@ -418,19 +418,19 @@ mod tests {
     fn variable_operations() {
         let resolver = KSymResolver {
             syms: vec![
-                Ksym {
+                Kfunc {
                     addr: 0x123,
                     name: Box::from("j"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x123,
                     name: Box::from("b"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x1234,
                     name: Box::from("a"),
                 },
-                Ksym {
+                Kfunc {
                     addr: 0x12345,
                     name: Box::from("z"),
                 },
