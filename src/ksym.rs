@@ -2,9 +2,11 @@ use std::borrow::Cow;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+#[cfg(test)]
 use std::fs::File;
-use std::io::BufRead;
+use std::io::BufRead as _;
 use std::io::BufReader;
+use std::io::Read;
 use std::ops::ControlFlow;
 use std::path::Path;
 use std::path::PathBuf;
@@ -70,7 +72,7 @@ impl<'ksym> From<&'ksym Ksym> for SymInfo<'ksym> {
 ///
 /// The users should provide the path of kallsyms, so you can provide
 /// a copy from other devices.
-pub struct KSymResolver {
+pub(crate) struct KSymResolver {
     /// An index over `syms` that is sorted by name.
     by_name_idx: OnceCell<Box<[usize]>>,
     syms: Vec<Ksym>,
@@ -78,9 +80,17 @@ pub struct KSymResolver {
 }
 
 impl KSymResolver {
-    pub(crate) fn load_file_name(filename: PathBuf) -> Result<Self> {
-        let f = File::open(&filename)?;
-        let mut reader = BufReader::new(f);
+    #[cfg(test)]
+    fn load_file_name(path: &Path) -> Result<Self> {
+        let f = File::open(path)?;
+        Self::load_from_reader(f, path)
+    }
+
+    pub fn load_from_reader<R>(reader: R, path: &Path) -> Result<Self>
+    where
+        R: Read,
+    {
+        let mut reader = BufReader::new(reader);
         let mut line = String::new();
         let mut syms = Vec::with_capacity(DFL_KSYM_CAP);
 
@@ -111,7 +121,7 @@ impl KSymResolver {
         let slf = Self {
             syms,
             by_name_idx: OnceCell::new(),
-            file_name: filename,
+            file_name: path.to_path_buf(),
         };
         Ok(slf)
     }
@@ -235,7 +245,7 @@ mod tests {
     /// Check that we can use a `KSymResolver` to find symbols.
     #[test]
     fn ksym_resolver_load_find() {
-        let result = KSymResolver::load_file_name(PathBuf::from(KALLSYMS));
+        let result = KSymResolver::load_file_name(Path::new(KALLSYMS));
         let resolver = match result {
             Ok(resolver) => resolver,
             Err(err) if err.kind() == ErrorKind::NotFound => return,
