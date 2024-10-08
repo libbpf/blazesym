@@ -5,6 +5,8 @@ Unreleased
   IDs when normalizing with `NormalizeOpts::map_files` equal to `false`
 - Adjusted `inspect::Inspector::for_each` to accept callback returning
   `std::ops::ControlFlow` to facilitate early termination
+- Improved `kallsyms` parsing performance to speed up overall kernel
+  address symbolization
 
 
 0.2.0-rc.1
