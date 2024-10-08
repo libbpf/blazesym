@@ -879,9 +879,8 @@ impl Symbolizer {
         Ok(handler.all_symbols)
     }
 
-    fn create_ksym_resolver(&self, path: &Path, _file: &File) -> Result<Rc<KSymResolver>> {
-        // TODO: Should really use `file` and not `path` for the instantiation.
-        let resolver = KSymResolver::load_file_name(path.to_path_buf())?;
+    fn create_ksym_resolver(&self, path: &Path, file: &File) -> Result<Rc<KSymResolver>> {
+        let resolver = KSymResolver::load_from_reader(file, path)?;
         let resolver = Rc::new(resolver);
         Ok(resolver)
     }
