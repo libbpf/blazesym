@@ -23,6 +23,7 @@ use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
+use crate::Error;
 use crate::Result;
 use crate::SymType;
 
@@ -54,17 +55,20 @@ impl Kfunc {
     }
 }
 
-impl<'kfunc> From<&'kfunc Kfunc> for SymInfo<'kfunc> {
-    fn from(other: &'kfunc Kfunc) -> Self {
+impl<'kfunc> TryFrom<&'kfunc Kfunc> for SymInfo<'kfunc> {
+    type Error = Error;
+
+    fn try_from(other: &'kfunc Kfunc) -> Result<Self, Self::Error> {
         let Kfunc { name, addr } = other;
-        SymInfo {
+        let sym = SymInfo {
             name: Cow::Borrowed(name),
             addr: *addr,
             size: 0,
             sym_type: SymType::Function,
             file_offset: None,
             obj_file_name: None,
-        }
+        };
+        Ok(sym)
     }
 }
 
@@ -196,8 +200,8 @@ impl Inspect for KSymResolver {
         let syms = if let Some(idx) = result {
             by_name_idx[idx..]
                 .iter()
-                .map(|idx| SymInfo::from(&self.syms[*idx]))
-                .collect()
+                .map(|idx| SymInfo::try_from(&self.syms[*idx]))
+                .collect::<Result<_>>()?
         } else {
             Vec::new()
         };
@@ -210,7 +214,7 @@ impl Inspect for KSymResolver {
         }
 
         for ksym in self.syms.iter() {
-            let sym = SymInfo::from(ksym);
+            let sym = SymInfo::try_from(ksym)?;
             if let ControlFlow::Break(()) = f(&sym) {
                 return Ok(())
             }
