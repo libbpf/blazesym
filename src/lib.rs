@@ -41,6 +41,7 @@
 #![cfg_attr(
     not(all(
         feature = "apk",
+        feature = "bpf",
         feature = "breakpad",
         feature = "dwarf",
         feature = "gsym"
