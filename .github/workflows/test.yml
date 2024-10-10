@@ -124,7 +124,7 @@ jobs:
           # and `msrv` in .clippy.toml when bumping version.
           toolchain: 1.69.0
       - uses: Swatinem/rust-cache@v2
-      - run: cargo build --features="apk,backtrace,demangle,dwarf,gsym,tracing"
+      - run: cargo build --features="apk,backtrace,bpf,demangle,dwarf,gsym,tracing"
   nop-rebuilds:
     name: No-op rebuilds
     runs-on: ubuntu-22.04

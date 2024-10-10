@@ -27,6 +27,9 @@ use crate::Error;
 use crate::Result;
 use crate::SymType;
 
+#[cfg(feature = "bpf")]
+use super::bpf::BpfProg;
+
 pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
 
@@ -35,24 +38,44 @@ const DFL_KSYM_CAP: usize = 200000;
 #[derive(Debug)]
 enum Ksym {
     Kfunc(Kfunc),
+    #[cfg(feature = "bpf")]
+    BpfProg(BpfProg),
 }
 
 impl Ksym {
+    fn new(name: &str, addr: Addr) -> Self {
+        #[cfg(feature = "bpf")]
+        if let Some(bpf_prog) = BpfProg::parse(name, addr) {
+            return Self::BpfProg(bpf_prog)
+        }
+
+        Self::Kfunc(Kfunc {
+            addr,
+            name: Box::from(name),
+        })
+    }
+
     fn resolve(&self, addr: Addr, opts: &FindSymOpts) -> Result<ResolvedSym<'_>> {
         match self {
             Ksym::Kfunc(kfunc) => kfunc.resolve(addr, opts),
+            #[cfg(feature = "bpf")]
+            Ksym::BpfProg(bpf_prog) => bpf_prog.resolve(addr, opts),
         }
     }
 
     fn name(&self) -> &str {
         match self {
             Self::Kfunc(kfunc) => &kfunc.name,
+            #[cfg(feature = "bpf")]
+            Self::BpfProg(bpf_prog) => bpf_prog.name(),
         }
     }
 
     fn addr(&self) -> Addr {
         match self {
             Self::Kfunc(kfunc) => kfunc.addr,
+            #[cfg(feature = "bpf")]
+            Self::BpfProg(bpf_prog) => bpf_prog.addr(),
         }
     }
 
@@ -60,6 +83,15 @@ impl Ksym {
     fn as_kfunc(&self) -> Option<&Kfunc> {
         match self {
             Self::Kfunc(kfunc) => Some(kfunc),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    fn as_bpf_prog(&self) -> Option<&BpfProg> {
+        match self {
+            Self::BpfProg(bpf_prog) => Some(bpf_prog),
+            _ => None,
         }
     }
 }
@@ -70,6 +102,8 @@ impl<'ksym> TryFrom<&'ksym Ksym> for SymInfo<'ksym> {
     fn try_from(other: &'ksym Ksym) -> Result<Self, Self::Error> {
         match other {
             Ksym::Kfunc(kfunc) => SymInfo::try_from(kfunc),
+            #[cfg(feature = "bpf")]
+            Ksym::BpfProg(bpf_prog) => SymInfo::try_from(bpf_prog),
         }
     }
 }
@@ -165,10 +199,9 @@ impl KSymResolver {
                 if addr == 0 {
                     continue
                 }
-                syms.push(Ksym::Kfunc(Kfunc {
-                    addr,
-                    name: Box::from(name),
-                }));
+
+                let ksym = Ksym::new(name, addr);
+                let () = syms.push(ksym);
             }
         }
 
@@ -199,7 +232,7 @@ impl KSymResolver {
     }
 
     fn find_ksym(&self, addr: Addr) -> Result<&Ksym, Reason> {
-        let result = find_match_or_lower_bound_by_key(&self.syms, addr, |ksym: &Ksym| ksym.addr())
+        let result = find_match_or_lower_bound_by_key(&self.syms, addr, Ksym::addr)
             .and_then(|idx| self.syms.get(idx));
         match result {
             Some(sym) => Ok(sym),
@@ -274,8 +307,8 @@ impl Inspect for KSymResolver {
             return Ok(())
         }
 
-        for ksym in self.syms.iter() {
-            let sym = SymInfo::try_from(ksym)?;
+        for sym in self.syms.iter() {
+            let sym = SymInfo::try_from(sym)?;
             if let ControlFlow::Break(()) = f(&sym) {
                 return Ok(())
             }
@@ -303,6 +336,8 @@ mod tests {
 
     use crate::ErrorKind;
 
+    use super::super::bpf::BpfTag;
+
 
     /// Exercise the `Debug` representation of various types.
     #[tag(miri)]
@@ -320,6 +355,36 @@ mod tests {
             name: Box::from("3l33t"),
         };
         assert_ne!(format!("{kfunc:?}"), "");
+    }
+
+    /// Check that we can parse a kallsyms file containing a BPF
+    /// program.
+    #[tag(miri)]
+    #[test]
+    fn kallsyms_parsing() {
+        let kallsyms = br#"ffffffffc003b960 t bpf_prog_7cc47bbf07148bfe_hid_tail_call      [bpf]
+ffffffffc003e9c8 t bpf_prog_30304e82b4033ea3_kprobe__cap_capable        [bpf]
+ffffffffc0279010 T fuse_dev_init        [fuse]
+ffffffffc02791d0 T fuse_ctl_init        [fuse]
+ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
+"#;
+
+        let resolver =
+            KSymResolver::load_from_reader(&mut kallsyms.as_slice(), Path::new("<dummy>")).unwrap();
+        assert_eq!(resolver.syms.len(), 5);
+
+        // Spot-check some of the parsed symbols for sanity.
+        let ksym = resolver.syms[2].as_kfunc().unwrap();
+        assert_eq!(&*ksym.name, "fuse_dev_init");
+        assert_eq!(ksym.addr, 0xffffffffc0279010);
+
+        let prog = resolver.syms[1].as_bpf_prog().unwrap();
+        assert_eq!(prog.addr(), 0xffffffffc003e9c8);
+        assert_eq!(prog.name(), "kprobe__cap_capable");
+        assert_eq!(
+            prog.tag(),
+            BpfTag::from([0x30, 0x30, 0x4e, 0x82, 0xb4, 0x03, 0x3e, 0xa3])
+        );
     }
 
     /// Check that we can use a `KSymResolver` to find symbols.

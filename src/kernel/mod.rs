@@ -1,3 +1,5 @@
+#[cfg(feature = "bpf")]
+mod bpf;
 mod ksym;
 mod resolver;
 
