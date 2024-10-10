@@ -84,7 +84,7 @@ fn open_test_object(object: &str) -> OpenObject {
 }
 
 #[track_caller]
-fn test_object(filename: &str) -> Object {
+pub(crate) fn test_object(filename: &str) -> Object {
     open_test_object(filename)
         .load()
         .expect("failed to load object")
@@ -101,7 +101,7 @@ fn map_mut<'obj>(object: &'obj mut Object, name: &str) -> MapMut<'obj> {
 
 /// Find the BPF program with the given name, panic if it does not exist.
 #[track_caller]
-fn prog_mut<'obj>(object: &'obj mut Object, name: &str) -> ProgramMut<'obj> {
+pub(crate) fn prog_mut<'obj>(object: &'obj mut Object, name: &str) -> ProgramMut<'obj> {
     object
         .progs_mut()
         .find(|map| map.name() == name)
