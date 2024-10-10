@@ -32,7 +32,7 @@ const DFL_KSYM_CAP: usize = 200000;
 #[derive(Debug)]
 pub struct Ksym {
     pub addr: Addr,
-    pub name: String,
+    pub name: Box<str>,
 }
 
 impl<'ksym> From<&'ksym Ksym> for ResolvedSym<'ksym> {
@@ -117,7 +117,7 @@ impl KSymResolver {
                 }
                 syms.push(Ksym {
                     addr,
-                    name: name.to_string(),
+                    name: Box::from(name),
                 });
             }
         }
@@ -246,7 +246,7 @@ mod tests {
 
         let ksym = Ksym {
             addr: 0x1337,
-            name: "3l33t".to_string(),
+            name: Box::from("3l33t"),
         };
         assert_ne!(format!("{ksym:?}"), "");
     }
@@ -316,19 +316,19 @@ mod tests {
             syms: vec![
                 Ksym {
                     addr: 0x123,
-                    name: "1".to_string(),
+                    name: Box::from("1"),
                 },
                 Ksym {
                     addr: 0x123,
-                    name: "1.5".to_string(),
+                    name: Box::from("1.5"),
                 },
                 Ksym {
                     addr: 0x1234,
-                    name: "2".to_string(),
+                    name: Box::from("2"),
                 },
                 Ksym {
                     addr: 0x12345,
-                    name: "3".to_string(),
+                    name: Box::from("3"),
                 },
             ]
             .into_boxed_slice(),
@@ -342,32 +342,32 @@ mod tests {
         // The address match symbols exactly (the first address.)
         let sym = resolver.find_ksym(0x123).unwrap();
         assert_eq!(sym.addr, 0x123);
-        assert_eq!(sym.name, "1");
+        assert_eq!(&*sym.name, "1");
 
         // The address is in between two symbols (the first address.)
         let sym = resolver.find_ksym(0x124).unwrap();
         assert_eq!(sym.addr, 0x123);
-        assert_eq!(sym.name, "1.5");
+        assert_eq!(&*sym.name, "1.5");
 
         // The address match symbols exactly.
         let sym = resolver.find_ksym(0x1234).unwrap();
         assert_eq!(sym.addr, 0x1234);
-        assert_eq!(sym.name, "2");
+        assert_eq!(&*sym.name, "2");
 
         // The address is in between two symbols.
         let sym = resolver.find_ksym(0x1235).unwrap();
         assert_eq!(sym.addr, 0x1234);
-        assert_eq!(sym.name, "2");
+        assert_eq!(&*sym.name, "2");
 
         // The address match symbols exactly (the biggest address.)
         let sym = resolver.find_ksym(0x12345).unwrap();
         assert_eq!(sym.addr, 0x12345);
-        assert_eq!(sym.name, "3");
+        assert_eq!(&*sym.name, "3");
 
         // The address is bigger than the biggest address of all symbols.
         let sym = resolver.find_ksym(0x1234568).unwrap();
         assert_eq!(sym.addr, 0x12345);
-        assert_eq!(sym.name, "3");
+        assert_eq!(&*sym.name, "3");
     }
 
     /// Check that we can correctly iterate over all symbols.
@@ -378,19 +378,19 @@ mod tests {
             syms: vec![
                 Ksym {
                     addr: 0x123,
-                    name: "j".to_string(),
+                    name: Box::from("j"),
                 },
                 Ksym {
                     addr: 0x123,
-                    name: "b".to_string(),
+                    name: Box::from("b"),
                 },
                 Ksym {
                     addr: 0x1234,
-                    name: "a".to_string(),
+                    name: Box::from("a"),
                 },
                 Ksym {
                     addr: 0x12345,
-                    name: "z".to_string(),
+                    name: Box::from("z"),
                 },
             ]
             .into_boxed_slice(),
@@ -420,19 +420,19 @@ mod tests {
             syms: vec![
                 Ksym {
                     addr: 0x123,
-                    name: "j".to_string(),
+                    name: Box::from("j"),
                 },
                 Ksym {
                     addr: 0x123,
-                    name: "b".to_string(),
+                    name: Box::from("b"),
                 },
                 Ksym {
                     addr: 0x1234,
-                    name: "a".to_string(),
+                    name: Box::from("a"),
                 },
                 Ksym {
                     addr: 0x12345,
-                    name: "z".to_string(),
+                    name: Box::from("z"),
                 },
             ]
             .into_boxed_slice(),
