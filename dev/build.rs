@@ -19,7 +19,10 @@ use std::process::Command;
 use std::process::Stdio;
 
 fn crate_root() -> PathBuf {
-    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+    Path::new(&env::var("CARGO_MANIFEST_DIR").unwrap())
+        .parent()
+        .unwrap()
+        .to_path_buf()
 }
 
 fn data_dir() -> PathBuf {
