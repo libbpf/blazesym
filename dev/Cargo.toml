@@ -1,0 +1,32 @@
+# A development-only package for generating blazesym test artifacts.
+
+[package]
+name = "blazesym-dev"
+version = "0.0.0"
+edition = "2021"
+authors = ["Daniel Müller <deso@posteo.net>"]
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[features]
+# Enable this feature to enable support for zstd decompression.
+zstd = ["dep:zstd"]
+# Enable this feature to opt in to the generation of unit test files.
+# Having these test files created is necessary for running tests.
+generate-unit-test-files = ["dump_syms", "xz2", "zip"]
+# Enable this feature to opt in to the generation of large benchmark
+# files (also used for regression testing).
+generate-large-test-files = ["dump_syms", "reqwest", "xz2"]
+# Disable generation of test files. This feature takes preference over
+# `generate-unit-test-files`.
+dont-generate-unit-test-files = []
+
+[build-dependencies]
+dump_syms = {version = "2.3", optional = true, default-features = false}
+libc = "0.2.137"
+reqwest = {version = "0.12.0", optional = true, features = ["blocking"]}
+xz2 = {version = "0.1.7", optional = true}
+zip = {version = "2.0.0", optional = true, default-features = false}
+zstd = {version = "0.13.1", default-features = false, optional = true}

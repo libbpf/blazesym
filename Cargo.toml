@@ -3,6 +3,7 @@ members = [
   ".",
   "capi",
   "cli",
+  "dev",
   "examples/sym-debuginfod",
   "examples/gsym-in-apk",
 ]
@@ -74,13 +75,13 @@ zstd = ["dep:zstd"]
 
 # Enable this feature to opt in to the generation of unit test files.
 # Having these test files created is necessary for running tests.
-generate-unit-test-files = ["dump_syms", "xz2", "zip"]
+generate-unit-test-files = ["blazesym-dev/generate-unit-test-files"]
 # Enable this feature to opt in to the generation of large benchmark
 # files (also used for regression testing).
-generate-large-test-files = ["dump_syms", "reqwest", "xz2"]
+generate-large-test-files = ["blazesym-dev/generate-large-test-files"]
 # Disable generation of test files. This feature takes preference over
 # `generate-unit-test-files`.
-dont-generate-unit-test-files = []
+dont-generate-unit-test-files = ["blazesym-dev/dont-generate-unit-test-files"]
 # Enable code paths requiring a nightly toolchain. This feature is only meant to
 # be used for testing and benchmarking purposes, not for the core library, which
 # is expected to work on stable.
@@ -118,13 +119,6 @@ codegen-units = 1
 lto = false
 codegen-units = 256
 
-[build-dependencies]
-dump_syms = {version = "2.3", optional = true, default-features = false}
-libc = "0.2.137"
-reqwest = {version = "0.12.0", optional = true, features = ["blocking"]}
-xz2 = {version = "0.1.7", optional = true}
-zip = {version = "2.0.0", optional = true, default-features = false}
-
 [dependencies]
 cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.31", optional = true}
@@ -145,6 +139,7 @@ anyhow = "1.0.71"
 #       widespread (enabled by default in `ld`). Remove conditionals in
 #       test code alongside.
 blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "breakpad", "gsym", "tracing"]}
+blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
 scopeguard = "1.2"
