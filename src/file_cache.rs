@@ -179,9 +179,13 @@ mod tests {
 
     use std::io::Read as _;
     use std::io::Write as _;
+    use std::os::fd::AsRawFd as _;
+    #[cfg(not(windows))]
+    use std::os::unix::fs::symlink;
     use std::thread::sleep;
     use std::time::Duration;
 
+    use tempfile::tempdir;
     use tempfile::tempfile;
     use tempfile::NamedTempFile;
 
@@ -214,6 +218,26 @@ mod tests {
             let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
             assert_eq!(cell.get(), Some(&42));
         }
+    }
+
+    /// Check that our `FileCache` does not represent symbolic links
+    /// pointing to the same file as equal entries.
+    #[cfg(not(windows))]
+    #[test]
+    fn file_symlinks() {
+        let tmpfile = NamedTempFile::new().unwrap();
+        let tmpdir = tempdir().unwrap();
+        let link = tmpdir.path().join("symlink");
+        let () = symlink(tmpfile.path(), &link).unwrap();
+
+        let cache = FileCache::<usize>::default();
+        let (file1, cell) = cache.entry(tmpfile.path()).unwrap();
+        let () = cell.set(42).unwrap();
+
+        let (file2, cell) = cache.entry(&link).unwrap();
+        assert_eq!(cell.get(), None);
+
+        assert_ne!(file1.as_raw_fd(), file2.as_raw_fd());
     }
 
     /// Make sure that a changed file purges the cache entry .
