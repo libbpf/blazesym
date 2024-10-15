@@ -20,9 +20,9 @@ use crate::file_cache::FileCache;
 #[cfg(feature = "gsym")]
 use crate::gsym::GsymResolver;
 use crate::insert_map::InsertMap;
+use crate::kernel::KSymResolver;
 use crate::kernel::KernelResolver;
-use crate::ksym::KSymResolver;
-use crate::ksym::KALLSYMS;
+use crate::kernel::KALLSYMS;
 use crate::log;
 use crate::maps;
 use crate::maps::EntryPath;

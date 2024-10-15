@@ -5,7 +5,6 @@ use std::path::Path;
 use std::rc::Rc;
 
 use crate::elf::ElfResolver;
-use crate::ksym::KSymResolver;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::Reason;
 use crate::symbolize::ResolvedSym;
@@ -13,6 +12,8 @@ use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
 use crate::Result;
+
+use super::ksym::KSymResolver;
 
 
 pub(crate) struct KernelResolver {
