@@ -179,9 +179,6 @@ mod tests {
 
     use std::io::Read as _;
     use std::io::Write as _;
-    use std::os::fd::AsRawFd as _;
-    #[cfg(not(windows))]
-    use std::os::unix::fs::symlink;
     use std::thread::sleep;
     use std::time::Duration;
 
@@ -225,6 +222,9 @@ mod tests {
     #[cfg(not(windows))]
     #[test]
     fn file_symlinks() {
+        use std::os::fd::AsRawFd as _;
+        use std::os::unix::fs::symlink;
+
         let tmpfile = NamedTempFile::new().unwrap();
         let tmpdir = tempdir().unwrap();
         let link = tmpdir.path().join("symlink");

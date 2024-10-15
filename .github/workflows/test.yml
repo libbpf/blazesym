@@ -49,6 +49,10 @@ jobs:
             rust: stable
             profile: release
             args: "--lib --no-default-features"
+          - runs-on: windows-latest
+            rust: stable
+            profile: dev
+            args: "--tests --features=dont-generate-unit-test-files"
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
