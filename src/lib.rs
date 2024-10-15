@@ -67,7 +67,6 @@ mod gsym;
 mod insert_map;
 pub mod inspect;
 mod kernel;
-mod ksym;
 mod maps;
 mod mmap;
 pub mod normalize;
