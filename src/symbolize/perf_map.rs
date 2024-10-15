@@ -369,7 +369,7 @@ if __name__ == "__main__":
             .unwrap()
             .into_iter()
             .collect::<Vec<_>>();
-        assert_eq!(results.len(), function.size as _);
+        assert_eq!(results.len(), function.size);
         let () = results.into_iter().for_each(|symbolized| {
             let result = symbolized.into_sym().unwrap();
             assert_eq!(result.name, function.name);

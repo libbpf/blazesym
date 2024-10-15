@@ -643,7 +643,7 @@ impl ElfParser {
                 }?;
                 debug_assert_eq!(
                     decompressed.len(),
-                    chdr.ch_size as _,
+                    chdr.ch_size as usize,
                     "decompressed ELF section data does not have expected length"
                 );
                 Ok(decompressed)
@@ -1036,7 +1036,7 @@ mod tests {
 
         let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
         let ehdr = parser.cache.ensure_ehdr().unwrap();
-        assert_eq!(ehdr.shnum, SHNUM.into());
+        assert_eq!(ehdr.shnum, usize::from(SHNUM));
         assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
     }
 
@@ -1094,7 +1094,7 @@ mod tests {
         let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
         let ehdr = parser.cache.ensure_ehdr().unwrap();
         let shstrndx = parser.cache.shstrndx(ehdr.ehdr).unwrap();
-        assert_eq!(shstrndx, SHSTRNDX.into());
+        assert_eq!(shstrndx, usize::from(SHSTRNDX));
     }
 
 

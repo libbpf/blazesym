@@ -1052,28 +1052,28 @@ INLINE 1 17 4 1 1010 10
         let line =
             b"STACK WIN 4 2170 14 a1 b2 c3 d4 e5 f6 1 $eip 4 + ^ = $esp $ebp 8 + = $ebp $ebp ^ =\n";
         let (rest, ()) = stack_win_line(line).unwrap();
-        assert_eq!(rest, &[]);
+        assert_eq!(rest, &[] as &[u8]);
     }
 
     #[test]
     fn parse_stack_win_line_frame_data() {
         let line = b"STACK WIN 0 1000 30 a1 b2 c3 d4 e5 f6 0 1\n";
         let (rest, ()) = stack_win_line(line).unwrap();
-        assert_eq!(rest, &[]);
+        assert_eq!(rest, &[] as &[u8]);
     }
 
     #[test]
     fn parse_stack_cfi() {
         let line = b"STACK CFI deadf00d some rules\n";
         let (rest, ()) = stack_cfi(line).unwrap();
-        assert_eq!(rest, &[]);
+        assert_eq!(rest, &[] as &[u8]);
     }
 
     #[test]
     fn parse_stack_cfi_init() {
         let line = b"STACK CFI INIT badf00d abc init rules\n";
         let (rest, ()) = stack_cfi_init(line).unwrap();
-        assert_eq!(rest, &[]);
+        assert_eq!(rest, &[] as &[u8]);
     }
 
     #[test]
