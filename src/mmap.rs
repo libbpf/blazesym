@@ -146,7 +146,7 @@ mod tests {
     fn mmap_empty_file() {
         let file = tempfile().unwrap();
         let mmap = Mmap::map(&file).unwrap();
-        assert_eq!(mmap.deref(), &[]);
+        assert_eq!(mmap.deref(), &[] as &[u8]);
     }
 
     /// Check that we can `mmap` a file.
