@@ -29,9 +29,9 @@ jobs:
         runs-on: [ubuntu-latest, macos-latest]
         rust: [stable]
         profile: [dev, release]
-        # gsym-in-apk requires `generate-unit-test-files` feature, which
-        # requires `llvm-gsymutil` installed. We don't want that dependency in
-        # this large OS spanning matrix.
+        # gsym-in-apk requires `blazesym-dev/generate-unit-test-files`
+        # feature, which requires `llvm-gsymutil` installed. We don't
+        # want that dependency in this large OS spanning matrix.
         args: ["--workspace --exclude=gsym-in-apk"]
         include:
           - runs-on: ubuntu-latest
@@ -52,7 +52,7 @@ jobs:
           - runs-on: windows-latest
             rust: stable
             profile: dev
-            args: "--tests --features=dont-generate-unit-test-files"
+            args: "--tests --features=blazesym-dev/dont-generate-unit-test-files"
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
@@ -137,7 +137,7 @@ jobs:
       run: sudo apt-get install -y llvm-14
     - name: Check incremental rebuilds
       env:
-        CARGO_OPTS: --features=generate-unit-test-files --workspace --quiet --tests
+        CARGO_OPTS: --workspace --quiet --tests
       run: |
         cargo check ${CARGO_OPTS}
         # We need another build here to have the reference `output` file
@@ -175,6 +175,7 @@ jobs:
       env:
         ARTIFACT_URL: ${{ needs.build-linux-kernel.outputs.kernel-artifact-url }}
         PYTHON: ${{ steps.py312.outputs.python-path }}
+        RUSTFLAGS: '--cfg has_large_test_files'
       run: |
         # cargo-llvm-cov ultimately is just a thin wrapper around cargo
         # commands with certain environment variables set. Because it
@@ -185,7 +186,7 @@ jobs:
         echo "export PYTHON=${PYTHON}" >> env.sh
         source env.sh
 
-        cargo test --no-run --workspace --all-targets --features=nightly,generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
+        cargo test --no-run --workspace --all-targets --features=nightly,blazesym-dev/generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
         tests=$(IFS='' grep Executable /tmp/cargo-build.log |
           awk '{print $NF}' |
           sed 's@[()]@@g' |
@@ -241,7 +242,7 @@ jobs:
       run: sudo apt-get install -y llvm-14
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - run: cargo build --features=generate-unit-test-files
+    - run: cargo check --package=blazesym-dev --features=generate-unit-test-files
     - uses: actions/upload-artifact@v4
       with:
         name: test-stable-addrs
@@ -261,7 +262,7 @@ jobs:
         path: data/
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
-    - run: cargo test --tests --release --features=dont-generate-unit-test-files -- ':windows:'
+    - run: cargo test --tests --release --features=blazesym-dev/dont-generate-unit-test-files -- ':windows:'
   test-sanitizers:
     name: Test with ${{ matrix.sanitizer }} sanitizer
     strategy:
@@ -327,7 +328,7 @@ jobs:
     - name: Remove .cargo/config.toml
       run: rm .cargo/config.toml
     - name: Run tests
-      run: cargo miri test --workspace --features=dont-generate-unit-test-files -- ":miri:"
+      run: cargo miri test --workspace --features=blazesym-dev/dont-generate-unit-test-files -- ":miri:"
   test-examples:
     name: Test examples
     runs-on: ubuntu-22.04
@@ -376,7 +377,7 @@ jobs:
         # `--output-format` option, we need to specify the benchmark
         # binary (`main`) here and have a different invocation for
         # libtest style benchmarks above. Sigh.
-        cargo bench --workspace --bench=main --bench=capi --features=generate-large-test-files,dont-generate-unit-test-files -- --output-format=bencher | tee --append $GITHUB_STEP_SUMMARY
+        cargo bench --workspace --bench=main --bench=capi --features=blazesym-dev/generate-large-test-files,blazesym-dev/dont-generate-unit-test-files -- --output-format=bencher | tee --append $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
   clippy:
     name: Lint with clippy
@@ -384,7 +385,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo clippy --workspace --no-deps --all-targets --features=dont-generate-unit-test-files -- -A unknown_lints -D clippy::todo
+      - run: cargo clippy --workspace --no-deps --all-targets --features=blazesym-dev/dont-generate-unit-test-files -- -A unknown_lints -D clippy::todo
   rustfmt:
     name: Check code formatting
     runs-on: ubuntu-latest
