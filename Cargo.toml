@@ -73,15 +73,6 @@ zstd = ["dep:zstd"]
 # Below here are dev-mostly features that should not be needed by
 # regular users.
 
-# Enable this feature to opt in to the generation of unit test files.
-# Having these test files created is necessary for running tests.
-generate-unit-test-files = ["blazesym-dev/generate-unit-test-files"]
-# Enable this feature to opt in to the generation of large benchmark
-# files (also used for regression testing).
-generate-large-test-files = ["blazesym-dev/generate-large-test-files"]
-# Disable generation of test files. This feature takes preference over
-# `generate-unit-test-files`.
-dont-generate-unit-test-files = ["blazesym-dev/dont-generate-unit-test-files"]
 # Enable code paths requiring a nightly toolchain. This feature is only meant to
 # be used for testing and benchmarking purposes, not for the core library, which
 # is expected to work on stable.
@@ -101,7 +92,7 @@ name = "normalize-virt-offset"
 
 [[example]]
 name = "inspect-mangled"
-required-features = ["demangle", "generate-unit-test-files"]
+required-features = ["demangle", "blazesym-dev/generate-unit-test-files"]
 
 [[bench]]
 name = "main"
@@ -138,7 +129,7 @@ anyhow = "1.0.71"
 # TODO: Enable `zstd` feature once toolchain support for it is more
 #       widespread (enabled by default in `ld`). Remove conditionals in
 #       test code alongside.
-blazesym = {path = ".", features = ["generate-unit-test-files", "apk", "breakpad", "gsym", "tracing"]}
+blazesym = {path = ".", features = ["apk", "breakpad", "gsym", "tracing"]}
 blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
@@ -162,4 +153,4 @@ features = ["apk", "backtrace", "breakpad", "demangle", "dwarf", "gsym"]
 rustdoc-args = ["--cfg", "docsrs"]
 
 [lints.rust]
-unexpected_cfgs = {level = "warn", check-cfg = ['cfg(has_procmap_query_ioctl)']}
+unexpected_cfgs = {level = "warn", check-cfg = ['cfg(has_procmap_query_ioctl)', 'cfg(has_large_test_files)']}

@@ -19,8 +19,9 @@ $ cargo test --workspace
 ```
 runs the vast majority of tests. Tests require `sudo` to be set up properly, as
 some of the functionality we rely on is privileged. Test artifacts are
-transparently created as long as the `generate-unit-test-files` feature is
-active, which is enabled by default for testing.
+transparently created as long as the `generate-unit-test-files` feature for the
+`blazesym-dev` package is active, which is enabled by default for
+testing.
 
 ### Running Miri
 [Miri][miri] is used for testing the crate for any undefined behavior.
@@ -47,8 +48,8 @@ based][libtest] unit-test style ones.
 To run the benchmark suite, use:
 ```sh
 # Perform one-time setup of required data.
-$ cargo check --features=generate-large-test-files
-$ cargo bench --features=nightly
+$ cargo check --package blazesym-dev --features=generate-large-test-files
+$ RUSTFLAGS='--cfg has_large_test_files' cargo bench --features=nightly
 ```
 
 Some benchmarks require the `PROCMAP_QUERY` ioctl kernel functionality,

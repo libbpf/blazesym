@@ -573,7 +573,7 @@ fn symbolize_breakpad_inlined() {
 /// ```
 /// In the past we were unable to handle this case properly.
 #[test]
-#[cfg_attr(not(feature = "generate-large-test-files"), ignore)]
+#[cfg_attr(not(has_large_test_files), ignore)]
 fn symbolize_dwarf_complex() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")

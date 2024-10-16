@@ -14,7 +14,7 @@ path = "main.rs"
 blazesym = {version = "=0.2.0-rc.1", path = "../..", default-features = false, features = [
   "apk",
   "gsym",
-  "generate-unit-test-files",
 ]}
+blazesym-dev = {path = "../../dev", features = ["generate-unit-test-files"]}
 goblin = {version = "0.8.0", default-features = false, features = ["elf32", "elf64", "std"]}
 zip = {version = "2.0.0", default-features = false}
