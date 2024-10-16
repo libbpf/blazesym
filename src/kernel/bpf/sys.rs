@@ -17,6 +17,27 @@ type bpf_cmd = c_uint;
 const BPF_PROG_GET_NEXT_ID: bpf_cmd = 11;
 const BPF_PROG_GET_FD_BY_ID: bpf_cmd = 13;
 const BPF_OBJ_GET_INFO_BY_FD: bpf_cmd = 15;
+const BPF_BTF_GET_FD_BY_ID: bpf_cmd = 19;
+
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default)]
+pub struct bpf_line_info {
+    pub insn_off: u32,
+    pub file_name_off: u32,
+    pub line_off: u32,
+    pub line_col: u32,
+}
+
+impl bpf_line_info {
+    pub fn line(&self) -> u32 {
+        self.line_col >> 10
+    }
+
+    pub fn column(&self) -> u16 {
+        (self.line_col & 0x3ff) as _
+    }
+}
 
 
 #[repr(C)]
@@ -62,6 +83,32 @@ pub struct bpf_prog_info {
     pub attach_btf_obj_id: u32,
     pub attach_btf_id: u32,
     pub __bindgen_padding_0: [u8; 4usize],
+}
+
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, Default)]
+pub struct bpf_btf_info {
+    pub btf: u64,
+    pub btf_size: u32,
+    pub id: u32,
+    pub name: u64,
+    pub name_len: u32,
+    pub kernel_btf: u32,
+}
+
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct btf_header {
+    pub magic: u16,
+    pub version: u8,
+    pub flags: u8,
+    pub hdr_len: u32,
+    pub type_off: u32,
+    pub type_len: u32,
+    pub str_off: u32,
+    pub str_len: u32,
 }
 
 
@@ -142,11 +189,11 @@ pub fn bpf_prog_get_fd_from_id(prog_id: u32) -> io::Result<OwnedFd> {
     Ok(fd)
 }
 
-pub fn bpf_prog_get_info_from_fd(bpf_fd: RawFd, info: &mut bpf_prog_info) -> io::Result<()> {
+fn bpf_obj_get_info_from_fd<I>(bpf_fd: RawFd, info: &mut I) -> io::Result<()> {
     let mut attr = bpf_attr {
         info: bpf_attr__bindgen_ty_9 {
             bpf_fd: bpf_fd as _,
-            info_len: size_of::<bpf_prog_info>() as _,
+            info_len: size_of::<I>() as _,
             // NB: Evidently `info` is not just used as output argument
             //     but also as input.
             info: info as *mut _ as usize as _,
@@ -157,6 +204,31 @@ pub fn bpf_prog_get_info_from_fd(bpf_fd: RawFd, info: &mut bpf_prog_info) -> io:
     let _rc = sys_bpf(BPF_OBJ_GET_INFO_BY_FD, &mut attr, attr_size)?;
     // TODO: May need to double check `attr.info.info_len`?
     Ok(())
+}
+
+pub fn bpf_prog_get_info_from_fd(bpf_fd: RawFd, info: &mut bpf_prog_info) -> io::Result<()> {
+    bpf_obj_get_info_from_fd::<bpf_prog_info>(bpf_fd, info)
+}
+
+pub fn bpf_btf_get_fd_from_id(btf_id: u32) -> io::Result<OwnedFd> {
+    let mut attr = bpf_attr {
+        __bindgen_anon_6: bpf_attr__bindgen_ty_8 {
+            __bindgen_anon_1: bpf_attr__bindgen_ty_8__bindgen_ty_1 { btf_id },
+            next_id: 0,
+            open_flags: 0,
+        },
+    };
+
+    let attr_size = unsafe { size_of_val(&attr.__bindgen_anon_6) };
+    let fd = sys_bpf(BPF_BTF_GET_FD_BY_ID, &mut attr, attr_size)?;
+    // SAFETY: The system call was checked for success and on success a
+    //         valid owned file descriptor is returned.
+    let fd = unsafe { OwnedFd::from_raw_fd(fd.try_into().unwrap()) };
+    Ok(fd)
+}
+
+pub fn bpf_btf_get_info_from_fd(btf_fd: RawFd, info: &mut bpf_btf_info) -> io::Result<()> {
+    bpf_obj_get_info_from_fd(btf_fd, info)
 }
 
 
