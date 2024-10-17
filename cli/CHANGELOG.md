@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added support for symbolization of kernel addresses
+
+
 0.1.6
 -----
 - Added `--procmap-query` option to `normalize user` sub-command
