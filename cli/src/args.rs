@@ -175,6 +175,7 @@ pub mod symbolize {
         Elf(Elf),
         Gsym(Gsym),
         Process(Process),
+        Kernel(Kernel),
     }
 
     #[derive(Debug, Arguments)]
@@ -245,5 +246,12 @@ pub mod symbolize {
         /// symbolic paths instead.
         #[clap(long)]
         pub no_map_files: bool,
+    }
+
+    #[derive(Debug, Arguments)]
+    pub struct Kernel {
+        /// The addresses to symbolize.
+        #[arg(value_parser = parse_addr)]
+        pub addrs: Vec<Addr>,
     }
 }

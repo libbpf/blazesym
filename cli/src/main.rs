@@ -255,6 +255,13 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
             let input = symbolize::Input::AbsAddr(addrs);
             (src, input, addrs)
         }
+        args::symbolize::Symbolize::Kernel(args::symbolize::Kernel { ref addrs }) => {
+            let kernel = symbolize::Kernel::default();
+            let src = symbolize::Source::from(kernel);
+            let addrs = addrs.as_slice();
+            let input = symbolize::Input::AbsAddr(addrs);
+            (src, input, addrs)
+        }
     };
 
     let symbolizer = builder.build();
