@@ -23,22 +23,112 @@ use crate::symbolize::SrcLang;
 use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
+use crate::Error;
 use crate::Result;
 use crate::SymType;
+
+#[cfg(feature = "bpf")]
+use super::bpf::BpfInfoCache;
+#[cfg(feature = "bpf")]
+use super::bpf::BpfProg;
+
+#[cfg(not(feature = "bpf"))]
+type BpfInfoCache = ();
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
 
+
+/// A kallsyms-style symbol.
 #[derive(Debug)]
-pub struct Ksym {
-    pub addr: Addr,
-    pub name: Box<str>,
+enum Ksym {
+    Kfunc(Kfunc),
+    #[cfg(feature = "bpf")]
+    BpfProg(BpfProg),
 }
 
-impl<'ksym> From<&'ksym Ksym> for ResolvedSym<'ksym> {
-    fn from(other: &'ksym Ksym) -> Self {
-        let Ksym { name, addr } = other;
-        ResolvedSym {
+impl Ksym {
+    fn new(name: &str, addr: Addr) -> Self {
+        #[cfg(feature = "bpf")]
+        if let Some(bpf_prog) = BpfProg::parse(name, addr) {
+            return Self::BpfProg(bpf_prog)
+        }
+
+        Self::Kfunc(Kfunc {
+            addr,
+            name: Box::from(name),
+        })
+    }
+
+    fn resolve(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+        _bpf_info_cache: &BpfInfoCache,
+    ) -> Result<ResolvedSym<'_>> {
+        match self {
+            Ksym::Kfunc(kfunc) => kfunc.resolve(addr, opts),
+            #[cfg(feature = "bpf")]
+            Ksym::BpfProg(bpf_prog) => bpf_prog.resolve(addr, opts, _bpf_info_cache),
+        }
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            Self::Kfunc(kfunc) => &kfunc.name,
+            #[cfg(feature = "bpf")]
+            Self::BpfProg(bpf_prog) => bpf_prog.name(),
+        }
+    }
+
+    fn addr(&self) -> Addr {
+        match self {
+            Self::Kfunc(kfunc) => kfunc.addr,
+            #[cfg(feature = "bpf")]
+            Self::BpfProg(bpf_prog) => bpf_prog.addr(),
+        }
+    }
+
+    #[cfg(test)]
+    fn as_kfunc(&self) -> Option<&Kfunc> {
+        match self {
+            Self::Kfunc(kfunc) => Some(kfunc),
+            _ => None,
+        }
+    }
+
+    #[cfg(test)]
+    fn as_bpf_prog(&self) -> Option<&BpfProg> {
+        match self {
+            Self::BpfProg(bpf_prog) => Some(bpf_prog),
+            _ => None,
+        }
+    }
+}
+
+impl<'ksym> TryFrom<&'ksym Ksym> for SymInfo<'ksym> {
+    type Error = Error;
+
+    fn try_from(other: &'ksym Ksym) -> Result<Self, Self::Error> {
+        match other {
+            Ksym::Kfunc(kfunc) => SymInfo::try_from(kfunc),
+            #[cfg(feature = "bpf")]
+            Ksym::BpfProg(bpf_prog) => SymInfo::try_from(bpf_prog),
+        }
+    }
+}
+
+
+#[derive(Debug)]
+struct Kfunc {
+    addr: Addr,
+    name: Box<str>,
+}
+
+impl Kfunc {
+    fn resolve(&self, _addr: Addr, _opts: &FindSymOpts) -> Result<ResolvedSym<'_>> {
+        let Kfunc { name, addr } = self;
+        let sym = ResolvedSym {
             name,
             addr: *addr,
             // There is no size information in kallsyms.
@@ -49,21 +139,25 @@ impl<'ksym> From<&'ksym Ksym> for ResolvedSym<'ksym> {
             // kallsyms doesn't have source code location information.
             code_info: None,
             inlined: Box::new([]),
-        }
+        };
+        Ok(sym)
     }
 }
 
-impl<'ksym> From<&'ksym Ksym> for SymInfo<'ksym> {
-    fn from(other: &'ksym Ksym) -> Self {
-        let Ksym { name, addr } = other;
-        SymInfo {
+impl<'kfunc> TryFrom<&'kfunc Kfunc> for SymInfo<'kfunc> {
+    type Error = Error;
+
+    fn try_from(other: &'kfunc Kfunc) -> Result<Self, Self::Error> {
+        let Kfunc { name, addr } = other;
+        let sym = SymInfo {
             name: Cow::Borrowed(name),
             addr: *addr,
             size: 0,
             sym_type: SymType::Function,
             file_offset: None,
             obj_file_name: None,
-        }
+        };
+        Ok(sym)
     }
 }
 
@@ -77,6 +171,7 @@ pub(crate) struct KSymResolver {
     by_name_idx: OnceCell<Box<[usize]>>,
     syms: Box<[Ksym]>,
     file_name: PathBuf,
+    bpf_info_cache: BpfInfoCache,
 }
 
 impl KSymResolver {
@@ -115,25 +210,42 @@ impl KSymResolver {
                 if addr == 0 {
                     continue
                 }
-                syms.push(Ksym {
-                    addr,
-                    name: Box::from(name),
-                });
+
+                let ksym = Ksym::new(name, addr);
+                let () = syms.push(ksym);
             }
         }
 
-        syms.sort_by(|a, b| a.addr.cmp(&b.addr));
+        let () = syms.sort_by_key(|a| a.addr());
 
         let slf = Self {
             syms: syms.into_boxed_slice(),
             by_name_idx: OnceCell::new(),
             file_name: path.to_path_buf(),
+            bpf_info_cache: BpfInfoCache::default(),
         };
         Ok(slf)
     }
 
+    #[cfg(test)]
+    fn from_kfuncs<I>(kfuncs: I) -> Self
+    where
+        I: IntoIterator<Item = Kfunc>,
+    {
+        Self {
+            syms: kfuncs
+                .into_iter()
+                .map(Ksym::Kfunc)
+                .collect::<Vec<_>>()
+                .into_boxed_slice(),
+            by_name_idx: OnceCell::new(),
+            file_name: PathBuf::new(),
+            bpf_info_cache: BpfInfoCache::default(),
+        }
+    }
+
     fn find_ksym(&self, addr: Addr) -> Result<&Ksym, Reason> {
-        let result = find_match_or_lower_bound_by_key(&self.syms, addr, |ksym: &Ksym| ksym.addr)
+        let result = find_match_or_lower_bound_by_key(&self.syms, addr, Ksym::addr)
             .and_then(|idx| self.syms.get(idx));
         match result {
             Some(sym) => Ok(sym),
@@ -152,9 +264,9 @@ impl KSymResolver {
         let () = by_name_idx.sort_by(|idx1, idx2| {
             let sym1 = &syms[*idx1];
             let sym2 = &syms[*idx2];
-            sym1.name
-                .cmp(&sym2.name)
-                .then_with(|| sym1.addr.cmp(&sym2.addr))
+            sym1.name()
+                .cmp(sym2.name())
+                .then_with(|| sym1.addr().cmp(&sym2.addr()))
         });
 
         by_name_idx
@@ -167,9 +279,14 @@ impl KSymResolver {
 }
 
 impl Symbolize for KSymResolver {
-    fn find_sym(&self, addr: Addr, _opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
-        let sym = self.find_ksym(addr).map(ResolvedSym::from);
-        Ok(sym)
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
+        match self.find_ksym(addr) {
+            Ok(ksym) => {
+                let sym = ksym.resolve(addr, opts, &self.bpf_info_cache)?;
+                Ok(Ok(sym))
+            }
+            Err(reason) => Ok(Err(reason)),
+        }
     }
 }
 
@@ -186,12 +303,12 @@ impl Inspect for KSymResolver {
         });
 
         let result =
-            find_match_or_lower_bound_by_key(by_name_idx, name, |idx| &self.syms[*idx].name);
+            find_match_or_lower_bound_by_key(by_name_idx, name, |idx| self.syms[*idx].name());
         let syms = if let Some(idx) = result {
             by_name_idx[idx..]
                 .iter()
-                .map(|idx| SymInfo::from(&self.syms[*idx]))
-                .collect()
+                .map(|idx| SymInfo::try_from(&self.syms[*idx]))
+                .collect::<Result<_>>()?
         } else {
             Vec::new()
         };
@@ -203,8 +320,8 @@ impl Inspect for KSymResolver {
             return Ok(())
         }
 
-        for ksym in self.syms.iter() {
-            let sym = SymInfo::from(ksym);
+        for sym in self.syms.iter() {
+            let sym = SymInfo::try_from(sym)?;
             if let ControlFlow::Break(()) = f(&sym) {
                 return Ok(())
             }
@@ -232,6 +349,8 @@ mod tests {
 
     use crate::ErrorKind;
 
+    use super::super::bpf::BpfTag;
+
 
     /// Exercise the `Debug` representation of various types.
     #[tag(miri)]
@@ -241,14 +360,45 @@ mod tests {
             syms: Box::default(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
+            bpf_info_cache: BpfInfoCache::default(),
         };
         assert_ne!(format!("{resolver:?}"), "");
 
-        let ksym = Ksym {
+        let kfunc = Kfunc {
             addr: 0x1337,
             name: Box::from("3l33t"),
         };
-        assert_ne!(format!("{ksym:?}"), "");
+        assert_ne!(format!("{kfunc:?}"), "");
+    }
+
+    /// Check that we can parse a kallsyms file containing a BPF
+    /// program.
+    #[tag(miri)]
+    #[test]
+    fn kallsyms_parsing() {
+        let kallsyms = br#"ffffffffc003b960 t bpf_prog_7cc47bbf07148bfe_hid_tail_call      [bpf]
+ffffffffc003e9c8 t bpf_prog_30304e82b4033ea3_kprobe__cap_capable        [bpf]
+ffffffffc0279010 T fuse_dev_init        [fuse]
+ffffffffc02791d0 T fuse_ctl_init        [fuse]
+ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
+"#;
+
+        let resolver =
+            KSymResolver::load_from_reader(&mut kallsyms.as_slice(), Path::new("<dummy>")).unwrap();
+        assert_eq!(resolver.syms.len(), 5);
+
+        // Spot-check some of the parsed symbols for sanity.
+        let ksym = resolver.syms[2].as_kfunc().unwrap();
+        assert_eq!(&*ksym.name, "fuse_dev_init");
+        assert_eq!(ksym.addr, 0xffffffffc0279010);
+
+        let prog = resolver.syms[1].as_bpf_prog().unwrap();
+        assert_eq!(prog.addr(), 0xffffffffc003e9c8);
+        assert_eq!(prog.name(), "kprobe__cap_capable");
+        assert_eq!(
+            prog.tag(),
+            BpfTag::from([0x30, 0x30, 0x4e, 0x82, 0xb4, 0x03, 0x3e, 0xa3])
+        );
     }
 
     /// Check that we can use a `KSymResolver` to find symbols.
@@ -281,7 +431,7 @@ mod tests {
 
         // Find the address of the symbol placed at the middle
         let sym = &resolver.syms[resolver.syms.len() / 2];
-        let addr = sym.addr;
+        let addr = sym.addr();
         let found = resolver
             .find_sym(addr, &FindSymOpts::Basic)
             .unwrap()
@@ -294,7 +444,7 @@ mod tests {
 
         // Find the address of the last symbol
         let sym = &resolver.syms.last().unwrap();
-        let addr = sym.addr;
+        let addr = sym.addr();
         let found = resolver
             .find_sym(addr, &FindSymOpts::Basic)
             .unwrap()
@@ -312,91 +462,81 @@ mod tests {
     #[tag(miri)]
     #[test]
     fn find_ksym() {
-        let resolver = KSymResolver {
-            syms: vec![
-                Ksym {
-                    addr: 0x123,
-                    name: Box::from("1"),
-                },
-                Ksym {
-                    addr: 0x123,
-                    name: Box::from("1.5"),
-                },
-                Ksym {
-                    addr: 0x1234,
-                    name: Box::from("2"),
-                },
-                Ksym {
-                    addr: 0x12345,
-                    name: Box::from("3"),
-                },
-            ]
-            .into_boxed_slice(),
-            by_name_idx: OnceCell::new(),
-            file_name: PathBuf::new(),
-        };
+        let resolver = KSymResolver::from_kfuncs([
+            Kfunc {
+                addr: 0x123,
+                name: Box::from("1"),
+            },
+            Kfunc {
+                addr: 0x123,
+                name: Box::from("1.5"),
+            },
+            Kfunc {
+                addr: 0x1234,
+                name: Box::from("2"),
+            },
+            Kfunc {
+                addr: 0x12345,
+                name: Box::from("3"),
+            },
+        ]);
 
         // The address is less than the smallest address of all symbols.
         assert!(resolver.find_ksym(1).is_err());
 
         // The address match symbols exactly (the first address.)
         let sym = resolver.find_ksym(0x123).unwrap();
-        assert_eq!(sym.addr, 0x123);
-        assert_eq!(&*sym.name, "1");
+        assert_eq!(sym.addr(), 0x123);
+        assert_eq!(sym.name(), "1");
 
         // The address is in between two symbols (the first address.)
         let sym = resolver.find_ksym(0x124).unwrap();
-        assert_eq!(sym.addr, 0x123);
-        assert_eq!(&*sym.name, "1.5");
+        assert_eq!(sym.addr(), 0x123);
+        assert_eq!(sym.name(), "1.5");
 
         // The address match symbols exactly.
         let sym = resolver.find_ksym(0x1234).unwrap();
-        assert_eq!(sym.addr, 0x1234);
-        assert_eq!(&*sym.name, "2");
+        assert_eq!(sym.addr(), 0x1234);
+        assert_eq!(sym.name(), "2");
 
         // The address is in between two symbols.
         let sym = resolver.find_ksym(0x1235).unwrap();
-        assert_eq!(sym.addr, 0x1234);
-        assert_eq!(&*sym.name, "2");
+        assert_eq!(sym.addr(), 0x1234);
+        assert_eq!(sym.name(), "2");
 
         // The address match symbols exactly (the biggest address.)
         let sym = resolver.find_ksym(0x12345).unwrap();
-        assert_eq!(sym.addr, 0x12345);
-        assert_eq!(&*sym.name, "3");
+        assert_eq!(sym.addr(), 0x12345);
+        assert_eq!(sym.name(), "3");
 
         // The address is bigger than the biggest address of all symbols.
         let sym = resolver.find_ksym(0x1234568).unwrap();
-        assert_eq!(sym.addr, 0x12345);
-        assert_eq!(&*sym.name, "3");
+        assert_eq!(sym.addr(), 0x12345);
+        assert_eq!(sym.name(), "3");
     }
 
     /// Check that we can correctly iterate over all symbols.
     #[tag(miri)]
     #[test]
     fn symbol_iteration() {
-        let resolver = KSymResolver {
-            syms: vec![
-                Ksym {
-                    addr: 0x123,
-                    name: Box::from("j"),
-                },
-                Ksym {
-                    addr: 0x123,
-                    name: Box::from("b"),
-                },
-                Ksym {
-                    addr: 0x1234,
-                    name: Box::from("a"),
-                },
-                Ksym {
-                    addr: 0x12345,
-                    name: Box::from("z"),
-                },
-            ]
-            .into_boxed_slice(),
-            by_name_idx: OnceCell::new(),
-            file_name: PathBuf::new(),
-        };
+        let resolver = KSymResolver::from_kfuncs([
+            Kfunc {
+                addr: 0x123,
+                name: Box::from("j"),
+            },
+            Kfunc {
+                addr: 0x123,
+                name: Box::from("b"),
+            },
+            Kfunc {
+                addr: 0x1234,
+                name: Box::from("a"),
+            },
+            Kfunc {
+                addr: 0x12345,
+                name: Box::from("z"),
+            },
+        ]);
 
         let opts = FindAddrOpts::default();
         let mut syms = Vec::with_capacity(resolver.syms.len());
@@ -416,29 +556,24 @@ mod tests {
     #[tag(miri)]
     #[test]
     fn variable_operations() {
-        let resolver = KSymResolver {
-            syms: vec![
-                Ksym {
-                    addr: 0x123,
-                    name: Box::from("j"),
-                },
-                Ksym {
-                    addr: 0x123,
-                    name: Box::from("b"),
-                },
-                Ksym {
-                    addr: 0x1234,
-                    name: Box::from("a"),
-                },
-                Ksym {
-                    addr: 0x12345,
-                    name: Box::from("z"),
-                },
-            ]
-            .into_boxed_slice(),
-            by_name_idx: OnceCell::new(),
-            file_name: PathBuf::new(),
-        };
+        let resolver = KSymResolver::from_kfuncs([
+            Kfunc {
+                addr: 0x123,
+                name: Box::from("j"),
+            },
+            Kfunc {
+                addr: 0x123,
+                name: Box::from("b"),
+            },
+            Kfunc {
+                addr: 0x1234,
+                name: Box::from("a"),
+            },
+            Kfunc {
+                addr: 0x12345,
+                name: Box::from("z"),
+            },
+        ]);
 
         let opts = FindAddrOpts {
             sym_type: SymType::Variable,

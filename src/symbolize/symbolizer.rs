@@ -1381,6 +1381,7 @@ mod tests {
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::test_helper::find_the_answer_fn_in_zip;
+    use crate::test_helper::with_bpf_symbolization_target_addrs;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -1686,5 +1687,37 @@ mod tests {
 
         let () = test(zip_error_dispatch);
         let () = test(zip_delayed_error_dispatch);
+    }
+
+    /// Test symbolization of a kernel address inside a BPF program.
+    #[test]
+    fn symbolize_kernel_bpf_program() {
+        with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
+            let src = symbolize::Source::Kernel(symbolize::Kernel::default());
+            let symbolizer = Symbolizer::new();
+            let result = symbolizer
+                .symbolize(
+                    &src,
+                    symbolize::Input::AbsAddr(&[handle_getpid, subprogram]),
+                )
+                .unwrap();
+            let handle_getpid_sym = result[0].as_sym().unwrap();
+            assert_eq!(handle_getpid_sym.name, "handle__getpid");
+            // BPF code information is very spotty. For the very address
+            // inside `handle__getpid` that we report here, it simply
+            // does not contain any entry. Sigh.
+            assert_eq!(handle_getpid_sym.code_info, None);
+
+            let subprogram_sym = result[1].as_sym().unwrap();
+            assert_eq!(subprogram_sym.name, "subprogram");
+            let code_info = subprogram_sym.code_info.as_ref().unwrap();
+            assert_eq!(code_info.dir, None);
+            assert_eq!(
+                Path::new(&code_info.file).file_name(),
+                Some(OsStr::new("getpid.bpf.c"))
+            );
+            assert_eq!(code_info.line, Some(15));
+            assert_ne!(code_info.column, None);
+        })
     }
 }
