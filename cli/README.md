@@ -1,6 +1,6 @@
 [![pipeline](https://github.com/libbpf/blazesym/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/libbpf/blazesym/actions/workflows/test.yml)
 [![crates.io](https://img.shields.io/crates/v/blazecli.svg)](https://crates.io/crates/blazecli)
-[![rustc](https://img.shields.io/badge/rustc-1.65+-blue.svg)](https://blog.rust-lang.org/2022/11/03/Rust-1.65.0.html)
+[![rustc](https://img.shields.io/badge/rustc-1.69+-blue.svg)](https://blog.rust-lang.org/2023/04/20/Rust-1.69.0.html)
 
 blazecli
 ========

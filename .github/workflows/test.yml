@@ -122,7 +122,7 @@ jobs:
         with:
           # Please adjust README, `rust-version` field in Cargo.toml,
           # and `msrv` in .clippy.toml when bumping version.
-          toolchain: 1.65.0
+          toolchain: 1.69.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --features="apk,backtrace,demangle,dwarf,gsym,tracing"
   nop-rebuilds:
