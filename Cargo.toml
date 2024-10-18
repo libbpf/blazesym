@@ -7,6 +7,9 @@ members = [
   "examples/sym-debuginfod",
   "examples/gsym-in-apk",
 ]
+# We don't want every Cargo command to operate on all members, unless
+# --workspace is specified.
+default-members = ["."]
 
 [package]
 name = "blazesym"
