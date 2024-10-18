@@ -28,7 +28,12 @@ use crate::Result;
 use crate::SymType;
 
 #[cfg(feature = "bpf")]
+use super::bpf::BpfInfoCache;
+#[cfg(feature = "bpf")]
 use super::bpf::BpfProg;
+
+#[cfg(not(feature = "bpf"))]
+type BpfInfoCache = ();
 
 pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
@@ -55,11 +60,16 @@ impl Ksym {
         })
     }
 
-    fn resolve(&self, addr: Addr, opts: &FindSymOpts) -> Result<ResolvedSym<'_>> {
+    fn resolve(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+        _bpf_info_cache: &BpfInfoCache,
+    ) -> Result<ResolvedSym<'_>> {
         match self {
             Ksym::Kfunc(kfunc) => kfunc.resolve(addr, opts),
             #[cfg(feature = "bpf")]
-            Ksym::BpfProg(bpf_prog) => bpf_prog.resolve(addr, opts),
+            Ksym::BpfProg(bpf_prog) => bpf_prog.resolve(addr, opts, _bpf_info_cache),
         }
     }
 
@@ -161,6 +171,7 @@ pub(crate) struct KSymResolver {
     by_name_idx: OnceCell<Box<[usize]>>,
     syms: Box<[Ksym]>,
     file_name: PathBuf,
+    bpf_info_cache: BpfInfoCache,
 }
 
 impl KSymResolver {
@@ -211,6 +222,7 @@ impl KSymResolver {
             syms: syms.into_boxed_slice(),
             by_name_idx: OnceCell::new(),
             file_name: path.to_path_buf(),
+            bpf_info_cache: BpfInfoCache::default(),
         };
         Ok(slf)
     }
@@ -228,6 +240,7 @@ impl KSymResolver {
                 .into_boxed_slice(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
+            bpf_info_cache: BpfInfoCache::default(),
         }
     }
 
@@ -269,7 +282,7 @@ impl Symbolize for KSymResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         match self.find_ksym(addr) {
             Ok(ksym) => {
-                let sym = ksym.resolve(addr, opts)?;
+                let sym = ksym.resolve(addr, opts, &self.bpf_info_cache)?;
                 Ok(Ok(sym))
             }
             Err(reason) => Ok(Err(reason)),
@@ -347,6 +360,7 @@ mod tests {
             syms: Box::default(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
+            bpf_info_cache: BpfInfoCache::default(),
         };
         assert_ne!(format!("{resolver:?}"), "");
 

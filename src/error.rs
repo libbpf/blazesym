@@ -686,6 +686,17 @@ where
     }
 
     /// Unwrap `self` into an `Ok` or an [`Error`] of the
+    /// [`ErrorKind::NotFound`] kind.
+    #[inline]
+    fn ok_or_not_found<C, F>(self, f: F) -> Result<T, Error>
+    where
+        C: ToString,
+        F: FnOnce() -> C,
+    {
+        self.ok_or_error(io::ErrorKind::NotFound, f)
+    }
+
+    /// Unwrap `self` into an `Ok` or an [`Error`] of the
     /// [`ErrorKind::UnexpectedEof`] kind.
     #[inline]
     fn ok_or_unexpected_eof<C, F>(self, f: F) -> Result<T, Error>
