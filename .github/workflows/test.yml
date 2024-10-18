@@ -60,6 +60,10 @@ jobs:
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
+            args: "--lib --no-default-features --features=bpf"
+          - runs-on: ubuntu-latest
+            rust: stable
+            profile: dev
             args: "--lib --no-default-features --features=gsym"
           - runs-on: ubuntu-latest
             rust: stable
