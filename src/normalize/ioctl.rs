@@ -258,6 +258,8 @@ mod tests {
 
     use std::env::current_exe;
     use std::fs::File;
+    use std::thread::sleep;
+    use std::time::Duration;
 
     use crate::maps;
 
@@ -390,6 +392,8 @@ mod tests {
             if from_text == from_ioctl {
                 break
             }
+
+            sleep(Duration::from_millis(500));
         }
 
         assert_eq!(from_text, from_ioctl, "{from_text:#x?}\n{from_ioctl:#x?}");
