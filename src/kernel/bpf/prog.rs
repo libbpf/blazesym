@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -7,21 +8,31 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::iter;
 use std::mem::size_of;
+use std::os::fd::AsFd as _;
 use std::os::fd::AsRawFd as _;
+use std::os::fd::BorrowedFd;
+use std::path::Path;
+use std::path::PathBuf;
 use std::rc::Rc;
 use std::str::FromStr;
 
 use crate::inspect::SymInfo;
+use crate::log;
+use crate::once::OnceCell;
+use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
+use crate::util::find_match_or_lower_bound_by_key;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
+use crate::IntoError as _;
 use crate::Result;
 use crate::SymType;
 
 use super::sys;
+use super::Btf;
 
 
 /// BPF kernel programs show up with this prefix followed by a tag and
@@ -154,12 +165,105 @@ impl BpfInfoCache {
 }
 
 
+#[derive(Debug)]
+struct LineInfoRecord {
+    path: Rc<Path>,
+    line: u32,
+    col: u16,
+}
+
+
+/// Query BPF program line information.
+fn query_line_info(
+    bpf_fd: BorrowedFd<'_>,
+    info: &sys::bpf_prog_info,
+) -> Result<Option<Vec<(Addr, LineInfoRecord)>>> {
+    let prog_id = info.id;
+
+    assert_eq!(
+        info.line_info_rec_size,
+        size_of::<sys::bpf_line_info>() as _
+    );
+    let mut line_info = Vec::<sys::bpf_line_info>::with_capacity(info.nr_line_info as _);
+    // SAFETY: `bpf_line_info` is valid for any bit pattern, so we
+    //         can adjust the vector's length to its capacity.
+    let () = unsafe { line_info.set_len(line_info.capacity()) };
+
+    assert_eq!(info.jited_line_info_rec_size, size_of::<u64>() as _);
+    let mut jited_line_info = Vec::<u64>::with_capacity(info.nr_jited_line_info as _);
+    // SAFETY: `u64` is valid for any bit pattern, so we can adjust
+    //         the vector's length to its capacity.
+    let () = unsafe { jited_line_info.set_len(jited_line_info.capacity()) };
+
+    let mut info = sys::bpf_prog_info {
+        nr_line_info: info.nr_line_info,
+        line_info_rec_size: info.line_info_rec_size,
+        line_info: line_info.as_mut_ptr() as _,
+        nr_jited_line_info: info.nr_jited_line_info,
+        jited_line_info_rec_size: info.jited_line_info_rec_size,
+        jited_line_info: jited_line_info.as_mut_ptr() as _,
+        ..Default::default()
+    };
+    let () = sys::bpf_prog_get_info_from_fd(bpf_fd.as_raw_fd(), &mut info).with_context(|| {
+        format!("failed to retrieve BPF program information for program {prog_id}")
+    })?;
+
+    let mut line_records = Vec::with_capacity(info.nr_jited_line_info as _);
+    let mut file_cache = HashMap::new();
+
+    let btf = if let Some(btf) = Btf::load_from_id(info.btf_id)
+        .with_context(|| format!("failed to load BTF information for program {prog_id}"))?
+    {
+        btf
+    } else {
+        // We don't have BTF information available. There is nothing we
+        // can do. Bail out gracefully.
+        return Ok(None)
+    };
+
+    for (i, addr) in jited_line_info.into_iter().enumerate() {
+        let info = line_info.get(i).ok_or_invalid_data(|| {
+            format!("failed to get BPF program {prog_id} line record {i} for address {addr:#x}")
+        })?;
+        let file = btf.name(info.file_name_off).ok_or_invalid_data(|| {
+            format!(
+                "failed to retrieve BPF program {prog_id} file information for address {addr:#x}"
+            )
+        })?;
+
+        // Check if we already have the file cached (and do so if
+        // not), to not have dozens of duplicate allocations flying
+        // around.
+        let path = match file_cache.entry(file) {
+            Entry::Vacant(vacancy) => {
+                let path = Rc::<Path>::from(PathBuf::from(file).into_boxed_path());
+                vacancy.insert(path)
+            }
+            Entry::Occupied(occupancy) => occupancy.into_mut(),
+        };
+
+        let () = line_records.push((
+            addr,
+            LineInfoRecord {
+                path: Rc::clone(path),
+                line: info.line(),
+                col: info.column(),
+            },
+        ));
+    }
+
+    let () = line_records.sort_by_key(|(addr, _record)| *addr);
+    Ok(Some(line_records))
+}
+
+
 /// Information about a BPF program.
 #[derive(Debug)]
 pub struct BpfProg {
     addr: Addr,
     name: Box<str>,
     tag: BpfTag,
+    line_info: OnceCell<Option<Vec<(Addr, LineInfoRecord)>>>,
 }
 
 impl BpfProg {
@@ -181,19 +285,92 @@ impl BpfProg {
             addr,
             name: Box::from(name),
             tag,
+            line_info: OnceCell::new(),
         };
         Some(prog)
     }
 
-    pub fn resolve(&self, _addr: Addr, _opts: &FindSymOpts) -> Result<ResolvedSym<'_>> {
-        // TODO: Need to look up BPF specific information.
-        let BpfProg { name, addr, .. } = self;
+    fn retrieve_code_info(
+        &self,
+        addr: Addr,
+        info_cache: &BpfInfoCache,
+    ) -> Result<Option<CodeInfo<'_>>> {
+        let line_info = self.line_info.get_or_try_init(|| {
+            let prog_info = info_cache.lookup(self.tag)?.ok_or_not_found(|| {
+                format!(
+                    "failed to find information for BPF program with tag {}",
+                    self.tag
+                )
+            })?;
+
+            let fd = sys::bpf_prog_get_fd_from_id(prog_info.id).with_context(|| {
+                format!(
+                    "failed to retrieve BPF program file descriptor for program {}",
+                    prog_info.id
+                )
+            })?;
+
+            let line_info = query_line_info(fd.as_fd(), &prog_info).with_context(|| {
+                format!(
+                    "failed to query line information for BPF program {}",
+                    prog_info.id
+                )
+            })?;
+            Result::<_, Error>::Ok(line_info)
+        })?;
+
+        let code_info = if let Some(line_info) = line_info {
+            if let Some(idx) =
+                find_match_or_lower_bound_by_key(line_info, addr, |(addr, _record)| *addr)
+            {
+                let (_addr, record) = &line_info[idx];
+                let code_info = CodeInfo {
+                    dir: None,
+                    file: Cow::Borrowed(record.path.as_os_str()),
+                    line: Some(record.line),
+                    column: Some(record.col),
+                    _non_exhaustive: (),
+                };
+                Some(code_info)
+            } else {
+                log::debug!(
+                    "BPF code information does not contain information for address {addr:#x}"
+                );
+                None
+            }
+        } else {
+            log::debug!("BPF program for address {addr:#x} does not have code information present");
+            None
+        };
+
+        Ok(code_info)
+    }
+
+    pub fn resolve(
+        &self,
+        addr: Addr,
+        opts: &FindSymOpts,
+        info_cache: &BpfInfoCache,
+    ) -> Result<ResolvedSym<'_>> {
+        let code_info = if opts.code_info() {
+            self.retrieve_code_info(addr, info_cache)?
+        } else {
+            None
+        };
+
+        let BpfProg {
+            name,
+            addr: prog_addr,
+            ..
+        } = self;
         let sym = ResolvedSym {
             name,
-            addr: *addr,
+            addr: *prog_addr,
+            // TODO: May be able to use `bpf_prog_info::func_info` here.
+            //       Unsure.
             size: None,
             lang: SrcLang::Unknown,
-            code_info: None,
+            code_info,
             inlined: Box::new([]),
         };
         Ok(sym)
@@ -236,8 +413,6 @@ impl<'prog> TryFrom<&'prog BpfProg> for SymInfo<'prog> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::os::fd::AsFd as _;
 
     use test_log::test;
     use test_tag::tag;
@@ -296,5 +471,30 @@ mod tests {
         let info = cache.lookup(tag).unwrap().unwrap();
 
         assert_eq!(BpfTag::from(info.tag), tag);
+    }
+
+    /// Check that we can query line information for all loaded
+    /// programs.
+    ///
+    /// This is mostly meant as a catch-all sanity check, as no programs
+    /// *may* be loaded.
+    #[test]
+    fn line_info_querying() {
+        let mut obj = test_object("getpid.bpf.o");
+        let prog = prog_mut(&mut obj, "handle__getpid");
+        let _link = prog
+            .attach_tracepoint("syscalls", "sys_enter_getpid")
+            .expect("failed to attach prog");
+
+        let mut next_prog_id = 0;
+        while let Ok(prog_id) = sys::bpf_prog_get_next_id(next_prog_id) {
+            let fd = sys::bpf_prog_get_fd_from_id(prog_id).unwrap();
+
+            let mut info = sys::bpf_prog_info::default();
+            let () = sys::bpf_prog_get_info_from_fd(fd.as_raw_fd(), &mut info).unwrap();
+
+            let _line_info = query_line_info(fd.as_fd(), &info).unwrap();
+            next_prog_id = prog_id;
+        }
     }
 }
