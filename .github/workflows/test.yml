@@ -26,13 +26,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runs-on: [ubuntu-latest, macos-latest]
+        runs-on: [ubuntu-latest]
         rust: [stable]
         profile: [dev, release]
         # gsym-in-apk requires `blazesym-dev/generate-unit-test-files`
         # feature, which requires `llvm-gsymutil` installed. We don't
         # want that dependency in this large OS spanning matrix.
-        args: ["--workspace --exclude=gsym-in-apk"]
+        args: ["--workspace --exclude=blazesym-dev --exclude=gsym-in-apk"]
         include:
           - runs-on: ubuntu-latest
             rust: stable
@@ -53,6 +53,10 @@ jobs:
             rust: stable
             profile: dev
             args: "--tests --features=blazesym-dev/dont-generate-unit-test-files"
+          - runs-on: macos-latest
+            rust: stable
+            profile: release
+            args: "--lib --no-default-features"
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
@@ -135,10 +139,10 @@ jobs:
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14 libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
-    - name: Install required tools
-      run: sudo apt-get install -y llvm-14
     - name: Check incremental rebuilds
       env:
         CARGO_OPTS: --workspace --quiet --tests
@@ -157,6 +161,8 @@ jobs:
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
+    - name: Install required tools
+      run: sudo apt-get install -y llvm-14 libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - uses: Swatinem/rust-cache@v2
@@ -164,8 +170,6 @@ jobs:
       id: py312
       with:
         python-version: '3.12'
-    - name: Install required tools
-      run: sudo apt-get install -y llvm-14
     - name: Install cargo-llvm-cov
       uses: taiki-e/install-action@cargo-llvm-cov
     - name: Install llvm-tools-preview
@@ -277,6 +281,8 @@ jobs:
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
+    - name: Install development dependencies
+      run: sudo apt-get install -y libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - uses: Swatinem/rust-cache@v2
@@ -303,6 +309,8 @@ jobs:
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
+    - name: Install development dependencies
+      run: sudo apt-get install -y libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - name: Install required tools
       run: sudo apt-get install -y llvm-14
@@ -316,6 +324,8 @@ jobs:
       # Stack borrows are very experimental. Disable for now.
       MIRIFLAGS: '-Zmiri-disable-stacked-borrows'
     steps:
+    - name: Install development dependencies
+      run: sudo apt-get install -y libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@master
       with:
@@ -339,6 +349,8 @@ jobs:
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
+    - name: Install development dependencies
+      run: sudo apt-get install -y libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo run --example backtrace
@@ -387,6 +399,8 @@ jobs:
     name: Lint with clippy
     runs-on: ubuntu-latest
     steps:
+      - name: Install development dependencies
+        run: sudo apt-get install -y libelf-dev zlib1g-dev
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy --workspace --no-deps --all-targets --features=blazesym-dev/dont-generate-unit-test-files -- -A unknown_lints -D clippy::todo
@@ -408,4 +422,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo doc --workspace --no-deps
+      - run: cargo doc --workspace --exclude=gsym-in-apk --no-deps
