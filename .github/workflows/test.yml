@@ -245,6 +245,8 @@ jobs:
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
+    - name: Install development dependencies
+      run: sudo apt-get install -y libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - name: Install required tools
       run: sudo apt-get install -y llvm-14
@@ -377,6 +379,8 @@ jobs:
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
+    - name: Install development dependencies
+      run: sudo apt-get install -y libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: Install required tools
