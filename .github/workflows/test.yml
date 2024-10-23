@@ -57,6 +57,10 @@ jobs:
             rust: stable
             profile: release
             args: "--lib --no-default-features"
+          - runs-on: macos-latest
+            rust: stable
+            profile: dev
+            args: "--tests --features=blazesym-dev/dont-generate-unit-test-files"
           - runs-on: ubuntu-latest
             rust: stable
             profile: dev
@@ -236,11 +240,11 @@ jobs:
       with:
         files: lcov.info
   build-test-artifacts:
-    # Only run Windows tests on the final push. They are very unlikely to break
-    # at runtime (we build them anyway), but take quite a bit longer than Linux
-    # based ones.
+    # Only run tests on other operating systems tests on the final push.
+    # They are very unlikely to break at runtime (we build them anyway),
+    # but take quite a bit longer than Linux based ones.
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-    name: Build test artifacts for Windows
+    name: Build test artifacts
     runs-on: ubuntu-22.04
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
@@ -260,9 +264,13 @@ jobs:
         path: |
           data/test-stable-addrs*
           data/test-rs.bin
-  test-windows:
-    name: Test on Windows
-    runs-on: windows-latest
+  test-partly-supported:
+    strategy:
+      fail-fast: false
+      matrix:
+        runs-on: [macos-latest, windows-latest]
+    name: Test on ${{ matrix.runs-on }}
+    runs-on: ${{ matrix.runs-on }}
     needs: [build-test-artifacts]
     steps:
     - uses: actions/checkout@v4
