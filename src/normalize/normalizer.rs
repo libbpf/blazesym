@@ -412,7 +412,7 @@ mod tests {
     }
 
     /// Check that we can normalize user addresses.
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     // `libc` on Arm doesn't have `__errno_location`.
     #[cfg(not(any(target_arch = "arm", target_arch = "aarch64")))]
     #[test]

@@ -311,7 +311,7 @@ mod tests {
     }
 
     /// Check that we can symbolize an address using a perf map.
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     #[test]
     #[ignore = "test requires python 3.12 or higher"]
     fn symbolize_perf_map() {

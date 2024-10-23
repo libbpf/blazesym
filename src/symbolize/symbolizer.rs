@@ -36,7 +36,7 @@ use crate::symbolize::InlinedFn;
 use crate::symbolize::Resolve;
 use crate::symbolize::TranslateFileOffset;
 use crate::util;
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 use crate::util::uname_release;
 use crate::util::Dbg;
 #[cfg(feature = "tracing")]
@@ -891,7 +891,7 @@ impl Symbolizer {
         Ok(resolver)
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
         let Kernel {
             kallsyms,
@@ -954,10 +954,10 @@ impl Symbolizer {
         KernelResolver::new(ksym_resolver.cloned(), elf_resolver.cloned())
     }
 
-    #[cfg(windows)]
+    #[cfg(not(target_os = "linux"))]
     fn create_kernel_resolver(&self, _src: &Kernel) -> Result<KernelResolver> {
         Err(Error::with_unsupported(
-            "kernel address symbolization support is not present on Windows",
+            "kernel address symbolization is unsupported on operating systems other than Linux",
         ))
     }
 

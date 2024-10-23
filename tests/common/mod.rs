@@ -15,7 +15,7 @@ use libc::uid_t;
 
 
 /// Run a function with a different effective user ID.
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 pub fn as_user<F, R>(ruid: uid_t, euid: uid_t, f: F) -> R
 where
     F: FnOnce() -> R + UnwindSafe,
@@ -44,7 +44,7 @@ where
     result.unwrap()
 }
 
-#[cfg(windows)]
+#[cfg(not(target_os = "linux"))]
 pub fn as_user<F, R>(ruid: uid_t, euid: uid_t, f: F) -> R
 where
     F: FnOnce() -> R + UnwindSafe,

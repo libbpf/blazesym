@@ -280,7 +280,7 @@ pub fn stat(path: &Path) -> io::Result<libc::stat> {
 }
 
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 #[cfg(test)]
 #[allow(clippy::absolute_paths)]
 fn fstat(fd: std::os::unix::io::RawFd) -> io::Result<libc::stat> {
@@ -295,7 +295,7 @@ fn fstat(fd: std::os::unix::io::RawFd) -> io::Result<libc::stat> {
 }
 
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 pub(crate) fn uname_release() -> io::Result<CString> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::uname(dst.as_mut_ptr()) };
@@ -741,7 +741,7 @@ mod tests {
 
     /// Check that we can retrieve meta-data about a file using `stat`
     /// and `fstat`.
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     #[test]
     fn file_stating() {
         use std::os::fd::AsRawFd as _;
