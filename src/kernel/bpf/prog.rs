@@ -181,8 +181,8 @@ fn query_line_info(
     let prog_id = info.id;
 
     assert_eq!(
-        info.line_info_rec_size,
-        size_of::<sys::bpf_line_info>() as _
+        info.line_info_rec_size as usize,
+        size_of::<sys::bpf_line_info>()
     );
     let mut line_info = Vec::<sys::bpf_line_info>::with_capacity(info.nr_line_info as _);
     // SAFETY: `bpf_line_info` is valid for any bit pattern, so we

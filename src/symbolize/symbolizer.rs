@@ -1375,12 +1375,17 @@ impl Default for Symbolizer {
 mod tests {
     use super::*;
 
+    #[cfg(all(target_os = "linux", feature = "nightly"))]
+    use test::Bencher;
+
     use test_log::test;
 
     use crate::maps::Perm;
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::test_helper::find_the_answer_fn_in_zip;
+    #[cfg(target_os = "linux")]
+    use crate::test_helper::with_bpf_symbolization_target_addrs;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -1692,8 +1697,6 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn symbolize_kernel_bpf_program() {
-        use crate::test_helper::with_bpf_symbolization_target_addrs;
-
         with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
             let src = symbolize::Source::Kernel(symbolize::Kernel::default());
             let symbolizer = Symbolizer::new();
@@ -1725,5 +1728,50 @@ mod tests {
             assert_eq!(code_info.line, Some(15));
             assert_ne!(code_info.column, None);
         })
+    }
+
+    /// Benchmark the symbolization of BPF program kernel addresses.
+    #[cfg(target_os = "linux")]
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_symbolize_kernel_bpf_uncached(b: &mut Bencher) {
+        with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
+            let () = b.iter(|| {
+                let src = symbolize::Source::Kernel(symbolize::Kernel::default());
+                let symbolizer = Symbolizer::new();
+
+                let result = symbolizer
+                    .symbolize(
+                        &src,
+                        symbolize::Input::AbsAddr(&[handle_getpid, subprogram]),
+                    )
+                    .unwrap();
+
+                assert_eq!(result.len(), 2);
+            });
+        });
+    }
+
+    /// Benchmark the symbolization of BPF program kernel addresses when
+    /// relevant data is readily cached.
+    #[cfg(target_os = "linux")]
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_symbolize_kernel_bpf_cached(b: &mut Bencher) {
+        with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
+            let src = symbolize::Source::Kernel(symbolize::Kernel::default());
+            let symbolizer = Symbolizer::new();
+
+            let () = b.iter(|| {
+                let result = symbolizer
+                    .symbolize(
+                        &src,
+                        symbolize::Input::AbsAddr(&[handle_getpid, subprogram]),
+                    )
+                    .unwrap();
+
+                assert_eq!(result.len(), 2);
+            });
+        });
     }
 }
