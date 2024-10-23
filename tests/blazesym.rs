@@ -53,7 +53,7 @@ use test_tag::tag;
 
 
 /// Make sure that we fail symbolization when providing a non-existent source.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn error_on_non_existent_source() {
     let non_existent = Path::new("/does-not-exists");
@@ -72,7 +72,7 @@ fn error_on_non_existent_source() {
 }
 
 /// Check that we can symbolize an address using ELF, DWARF, and GSYM.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_elf_dwarf_gsym() {
     fn test(src: symbolize::Source, has_code_info: bool) {
@@ -168,7 +168,7 @@ fn symbolize_elf_dwarf_gsym() {
 
 /// Check that we correctly symbolize zero sized symbols.
 // TODO: Extend this test to more formats.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_zero_size_gsym() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -202,7 +202,7 @@ fn symbolize_zero_size_gsym() {
 }
 
 /// Check that we can symbolize an address using Breakpad.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_breakpad() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -255,7 +255,7 @@ fn symbolize_breakpad() {
 
 /// Make sure that Breakpad symbol file errors are reported in a
 /// somewhat decent fashion.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_breakpad_error() {
     let content = br#"MODULE Linux x86_64 C00D0279606DFBCD53805DDAD2CA66A30 test-stable-addrs.bin
@@ -280,7 +280,7 @@ FUNC 34 11 0 factorial_wrapper
 
 /// Check that we can symbolize an address mapping to a variable in an
 /// ELF file.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_elf_variable() {
     fn test(debug_syms: bool) {
@@ -335,7 +335,7 @@ fn symbolize_elf_variable() {
 
 /// Check that we "fail" symbolization as expected on a stripped ELF
 /// binary.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_elf_stripped() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -352,7 +352,7 @@ fn symbolize_elf_stripped() {
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined
 /// functions with DWARF and Gsym sources.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_dwarf_gsym_inlined() {
     fn test(src: symbolize::Source, inlined_fns: bool) {
@@ -420,7 +420,7 @@ fn symbolize_dwarf_gsym_inlined() {
 
 /// Make sure that we fail loading linked debug information on CRC
 /// mismatch.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_dwarf_wrong_debug_link_crc() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -439,7 +439,7 @@ fn symbolize_dwarf_wrong_debug_link_crc() {
 }
 
 /// Check that we do not error out when a debug link does not exist.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_dwarf_non_existent_debug_link() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -457,7 +457,7 @@ fn symbolize_dwarf_non_existent_debug_link() {
 }
 
 /// Check that we honor configured debug directories as one would expect.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_configurable_debug_dirs() {
     let dir = tempdir().unwrap();
@@ -502,7 +502,7 @@ fn symbolize_configurable_debug_dirs() {
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined
 /// functions with Breakpad sources.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_breakpad_inlined() {
     fn test(src: symbolize::Source, inlined_fns: bool) {
@@ -594,7 +594,7 @@ fn symbolize_dwarf_complex() {
 
 /// Symbolize an address inside a DWARF file, with and without auto-demangling
 /// enabled.
-#[tag(windows)]
+#[tag(other_os)]
 #[test]
 fn symbolize_dwarf_demangle() {
     fn test(test_dwarf: &Path, addr: Addr) -> Result<(), ()> {
