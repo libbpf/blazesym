@@ -32,7 +32,7 @@ fn data_dir() -> PathBuf {
 }
 
 /// Retrieve the system's page size.
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 fn page_size() -> Result<usize> {
     // SAFETY: `sysconf` is always safe to call.
     let rc = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
@@ -45,7 +45,7 @@ fn page_size() -> Result<usize> {
     Ok(usize::try_from(rc).unwrap())
 }
 
-#[cfg(windows)]
+#[cfg(not(target_os = "linux"))]
 fn page_size() -> Result<usize> {
     unimplemented!()
 }

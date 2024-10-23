@@ -139,7 +139,7 @@ fn vma_flags_to_perm(vma_flags: u64) -> Perm {
 /// The caller is responsible for checking that the returned `MapsEntry`
 /// actually covers the provided address. If it does not, it represents
 /// the next known entry.
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
 pub(crate) fn query_procmap(
     file: &File,
     pid: Pid,
@@ -224,7 +224,7 @@ pub(crate) fn query_procmap(
     Ok(Some(entry))
 }
 
-#[cfg(windows)]
+#[cfg(not(target_os = "linux"))]
 pub(crate) fn query_procmap(
     _file: &File,
     _pid: Pid,
