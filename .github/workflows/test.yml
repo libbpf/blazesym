@@ -265,11 +265,11 @@ jobs:
           data/test-stable-addrs*
           data/test-rs.bin
   test-partly-supported:
+    name: Test on ${{ matrix.runs-on }}
     strategy:
       fail-fast: false
       matrix:
         runs-on: [macos-latest, windows-latest]
-    name: Test on ${{ matrix.runs-on }}
     runs-on: ${{ matrix.runs-on }}
     needs: [build-test-artifacts]
     steps:

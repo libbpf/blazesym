@@ -606,7 +606,7 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
             .unwrap();
     }
 
-    /// Benchmark the parsing a kallsyms file.
+    /// Benchmark the parsing of the kallsyms file.
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_parse_kallsyms(b: &mut Bencher) {
