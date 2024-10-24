@@ -433,7 +433,7 @@ pub struct Error {
 }
 
 impl Error {
-    #[inline]
+    #[cold]
     fn with_io_error<E>(kind: io::ErrorKind, error: E) -> Self
     where
         E: ToString,
@@ -482,6 +482,7 @@ impl Error {
 
     /// Layer the provided context on top of this `Error`, creating a
     /// new one in the process.
+    #[cold]
     fn layer_context(self, context: Cow<'static, Str>) -> Self {
         match context {
             Cow::Owned(context) => Self {
