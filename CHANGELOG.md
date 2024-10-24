@@ -3,6 +3,8 @@ Unreleased
 - Added support for symbolizing BPF kernel program addresses including
   source code information
   - Added `bpf` (default disabled) feature
+- Added Mac OS to list of supported operating systems for file based
+  symbolization
 - Added support for iteration over DWARF symbols to `inspect::Inspector`
 - Adjusted normalization logic to use "symbolic path" for reading build
   IDs when normalizing with `NormalizeOpts::map_files` equal to `false`
