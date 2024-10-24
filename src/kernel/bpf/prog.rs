@@ -189,7 +189,7 @@ fn query_line_info(
     //         can adjust the vector's length to its capacity.
     let () = unsafe { line_info.set_len(line_info.capacity()) };
 
-    assert_eq!(info.jited_line_info_rec_size, size_of::<u64>() as _);
+    assert_eq!(info.jited_line_info_rec_size as usize, size_of::<u64>());
     let mut jited_line_info = Vec::<u64>::with_capacity(info.nr_jited_line_info as _);
     // SAFETY: `u64` is valid for any bit pattern, so we can adjust
     //         the vector's length to its capacity.
