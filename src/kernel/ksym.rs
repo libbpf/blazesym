@@ -179,7 +179,7 @@ pub(crate) struct KSymResolver {
 
 impl KSymResolver {
     #[cfg(test)]
-    fn load_file_name(path: &Path) -> Result<Self> {
+    pub fn load_file_name(path: &Path) -> Result<Self> {
         let f = File::open(path)?;
         Self::load_from_reader(f, path)
     }
