@@ -6,6 +6,7 @@ use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::io;
 use std::iter;
 use std::mem::size_of;
 use std::os::fd::AsFd as _;
@@ -117,7 +118,12 @@ impl BpfInfoCache {
         let mut found = None;
         let mut next_prog_id = 0;
 
-        while let Ok(prog_id) = sys::bpf_prog_get_next_id(next_prog_id) {
+        loop {
+            let prog_id = match sys::bpf_prog_get_next_id(next_prog_id) {
+                Ok(prog_id) => prog_id,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => break,
+                Err(err) => return Err(err).context("failed to iterate over BPF programs"),
+            };
             let fd = sys::bpf_prog_get_fd_from_id(prog_id).with_context(|| {
                 format!("failed to retrieve BPF program file descriptor for program {prog_id}")
             })?;
