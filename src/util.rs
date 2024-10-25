@@ -400,7 +400,7 @@ where
 ///
 /// # Safety
 /// Only safe to implement for types that are valid for any bit pattern.
-pub(crate) unsafe trait Pod {}
+pub unsafe trait Pod {}
 
 unsafe impl Pod for i8 {}
 unsafe impl Pod for u8 {}
@@ -414,7 +414,7 @@ unsafe impl Pod for i128 {}
 unsafe impl Pod for u128 {}
 
 /// An trait providing utility functions for reading data from a byte buffer.
-pub(crate) trait ReadRaw<'data> {
+pub trait ReadRaw<'data> {
     /// Ensure that `len` bytes are available for consumption.
     fn ensure(&self, len: usize) -> Option<()>;
 
@@ -430,6 +430,7 @@ pub(crate) trait ReadRaw<'data> {
     /// Consume and return `len` bytes.
     fn read_slice(&mut self, len: usize) -> Option<&'data [u8]>;
 
+    /// Read a fixed size array of bytes.
     fn read_array<const N: usize>(&mut self) -> Option<[u8; N]>;
 
     /// Read a NUL terminated string.
