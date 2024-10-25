@@ -37,6 +37,8 @@ use blazesym::symbolize::Reason;
 use blazesym::symbolize::Resolve;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
+#[cfg(target_os = "linux")]
+use blazesym::test_helper::with_bpf_symbolization_target_addrs;
 use blazesym::Addr;
 use blazesym::ErrorKind;
 use blazesym::Pid;
@@ -803,6 +805,43 @@ fn symbolize_process_with_custom_dispatch() {
 
     test(process_dispatch);
     test(process_no_dispatch);
+}
+
+/// Test symbolization of a kernel address inside a BPF program.
+#[cfg(target_os = "linux")]
+#[test]
+fn symbolize_kernel_bpf_program() {
+    with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
+        let src = symbolize::Source::Kernel(symbolize::Kernel::default());
+        let symbolizer = Symbolizer::new();
+        let result = symbolizer
+            .symbolize(
+                &src,
+                symbolize::Input::AbsAddr(&[handle_getpid, subprogram]),
+            )
+            .unwrap();
+        let handle_getpid_sym = result[0].as_sym().unwrap();
+        assert_eq!(handle_getpid_sym.name, "handle__getpid");
+        let code_info = handle_getpid_sym.code_info.as_ref().unwrap();
+        assert_eq!(code_info.dir, None);
+        assert_eq!(
+            Path::new(&code_info.file).file_name(),
+            Some(OsStr::new("getpid.bpf.c"))
+        );
+        assert_eq!(code_info.line, Some(33));
+        assert_ne!(code_info.column, None);
+
+        let subprogram_sym = result[1].as_sym().unwrap();
+        assert_eq!(subprogram_sym.name, "subprogram");
+        let code_info = subprogram_sym.code_info.as_ref().unwrap();
+        assert_eq!(code_info.dir, None);
+        assert_eq!(
+            Path::new(&code_info.file).file_name(),
+            Some(OsStr::new("getpid.bpf.c"))
+        );
+        assert_eq!(code_info.line, Some(15));
+        assert_ne!(code_info.column, None);
+    })
 }
 
 /// Check that we can normalize addresses in an ELF shared object.

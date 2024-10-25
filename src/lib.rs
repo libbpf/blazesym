@@ -74,7 +74,7 @@ pub mod normalize;
 mod once;
 mod pid;
 pub mod symbolize;
-#[cfg(test)]
+#[cfg(any(test, feature = "test"))]
 mod test_helper;
 mod util;
 #[cfg(feature = "apk")]

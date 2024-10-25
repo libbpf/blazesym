@@ -142,9 +142,10 @@ mod bpf {
         value.expect("did not receive RingBuffer callback")
     }
 
-    /// Retrieve the address of the `symbolization_target` function in the
-    /// `getpid.bpf.o` BPF program.
-    pub(crate) fn with_bpf_symbolization_target_addrs<F>(f: F)
+    /// Retrieve the address of the `handle__getpid` and `subprogram`
+    /// functions in the `getpid.bpf.o` BPF program.
+    #[allow(dead_code)]
+    pub fn with_bpf_symbolization_target_addrs<F>(f: F)
     where
         F: FnOnce(Addr, Addr),
     {
@@ -167,4 +168,4 @@ mod bpf {
 }
 
 #[cfg(target_os = "linux")]
-pub(crate) use bpf::*;
+pub use bpf::*;
