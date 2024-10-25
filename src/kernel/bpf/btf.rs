@@ -103,8 +103,8 @@ impl Btf {
 mod tests {
     use super::*;
 
-    use crate::test_helper::prog_mut;
-    use crate::test_helper::test_object;
+    use blazesym_dev::prog_mut;
+    use blazesym_dev::test_object;
 
     use test_tag::tag;
 

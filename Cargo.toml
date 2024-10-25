@@ -157,7 +157,6 @@ test-tag = "0.1.3"
 # `bpf` shouldn't be enabled by default for non-Linux targets, because
 # it simply can't work.
 blazesym = {path = ".", features = ["bpf"]}
-libbpf-rs = "0.24"
 
 # A set of unused dependencies that we require to force correct minimum versions
 # of transitive dependencies, for cases where our dependencies have incorrect

@@ -420,11 +420,11 @@ impl<'prog> TryFrom<&'prog BpfProg> for SymInfo<'prog> {
 mod tests {
     use super::*;
 
+    use blazesym_dev::prog_mut;
+    use blazesym_dev::test_object;
+
     use test_log::test;
     use test_tag::tag;
-
-    use crate::test_helper::prog_mut;
-    use crate::test_helper::test_object;
 
 
     /// Test that we can parse a BPF program string as it may appear in

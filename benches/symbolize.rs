@@ -7,11 +7,15 @@ use blazesym::symbolize::Breakpad;
 use blazesym::symbolize::Elf;
 use blazesym::symbolize::GsymFile;
 use blazesym::symbolize::Input;
+use blazesym::symbolize::Kernel;
 use blazesym::symbolize::Process;
 use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::Pid;
+
+#[cfg(linux)]
+use blazesym_dev::with_bpf_symbolization_target_addrs;
 
 use criterion::measurement::Measurement;
 use criterion::Bencher;
@@ -175,6 +179,47 @@ where
     });
 }
 
+/// Benchmark the symbolization of BPF program kernel addresses.
+#[cfg(linux)]
+fn symbolize_kernel_bpf_uncached<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
+        let () = b.iter(|| {
+            let src = Source::Kernel(Kernel::default());
+            let symbolizer = Symbolizer::new();
+
+            let result = symbolizer
+                .symbolize(&src, Input::AbsAddr(&[handle_getpid, subprogram]))
+                .unwrap();
+
+            assert_eq!(result.len(), 2);
+        });
+    });
+}
+
+/// Benchmark the symbolization of BPF program kernel addresses when
+/// relevant data is readily cached.
+#[cfg(linux)]
+fn symbolize_kernel_bpf_cached<M>(b: &mut Bencher<'_, M>)
+where
+    M: Measurement,
+{
+    with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
+        let src = Source::Kernel(Kernel::default());
+        let symbolizer = Symbolizer::new();
+
+        let () = b.iter(|| {
+            let result = symbolizer
+                .symbolize(&src, Input::AbsAddr(&[handle_getpid, subprogram]))
+                .unwrap();
+
+            assert_eq!(result.len(), 2);
+        });
+    });
+}
+
 
 pub fn benchmark<M>(group: &mut BenchmarkGroup<'_, M>)
 where
@@ -187,4 +232,8 @@ where
     bench_fn!(group, symbolize_dwarf);
     bench_fn!(group, symbolize_gsym);
     bench_sub_fn!(group, symbolize_gsym_multi_no_setup);
+    #[cfg(linux)]
+    bench_sub_fn!(group, symbolize_kernel_bpf_uncached);
+    #[cfg(linux)]
+    bench_sub_fn!(group, symbolize_kernel_bpf_cached);
 }

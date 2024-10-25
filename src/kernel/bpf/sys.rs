@@ -239,8 +239,8 @@ mod tests {
     use std::ffi::CStr;
     use std::os::fd::AsRawFd as _;
 
-    use crate::test_helper::prog_mut;
-    use crate::test_helper::test_object;
+    use blazesym_dev::prog_mut;
+    use blazesym_dev::test_object;
 
     use tempfile::tempfile;
 
