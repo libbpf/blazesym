@@ -12,6 +12,7 @@ use blazesym::helper::read_elf_build_id;
 use blazesym::inspect;
 use blazesym::inspect::Inspector;
 use blazesym::normalize;
+use blazesym::normalize::NormalizeOpts;
 use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
@@ -139,14 +140,19 @@ fn normalize(normalize: args::normalize::Normalize) -> Result<()> {
             pid,
             addrs,
             no_build_ids,
+            map_files,
             procmap_query,
         }) => {
             let normalizer = Normalizer::builder()
                 .enable_build_ids(!no_build_ids)
                 .enable_procmap_query(procmap_query)
                 .build();
+            let opts = NormalizeOpts {
+                map_files,
+                ..Default::default()
+            };
             let normalized = normalizer
-                .normalize_user_addrs(pid, addrs.as_slice())
+                .normalize_user_addrs_opts(pid, addrs.as_slice(), &opts)
                 .context("failed to normalize addresses")?;
             for (addr, (output, meta_idx)) in addrs.iter().zip(&normalized.outputs) {
                 print!("{addr:#016x}: ");
