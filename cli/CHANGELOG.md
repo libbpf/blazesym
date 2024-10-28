@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Added support for symbolization of kernel addresses
+- Added `--map-files` option to `normalize user` sub-command
 
 
 0.1.6

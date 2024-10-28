@@ -101,12 +101,12 @@ mod tests {
     #[test]
     fn slice_creation() {
         let slice = unsafe { slice_from_aligned_user_array::<u64>(ptr::null(), 0) };
-        assert_eq!(slice, &[]);
+        assert_eq!(slice, &[] as &[u64]);
 
         let array = [];
         let slice =
             unsafe { slice_from_aligned_user_array::<u64>(&array as *const _, array.len()) };
-        assert_eq!(slice, &[]);
+        assert_eq!(slice, &[] as &[u64]);
 
         let array = [42u64, 1337];
         let slice =
@@ -120,7 +120,7 @@ mod tests {
     #[test]
     fn unaligned_slice_creation() {
         let slice = unsafe { slice_from_user_array(ptr::null::<u64>(), 0) };
-        assert_eq!(slice.deref(), &[]);
+        assert_eq!(slice.deref(), &[] as &[u64]);
 
         let mut buffer = [0u64; 8];
         let ptr = unsafe { buffer.as_mut_ptr().byte_add(3) };

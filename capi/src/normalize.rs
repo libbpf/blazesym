@@ -610,9 +610,9 @@ unsafe fn blaze_normalize_user_addrs_impl(
     let addrs = unsafe { slice_from_user_array(addrs, addr_cnt) };
     let result = normalizer.normalize_user_addrs_opts(pid.into(), &addrs, opts);
     match result {
-        Ok(addrs) => {
+        Ok(output) => {
             let output_box = Box::new(ManuallyDrop::into_inner(
-                blaze_normalized_user_output::from(addrs),
+                blaze_normalized_user_output::from(output),
             ));
             let () = set_last_err(blaze_err::BLAZE_ERR_OK);
             Box::into_raw(output_box)
