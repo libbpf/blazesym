@@ -878,7 +878,7 @@ impl ElfParser {
         let phdrs = self.program_headers()?;
         let addr = phdrs.iter().find_map(|phdr| {
             if phdr.p_type == PT_LOAD {
-                if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&offset) {
+                if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&offset) {
                     return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
                 }
             }

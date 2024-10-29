@@ -12,6 +12,8 @@ Unreleased
   `std::ops::ControlFlow` to facilitate early termination
 - Improved `kallsyms` parsing performance to speed up overall kernel
   address symbolization
+- Fixed incorrect file offset to virtual offset translation, resulting
+  in wrong symbolization in certain binaries
 - Bumped minimum supported Rust version to `1.69`
 
 
