@@ -19,7 +19,7 @@ struct FileMeta {
     inode: libc::ino_t,
     size: libc::off_t,
     mtime_sec: libc::time_t,
-    #[cfg(target_os = "linux")]
+    #[cfg(linux)]
     mtime_nsec: i64,
 }
 
@@ -32,7 +32,7 @@ impl From<&libc::stat> for FileMeta {
             inode: other.st_ino as _,
             size: other.st_size as _,
             mtime_sec: other.st_mtime,
-            #[cfg(target_os = "linux")]
+            #[cfg(linux)]
             mtime_nsec: other.st_mtime_nsec as _,
         }
     }
@@ -219,7 +219,7 @@ mod tests {
 
     /// Check that our `FileCache` does not represent symbolic links
     /// pointing to the same file as equal entries.
-    #[cfg(target_os = "linux")]
+    #[cfg(linux)]
     #[test]
     fn file_symlinks() {
         use std::os::fd::AsRawFd as _;

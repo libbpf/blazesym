@@ -48,7 +48,7 @@
     )),
     allow(dead_code, unused_imports)
 )]
-#![cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
+#![cfg_attr(not(linux), allow(dead_code, unused_imports))]
 
 
 #[cfg(feature = "nightly")]

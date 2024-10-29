@@ -3,9 +3,9 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
-#![cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
+#![cfg_attr(not(linux), allow(dead_code, unused_imports))]
 
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 mod common;
 
 use std::io::Error;
@@ -75,7 +75,7 @@ fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
     );
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 fn run_test<F>(callback_fn: F)
 where
     F: FnOnce(Pid, u64, &Path) + UnwindSafe,
@@ -145,7 +145,7 @@ where
 
 /// Check that we can symbolize an address in a process using only
 /// symbolic paths.
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 #[test]
 fn symbolize_process_symbolic_paths() {
     run_test(symbolize_permissionless_impl)
@@ -153,7 +153,7 @@ fn symbolize_process_symbolic_paths() {
 
 /// Check that we can normalize an address in a process using only
 /// symbolic paths.
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 #[test]
 fn normalize_process_symbolic_paths() {
     run_test(normalize_permissionless_impl)

@@ -58,7 +58,7 @@ pub(crate) fn find_the_answer_fn_in_zip(mmap: &Mmap) -> (inspect::SymInfo<'stati
 }
 
 
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 mod bpf {
     use super::*;
 
@@ -166,5 +166,5 @@ mod bpf {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 pub(crate) use bpf::*;
