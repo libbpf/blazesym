@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Added support for symbolization of kernel addresses
 - Added `--map-files` option to `normalize user` sub-command
+- Bumped `blazesym` dependency to `0.2.0-rc.2`
 
 
 0.1.6
