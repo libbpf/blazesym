@@ -110,6 +110,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Please update the build-cli workflow cross-compile matrix when
+        # adding a new target here.
         target: [
           aarch64-linux-android,
           arm-linux-androideabi,
