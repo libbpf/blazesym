@@ -123,6 +123,7 @@ jobs:
           target: ${{ matrix.target }}
       - run: |
           cargo build --lib
+          cargo build --package=blazesym-c --lib
   build-minimum:
     name: Build using minimum versions of dependencies
     runs-on: ubuntu-latest
