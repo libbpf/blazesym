@@ -32,7 +32,7 @@ fn data_dir() -> PathBuf {
 }
 
 /// Retrieve the system's page size.
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "android"))]
 fn page_size() -> Result<usize> {
     // SAFETY: `sysconf` is always safe to call.
     let rc = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
@@ -45,7 +45,7 @@ fn page_size() -> Result<usize> {
     Ok(usize::try_from(rc).unwrap())
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn page_size() -> Result<usize> {
     unimplemented!()
 }
