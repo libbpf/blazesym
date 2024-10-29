@@ -57,7 +57,7 @@ which = {version = "6.0.0", optional = true}
 # Pinned, because we use #[doc(hidden)] APIs.
 # TODO: Enable `zstd` feature once we enabled it for testing in the main
 #       crate.
-blazesym = {version = "=0.2.0-rc.1", path = "../", features = ["apk", "demangle", "gsym", "zlib"]}
+blazesym = {version = "=0.2.0-rc.1", path = "../", features = ["apk", "bpf", "demangle", "dwarf", "gsym", "zlib"]}
 libc = "0.2.137"
 # TODO: Remove dependency one MSRV is 1.77.
 memoffset = "0.9"
