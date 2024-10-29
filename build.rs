@@ -2,6 +2,6 @@ use cfg_aliases::cfg_aliases;
 
 fn main() {
     cfg_aliases! {
-        linux: { target_os = "linux" },
+        linux: { any(target_os = "linux", target_os = "android") },
     }
 }
