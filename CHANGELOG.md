@@ -1,4 +1,4 @@
-Unreleased
+0.2.0-rc.2
 ----------
 - Added support for symbolizing BPF kernel program addresses including
   source code information

@@ -3,6 +3,7 @@ Unreleased
 - Fixed various functions accepting `uintptr_t` addresses, when they
   really should be using `uint64_t`
 - Introduced `blaze_read_elf_build_id` helper
+- Bumped `blazesym` dependency to `0.2.0-rc.2`
 
 
 0.1.0-rc.1

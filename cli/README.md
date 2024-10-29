@@ -63,5 +63,5 @@ the list of supported shells.
 
 [blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build.yml
 [blazesym]: https://crates.io/crates/blazesym
-[blazesym-sym]: https://docs.rs/blazesym/0.2.0-rc.1/blazesym/symbolize/struct.Symbolizer.html
-[blazesym-elf-src]: https://docs.rs/blazesym/0.2.0-rc.1/blazesym/symbolize/enum.Source.html#variant.Elf
+[blazesym-sym]: https://docs.rs/blazesym/0.2.0-rc.2/blazesym/symbolize/struct.Symbolizer.html
+[blazesym-elf-src]: https://docs.rs/blazesym/0.2.0-rc.2/blazesym/symbolize/enum.Source.html#variant.Elf
