@@ -114,6 +114,7 @@ jobs:
           aarch64-linux-android,
           arm-linux-androideabi,
           armv7-linux-androideabi,
+          i686-unknown-linux-gnu,
           x86_64-unknown-linux-musl,
         ]
     steps:
