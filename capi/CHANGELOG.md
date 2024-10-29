@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Fixed various functions accepting `uintptr_t` addresses, when they
+  really should be using `uint64_t`
 - Introduced `blaze_read_elf_build_id` helper
 
 

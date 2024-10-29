@@ -220,7 +220,7 @@ typedef struct blaze_sym_info {
   /**
    * See [`inspect::SymInfo::addr`].
    */
-  uintptr_t addr;
+  uint64_t addr;
   /**
    * See [`inspect::SymInfo::size`].
    */
@@ -648,7 +648,7 @@ typedef struct blaze_sym {
    * the file (and reported by tools such as `readelf(1)`,
    * `llvm-gsymutil`, or similar).
    */
-  uintptr_t addr;
+  uint64_t addr;
   /**
    * The byte offset of the address that got symbolized from the
    * start of the symbol (i.e., from `addr`).
@@ -1051,7 +1051,7 @@ const char *blaze_normalize_reason_str(blaze_normalize_reason err);
  */
 struct blaze_normalized_user_output *blaze_normalize_user_addrs(const blaze_normalizer *normalizer,
                                                                 uint32_t pid,
-                                                                const uintptr_t *addrs,
+                                                                const uint64_t *addrs,
                                                                 size_t addr_cnt);
 
 /**
@@ -1077,7 +1077,7 @@ struct blaze_normalized_user_output *blaze_normalize_user_addrs(const blaze_norm
  */
 struct blaze_normalized_user_output *blaze_normalize_user_addrs_opts(const blaze_normalizer *normalizer,
                                                                      uint32_t pid,
-                                                                     const uintptr_t *addrs,
+                                                                     const uint64_t *addrs,
                                                                      size_t addr_cnt,
                                                                      const struct blaze_normalize_opts *opts);
 
@@ -1159,7 +1159,7 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  */
 const struct blaze_syms *blaze_symbolize_process_abs_addrs(blaze_symbolizer *symbolizer,
                                                            const struct blaze_symbolize_src_process *src,
-                                                           const uintptr_t *abs_addrs,
+                                                           const uint64_t *abs_addrs,
                                                            size_t abs_addr_cnt);
 
 /**
@@ -1181,7 +1181,7 @@ const struct blaze_syms *blaze_symbolize_process_abs_addrs(blaze_symbolizer *sym
  */
 const struct blaze_syms *blaze_symbolize_kernel_abs_addrs(blaze_symbolizer *symbolizer,
                                                           const struct blaze_symbolize_src_kernel *src,
-                                                          const uintptr_t *abs_addrs,
+                                                          const uint64_t *abs_addrs,
                                                           size_t abs_addr_cnt);
 
 /**
@@ -1203,7 +1203,7 @@ const struct blaze_syms *blaze_symbolize_kernel_abs_addrs(blaze_symbolizer *symb
  */
 const struct blaze_syms *blaze_symbolize_elf_virt_offsets(blaze_symbolizer *symbolizer,
                                                           const struct blaze_symbolize_src_elf *src,
-                                                          const uintptr_t *virt_offsets,
+                                                          const uint64_t *virt_offsets,
                                                           size_t virt_offset_cnt);
 
 /**
@@ -1225,7 +1225,7 @@ const struct blaze_syms *blaze_symbolize_elf_virt_offsets(blaze_symbolizer *symb
  */
 const struct blaze_syms *blaze_symbolize_elf_file_offsets(blaze_symbolizer *symbolizer,
                                                           const struct blaze_symbolize_src_elf *src,
-                                                          const uintptr_t *file_offsets,
+                                                          const uint64_t *file_offsets,
                                                           size_t file_offset_cnt);
 
 /**
@@ -1247,7 +1247,7 @@ const struct blaze_syms *blaze_symbolize_elf_file_offsets(blaze_symbolizer *symb
  */
 const struct blaze_syms *blaze_symbolize_gsym_data_virt_offsets(blaze_symbolizer *symbolizer,
                                                                 const struct blaze_symbolize_src_gsym_data *src,
-                                                                const uintptr_t *virt_offsets,
+                                                                const uint64_t *virt_offsets,
                                                                 size_t virt_offset_cnt);
 
 /**
@@ -1269,7 +1269,7 @@ const struct blaze_syms *blaze_symbolize_gsym_data_virt_offsets(blaze_symbolizer
  */
 const struct blaze_syms *blaze_symbolize_gsym_file_virt_offsets(blaze_symbolizer *symbolizer,
                                                                 const struct blaze_symbolize_src_gsym_file *src,
-                                                                const uintptr_t *virt_offsets,
+                                                                const uint64_t *virt_offsets,
                                                                 size_t virt_offset_cnt);
 
 /**
