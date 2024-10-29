@@ -9,10 +9,9 @@ usize_is_size_t = true
 
 [export]
 item_types = ["globals", "enums", "structs", "unions", "typedefs", "opaque", "functions"]
-exclude = ["Addr"]
 
 [export.rename]
-"Addr" = "uintptr_t"
+"Addr" = "uint64_t"
 "Inspector" = "struct blaze_inspector"
 "Normalizer" = "struct blaze_normalizer"
 "Symbolizer" = "struct blaze_symbolizer"
