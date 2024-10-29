@@ -1,4 +1,4 @@
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(linux))]
 compile_error!("BPF support is only present on Linux, please disable `bpf` feature");
 
 mod btf;

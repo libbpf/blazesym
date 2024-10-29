@@ -4,7 +4,7 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
-#![cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
+#![cfg_attr(not(linux), allow(dead_code, unused_imports))]
 
 use std::alloc::GlobalAlloc;
 use std::alloc::Layout;
@@ -56,7 +56,7 @@ unsafe impl GlobalAlloc for TracingAlloc {
 
 /// Normalize addresses in the current process and print allocation
 /// statistics.
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 #[test]
 fn normalize_process() {
     let region = Region::new(&GLOBAL);

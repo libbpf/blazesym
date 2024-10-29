@@ -3,9 +3,9 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
-#![cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
+#![cfg_attr(not(linux), allow(dead_code, unused_imports))]
 
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 mod common;
 
 use std::fs::copy;
@@ -35,7 +35,7 @@ fn symbolize_no_permission_impl(path: &Path) {
 
 /// Check that we fail symbolization as expected when we don't have the
 /// permission to open the symbolization source.
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 #[test]
 fn symbolize_no_permission() {
     use common::as_user;

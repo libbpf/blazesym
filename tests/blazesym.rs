@@ -3,7 +3,7 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
-#![cfg_attr(not(target_os = "linux"), allow(dead_code, unused_imports))]
+#![cfg_attr(not(linux), allow(dead_code, unused_imports))]
 
 use std::collections::HashMap;
 use std::env;
@@ -16,7 +16,7 @@ use std::io::Read as _;
 use std::io::Write as _;
 use std::ops::ControlFlow;
 use std::ops::Deref as _;
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 use std::process::Command;
@@ -699,7 +699,7 @@ fn symbolize_process() {
 
 /// Check that we can symbolize an address in a process using a binary
 /// located in a local mount namespace.
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 #[test]
 fn symbolize_process_in_mount_namespace() {
     use libc::kill;
@@ -806,7 +806,7 @@ fn symbolize_process_with_custom_dispatch() {
 }
 
 /// Check that we can normalize addresses in an ELF shared object.
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 #[test]
 fn normalize_elf_addr() {
     fn test(so: &str, map_files: bool) {
@@ -872,7 +872,7 @@ fn normalize_elf_addr() {
 
 
 /// Check that we can enable/disable the reading of build IDs.
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 #[test]
 fn normalize_build_id_reading() {
     fn test(read_build_ids: bool) {

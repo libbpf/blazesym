@@ -36,7 +36,7 @@ use crate::symbolize::InlinedFn;
 use crate::symbolize::Resolve;
 use crate::symbolize::TranslateFileOffset;
 use crate::util;
-#[cfg(target_os = "linux")]
+#[cfg(linux)]
 use crate::util::uname_release;
 use crate::util::Dbg;
 #[cfg(feature = "tracing")]
@@ -891,7 +891,7 @@ impl Symbolizer {
         Ok(resolver)
     }
 
-    #[cfg(target_os = "linux")]
+    #[cfg(linux)]
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
         let Kernel {
             kallsyms,
@@ -954,7 +954,7 @@ impl Symbolizer {
         KernelResolver::new(ksym_resolver.cloned(), elf_resolver.cloned())
     }
 
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(not(linux))]
     fn create_kernel_resolver(&self, _src: &Kernel) -> Result<KernelResolver> {
         Err(Error::with_unsupported(
             "kernel address symbolization is unsupported on operating systems other than Linux",
@@ -1375,7 +1375,7 @@ impl Default for Symbolizer {
 mod tests {
     use super::*;
 
-    #[cfg(all(target_os = "linux", feature = "nightly"))]
+    #[cfg(all(linux, feature = "nightly"))]
     use test::Bencher;
 
     use test_log::test;
@@ -1384,7 +1384,7 @@ mod tests {
     use crate::symbolize;
     use crate::symbolize::CodeInfo;
     use crate::test_helper::find_the_answer_fn_in_zip;
-    #[cfg(target_os = "linux")]
+    #[cfg(linux)]
     use crate::test_helper::with_bpf_symbolization_target_addrs;
 
 
@@ -1694,7 +1694,7 @@ mod tests {
     }
 
     /// Test symbolization of a kernel address inside a BPF program.
-    #[cfg(target_os = "linux")]
+    #[cfg(linux)]
     #[test]
     fn symbolize_kernel_bpf_program() {
         with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
@@ -1731,7 +1731,7 @@ mod tests {
     }
 
     /// Benchmark the symbolization of BPF program kernel addresses.
-    #[cfg(target_os = "linux")]
+    #[cfg(linux)]
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_symbolize_kernel_bpf_uncached(b: &mut Bencher) {
@@ -1754,7 +1754,7 @@ mod tests {
 
     /// Benchmark the symbolization of BPF program kernel addresses when
     /// relevant data is readily cached.
-    #[cfg(target_os = "linux")]
+    #[cfg(linux)]
     #[cfg(feature = "nightly")]
     #[bench]
     fn bench_symbolize_kernel_bpf_cached(b: &mut Bencher) {
