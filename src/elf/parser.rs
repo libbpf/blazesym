@@ -1171,6 +1171,81 @@ mod tests {
         test(&so);
     }
 
+    /// Check that we can correctly convert a file offset into a virtual
+    /// offset.
+    ///
+    /// This is a regression test for the case that a program header
+    /// with a memory size greater than file size is located before a
+    /// program header that would otherwise match the file offset. Refer
+    /// to commit 1a4e10740652 ("Use file size in file offset -> virtual
+    /// offset translation").
+    #[test]
+    fn virtual_offset_calculation() {
+        #[repr(C)]
+        struct Elf {
+            ehdr: Elf64_Ehdr,
+            phdrs: [Elf64_Phdr; 2],
+        }
+
+        // Data is mostly made up, except for relevant program headers,
+        // which were copied from a real binary.
+        let elf = Elf {
+            ehdr: Elf64_Ehdr {
+                e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                e_type: 3,
+                e_machine: 62,
+                e_version: 1,
+                e_entry: 4208,
+                e_phoff: size_of::<Elf64_Ehdr>() as _,
+                e_shoff: 0,
+                e_flags: 0,
+                e_ehsize: 64,
+                e_phentsize: 56,
+                e_phnum: 2,
+                e_shentsize: 0,
+                e_shnum: 1,
+                e_shstrndx: 0,
+            },
+            phdrs: [
+                Elf64_Phdr {
+                    p_type: 1,
+                    p_flags: 6,
+                    p_offset: 455231872,
+                    p_vaddr: 457337216,
+                    p_paddr: 457337216,
+                    p_filesz: 3422344,
+                    p_memsz: 13261132,
+                    p_align: 4096,
+                },
+                Elf64_Phdr {
+                    p_type: 1,
+                    p_flags: 5,
+                    p_offset: 459276288,
+                    p_vaddr: 471859200,
+                    p_paddr: 471859200,
+                    p_filesz: 77813932,
+                    p_memsz: 77813932,
+                    p_align: 2097152,
+                },
+            ],
+        };
+
+        let mut file = NamedTempFile::new().unwrap();
+        let dump =
+            unsafe { slice::from_raw_parts((&elf as *const Elf).cast::<u8>(), size_of::<Elf>()) };
+        let () = file.write_all(dump).unwrap();
+        let () = file.rewind().unwrap();
+
+        let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
+        // A file offset as produced by normalization.
+        let file_offset = 0x1b63b4d0;
+        let virt_offset = parser
+            .file_offset_to_virt_offset(file_offset)
+            .unwrap()
+            .unwrap();
+        assert_eq!(virt_offset, 0x1c23b4d0);
+    }
+
     /// Make sure that we can look up a symbol in an ELF file.
     #[test]
     fn lookup_symbol() {
