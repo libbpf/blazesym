@@ -805,6 +805,70 @@ fn symbolize_process_with_custom_dispatch() {
     test(process_no_dispatch);
 }
 
+/// Symbolize a normalized address from a binary with an artificially
+/// inflated ELF segment.
+///
+/// This is a regression test for the case that a program header
+/// with a memory size greater than file size is located before a
+/// program header that would otherwise match the file offset. Refer
+/// to commit 1a4e10740652 ("Use file size in file offset -> virtual
+/// offset translation").
+#[cfg(linux)]
+#[test]
+fn symbolize_normalized_large_memsize() {
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-block.bin");
+    let mut child = Command::new(&test_block)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let pid = child.id();
+    defer!({
+        // Best effort only. The child may end up terminating gracefully
+        // if everything goes as planned.
+        // TODO: Ideally this kill would be pid FD based to eliminate
+        //       any possibility of killing the wrong entity.
+        let _rc = unsafe { libc::kill(pid as _, libc::SIGKILL) };
+    });
+
+    let mut buf = [0u8; size_of::<Addr>()];
+    let count = child
+        .stderr
+        .as_mut()
+        .unwrap()
+        .read(&mut buf)
+        .expect("failed to read child output");
+    assert_eq!(count, buf.len());
+    let addr = Addr::from_ne_bytes(buf);
+    let pid = Pid::from(child.id());
+
+    let normalizer = Normalizer::new();
+    let normalized = normalizer
+        .normalize_user_addrs(pid, [addr].as_slice())
+        .unwrap();
+
+    assert_eq!(normalized.outputs.len(), 1);
+    assert_eq!(normalized.meta.len(), 1);
+    let file_offset = normalized.outputs[0].0;
+
+    let elf = symbolize::Elf::new(test_block);
+    let src = symbolize::Source::Elf(elf);
+    let symbolizer = Symbolizer::new();
+    let sym = symbolizer
+        .symbolize_single(&src, symbolize::Input::FileOffset(file_offset))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(sym.name, "_start");
+
+    // "Signal" the child to terminate gracefully.
+    let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
+    let _status = child.wait().unwrap();
+}
+
 /// Check that we can normalize addresses in an ELF shared object.
 #[cfg(linux)]
 #[test]
