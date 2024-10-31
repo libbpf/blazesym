@@ -477,6 +477,18 @@ fn prepare_test_files() {
     let src = data_dir.join("test-mnt-ns.c");
     cc(&src, "test-mnt-ns.bin", &[]);
 
+    let src = data_dir.join("test-block.c");
+    let ld_script = data_dir.join("test-block-augmented.ld");
+    let args = &[
+        "-static",
+        "-Wl,--build-id=none",
+        "-nostdlib",
+        // Just passing the linker script as "regular" input file causes
+        // it to "augment" the default linker script.
+        ld_script.to_str().unwrap(),
+    ];
+    cc(&src, "test-block.bin", args);
+
     cc_stable_addrs(
         "test-stable-addrs.bin",
         &["-gdwarf-4", "-Wl,--build-id=none", "-O0"],
