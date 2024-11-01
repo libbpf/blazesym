@@ -45,23 +45,23 @@ As alluded to above, the library provides support for a variety of formats. For
 symbolization specifically, the following table lays out what features each
 format supports and whether **blazesym** can currently use this feature:
 
-| Format        | Feature                          | Supported by format?     | Supported by blazesym?   |
-| ------------- | -------------------------------- | ------------------------ | ------------------------ |
-| Breakpad      | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | inlined function information     | :heavy_check_mark:       | :heavy_check_mark:       |
-| ELF           | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | source code location information | :heavy_multiplication_x: | :heavy_multiplication_x: |
-|               | inlined function information     | :heavy_multiplication_x: | :heavy_multiplication_x: |
-| DWARF         | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | inlined function information     | :heavy_check_mark:       | :heavy_check_mark:       |
-| Gsym          | symbol size                      | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | source code location information | :heavy_check_mark:       | :heavy_check_mark:       |
-|               | inlined function information     | :heavy_check_mark:       | :heavy_check_mark:       |
-| Ksym          | symbol size                      | :heavy_multiplication_x: | :heavy_multiplication_x: |
-|               | source code location information | :heavy_multiplication_x: | :heavy_multiplication_x: |
-|               | inlined function information     | :heavy_multiplication_x: | :heavy_multiplication_x: |
+| Format        | Feature                          | Supported by format? | Supported by blazesym? |
+| ------------- | -------------------------------- | -------------------- | ---------------------- |
+| Breakpad      | symbol size                      | ✔️                    | ✔️                      |
+|               | source code location information | ✔️                    | ✔️                      |
+|               | inlined function information     | ✔️                    | ✔️                      |
+| ELF           | symbol size                      | ✔️                    | ✔️                      |
+|               | source code location information | ✖️                    | ✖️                      |
+|               | inlined function information     | ✖️                    | ✖️                      |
+| DWARF         | symbol size                      | ✔️                    | ✔️                      |
+|               | source code location information | ✔️                    | ✔️                      |
+|               | inlined function information     | ✔️                    | ✔️                      |
+| Gsym          | symbol size                      | ✔️                    | ✔️                      |
+|               | source code location information | ✔️                    | ✔️                      |
+|               | inlined function information     | ✔️                    | ✔️                      |
+| Ksym          | symbol size                      | ✖️                    | ✖️                      |
+|               | source code location information | ✖️                    | ✖️                      |
+|               | inlined function information     | ✖️                    | ✖️                      |
 
 
 Here is rough roadmap of currently planned features (in no particular order):
