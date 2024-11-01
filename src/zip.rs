@@ -30,6 +30,7 @@ const FLAG_HAS_DATA_DESCRIPTOR: u16 = 1 << 3;
 
 
 /// See section 4.3.16 of the spec.
+#[derive(Clone, Debug)]
 #[repr(C, packed)]
 struct EndOfCdRecord {
     /// Magic value equal to END_OF_CD_RECORD_MAGIC.
@@ -62,6 +63,7 @@ unsafe impl Pod for EndOfCdRecord {}
 
 
 /// See section 4.3.12 of the spec.
+#[derive(Clone, Debug)]
 #[repr(C, packed)]
 struct CdFileHeader {
     /// Magic value equal to CD_FILE_HEADER_MAGIC.
@@ -93,6 +95,7 @@ unsafe impl Pod for CdFileHeader {}
 
 
 /// See section 4.3.7 of the spec.
+#[derive(Clone, Debug)]
 #[repr(C, packed)]
 struct LocalFileHeader {
     /// Magic value equal to LOCAL_FILE_HEADER_MAGIC.
