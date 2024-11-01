@@ -405,7 +405,7 @@ where
 ///
 /// # Safety
 /// Only safe to implement for types that are valid for any bit pattern.
-pub unsafe trait Pod {}
+pub unsafe trait Pod: Clone {}
 
 unsafe impl Pod for i8 {}
 unsafe impl Pod for u8 {}

@@ -17,6 +17,7 @@ pub struct Header {
     pub _uuid: [u8; 20],
 }
 
+#[derive(Clone, Debug)]
 #[repr(C)]
 pub struct FileInfo {
     pub directory: u32,
