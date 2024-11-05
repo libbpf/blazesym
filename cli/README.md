@@ -41,7 +41,7 @@ process` sub-command can be used. Please refer to the program's help
 text for additional details.
 
 Pre-built, statically linked binaries for various target triples are available
-on-demand [here][blazecli-bins].
+on-demand [here][blazecli-bins] as well as attached to each published release.
 
 
 ### Shell Completion
