@@ -31,7 +31,7 @@ jobs:
         with:
           target: ${{ matrix.target }}
       - run: |
-          cargo install --path=cli --root=. --target ${{ matrix.target }}
+          CARGO_PROFILE_RELEASE_DEBUG=false CARGO_PROFILE_RELEASE_STRIP=true cargo install --path=cli --root=. --target ${{ matrix.target }}
       - uses: actions/upload-artifact@v4
         with:
           name: blazecli-${{ matrix.target }}
