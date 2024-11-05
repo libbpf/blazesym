@@ -87,10 +87,17 @@ zstd = ["dep:zstd"]
 # Below here are dev-mostly features that should not be needed by
 # regular users.
 
+# Expose test-only helpers for convenient use in end-to-end tests from
+# crate.
+test = []
 # Enable code paths requiring a nightly toolchain. This feature is only meant to
 # be used for testing and benchmarking purposes, not for the core library, which
 # is expected to work on stable.
 nightly = []
+
+[[test]]
+name = "blazesym"
+required-features = ["test"]
 
 [[example]]
 name = "addr2ln"
@@ -111,6 +118,7 @@ required-features = ["demangle", "blazesym-dev/generate-unit-test-files"]
 [[bench]]
 name = "main"
 harness = false
+required-features = ["test"]
 
 [profile.release]
 debug = true
@@ -140,10 +148,6 @@ zstd = {version = "0.13.1", default-features = false, optional = true}
 # APIs.
 addr2line = "=0.24.2"
 anyhow = "1.0.71"
-# TODO: Enable `zstd` feature once toolchain support for it is more
-#       widespread (enabled by default in `ld`). Remove conditionals in
-#       test code alongside.
-blazesym = {path = ".", features = ["apk", "breakpad", "gsym", "tracing"]}
 blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
