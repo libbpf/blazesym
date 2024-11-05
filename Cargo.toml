@@ -11,15 +11,23 @@ members = [
 # --workspace is specified.
 default-members = ["."]
 
+[workspace.package]
+edition = "2021"
+rust-version = "1.69"
+license = "BSD-3-Clause"
+repository = "https://github.com/libbpf/blazesym"
+homepage = "https://github.com/libbpf/blazesym"
+
 [package]
 name = "blazesym"
 description = "blazesym is a library for address symbolization and related tasks."
 version = "0.2.0-rc.2"
-edition = "2021"
-rust-version = "1.69"
+edition.workspace = true
+rust-version.workspace = true
 authors = ["Daniel Müller <deso@posteo.net>", "Kui-Feng <thinker.li@gmail.com>"]
-license = "BSD-3-Clause"
-repository = "https://github.com/libbpf/blazesym"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 readme = "README.md"
 categories = [
   "algorithms",

@@ -2,11 +2,12 @@
 name = "blazesym-c"
 description = "C bindings for blazesym"
 version = "0.1.0-rc.2"
-edition = "2021"
-rust-version = "1.69"
+edition.workspace = true
+rust-version.workspace = true
 authors = ["Daniel Müller <deso@posteo.net>"]
-license = "BSD-3-Clause"
-repository = "https://github.com/libbpf/blazesym"
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
 readme = "README.md"
 categories = [
   "algorithms",
