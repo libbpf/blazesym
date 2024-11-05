@@ -1,4 +1,4 @@
-Unreleased
+0.1.0-rc.2
 ----------
 - Fixed various functions accepting `uintptr_t` addresses, when they
   really should be using `uint64_t`
