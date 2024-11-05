@@ -74,7 +74,7 @@ pub mod normalize;
 mod once;
 mod pid;
 pub mod symbolize;
-#[cfg(test)]
+#[cfg(any(test, feature = "test"))]
 mod test_helper;
 mod util;
 #[cfg(feature = "apk")]
@@ -170,6 +170,16 @@ pub mod __private {
     pub use crate::util::bytes_to_path;
     pub use crate::util::stat;
     pub use crate::util::ReadRaw;
+
+    #[cfg(feature = "apk")]
+    pub mod zip {
+        pub use crate::zip::Archive;
+    }
+
+    #[cfg(feature = "test")]
+    pub use crate::test_helper::find_the_answer_fn;
+    #[cfg(feature = "test")]
+    pub use crate::test_helper::find_the_answer_fn_in_zip;
 }
 
 

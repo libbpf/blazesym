@@ -16,7 +16,7 @@ use crate::SymType;
 /// This function returns the symbol information of the function along
 /// with it's absolute address in the memory mapped region.
 #[allow(clippy::missing_transmute_annotations)]
-pub(crate) fn find_the_answer_fn(mmap: &Mmap) -> (inspect::SymInfo<'static>, Addr) {
+pub fn find_the_answer_fn(mmap: &Mmap) -> (inspect::SymInfo<'static>, Addr) {
     // Look up the address of the `the_answer` function inside of the shared
     // object.
     let elf_parser = ElfParser::from_mmap(mmap.clone(), Some(PathBuf::from("libtest-so.so")));
@@ -39,7 +39,9 @@ pub(crate) fn find_the_answer_fn(mmap: &Mmap) -> (inspect::SymInfo<'static>, Add
     (sym.to_owned(), the_answer_addr as Addr)
 }
 
-pub(crate) fn find_the_answer_fn_in_zip(mmap: &Mmap) -> (inspect::SymInfo<'static>, Addr) {
+/// Find the `the_answer` function inside the provided `mmap`, which is
+/// expected to be the memory mapped zip archive.
+pub fn find_the_answer_fn_in_zip(mmap: &Mmap) -> (inspect::SymInfo<'static>, Addr) {
     let archive = zip::Archive::with_mmap(mmap.clone()).unwrap();
     let so = archive
         .entries()

@@ -116,6 +116,7 @@ unsafe impl Pod for LocalFileHeader {}
 
 /// Carries information on path, compression method, and data corresponding to a
 /// file in a zip archive.
+#[doc(hidden)]
 pub struct Entry<'archive> {
     /// Compression method as defined in pkzip spec. 0 means data is
     /// uncompressed.
@@ -256,8 +257,9 @@ impl<'archive> Iterator for EntryIter<'archive> {
 /// - streaming
 /// - multi-part ZIP files
 /// - ZIP64
+#[doc(hidden)]
 #[derive(Debug)]
-pub(crate) struct Archive {
+pub struct Archive {
     mmap: Mmap,
     cd_offset: u32,
     cd_records: u16,
@@ -275,7 +277,8 @@ impl Archive {
     }
 
     /// Create an `Archive` instance using the provided `Mmap`.
-    pub(crate) fn with_mmap(mmap: Mmap) -> Result<Self> {
+    #[doc(hidden)]
+    pub fn with_mmap(mmap: Mmap) -> Result<Self> {
         // Check that a central directory is present as at least some form
         // of validation that we are in fact dealing with a valid zip file.
         let (cd_offset, cd_records) = Archive::find_cd(&mmap)?;
@@ -346,7 +349,8 @@ impl Archive {
     }
 
     /// Create an iterator over the entries of the archive.
-    pub(crate) fn entries(&self) -> EntryIter<'_> {
+    #[doc(hidden)]
+    pub fn entries(&self) -> impl Iterator<Item = Result<Entry<'_>>> {
         let archive_data = &self.mmap;
         // SANITY: The offset has been validated during construction.
         let cd_record_data = self.mmap.get(self.cd_offset as usize..).unwrap();

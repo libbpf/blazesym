@@ -12,8 +12,9 @@ use crate::ErrorExt as _;
 use crate::Result;
 
 
+#[doc(hidden)]
 #[derive(Debug)]
-pub(crate) struct Builder {
+pub struct Builder {
     exec: bool,
 }
 
@@ -23,14 +24,15 @@ impl Builder {
     }
 
     /// Configure the mapping to be executable.
-    #[cfg(test)]
-    pub(crate) fn exec(mut self) -> Self {
+    #[doc(hidden)]
+    pub fn exec(mut self) -> Self {
         self.exec = true;
         self
     }
 
     /// Memory map the file at the provided `path`.
-    pub(crate) fn open<P>(self, path: P) -> Result<Mmap>
+    #[doc(hidden)]
+    pub fn open<P>(self, path: P) -> Result<Mmap>
     where
         P: AsRef<Path>,
     {
@@ -81,7 +83,8 @@ pub struct Mmap {
 
 impl Mmap {
     /// Create [`Builder`] for creating a customizable memory mapping.
-    pub(crate) fn builder() -> Builder {
+    #[doc(hidden)]
+    pub fn builder() -> Builder {
         Builder::new()
     }
 
@@ -93,7 +96,8 @@ impl Mmap {
     /// Create a new `Mmap` object (sharing the same underlying memory mapping
     /// as the current one) that restricts its view to the provided `range`.
     /// Adjustment happens relative to the current view.
-    pub(crate) fn constrain(&self, range: Range<u64>) -> Option<Self> {
+    #[doc(hidden)]
+    pub fn constrain(&self, range: Range<u64>) -> Option<Self> {
         if self.view.start + range.end > self.view.end {
             return None
         }
