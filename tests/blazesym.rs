@@ -11,7 +11,7 @@ use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fs::copy;
 use std::fs::read as read_file;
-use std::io::Error;
+use std::io;
 use std::io::Read as _;
 use std::io::Write as _;
 use std::ops::ControlFlow;
@@ -31,6 +31,7 @@ use blazesym::normalize;
 use blazesym::normalize::NormalizeOpts;
 use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
+use blazesym::symbolize::FindSymOpts;
 use blazesym::symbolize::ProcessDispatch;
 use blazesym::symbolize::ProcessMemberInfo;
 use blazesym::symbolize::ProcessMemberType;
@@ -39,12 +40,14 @@ use blazesym::symbolize::Resolve;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
+use blazesym::Error;
 use blazesym::ErrorKind;
 use blazesym::Mmap;
 use blazesym::Pid;
 use blazesym::Result;
 use blazesym::SymType;
 use blazesym::__private::find_the_answer_fn;
+use blazesym::__private::find_the_answer_fn_in_zip;
 use blazesym::__private::zip;
 
 #[cfg(linux)]
@@ -764,6 +767,30 @@ fn symbolize_process_in_mount_namespace() {
     let _status = child.wait().unwrap();
 }
 
+/// Check that we can symbolize an address residing in a zip archive.
+#[test]
+fn symbolize_process_zip() {
+    let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test.zip");
+
+    let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+    let (sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
+
+    // Symbolize the address we just looked up. It should be correctly
+    // mapped to the `the_answer` function within our process.
+    let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, symbolize::Input::AbsAddr(the_answer_addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "the_answer");
+    assert_eq!(result.addr, sym.addr);
+}
+
 /// Test that we can use a custom dispatch function when symbolizing addresses
 /// in processes.
 #[test]
@@ -810,6 +837,110 @@ fn symbolize_process_with_custom_dispatch() {
 
     test(process_dispatch);
     test(process_no_dispatch);
+}
+
+/// Check that we can symbolize an address residing in a zip archive, using
+/// a custom APK dispatcher.
+#[test]
+fn symbolize_zip_with_custom_dispatch() {
+    fn zip_dispatch(info: symbolize::ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+        assert_eq!(info.member_path, Path::new("libtest-so.so"));
+
+        let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(info.member_path);
+
+        let resolver = ElfResolver::open(test_so)?;
+        Ok(Some(Box::new(resolver)))
+    }
+
+    fn zip_no_dispatch(info: symbolize::ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+        assert_eq!(info.member_path, Path::new("libtest-so.so"));
+        Ok(None)
+    }
+
+    fn test(dispatcher: impl symbolize::ApkDispatch + 'static) {
+        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+
+        let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+        let (sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
+
+        let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+        let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
+        let result = symbolizer
+            .symbolize_single(&src, symbolize::Input::AbsAddr(the_answer_addr as Addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(result.name, "the_answer");
+        assert_eq!(result.addr, sym.addr);
+    }
+
+    let () = test(zip_dispatch);
+    let () = test(zip_no_dispatch);
+}
+
+/// Check that we correctly propagate errors induced by a custom APK
+/// dispatcher.
+#[test]
+fn symbolize_zip_with_custom_dispatch_errors() {
+    fn zip_error_dispatch(_info: symbolize::ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+        Err(Error::from(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "induced error",
+        )))
+    }
+
+    fn zip_delayed_error_dispatch(
+        _info: symbolize::ApkMemberInfo<'_>,
+    ) -> Result<Option<Box<dyn Resolve>>> {
+        #[derive(Debug)]
+        struct Resolver;
+
+        impl symbolize::Symbolize for Resolver {
+            fn find_sym(
+                &self,
+                _addr: Addr,
+                _opts: &FindSymOpts,
+            ) -> Result<Result<symbolize::ResolvedSym<'_>, Reason>> {
+                unimplemented!()
+            }
+        }
+
+        impl symbolize::TranslateFileOffset for Resolver {
+            fn file_offset_to_virt_offset(&self, _file_offset: u64) -> Result<Option<Addr>> {
+                Err(Error::from(io::Error::new(
+                    io::ErrorKind::Unsupported,
+                    "induced error",
+                )))
+            }
+        }
+
+        Ok(Some(Box::new(Resolver)))
+    }
+
+    fn test(dispatcher: impl symbolize::ApkDispatch + 'static) {
+        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+
+        let mmap = Mmap::builder().exec().open(test_zip).unwrap();
+        let (_sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
+
+        let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+        let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
+        let err = symbolizer
+            .symbolize_single(&src, symbolize::Input::AbsAddr(the_answer_addr as Addr))
+            .unwrap_err();
+
+        assert_eq!(err.to_string(), "induced error");
+    }
+
+    let () = test(zip_error_dispatch);
+    let () = test(zip_delayed_error_dispatch);
 }
 
 /// Test symbolization of a kernel address inside a BPF program.
@@ -1021,7 +1152,7 @@ fn normalize_elf_addr() {
         assert!(!handle.is_null());
         defer!({
             let rc = unsafe { libc::dlclose(handle) };
-            assert_eq!(rc, 0, "{}", Error::last_os_error());
+            assert_eq!(rc, 0, "{}", io::Error::last_os_error());
         });
 
         let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
@@ -1277,7 +1408,7 @@ fn normalize_build_id_reading() {
         assert_eq!(normalized.meta.len(), 1);
 
         let rc = unsafe { libc::dlclose(handle) };
-        assert_eq!(rc, 0, "{}", Error::last_os_error());
+        assert_eq!(rc, 0, "{}", io::Error::last_os_error());
 
         let output = normalized.outputs[0];
         let meta = &normalized.meta[output.1];
