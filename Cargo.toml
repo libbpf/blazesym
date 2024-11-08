@@ -162,13 +162,6 @@ test-tag = "0.1.3"
 # it simply can't work.
 blazesym = {path = ".", features = ["bpf"]}
 
-# A set of unused dependencies that we require to force correct minimum versions
-# of transitive dependencies, for cases where our dependencies have incorrect
-# dependency specifications themselves.
-# > 22 |     let mut hash = simd_adler32::Adler32::from_checksum(adler);
-# >    |                                           ^^^^^^^^^^^^^ function or associated item not found in `Adler32`
-_simd-adler32_unused = { package = "simd-adler32", version = "0.3.3" }
-
 # https://docs.rs/about/metadata
 [package.metadata.docs.rs]
 features = ["apk", "backtrace", "breakpad", "demangle", "dwarf", "gsym"]
