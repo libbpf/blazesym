@@ -91,7 +91,6 @@
 //! [`gsym-in-apk`](https://github.com/libbpf/blazesym/blob/main/examples/gsym-in-apk)
 //! example, which illustrates the basic workflow.
 
-mod perf_map;
 mod source;
 mod symbolizer;
 

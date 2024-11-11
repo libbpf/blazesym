@@ -32,6 +32,7 @@ use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
+use crate::perf_map::PerfMap;
 use crate::symbolize::InlinedFn;
 use crate::symbolize::Resolve;
 use crate::symbolize::TranslateFileOffset;
@@ -51,7 +52,6 @@ use crate::IntoError as _;
 use crate::Pid;
 use crate::Result;
 
-use super::perf_map::PerfMap;
 #[cfg(feature = "apk")]
 use super::source::Apk;
 #[cfg(feature = "breakpad")]
