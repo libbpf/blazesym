@@ -839,6 +839,87 @@ fn symbolize_process_with_custom_dispatch() {
     test(process_no_dispatch);
 }
 
+/// Check that we can symbolize an address using a perf map.
+#[cfg(linux)]
+#[test]
+#[ignore = "test requires python 3.12 or higher"]
+fn symbolize_process_perf_map() {
+    use std::ffi::OsString;
+    use std::fs::File;
+    use std::io::BufRead as _;
+    use std::io::BufReader;
+
+    use libc::kill;
+    use libc::SIGKILL;
+
+    let script = r#"
+import sys
+
+sys.activate_stack_trampoline("perf")
+
+def main():
+  print()
+  input()
+  return 0
+
+if __name__ == "__main__":
+  main()
+"#;
+
+    let mut child = Command::new(env::var_os("PYTHON").unwrap_or_else(|| OsString::from("python")))
+        .args(["-c", script])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::inherit())
+        .spawn()
+        .unwrap();
+    let pid = child.id();
+    defer!({
+        let _rc = unsafe { kill(pid as _, SIGKILL) };
+    });
+
+    // Wait for the process to have activated its stack trampoline
+    // functionality.
+    let mut buf = [0u8; 8];
+    let _count = child
+        .stdout
+        .as_mut()
+        .unwrap()
+        .read(&mut buf)
+        .expect("failed to read child output");
+
+    let path = Path::new("/tmp").join(format!("perf-{pid}.map"));
+    let file = BufReader::new(File::open(&path).unwrap());
+    let lines = file.lines().collect::<Result<Vec<_>, _>>().unwrap();
+    let line = &lines[lines.len() / 2];
+    let [addr, size, name] = line.split_ascii_whitespace().collect::<Vec<_>>()[..] else {
+        panic!("failed to parse perf map line: `{line}`")
+    };
+    let addr = Addr::from_str_radix(addr, 16).unwrap();
+    let size = usize::from_str_radix(size, 16).unwrap();
+
+    let src = symbolize::Source::Process(symbolize::Process::new(Pid::from(child.id())));
+    let symbolizer = Symbolizer::new();
+
+    let addrs = (addr..addr + size as Addr).collect::<Vec<_>>();
+    let results = symbolizer
+        .symbolize(&src, symbolize::Input::AbsAddr(&addrs))
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), size);
+    let () = results.into_iter().for_each(|symbolized| {
+        let result = symbolized.into_sym().unwrap();
+        assert_eq!(result.name, name);
+        assert_eq!(result.addr, addr);
+        assert_eq!(result.size, Some(size));
+    });
+
+    // "Signal" the child to terminate gracefully.
+    let () = child.stdin.as_ref().unwrap().write_all(b"\n").unwrap();
+    let _status = child.wait().unwrap();
+}
+
 /// Check that we can symbolize an address residing in a zip archive, using
 /// a custom APK dispatcher.
 #[test]
