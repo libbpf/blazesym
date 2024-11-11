@@ -437,6 +437,8 @@ pub struct blaze_sym {
     /// The symbol name is where the given address should belong to.
     ///
     /// If an address could not be symbolized, this member will be NULL.
+    /// Check the `reason` member for additional information pertaining
+    /// the failure.
     pub name: *const c_char,
     /// The address at which the symbol is located (i.e., its "start").
     ///
