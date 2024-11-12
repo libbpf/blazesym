@@ -192,6 +192,35 @@ typedef uint8_t blaze_symbolize_reason;
 #endif // __cplusplus
 
 /**
+ * The level at which to emit traces.
+ */
+typedef enum blaze_trace_lvl {
+  /**
+   * Emit all trace events.
+   *
+   * This is the most verbose level and includes all others.
+   */
+  BLAZE_LVL_TRACE,
+  /**
+   * Emit debug traces and above.
+   *
+   * This level excludes traces emitted with "TRACE" verbosity.
+   */
+  BLAZE_LVL_DEBUG,
+  /**
+   * Emit info level traces and above.
+   *
+   * This level excludes traces emitted with "TRACE" or "DEBUG"
+   * verbosity.
+   */
+  BLAZE_LVL_INFO,
+  /**
+   * Only emit warnings.
+   */
+  BLAZE_LVL_WARN,
+} blaze_trace_lvl;
+
+/**
  * The valid variant kind in [`blaze_user_meta`].
  */
 typedef enum blaze_user_meta_kind {
@@ -871,6 +900,11 @@ typedef struct blaze_symbolize_src_gsym_file {
   const char *path;
 } blaze_symbolize_src_gsym_file;
 
+/**
+ * The signature of a callback function as passed to [`blaze_trace`].
+ */
+typedef void (*blaze_trace_cb)(const char*);
+
 #ifdef __cplusplus
 extern "C" {
 #endif // __cplusplus
@@ -1136,7 +1170,6 @@ blaze_symbolizer *blaze_symbolizer_new_opts(const struct blaze_symbolizer_opts *
  * Free an instance of blazesym a symbolizer for C API.
  *
  * # Safety
- *
  * The pointer must have been returned by [`blaze_symbolizer_new`] or
  * [`blaze_symbolizer_new_opts`].
  */
@@ -1282,6 +1315,26 @@ const struct blaze_syms *blaze_symbolize_gsym_file_virt_offsets(blaze_symbolizer
  * variants.
  */
 void blaze_syms_free(const struct blaze_syms *syms);
+
+/**
+ * Enable the main library's tracing infrastructure and invoke a
+ * callback function for each emitted trace line.
+ *
+ * The provided [`blaze_trace_lvl`] determines what kind of traces are
+ * emitted.
+ *
+ * This function should be invoked at most once. Subsequent invocations
+ * will not affect tracing behavior.
+ *
+ * On error the function sets the thread's last error to indicate the
+ * problem encountered. Use [`blaze_err_last`] to retrieve this error.
+ *
+ * # Notes
+ * - the format of emitted lines is unspecified and subject to change; it is
+ *   meant for human consumption and not programmatic evaluation
+ */
+void blaze_trace(enum blaze_trace_lvl lvl,
+                 blaze_trace_cb cb);
 
 #ifdef __cplusplus
 }  // extern "C"

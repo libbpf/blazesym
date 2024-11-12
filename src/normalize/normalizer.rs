@@ -76,7 +76,6 @@ impl Builder {
     /// functionality.
     ///
     /// # Notes
-    ///
     /// Support for this ioctl is only present in very recent kernels
     /// (likely: 6.11+). See <https://lwn.net/Articles/979931/> for
     /// details.
