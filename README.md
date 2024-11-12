@@ -129,5 +129,5 @@ Statically linked binaries for various target triples are available on-demand
 [here][blazecli-bins].
 
 
-[blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build.yml
+[blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build-cli.yml
 [cargo-semver]: https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility
