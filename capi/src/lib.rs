@@ -30,6 +30,7 @@
 //! ```
 
 #![allow(
+    non_camel_case_types,
     clippy::collapsible_if,
     clippy::fn_to_numeric_cast,
     clippy::let_and_return,
@@ -85,11 +86,8 @@ macro_rules! input_sanitize {
 
 mod error;
 mod helper;
-#[allow(non_camel_case_types)]
 mod inspect;
-#[allow(non_camel_case_types)]
 mod normalize;
-#[allow(non_camel_case_types)]
 mod symbolize;
 mod util;
 

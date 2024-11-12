@@ -7,7 +7,6 @@ use blazesym::ErrorKind;
 /// An enum providing a rough classification of errors.
 ///
 /// C ABI compatible version of [`blazesym::ErrorKind`].
-#[allow(non_camel_case_types)]
 #[repr(C)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum blaze_err {
