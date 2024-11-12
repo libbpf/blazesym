@@ -11,7 +11,7 @@ use blazesym::Result;
 use crate::blaze_err;
 #[cfg(doc)]
 use crate::blaze_err_last;
-use crate::set_last_err;
+use crate::error::set_last_err;
 
 
 /// Check whether the `PROCMAP_QUERY` ioctl is supported by the system.
