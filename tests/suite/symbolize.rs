@@ -1,54 +1,46 @@
-#![allow(
-    clippy::fn_to_numeric_cast,
-    clippy::let_and_return,
-    clippy::let_unit_value
-)]
-#![cfg_attr(not(linux), allow(dead_code, unused_imports))]
-
-use std::collections::HashMap;
 use std::env;
-use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fs::copy;
 use std::fs::read as read_file;
 use std::io;
 use std::io::Read as _;
 use std::io::Write as _;
-use std::ops::ControlFlow;
-use std::ops::Deref as _;
-#[cfg(linux)]
-use std::os::unix::ffi::OsStringExt as _;
 use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
 use std::str;
 
-use blazesym::helper::read_elf_build_id;
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
-use blazesym::inspect::Inspector;
 use blazesym::normalize;
-use blazesym::normalize::NormalizeOpts;
-use blazesym::normalize::Normalizer;
-use blazesym::symbolize;
+use blazesym::symbolize::ApkDispatch;
+use blazesym::symbolize::ApkMemberInfo;
+use blazesym::symbolize::Breakpad;
+use blazesym::symbolize::Elf;
 use blazesym::symbolize::FindSymOpts;
+use blazesym::symbolize::GsymData;
+use blazesym::symbolize::GsymFile;
+use blazesym::symbolize::Input;
+use blazesym::symbolize::Kernel;
+use blazesym::symbolize::Process;
 use blazesym::symbolize::ProcessDispatch;
 use blazesym::symbolize::ProcessMemberInfo;
 use blazesym::symbolize::ProcessMemberType;
 use blazesym::symbolize::Reason;
 use blazesym::symbolize::Resolve;
+use blazesym::symbolize::ResolvedSym;
+use blazesym::symbolize::Source;
+use blazesym::symbolize::Symbolize;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
+use blazesym::symbolize::TranslateFileOffset;
 use blazesym::Addr;
 use blazesym::Error;
 use blazesym::ErrorKind;
 use blazesym::Mmap;
 use blazesym::Pid;
 use blazesym::Result;
-use blazesym::SymType;
-use blazesym::__private::find_the_answer_fn;
 use blazesym::__private::find_the_answer_fn_in_zip;
-use blazesym::__private::zip;
 
 #[cfg(linux)]
 use blazesym_dev::with_bpf_symbolization_target_addrs;
@@ -68,14 +60,14 @@ use test_tag::tag;
 fn error_on_non_existent_source() {
     let non_existent = Path::new("/does-not-exists");
     let srcs = vec![
-        symbolize::Source::from(symbolize::GsymFile::new(non_existent)),
-        symbolize::Source::Elf(symbolize::Elf::new(non_existent)),
+        Source::from(GsymFile::new(non_existent)),
+        Source::Elf(Elf::new(non_existent)),
     ];
     let symbolizer = Symbolizer::default();
 
     for src in srcs {
         let err = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+            .symbolize_single(&src, Input::VirtOffset(0x2000100))
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::NotFound);
     }
@@ -85,10 +77,10 @@ fn error_on_non_existent_source() {
 #[tag(other_os)]
 #[test]
 fn symbolize_elf_dwarf_gsym() {
-    fn test(src: symbolize::Source, has_code_info: bool) {
+    fn test(src: Source, has_code_info: bool) {
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+            .symbolize_single(&src, Input::VirtOffset(0x2000100))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -117,7 +109,7 @@ fn symbolize_elf_dwarf_gsym() {
             .map(|offset| (0x2000100 + offset) as Addr)
             .collect::<Vec<_>>();
         let results = symbolizer
-            .symbolize(&src, symbolize::Input::VirtOffset(&addrs))
+            .symbolize(&src, Input::VirtOffset(&addrs))
             .unwrap()
             .into_iter()
             .collect::<Vec<_>>();
@@ -147,7 +139,7 @@ fn symbolize_elf_dwarf_gsym() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join(file);
-        let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+        let src = Source::Elf(Elf::new(path));
         test(src, false);
     }
 
@@ -161,18 +153,18 @@ fn symbolize_elf_dwarf_gsym() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join(file);
-        let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+        let src = Source::Elf(Elf::new(path));
         test(src, true);
     }
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.gsym");
-    let src = symbolize::Source::from(symbolize::GsymFile::new(&path));
+    let src = Source::from(GsymFile::new(&path));
     test(src, true);
 
     let data = read_file(&path).unwrap();
-    let src = symbolize::Source::from(symbolize::GsymData::new(&data));
+    let src = Source::from(GsymData::new(&data));
     test(src, true);
 }
 
@@ -185,7 +177,7 @@ fn symbolize_zero_size_gsym() {
         .join("data")
         .join("test-stable-addrs.bin");
     let src = inspect::Source::Elf(inspect::Elf::new(path));
-    let inspector = Inspector::new();
+    let inspector = inspect::Inspector::new();
     let results = inspector
         .lookup(&src, &["zero_size"])
         .unwrap()
@@ -198,10 +190,10 @@ fn symbolize_zero_size_gsym() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.gsym");
-    let src = symbolize::Source::from(symbolize::GsymFile::new(path));
+    let src = Source::from(GsymFile::new(path));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(zero_size.addr))
+        .symbolize_single(&src, Input::VirtOffset(zero_size.addr))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -218,10 +210,10 @@ fn symbolize_breakpad() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.sym");
-    let src = symbolize::Source::Breakpad(symbolize::Breakpad::new(path));
+    let src = Source::Breakpad(Breakpad::new(path));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::FileOffset(0x100))
+        .symbolize_single(&src, Input::FileOffset(0x100))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -244,7 +236,7 @@ fn symbolize_breakpad() {
         .map(|offset| (0x100 + offset) as Addr)
         .collect::<Vec<_>>();
     let results = symbolizer
-        .symbolize(&src, symbolize::Input::FileOffset(&addrs))
+        .symbolize(&src, Input::FileOffset(&addrs))
         .unwrap()
         .into_iter()
         .collect::<Vec<_>>();
@@ -280,10 +272,10 @@ FUNC 34 11 0 factorial_wrapper
     let mut tmpfile = NamedTempFile::new().unwrap();
     let () = tmpfile.write_all(content).unwrap();
 
-    let src = symbolize::Source::Breakpad(symbolize::Breakpad::new(tmpfile.path()));
+    let src = Source::Breakpad(Breakpad::new(tmpfile.path()));
     let symbolizer = Symbolizer::new();
     let err = symbolizer
-        .symbolize_single(&src, symbolize::Input::FileOffset(0x100))
+        .symbolize_single(&src, Input::FileOffset(0x100))
         .unwrap_err();
     assert!(format!("{err:?}").contains("34 XXX-this-does-not-belong-here-XXX 4 0"));
 }
@@ -297,12 +289,12 @@ fn symbolize_elf_variable() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs.bin");
-        let mut elf = symbolize::Elf::new(path);
+        let mut elf = Elf::new(path);
         elf.debug_syms = debug_syms;
-        let src = symbolize::Source::Elf(elf);
+        let src = Source::Elf(elf);
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(0x4001100))
+            .symbolize_single(&src, Input::VirtOffset(0x4001100))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -324,7 +316,7 @@ fn symbolize_elf_variable() {
             .map(|offset| (0x4001100 + offset) as Addr)
             .collect::<Vec<_>>();
         let results = symbolizer
-            .symbolize(&src, symbolize::Input::VirtOffset(&addrs))
+            .symbolize(&src, Input::VirtOffset(&addrs))
             .unwrap()
             .into_iter()
             .collect::<Vec<_>>();
@@ -351,10 +343,10 @@ fn symbolize_elf_stripped() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-stripped.bin");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(path));
+    let src = Source::Elf(Elf::new(path));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000100))
         .unwrap();
 
     assert_eq!(result, Symbolized::Unknown(Reason::MissingSyms));
@@ -365,12 +357,12 @@ fn symbolize_elf_stripped() {
 #[tag(other_os)]
 #[test]
 fn symbolize_dwarf_gsym_inlined() {
-    fn test(src: symbolize::Source, inlined_fns: bool) {
+    fn test(src: Source, inlined_fns: bool) {
         let symbolizer = Symbolizer::builder()
             .enable_inlined_fns(inlined_fns)
             .build();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(0x200020a))
+            .symbolize_single(&src, Input::VirtOffset(0x200020a))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -408,7 +400,7 @@ fn symbolize_dwarf_gsym_inlined() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.gsym");
-    let src = symbolize::Source::from(symbolize::GsymFile::new(path));
+    let src = Source::from(GsymFile::new(path));
     test(src.clone(), true);
     test(src, false);
 
@@ -422,7 +414,7 @@ fn symbolize_dwarf_gsym_inlined() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join(file);
-        let src = symbolize::Source::from(symbolize::Elf::new(path));
+        let src = Source::from(Elf::new(path));
         test(src.clone(), true);
         test(src, false);
     }
@@ -436,10 +428,10 @@ fn symbolize_dwarf_wrong_debug_link_crc() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-stripped-with-link-to-wrong-crc.bin");
-    let src = symbolize::Source::from(symbolize::Elf::new(path));
+    let src = Source::from(Elf::new(path));
     let symbolizer = Symbolizer::new();
     let err = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000100))
         .unwrap_err();
     assert!(
         err.to_string()
@@ -455,10 +447,10 @@ fn symbolize_dwarf_non_existent_debug_link() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-stripped-with-link-non-existent.bin");
-    let src = symbolize::Source::from(symbolize::Elf::new(path));
+    let src = Source::from(Elf::new(path));
     let symbolizer = Symbolizer::builder().enable_auto_reload(false).build();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000100))
         .unwrap()
         .into_sym();
     // Because the binary is stripped, we don't expect any symbol
@@ -477,13 +469,13 @@ fn symbolize_configurable_debug_dirs() {
     let dst = dir.path().join("test-stable-addrs-stripped-with-link.bin");
     let _count = copy(&path, &dst).unwrap();
 
-    let src = symbolize::Source::from(symbolize::Elf::new(dst));
+    let src = Source::from(Elf::new(dst));
     let symbolizer = Symbolizer::builder()
         .set_debug_dirs(Option::<[&Path; 0]>::None)
         .set_debug_dirs(Option::<[&Path; 0]>::Some([]))
         .build();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000100))
         .unwrap()
         .into_sym();
     // Shouldn't symbolize to anything because the debug link target cannot be
@@ -498,12 +490,12 @@ fn symbolize_configurable_debug_dirs() {
     let dst = debug_dir2.path().join("test-stable-addrs-dwarf-only.dbg");
     let _count = copy(src, dst).unwrap();
 
-    let src = symbolize::Source::from(symbolize::Elf::new(path));
+    let src = Source::from(Elf::new(path));
     let symbolizer = Symbolizer::builder()
         .set_debug_dirs(Some([debug_dir1, debug_dir2]))
         .build();
     let sym = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000100))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -515,12 +507,12 @@ fn symbolize_configurable_debug_dirs() {
 #[tag(other_os)]
 #[test]
 fn symbolize_breakpad_inlined() {
-    fn test(src: symbolize::Source, inlined_fns: bool) {
+    fn test(src: Source, inlined_fns: bool) {
         let symbolizer = Symbolizer::builder()
             .enable_inlined_fns(inlined_fns)
             .build();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::FileOffset(0x20a))
+            .symbolize_single(&src, Input::FileOffset(0x20a))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -553,7 +545,7 @@ fn symbolize_breakpad_inlined() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.sym");
-    let src = symbolize::Source::from(symbolize::Breakpad::new(path));
+    let src = Source::from(Breakpad::new(path));
     test(src.clone(), true);
     test(src, false);
 }
@@ -588,10 +580,10 @@ fn symbolize_dwarf_complex() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
-    let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
+    let src = Source::Elf(Elf::new(test_dwarf));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(0xffffffff8110ecb0))
+        .symbolize_single(&src, Input::VirtOffset(0xffffffff8110ecb0))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -608,10 +600,10 @@ fn symbolize_dwarf_complex() {
 #[test]
 fn symbolize_dwarf_demangle() {
     fn test(test_dwarf: &Path, addr: Addr) -> Result<(), ()> {
-        let src = symbolize::Source::Elf(symbolize::Elf::new(test_dwarf));
+        let src = Source::Elf(Elf::new(test_dwarf));
         let symbolizer = Symbolizer::builder().enable_demangling(false).build();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(addr))
+            .symbolize_single(&src, Input::VirtOffset(addr))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -634,7 +626,7 @@ fn symbolize_dwarf_demangle() {
         // Do it again, this time with demangling enabled.
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(addr))
+            .symbolize_single(&src, Input::VirtOffset(addr))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -651,7 +643,7 @@ fn symbolize_dwarf_demangle() {
     let elf = inspect::Elf::new(&test_dwarf);
     let src = inspect::Source::Elf(elf);
 
-    let inspector = Inspector::new();
+    let inspector = inspect::Inspector::new();
     let results = inspector
         .lookup(&src, &["_RNvCs69hjMPjVIJK_4test13test_function"])
         .unwrap()
@@ -661,10 +653,10 @@ fn symbolize_dwarf_demangle() {
     assert!(!results.is_empty());
 
     let addr = results[0].addr;
-    let src = symbolize::Source::Elf(symbolize::Elf::new(&test_dwarf));
+    let src = Source::Elf(Elf::new(&test_dwarf));
     let symbolizer = Symbolizer::builder().enable_demangling(false).build();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(addr))
+        .symbolize_single(&src, Input::VirtOffset(addr))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -683,11 +675,11 @@ fn symbolize_dwarf_demangle() {
 /// Check that we can symbolize addresses inside our own process.
 #[test]
 fn symbolize_process() {
-    let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+    let src = Source::Process(Process::new(Pid::Slf));
     let addrs = [symbolize_process as Addr, Symbolizer::symbolize as Addr];
     let symbolizer = Symbolizer::new();
     let results = symbolizer
-        .symbolize(&src, symbolize::Input::AbsAddr(&addrs))
+        .symbolize(&src, Input::AbsAddr(&addrs))
         .unwrap()
         .into_iter()
         .collect::<Vec<_>>();
@@ -752,10 +744,10 @@ fn symbolize_process_in_mount_namespace() {
     // Otherwise something holds on to a reference and cleanup may fail.
     // TODO: This needs to be better understood.
     {
-        let src = symbolize::Source::Process(symbolize::Process::new(Pid::from(child.id())));
+        let src = Source::Process(Process::new(Pid::from(child.id())));
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::AbsAddr(addr))
+            .symbolize_single(&src, Input::AbsAddr(addr))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -779,10 +771,10 @@ fn symbolize_process_zip() {
 
     // Symbolize the address we just looked up. It should be correctly
     // mapped to the `the_answer` function within our process.
-    let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+    let src = Source::Process(Process::new(Pid::Slf));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::AbsAddr(the_answer_addr))
+        .symbolize_single(&src, Input::AbsAddr(the_answer_addr))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -808,7 +800,7 @@ fn symbolize_process_with_custom_dispatch() {
     }
 
     fn test(dispatcher: impl ProcessDispatch + 'static) {
-        let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+        let src = Source::Process(Process::new(Pid::Slf));
         let addrs = [
             symbolize_process as Addr,
             symbolize_process_with_custom_dispatch as Addr,
@@ -817,7 +809,7 @@ fn symbolize_process_with_custom_dispatch() {
             .set_process_dispatcher(dispatcher)
             .build();
         let results = symbolizer
-            .symbolize(&src, symbolize::Input::AbsAddr(&addrs))
+            .symbolize(&src, Input::AbsAddr(&addrs))
             .unwrap()
             .into_iter()
             .collect::<Vec<_>>();
@@ -898,12 +890,12 @@ if __name__ == "__main__":
     let addr = Addr::from_str_radix(addr, 16).unwrap();
     let size = usize::from_str_radix(size, 16).unwrap();
 
-    let src = symbolize::Source::Process(symbolize::Process::new(Pid::from(child.id())));
+    let src = Source::Process(Process::new(Pid::from(child.id())));
     let symbolizer = Symbolizer::new();
 
     let addrs = (addr..addr + size as Addr).collect::<Vec<_>>();
     let results = symbolizer
-        .symbolize(&src, symbolize::Input::AbsAddr(&addrs))
+        .symbolize(&src, Input::AbsAddr(&addrs))
         .unwrap()
         .into_iter()
         .collect::<Vec<_>>();
@@ -924,7 +916,7 @@ if __name__ == "__main__":
 /// a custom APK dispatcher.
 #[test]
 fn symbolize_zip_with_custom_dispatch() {
-    fn zip_dispatch(info: symbolize::ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+    fn zip_dispatch(info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
         assert_eq!(info.member_path, Path::new("libtest-so.so"));
 
         let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -935,12 +927,12 @@ fn symbolize_zip_with_custom_dispatch() {
         Ok(Some(Box::new(resolver)))
     }
 
-    fn zip_no_dispatch(info: symbolize::ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+    fn zip_no_dispatch(info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
         assert_eq!(info.member_path, Path::new("libtest-so.so"));
         Ok(None)
     }
 
-    fn test(dispatcher: impl symbolize::ApkDispatch + 'static) {
+    fn test(dispatcher: impl ApkDispatch + 'static) {
         let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.zip");
@@ -948,10 +940,10 @@ fn symbolize_zip_with_custom_dispatch() {
         let mmap = Mmap::builder().exec().open(test_zip).unwrap();
         let (sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
 
-        let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+        let src = Source::Process(Process::new(Pid::Slf));
         let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
         let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::AbsAddr(the_answer_addr as Addr))
+            .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -968,30 +960,28 @@ fn symbolize_zip_with_custom_dispatch() {
 /// dispatcher.
 #[test]
 fn symbolize_zip_with_custom_dispatch_errors() {
-    fn zip_error_dispatch(_info: symbolize::ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
+    fn zip_error_dispatch(_info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
         Err(Error::from(io::Error::new(
             io::ErrorKind::Unsupported,
             "induced error",
         )))
     }
 
-    fn zip_delayed_error_dispatch(
-        _info: symbolize::ApkMemberInfo<'_>,
-    ) -> Result<Option<Box<dyn Resolve>>> {
+    fn zip_delayed_error_dispatch(_info: ApkMemberInfo<'_>) -> Result<Option<Box<dyn Resolve>>> {
         #[derive(Debug)]
         struct Resolver;
 
-        impl symbolize::Symbolize for Resolver {
+        impl Symbolize for Resolver {
             fn find_sym(
                 &self,
                 _addr: Addr,
                 _opts: &FindSymOpts,
-            ) -> Result<Result<symbolize::ResolvedSym<'_>, Reason>> {
+            ) -> Result<Result<ResolvedSym<'_>, Reason>> {
                 unimplemented!()
             }
         }
 
-        impl symbolize::TranslateFileOffset for Resolver {
+        impl TranslateFileOffset for Resolver {
             fn file_offset_to_virt_offset(&self, _file_offset: u64) -> Result<Option<Addr>> {
                 Err(Error::from(io::Error::new(
                     io::ErrorKind::Unsupported,
@@ -1003,7 +993,7 @@ fn symbolize_zip_with_custom_dispatch_errors() {
         Ok(Some(Box::new(Resolver)))
     }
 
-    fn test(dispatcher: impl symbolize::ApkDispatch + 'static) {
+    fn test(dispatcher: impl ApkDispatch + 'static) {
         let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.zip");
@@ -1011,10 +1001,10 @@ fn symbolize_zip_with_custom_dispatch_errors() {
         let mmap = Mmap::builder().exec().open(test_zip).unwrap();
         let (_sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
 
-        let src = symbolize::Source::Process(symbolize::Process::new(Pid::Slf));
+        let src = Source::Process(Process::new(Pid::Slf));
         let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
         let err = symbolizer
-            .symbolize_single(&src, symbolize::Input::AbsAddr(the_answer_addr as Addr))
+            .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
             .unwrap_err();
 
         assert_eq!(err.to_string(), "induced error");
@@ -1029,13 +1019,10 @@ fn symbolize_zip_with_custom_dispatch_errors() {
 #[test]
 fn symbolize_kernel_bpf_program() {
     with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
-        let src = symbolize::Source::Kernel(symbolize::Kernel::default());
+        let src = Source::Kernel(Kernel::default());
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize(
-                &src,
-                symbolize::Input::AbsAddr(&[handle_getpid, subprogram]),
-            )
+            .symbolize(&src, Input::AbsAddr(&[handle_getpid, subprogram]))
             .unwrap();
         let handle_getpid_sym = result[0].as_sym().unwrap();
         assert_eq!(handle_getpid_sym.name, "handle__getpid");
@@ -1101,7 +1088,7 @@ fn symbolize_normalized_large_memsize() {
     let addr = Addr::from_ne_bytes(buf);
     let pid = Pid::from(child.id());
 
-    let normalizer = Normalizer::new();
+    let normalizer = normalize::Normalizer::new();
     let normalized = normalizer
         .normalize_user_addrs(pid, [addr].as_slice())
         .unwrap();
@@ -1110,11 +1097,11 @@ fn symbolize_normalized_large_memsize() {
     assert_eq!(normalized.meta.len(), 1);
     let file_offset = normalized.outputs[0].0;
 
-    let elf = symbolize::Elf::new(test_block);
-    let src = symbolize::Source::Elf(elf);
+    let elf = Elf::new(test_block);
+    let src = Source::Elf(elf);
     let symbolizer = Symbolizer::new();
     let sym = symbolizer
-        .symbolize_single(&src, symbolize::Input::FileOffset(file_offset))
+        .symbolize_single(&src, Input::FileOffset(file_offset))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -1123,783 +1110,4 @@ fn symbolize_normalized_large_memsize() {
     // "Signal" the child to terminate gracefully.
     let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
     let _status = child.wait().unwrap();
-}
-
-/// Check that we detect unsorted input addresses.
-#[test]
-fn normalize_unsorted_err() {
-    let mut addrs = [
-        libc::atexit as Addr,
-        libc::chdir as Addr,
-        libc::fopen as Addr,
-    ];
-    let () = addrs.sort();
-    let () = addrs.swap(0, 1);
-
-    let opts = NormalizeOpts {
-        sorted_addrs: true,
-        ..Default::default()
-    };
-    let normalizer = Normalizer::new();
-    let err = normalizer
-        .normalize_user_addrs_opts(Pid::Slf, addrs.as_slice(), &opts)
-        .unwrap_err();
-    assert!(err.to_string().contains("are not sorted"), "{err}");
-}
-
-/// Check that we handle unknown addresses as expected.
-#[test]
-fn normalize_unknown_addrs() {
-    // The very first page of the address space should never be
-    // mapped, so use addresses from there.
-    let addrs = [0x500 as Addr, 0x600 as Addr];
-
-    let normalizer = Normalizer::new();
-    let normalized = normalizer
-        .normalize_user_addrs(Pid::Slf, addrs.as_slice())
-        .unwrap();
-    assert_eq!(normalized.outputs.len(), 2);
-    assert_eq!(normalized.meta.len(), 1);
-    assert_eq!(
-        normalized.meta[0],
-        normalize::Unknown {
-            reason: normalize::Reason::Unmapped,
-            _non_exhaustive: ()
-        }
-        .into()
-    );
-    assert_eq!(normalized.outputs[0].1, 0);
-    assert_eq!(normalized.outputs[1].1, 0);
-}
-
-/// Check that we can normalize user addresses in our own process.
-#[cfg(linux)]
-// `libc` on Arm doesn't have `__errno_location`.
-#[cfg(not(any(target_arch = "arm", target_arch = "aarch64")))]
-#[test]
-fn normalization_self() {
-    fn test(normalizer: &Normalizer) {
-        let addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
-            libc::fopen as Addr,
-            normalize_unknown_addrs as Addr,
-            normalization_self as Addr,
-            normalize::Normalizer::new as Addr,
-        ];
-
-        let (errno_idx, _) = addrs
-            .iter()
-            .enumerate()
-            .find(|(_idx, addr)| **addr == libc::__errno_location as Addr)
-            .unwrap();
-
-        let normalized = normalizer
-            .normalize_user_addrs(Pid::Slf, addrs.as_slice())
-            .unwrap();
-        assert_eq!(normalized.outputs.len(), 6);
-
-        let outputs = &normalized.outputs;
-        let meta = &normalized.meta;
-        assert_eq!(meta.len(), 2);
-
-        let errno_meta_idx = outputs[errno_idx].1;
-        assert!(meta[errno_meta_idx]
-            .as_elf()
-            .unwrap()
-            .path
-            .file_name()
-            .unwrap()
-            .to_string_lossy()
-            .contains("libc.so"));
-    }
-
-    let normalizer = Normalizer::new();
-    test(&normalizer);
-
-    let normalizer = Normalizer::builder().enable_vma_caching(true).build();
-    test(&normalizer);
-    test(&normalizer);
-}
-
-/// Check that we can normalize addresses in an ELF shared object.
-#[cfg(linux)]
-#[test]
-fn normalize_elf_addr() {
-    fn test(so: &str, map_files: bool) {
-        let test_so = Path::new(&env!("CARGO_MANIFEST_DIR")).join("data").join(so);
-        let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
-        let handle = unsafe { libc::dlopen(so_cstr.as_ptr(), libc::RTLD_NOW) };
-        assert!(!handle.is_null());
-        defer!({
-            let rc = unsafe { libc::dlclose(handle) };
-            assert_eq!(rc, 0, "{}", io::Error::last_os_error());
-        });
-
-        let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
-        assert!(!the_answer_addr.is_null());
-
-        let opts = NormalizeOpts {
-            sorted_addrs: true,
-            map_files,
-            ..Default::default()
-        };
-        let normalizer = Normalizer::new();
-        let normalized = normalizer
-            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
-            .unwrap();
-        assert_eq!(normalized.outputs.len(), 1);
-        assert_eq!(normalized.meta.len(), 1);
-
-        let output = normalized.outputs[0];
-        let meta = &normalized.meta[output.1];
-        let path = &meta.as_elf().unwrap().path;
-        assert_eq!(
-            path.to_str().unwrap().contains("/map_files/"),
-            map_files,
-            "{path:?}"
-        );
-        assert_eq!(path.canonicalize().unwrap(), test_so);
-
-        let elf = symbolize::Elf::new(test_so);
-        let src = symbolize::Source::Elf(elf);
-        let symbolizer = Symbolizer::new();
-        let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::FileOffset(output.0))
-            .unwrap()
-            .into_sym()
-            .unwrap();
-
-        assert_eq!(result.name, "the_answer");
-
-        let results = symbolizer
-            .symbolize(&src, symbolize::Input::FileOffset(&[output.0]))
-            .unwrap();
-        assert_eq!(results.len(), 1);
-
-        let sym = results[0].as_sym().unwrap();
-        assert_eq!(sym.name, "the_answer");
-    }
-
-    for map_files in [false, true] {
-        test("libtest-so.so", map_files);
-        test("libtest-so-no-separate-code.so", map_files);
-    }
-}
-
-/// Check that we can normalize user addresses in our own shared object.
-#[test]
-fn normalize_custom_so() {
-    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("libtest-so.so");
-
-    let mmap = Mmap::builder().exec().open(&test_so).unwrap();
-    let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
-
-    let normalizer = Normalizer::new();
-    let normalized = normalizer
-        .normalize_user_addrs(Pid::Slf, [the_answer_addr as Addr].as_slice())
-        .unwrap();
-    assert_eq!(normalized.outputs.len(), 1);
-    assert_eq!(normalized.meta.len(), 1);
-
-    let output = normalized.outputs[0];
-    assert_eq!(output.0, sym.file_offset.unwrap());
-    let meta = &normalized.meta[output.1];
-    let expected_elf = normalize::Elf {
-        build_id: Some(read_elf_build_id(&test_so).unwrap().unwrap()),
-        path: test_so.clone(),
-        _non_exhaustive: (),
-    };
-    assert_eq!(meta, &normalize::UserMeta::Elf(expected_elf));
-}
-
-/// Check that we can normalize addresses in our own shared object inside a
-/// zip archive.
-#[test]
-fn normalize_custom_so_in_zip() {
-    fn test(so_name: &str) {
-        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test.zip");
-
-        let mmap = Mmap::builder().exec().open(&test_zip).unwrap();
-        let archive = zip::Archive::with_mmap(mmap.clone()).unwrap();
-        let so = archive
-            .entries()
-            .find_map(|entry| {
-                let entry = entry.unwrap();
-                (entry.path == Path::new(so_name)).then_some(entry)
-            })
-            .unwrap();
-
-        let elf_mmap = mmap
-            .constrain(so.data_offset..so.data_offset + so.data.len() as u64)
-            .unwrap();
-        let (sym, the_answer_addr) = find_the_answer_fn(&elf_mmap);
-
-        let opts = NormalizeOpts {
-            sorted_addrs: true,
-            ..Default::default()
-        };
-        let normalizer = Normalizer::new();
-        let normalized = normalizer
-            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
-            .unwrap();
-        assert_eq!(normalized.outputs.len(), 1);
-        assert_eq!(normalized.meta.len(), 1);
-
-        let expected_offset = so.data_offset + sym.file_offset.unwrap();
-        let output = normalized.outputs[0];
-        assert_eq!(output.0, expected_offset);
-        let meta = &normalized.meta[output.1];
-        let expected = normalize::Apk {
-            path: test_zip.clone(),
-            _non_exhaustive: (),
-        };
-        assert_eq!(meta, &normalize::UserMeta::Apk(expected));
-
-        // Also symbolize the normalization output.
-        let apk = symbolize::Apk::new(test_zip);
-        let src = symbolize::Source::Apk(apk);
-        let symbolizer = Symbolizer::new();
-        let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::FileOffset(output.0))
-            .unwrap()
-            .into_sym()
-            .unwrap();
-
-        assert_eq!(result.name, "the_answer");
-
-        let results = symbolizer
-            .symbolize(&src, symbolize::Input::FileOffset(&[output.0]))
-            .unwrap();
-        assert_eq!(results.len(), 1);
-
-        let sym = results[0].as_sym().unwrap();
-        assert_eq!(sym.name, "the_answer");
-    }
-
-    test("libtest-so.so");
-    test("libtest-so-no-separate-code.so");
-}
-
-fn test_normalize_deleted_so(use_procmap_query: bool) {
-    fn test(use_procmap_query: bool, cache_vmas: bool, cache_build_ids: bool, use_map_files: bool) {
-        let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("libtest-so.so");
-        let dir = tempdir().unwrap();
-        let tmp_so = dir.path().join("libtest-so.so");
-        let _count = copy(&test_so, &tmp_so).unwrap();
-
-        let mmap = Mmap::builder().exec().open(&tmp_so).unwrap();
-        let (sym, the_answer_addr) = find_the_answer_fn(&mmap);
-
-        // Remove the temporary directory and with it the mapped shared
-        // object.
-        let () = drop(dir);
-
-        let opts = NormalizeOpts {
-            sorted_addrs: false,
-            map_files: use_map_files,
-            ..Default::default()
-        };
-        let normalizer = Normalizer::builder()
-            .enable_procmap_query(use_procmap_query)
-            .enable_vma_caching(cache_vmas)
-            .enable_build_id_caching(cache_build_ids)
-            .build();
-        let normalized = normalizer
-            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
-            .unwrap();
-        assert_eq!(normalized.outputs.len(), 1);
-        assert_eq!(normalized.meta.len(), 1);
-
-        let output = normalized.outputs[0];
-        assert_eq!(output.0, sym.file_offset.unwrap());
-        let meta = &normalized.meta[output.1].as_elf().unwrap();
-        let expected_build_id = if use_map_files || use_procmap_query {
-            Some(read_elf_build_id(&test_so).unwrap().unwrap())
-        } else {
-            None
-        };
-
-        assert_eq!(meta.build_id, expected_build_id);
-    }
-
-    for cache_build_ids in [true, false] {
-        for cache_vmas in [true, false] {
-            for use_map_files in [true, false] {
-                let () = test(
-                    use_procmap_query,
-                    cache_build_ids,
-                    cache_vmas,
-                    use_map_files,
-                );
-            }
-        }
-    }
-}
-
-/// Check that we can normalize user addresses in a shared object
-/// that has been deleted already (but is still mapped) without
-/// errors.
-#[test]
-fn normalize_deleted_so_proc_maps() {
-    test_normalize_deleted_so(false)
-}
-
-/// Check that we can normalize user addresses in a shared object
-/// that has been deleted already (but is still mapped) without
-/// errors.
-#[test]
-#[ignore = "test requires PROCMAP_QUERY ioctl kernel support"]
-fn normalize_deleted_so_ioctl() {
-    test_normalize_deleted_so(true)
-}
-
-/// Check that we can enable/disable the reading of build IDs.
-#[cfg(linux)]
-#[test]
-fn normalize_build_id_reading() {
-    fn test(read_build_ids: bool) {
-        let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("libtest-so.so");
-        let so_cstr = CString::new(test_so.clone().into_os_string().into_vec()).unwrap();
-        let handle = unsafe { libc::dlopen(so_cstr.as_ptr(), libc::RTLD_NOW) };
-        assert!(!handle.is_null());
-
-        let the_answer_addr = unsafe { libc::dlsym(handle, "the_answer\0".as_ptr().cast()) };
-        assert!(!the_answer_addr.is_null());
-
-        let opts = NormalizeOpts {
-            sorted_addrs: true,
-            ..Default::default()
-        };
-        let normalizer = Normalizer::builder()
-            .enable_build_ids(read_build_ids)
-            .build();
-        let normalized = normalizer
-            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
-            .unwrap();
-        assert_eq!(normalized.outputs.len(), 1);
-        assert_eq!(normalized.meta.len(), 1);
-
-        let rc = unsafe { libc::dlclose(handle) };
-        assert_eq!(rc, 0, "{}", io::Error::last_os_error());
-
-        let output = normalized.outputs[0];
-        let meta = &normalized.meta[output.1];
-        let elf = meta.as_elf().unwrap();
-        assert_eq!(elf.path, test_so);
-        if read_build_ids {
-            let expected = read_elf_build_id(&test_so).unwrap().unwrap();
-            assert_eq!(elf.build_id.as_ref().unwrap(), &expected);
-        } else {
-            assert_eq!(elf.build_id, None);
-        }
-    }
-
-    test(true);
-    test(false);
-}
-
-/// Make sure that when using the `map_files` normalization option,
-/// we never end up reporting a path referencing "self".
-#[test]
-fn normalize_no_self_vma_path_reporting() {
-    let opts = NormalizeOpts {
-        sorted_addrs: true,
-        map_files: true,
-        ..Default::default()
-    };
-    let normalizer = Normalizer::new();
-    let normalized = normalizer
-        .normalize_user_addrs_opts(
-            Pid::Slf,
-            [normalize_no_self_vma_path_reporting as Addr].as_slice(),
-            &opts,
-        )
-        .unwrap();
-
-    assert_eq!(normalized.outputs.len(), 1);
-    assert_eq!(normalized.meta.len(), 1);
-    let output = normalized.outputs[0];
-    let meta = &normalized.meta[output.1];
-    let elf = meta.as_elf().unwrap();
-    assert!(!elf.path.to_string_lossy().contains("self"), "{elf:?}");
-}
-
-/// Check that we can look up an address.
-#[test]
-fn inspect_elf() {
-    fn test(src: inspect::Source, no_vars: bool) {
-        let inspector = Inspector::new();
-        let results = inspector
-            .lookup(&src, &["factorial", "a_variable"])
-            .unwrap();
-        assert_eq!(results.len(), 2);
-
-        let result = &results[0];
-        assert_eq!(result.len(), 1);
-        assert_eq!(result[0].addr, 0x2000100);
-        assert_eq!(result[0].sym_type, SymType::Function);
-        assert_ne!(result[0].file_offset, None);
-        assert_eq!(
-            result[0].obj_file_name.as_deref().unwrap(),
-            src.path().unwrap()
-        );
-
-        let result = &results[1];
-        if no_vars {
-            assert!(result.is_empty(), "{result:#x?}");
-        } else {
-            assert_eq!(result.len(), 1);
-            assert_eq!(result[0].addr, 0x4001100);
-            assert_eq!(result[0].sym_type, SymType::Variable);
-            assert_ne!(result[0].file_offset, None);
-            assert_eq!(
-                result[0].obj_file_name.as_deref().unwrap(),
-                src.path().unwrap()
-            );
-        }
-    }
-
-    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
-    // Our `DwarfResolver` type does not currently support look up of
-    // variables.
-    let no_vars = true;
-    let () = test(src, no_vars);
-
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs.bin");
-    for debug_syms in [true, false] {
-        let mut elf = inspect::Elf::new(&test_elf);
-        elf.debug_syms = debug_syms;
-        let src = inspect::Source::Elf(elf);
-        let () = test(src, false);
-    }
-
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(test_elf);
-    assert!(elf.debug_syms);
-    elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
-    let () = test(src, false);
-}
-
-
-/// Check that we can look up a symbol by name in a Breakpad file.
-#[test]
-fn inspect_breakpad() {
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs.sym");
-    let breakpad = inspect::Breakpad::new(path);
-    let src = inspect::Source::from(breakpad);
-
-    let inspector = Inspector::new();
-    let results = inspector
-        .lookup(&src, &["factorial"])
-        .unwrap()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
-
-    let sym = &results[0];
-    assert_eq!(sym.name, "factorial");
-    assert_eq!(sym.addr, 0x100);
-    assert_eq!(sym.sym_type, SymType::Function);
-    assert_eq!(sym.file_offset, None);
-    assert_eq!(sym.obj_file_name, None);
-}
-
-
-/// Make sure that we can look up a dynamic symbol in an ELF file.
-#[test]
-fn inspect_elf_dynamic_symbol() {
-    #[track_caller]
-    fn test(bin: &str) {
-        let bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join(bin);
-
-        let src = inspect::Source::Elf(inspect::Elf::new(&bin));
-        let inspector = Inspector::new();
-        let results = inspector
-            .lookup(&src, &["the_answer"])
-            .unwrap()
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
-
-        let src = symbolize::Source::Elf(symbolize::Elf::new(&bin));
-        let symbolizer = Symbolizer::new();
-        let result = symbolizer
-            .symbolize_single(&src, symbolize::Input::VirtOffset(results[0].addr))
-            .unwrap()
-            .into_sym()
-            .unwrap();
-
-        assert_eq!(result.name, "the_answer");
-        assert_eq!(result.addr, results[0].addr);
-    }
-
-    test("libtest-so.so");
-    test("libtest-so-stripped.so");
-    test("libtest-so-partly-stripped.so");
-}
-
-/// Make sure that we can look up an indirect in an ELF file.
-#[test]
-fn inspect_elf_indirect_function() {
-    let bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-no-dwarf.bin");
-
-    let src = inspect::Source::Elf(inspect::Elf::new(&bin));
-    let inspector = Inspector::new();
-    let results = inspector
-        .lookup(&src, &["indirect_func"])
-        .unwrap()
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), 1);
-
-    let src = symbolize::Source::Elf(symbolize::Elf::new(&bin));
-    let symbolizer = Symbolizer::new();
-    let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::VirtOffset(results[0].addr))
-        .unwrap()
-        .into_sym()
-        .unwrap();
-
-    // Both functions may legitimately have the same address.
-    assert!(["indirect_func", "resolve_indirect_func"].contains(&result.name.deref()));
-    assert_eq!(result.addr, results[0].addr);
-}
-
-
-/// Read four bytes at the given `offset` in the file identified by `path`.
-fn read_4bytes_at(path: &Path, offset: u64) -> [u8; 4] {
-    let offset = offset as usize;
-    let content = read_file(path).unwrap();
-    let slice = &content[offset..offset + 4];
-    <[u8; 4]>::try_from(slice).unwrap()
-}
-
-
-/// Check that we can correctly retrieve the file offset in an ELF file.
-#[test]
-fn inspect_elf_file_offset() {
-    fn test(file: &str) {
-        let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join(file);
-        let elf = inspect::Elf::new(test_elf);
-        let src = inspect::Source::Elf(elf);
-
-        let inspector = Inspector::new();
-        let results = inspector
-            .lookup(&src, &["dummy"])
-            .unwrap()
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
-        assert_eq!(results.len(), 1);
-
-        let result = &results[0];
-        assert_ne!(result.file_offset, None);
-        let bytes = read_4bytes_at(src.path().unwrap(), result.file_offset.unwrap());
-        assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);
-    }
-
-    for file in [
-        "test-stable-addrs-no-dwarf.bin",
-        "test-stable-addrs-stripped-with-link.bin",
-    ] {
-        let () = test(file);
-    }
-}
-
-
-/// Check that we can iterate over all symbols in a symbolization source.
-#[test]
-fn inspect_elf_dwarf_breakpad_all_symbols() {
-    fn test(src: &inspect::Source) {
-        let breakpad = matches!(src, inspect::Source::Breakpad(..));
-        let dwarf = matches!(
-            src,
-            inspect::Source::Elf(inspect::Elf {
-                debug_syms: true,
-                ..
-            })
-        );
-        let inspector = Inspector::new();
-        let mut syms = HashMap::<String, inspect::SymInfo>::new();
-        let () = inspector
-            .for_each(src, |sym| {
-                let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
-                ControlFlow::Continue(())
-            })
-            .unwrap();
-
-        // Breakpad and DWARF don't contain any or any reasonable information
-        // for some symbols.
-        if !breakpad {
-            let sym = syms.get("main").unwrap();
-            assert_eq!(sym.sym_type, SymType::Function);
-        }
-
-        let sym = syms.get("factorial").unwrap();
-        assert_eq!(sym.sym_type, SymType::Function);
-
-        let sym = syms.get("factorial_wrapper").unwrap();
-        assert_eq!(sym.sym_type, SymType::Function);
-
-        let sym = syms.get("factorial_inline_test").unwrap();
-        assert_eq!(sym.sym_type, SymType::Function);
-
-        if !breakpad && !dwarf {
-            let sym = syms.get("indirect_func").unwrap();
-            assert_eq!(sym.sym_type, SymType::Function);
-        }
-
-        let sym = syms.get("my_indirect_func").unwrap();
-        assert_eq!(sym.sym_type, SymType::Function);
-
-        let sym = syms.get("resolve_indirect_func").unwrap();
-        assert_eq!(sym.sym_type, SymType::Function);
-
-        if !breakpad && !dwarf {
-            let sym = syms.get("a_variable").unwrap();
-            assert_eq!(sym.sym_type, SymType::Variable);
-        }
-    }
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
-    elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
-    test(&src);
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let elf = inspect::Elf::new(path);
-    let src = inspect::Source::Elf(elf);
-    test(&src);
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs.sym");
-    let breakpad = inspect::Breakpad::new(path);
-    let src = inspect::Source::Breakpad(breakpad);
-    test(&src);
-}
-
-
-/// Check that early stopping of symbol iteration works as expected.
-#[test]
-fn inspect_elf_dwarf_breakpad_early_iter_stop() {
-    fn test(src: &inspect::Source) {
-        let mut i = 0;
-        let inspector = Inspector::new();
-        let () = inspector
-            .for_each(src, |_sym| {
-                if i == 0 {
-                    i += 1;
-                    ControlFlow::Break(())
-                } else {
-                    panic!()
-                }
-            })
-            .unwrap();
-    }
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
-    elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
-    test(&src);
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let elf = inspect::Elf::new(path);
-    let src = inspect::Source::Elf(elf);
-    test(&src);
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs.sym");
-    let breakpad = inspect::Breakpad::new(path);
-    let src = inspect::Source::Breakpad(breakpad);
-    test(&src);
-}
-
-
-/// Make sure that the `debug_syms` flag is honored.
-#[test]
-fn inspect_debug_syms_flag() {
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
-    elf.debug_syms = true;
-    let src = inspect::Source::Elf(elf);
-    let inspector = Inspector::new();
-    // There aren't any debug symbols in the source (although there are ELF
-    // symbols).
-    let () = inspector.for_each(&src, |_sym| panic!()).unwrap();
-
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
-    elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
-    // There aren't any ELF symbols in the source (although there are DWARF
-    // symbols).
-    let () = inspector.for_each(&src, |_sym| panic!()).unwrap();
-}
-
-
-/// Check that we can iterate over all symbols in an ELF file, without
-/// encountering duplicates caused by dynamic/static symbol overlap.
-#[test]
-fn inspect_elf_all_symbols_without_duplicates() {
-    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("libtest-so.so");
-    let mut elf = inspect::Elf::new(path);
-    elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
-
-    let inspector = Inspector::new();
-    let mut syms = Vec::<String>::new();
-    let () = inspector
-        .for_each(&src, |sym| {
-            let () = syms.push(sym.name.to_string());
-            ControlFlow::Continue(())
-        })
-        .unwrap();
-
-    assert_eq!(syms.iter().filter(|name| *name == "the_answer").count(), 1);
 }

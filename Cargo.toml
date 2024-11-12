@@ -96,7 +96,7 @@ test = []
 nightly = []
 
 [[test]]
-name = "blazesym"
+name = "integration"
 required-features = ["test"]
 
 [[example]]
