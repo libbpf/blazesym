@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Introduced `blaze_trace` function for tapping into the library's
+  tracing functionality
+
+
 0.1.0-rc.2
 ----------
 - Fixed various functions accepting `uintptr_t` addresses, when they

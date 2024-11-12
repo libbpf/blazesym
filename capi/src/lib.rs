@@ -89,6 +89,7 @@ mod helper;
 mod inspect;
 mod normalize;
 mod symbolize;
+mod trace;
 mod util;
 
 pub use error::*;
@@ -96,3 +97,4 @@ pub use helper::*;
 pub use inspect::*;
 pub use normalize::*;
 pub use symbolize::*;
+pub use trace::*;

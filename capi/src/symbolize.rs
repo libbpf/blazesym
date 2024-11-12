@@ -649,7 +649,6 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
 /// Free an instance of blazesym a symbolizer for C API.
 ///
 /// # Safety
-///
 /// The pointer must have been returned by [`blaze_symbolizer_new`] or
 /// [`blaze_symbolizer_new_opts`].
 #[no_mangle]
