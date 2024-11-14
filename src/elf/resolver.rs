@@ -212,19 +212,13 @@ impl Inspect for ElfResolver {
 
 impl Debug for ElfResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        match &self.backend {
+        let path = self.path().unwrap_or_else(|| Path::new("<unknown-path>"));
+        let name = match &self.backend {
             #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(_) => write!(
-                f,
-                "DWARF {}",
-                self.path().unwrap_or_else(|| Path::new("")).display()
-            ),
-            ElfBackend::Elf(_) => write!(
-                f,
-                "ELF {}",
-                self.path().unwrap_or_else(|| Path::new("")).display()
-            ),
-        }
+            ElfBackend::Dwarf(_) => "Dwarf",
+            ElfBackend::Elf(_) => "Elf",
+        };
+        f.debug_tuple(name).field(&path.display()).finish()
     }
 }
 
@@ -244,13 +238,13 @@ mod tests {
         let parser = Rc::new(ElfParser::open(&path).unwrap());
         let resolver = ElfResolver::from_parser(parser.clone(), None).unwrap();
         let dbg = format!("{resolver:?}");
-        assert!(dbg.starts_with("ELF"), "{dbg}");
-        assert!(dbg.ends_with("test-stable-addrs.bin"), "{dbg}");
+        assert!(dbg.starts_with("Elf("), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");
 
         let resolver = ElfResolver::from_parser(parser, Some(&[])).unwrap();
         let dbg = format!("{resolver:?}");
-        assert!(dbg.starts_with("DWARF"), "{dbg}");
-        assert!(dbg.ends_with("test-stable-addrs.bin"), "{dbg}");
+        assert!(dbg.starts_with("Dwarf("), "{dbg}");
+        assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");
     }
 
     /// Check that we fail finding an offset for an address not
