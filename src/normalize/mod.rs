@@ -37,6 +37,10 @@
 //!   normalized.meta[meta_idx]
 //! );
 //! ```
+//!
+//! # Notes
+//! Please note that **blazesym** does not concern itself with the transfer of
+//! data between systems. That is a task that is entirely in user's hands.
 
 pub(crate) mod buildid;
 pub(crate) mod ioctl;
