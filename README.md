@@ -62,6 +62,9 @@ format supports and whether **blazesym** can currently use this feature:
 | Ksym          | symbol size                      | ✖️                    | ✖️                      |
 |               | source code location information | ✖️                    | ✖️                      |
 |               | inlined function information     | ✖️                    | ✖️                      |
+| BPF program   | symbol size                      | ✖️ (?)                | ✖️                      |
+|               | source code location information | ✔️                    | ✔️                      |
+|               | inlined function information     | ✖️                    | ✖️                      |
 
 
 Here is rough roadmap of currently planned features (in no particular order):
