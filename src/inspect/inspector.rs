@@ -87,7 +87,7 @@ impl Inspector {
     ///   - no variable support is present
     ///   - file offsets won't be reported
     ///   - addresses are reported as they appear in the symbol source
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, names = ?names)))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, names = ?names), err))]
     pub fn lookup<'slf>(
         &'slf self,
         src: &Source,
@@ -165,6 +165,7 @@ impl Inspector {
     ///   - no variable support is present
     ///   - file offsets won't be reported
     ///   - addresses are reported as they appear in the symbol source
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src), err))]
     pub fn for_each<F>(&self, src: &Source, mut f: F) -> Result<()>
     where
         F: FnMut(&SymInfo<'_>) -> ControlFlow<()>,

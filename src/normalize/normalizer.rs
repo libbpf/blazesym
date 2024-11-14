@@ -313,7 +313,7 @@ impl Normalizer {
     ///
     /// Normalized outputs are reported in the exact same order (and in
     /// equal amount) in which the non-normalized ones were provided.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(pid = ?pid, addrs = ?Hexify(addrs))))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(pid = ?pid, addrs = ?Hexify(addrs)), err))]
     pub fn normalize_user_addrs_opts(
         &self,
         pid: Pid,
