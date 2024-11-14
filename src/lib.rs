@@ -7,7 +7,7 @@
 //! reverse operation: looking up addresses from symbol names. That can be
 //! useful, for example, for configuring breakpoints or tracepoints.
 //!
-//! ## Overview
+//! # Overview
 //! The crate is organized via public modules that expose functionality
 //! pertaining a certain topic. Specifically, these areas are currently covered:
 //!
@@ -17,9 +17,18 @@
 //! - [`normalize`] exposes address normalization functionality
 //!
 //! C API bindings are defined in a cross-cutting manner as part of the
-//! `blazesym-c` crate (note that Rust code should not have to consume
+//! **blazesym-c** crate (note that Rust code should not have to consume
 //! these functions and at the ABI level this module organization has no
 //! relevance for C).
+//!
+//! # Observability
+//! **blazesym** optionally integrates with the `tracing` crate and
+//! infrastructure and emits spans/events as part of common operations (if the
+//! `tracing` feature is enabled). Please refer to the [`tracing`
+//! documentation][tracing.rs] for guidance on how to configure event
+//! subscription.
+//!
+//! [tracing.rs]: https://tracing.rs
 
 #![allow(
     clippy::clone_on_ref_ptr,

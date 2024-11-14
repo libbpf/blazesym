@@ -1,4 +1,6 @@
-//! Functionality for inspecting files such as ELF or Gsym.
+//! Functionality for inspecting files such as ELF or Gsym. Supported
+//! operations are looking up symbol information (address, size, type,
+//! etc.) by name or iterating over all available symbols.
 //!
 //! ```no_run
 //! use blazesym::inspect;
