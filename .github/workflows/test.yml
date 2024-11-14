@@ -239,7 +239,7 @@ jobs:
         kernel: bzImage
         command: sh -c 'cd ${{ github.workspace }} && ./main.sh'
     - name: Upload code coverage results
-      uses: codecov/codecov-action@v5
+      uses: codecov/codecov-action@v4
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
