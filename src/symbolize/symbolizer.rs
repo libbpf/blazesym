@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
 use std::fmt::Debug;
+use std::fmt::Formatter;
+use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::mem::take;
 use std::ops::Deref as _;
@@ -74,6 +76,38 @@ use super::SrcLang;
 use super::Sym;
 use super::Symbolize;
 use super::Symbolized;
+
+
+/// A type for displaying debug information for a [`MapsEntry`].
+#[cfg(feature = "tracing")]
+struct DebugMapsEntry<'entry>(&'entry MapsEntry);
+
+#[cfg(feature = "tracing")]
+impl Debug for DebugMapsEntry<'_> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let MapsEntry {
+            range,
+            offset,
+            path_name,
+            ..
+        } = self.0;
+
+        let path = match path_name {
+            // For debugging purposes we work with the symbolic path, as
+            // it's the most easy to reason about. Note that it may not
+            // be what ends up being used during symbolization.
+            Some(PathName::Path(path)) => &path.symbolic_path,
+            Some(PathName::Component(component)) => Path::new(component),
+            None => Path::new("<no-path>"),
+        };
+
+        f.debug_struct(stringify!(MapsEntry))
+            .field(stringify!(range), &format_args!("{range:#x?}"))
+            .field(stringify!(offset), &format_args!("{offset:#x?}"))
+            .field(stringify!(path), &path.display())
+            .finish()
+    }
+}
 
 
 #[cfg(feature = "apk")]
@@ -480,6 +514,7 @@ impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
         let () = self.all_symbols.push(Symbolized::Unknown(reason));
     }
 
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), entry = ?DebugMapsEntry(entry))))]
     fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
         if let Some(path_name) = &entry.path_name {
             if let Some(resolver) = self
@@ -1410,6 +1445,12 @@ mod tests {
         let resolver = ElfResolver::from_parser(parser, None).unwrap();
         let resolver = Resolver::Cached(&resolver);
         assert_ne!(format!("{resolver:?}"), "");
+        assert_ne!(format!("{:?}", resolver.inner()), "");
+
+        let entries = maps::parse(Pid::Slf).unwrap();
+        let () = entries.for_each(|entry| {
+            assert_ne!(format!("{:?}", DebugMapsEntry(&entry.unwrap())), "");
+        });
     }
 
     /// Check that we can create a path to an ELF inside an APK as expected.
