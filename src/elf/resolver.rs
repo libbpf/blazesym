@@ -175,7 +175,6 @@ impl ElfResolver {
 }
 
 impl Symbolize for ElfResolver {
-    #[cfg_attr(feature = "tracing", crate::log::instrument(fields(addr = format_args!("{addr:#x}"))))]
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         match &self.backend {
             #[cfg(feature = "dwarf")]
