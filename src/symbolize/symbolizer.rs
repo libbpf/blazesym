@@ -509,7 +509,7 @@ impl SymbolizeHandler<'_> {
 }
 
 impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"))))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{_addr:#x}"), ?reason)))]
     fn handle_unknown_addr(&mut self, _addr: Addr, reason: Reason) {
         let () = self.all_symbols.push(Symbolized::Unknown(reason));
     }
