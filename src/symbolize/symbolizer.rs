@@ -1003,7 +1003,7 @@ impl Symbolizer {
     /// | BPF program | symbol size                      | no (?)               | no                     |
     /// |             | source code location information | yes                  | yes                    |
     /// |             | inlined function information     | no                   | no                     |
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = ?input.map(Hexify))))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = ?input.map(Hexify)), err))]
     pub fn symbolize<'slf>(
         &'slf self,
         src: &Source,
@@ -1193,7 +1193,7 @@ impl Symbolizer {
     /// In general, it is more performant to symbolize addresses in batches
     /// using [`symbolize`][Self::symbolize]. However, in cases where only a
     /// single address is available, this method provides a more convenient API.
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, input = format_args!("{input:#x?}"))))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, input = format_args!("{input:#x?}")), err))]
     pub fn symbolize_single<'slf>(
         &'slf self,
         src: &Source,
