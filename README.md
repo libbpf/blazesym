@@ -67,25 +67,6 @@ format supports and whether **blazesym** can currently use this feature:
 |               | inlined function information     | ✖️                    | ✖️                      |
 
 
-Here is rough roadmap of currently planned features (in no particular order):
-
-- [ ] Fully support handling of kernel addresses
-  - [x] Support BPF program symbolization (https://github.com/libbpf/blazesym/issues/826)
-  - [ ] Support symbolization of kernel module addresses
-  - [ ] Support remote symbolization use cases for kernel addresses
-- [x] Switch to using [`gimli`](https://crates.io/crates/gimli) for DWARF parsing
-  - doing so will allow us to:
-    - [x] Support more versions of the DWARF standard (https://github.com/libbpf/blazesym/issues/42 & https://github.com/libbpf/blazesym/issues/57)
-    - [ ] Support split debug information (https://github.com/libbpf/blazesym/issues/60)
-    - [x] Support inlined function lookup for DWARF (https://github.com/libbpf/blazesym/issues/192)
-- [x] Support symbolization of addresses in APKs (relevant for Android) (https://github.com/libbpf/blazesym/pull/222 & https://github.com/libbpf/blazesym/pull/227)
-- [ ] Support ELF32 binaries (https://github.com/libbpf/blazesym/issues/53)
-- [x] Support handling of compressed debug information (https://github.com/libbpf/blazesym/issues/581)
-- [x] Support demangling of Rust & C++ symbol names (https://github.com/libbpf/blazesym/issues/50)
-- [x] Support remote symbolization (https://github.com/libbpf/blazesym/issues/61)
-  - [x] Add APIs for address normalization (https://github.com/libbpf/blazesym/pull/114, https://github.com/libbpf/blazesym/pull/128, ...)
-- [x] Support advanced symbolization use cases involving [`debuginfod`](https://sourceware.org/elfutils/Debuginfod.html) (https://github.com/libbpf/blazesym/issues/203)
-
 ### OS Support
 The library's primary target operating system is Linux (it should work on all
 semi-recent kernel versions and distributions).
