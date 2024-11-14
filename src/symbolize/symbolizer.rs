@@ -557,6 +557,15 @@ enum Resolver<'tmp, 'slf> {
     Cached(&'slf dyn Symbolize),
 }
 
+#[cfg(feature = "tracing")]
+impl<'tmp, 'slf: 'tmp> Resolver<'tmp, 'slf> {
+    fn inner(&self) -> &(dyn Symbolize + '_) {
+        match self {
+            Self::Uncached(symbolize) | Self::Cached(symbolize) => *symbolize,
+        }
+    }
+}
+
 
 /// Symbolizer provides an interface to symbolize addresses.
 ///
@@ -616,7 +625,7 @@ impl Symbolizer {
     }
 
     /// Symbolize an address using the provided [`SymResolver`].
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver)))]
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver.inner())))]
     fn symbolize_with_resolver<'slf>(
         &'slf self,
         addr: Addr,
