@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Significantly shortened tracing output when enabled (via `-v`)
+
+
 0.1.7
 -----
 - Added support for symbolization of kernel addresses
