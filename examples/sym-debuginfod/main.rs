@@ -22,6 +22,7 @@ use blazesym::Pid;
 use clap::ArgAction;
 use clap::Parser;
 
+use debuginfod::BuildId;
 use debuginfod::CachingClient;
 use debuginfod::Client;
 
@@ -134,7 +135,10 @@ fn dispatch_process(
                 return Ok(None)
             };
 
-            let path = if let Some(path) = client.fetch_debug_info(&build_id).map_err(Box::from)? {
+            let path = if let Some(path) = client
+                .fetch_debug_info(&BuildId::raw(build_id))
+                .map_err(Box::from)?
+            {
                 path
             } else {
                 // If we were unable to find debug information for the provided
