@@ -255,7 +255,7 @@ jobs:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
     steps:
     - name: Install development dependencies
-      run: sudo apt-get install -y llvm-14 libelf-dev zlib1g-dev
+      run: sudo apt-get install -y llvm-14 gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo check --package=blazesym-dev --features=generate-unit-test-files
