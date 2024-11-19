@@ -12,6 +12,11 @@ type Elf64_Xword = u64;
 pub(crate) const ET_EXEC: u16 = 2;
 pub(crate) const ET_DYN: u16 = 3;
 
+pub(crate) const ELFCLASSNONE: u8 = 0;
+pub(crate) const ELFCLASS32: u8 = 1;
+pub(crate) const ELFCLASS64: u8 = 2;
+
+
 #[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Ehdr {
