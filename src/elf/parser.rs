@@ -33,6 +33,8 @@ use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
+use super::types::ELFCLASS32;
+use super::types::ELFCLASS64;
 use super::types::ELFCOMPRESS_ZLIB;
 use super::types::ELFCOMPRESS_ZSTD;
 use super::types::PN_XNUM;
@@ -302,6 +304,18 @@ impl<'mmap> Cache<'mmap> {
             return Err(Error::with_invalid_data(format!(
                 "encountered unexpected e_ident: {:x?}",
                 &ehdr.e_ident[0..4]
+            )))
+        }
+
+        // At this point we only support ELF64.
+        let class = ehdr.e_ident[4];
+        if class != ELFCLASS64 {
+            let class_str = match class {
+                ELFCLASS32 => Cow::Borrowed("ELF32"),
+                _ => Cow::Owned(class.to_string()),
+            };
+            return Err(Error::with_unsupported(format!(
+                "ELF class ({class_str}) is not currently supported"
             )))
         }
 

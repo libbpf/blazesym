@@ -73,6 +73,30 @@ fn error_on_non_existent_source() {
     }
 }
 
+/// Test that we error out as expected when attempting to symbolize
+/// addresses in an ELF32 binary.
+#[tag(other_os)]
+#[test]
+fn error_elf32() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so-32.so");
+
+    let elf = Elf::new(path);
+    let src = Source::Elf(elf);
+    let symbolizer = Symbolizer::default();
+
+    let err = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .unwrap_err();
+    assert!(
+        err.to_string()
+            .starts_with("ELF class (ELF32) is not currently supported"),
+        "{err}"
+    );
+    assert_eq!(err.kind(), ErrorKind::Unsupported);
+}
+
 /// Check that we can symbolize an address using ELF, DWARF, and GSYM.
 #[tag(other_os)]
 #[test]
