@@ -266,6 +266,7 @@ jobs:
         path: |
           data/test-stable-addrs*
           data/test-rs.bin
+          data/libtest-so*
   test-partly-supported:
     name: Test on ${{ matrix.runs-on }}
     strategy:
