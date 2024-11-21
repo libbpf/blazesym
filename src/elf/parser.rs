@@ -887,6 +887,24 @@ where
     _backend: B::ObjTy,
 }
 
+impl ElfParser<File> {
+    #[cfg(test)]
+    pub(crate) fn open_file_io<P>(file: File, path: P) -> Self
+    where
+        P: Into<PathBuf>,
+    {
+        let _backend = Box::new(file);
+        let file_ref = unsafe { mem::transmute::<&File, &'static File>(_backend.deref()) };
+
+        let parser = Self {
+            cache: Cache::new(file_ref),
+            path: Some(path.into()),
+            _backend,
+        };
+        parser
+    }
+}
+
 impl ElfParser<Mmap> {
     /// Create an `ElfParser` from an open file.
     pub(crate) fn open_file<P>(file: &File, path: P) -> Result<Self>
@@ -1340,10 +1358,21 @@ mod tests {
         let () = file.write_all(dump).unwrap();
         let () = file.rewind().unwrap();
 
-        let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
-        let ehdr = parser.cache.ensure_ehdr().unwrap();
-        assert_eq!(ehdr.shnum, usize::from(SHNUM));
-        assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
+        fn test<B>(parser: ElfParser<B>)
+        where
+            B: Backend,
+        {
+            let ehdr = parser.cache.ensure_ehdr().unwrap();
+            assert_eq!(ehdr.shnum, usize::from(SHNUM));
+            assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
+        }
+
+        let path = file.path().to_path_buf();
+        let parser_mmap = ElfParser::open_file(file.as_file(), &path).unwrap();
+        let () = test(parser_mmap);
+
+        let parser_io = ElfParser::open_file_io(file.into_file(), &path);
+        let () = test(parser_io);
     }
 
     /// Test that our `ElfParser` can handle a `shstrndx` larger than
@@ -1397,10 +1426,21 @@ mod tests {
         let () = file.write_all(dump).unwrap();
         let () = file.rewind().unwrap();
 
-        let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
-        let ehdr = parser.cache.ensure_ehdr().unwrap();
-        let shstrndx = parser.cache.shstrndx(&ehdr.ehdr).unwrap();
-        assert_eq!(shstrndx, usize::from(SHSTRNDX));
+        fn test<B>(parser: ElfParser<B>)
+        where
+            B: Backend,
+        {
+            let ehdr = parser.cache.ensure_ehdr().unwrap();
+            let shstrndx = parser.cache.shstrndx(&ehdr.ehdr).unwrap();
+            assert_eq!(shstrndx, usize::from(SHSTRNDX));
+        }
+
+        let path = file.path().to_path_buf();
+        let parser_mmap = ElfParser::open_file(file.as_file(), &path).unwrap();
+        let () = test(parser_mmap);
+
+        let parser_io = ElfParser::open_file_io(file.into_file(), &path);
+        let () = test(parser_io);
     }
 
 
@@ -1542,14 +1582,25 @@ mod tests {
         let () = file.write_all(dump).unwrap();
         let () = file.rewind().unwrap();
 
-        let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
-        // A file offset as produced by normalization.
-        let file_offset = 0x1b63b4d0;
-        let virt_offset = parser
-            .file_offset_to_virt_offset(file_offset)
-            .unwrap()
-            .unwrap();
-        assert_eq!(virt_offset, 0x1c23b4d0);
+        fn test<B>(parser: ElfParser<B>)
+        where
+            B: Backend,
+        {
+            // A file offset as produced by normalization.
+            let file_offset = 0x1b63b4d0;
+            let virt_offset = parser
+                .file_offset_to_virt_offset(file_offset)
+                .unwrap()
+                .unwrap();
+            assert_eq!(virt_offset, 0x1c23b4d0);
+        }
+
+        let path = file.path().to_path_buf();
+        let parser_mmap = ElfParser::open_file(file.as_file(), &path).unwrap();
+        let () = test(parser_mmap);
+
+        let parser_io = ElfParser::open_file_io(file.into_file(), &path);
+        let () = test(parser_io);
     }
 
     /// Make sure that we can look up a symbol in an ELF file.
