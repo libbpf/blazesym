@@ -450,39 +450,40 @@ pub type blaze_symbolizer = Symbolizer;
 /// The reason is generally only meant as a hint. Reasons reported may
 /// change over time and, hence, should not be relied upon for the
 /// correctness of the application.
-#[repr(u8)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum blaze_symbolize_reason {
+pub struct blaze_symbolize_reason(u8);
+
+impl blaze_symbolize_reason {
     /// Symbolization was successful.
-    BLAZE_SYMBOLIZE_REASON_SUCCESS = 0,
+    pub const SUCCESS: blaze_symbolize_reason = blaze_symbolize_reason(0);
     /// The absolute address was not found in the corresponding process'
     /// virtual memory map.
-    BLAZE_SYMBOLIZE_REASON_UNMAPPED,
+    pub const UNMAPPED: blaze_symbolize_reason = blaze_symbolize_reason(1);
     /// The file offset does not map to a valid piece of code/data.
-    BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
+    pub const INVALID_FILE_OFFSET: blaze_symbolize_reason = blaze_symbolize_reason(2);
     /// The `/proc/<pid>/maps` entry corresponding to the address does
     /// not have a component (file system path, object, ...) associated
     /// with it.
-    BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
+    pub const MISSING_COMPONENT: blaze_symbolize_reason = blaze_symbolize_reason(3);
     /// The symbolization source has no or no relevant symbols.
-    BLAZE_SYMBOLIZE_REASON_MISSING_SYMS,
+    pub const MISSING_SYMS: blaze_symbolize_reason = blaze_symbolize_reason(4);
     /// The address could not be found in the symbolization source.
-    BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR,
+    pub const UNKNOWN_ADDR: blaze_symbolize_reason = blaze_symbolize_reason(5);
     /// The address belonged to an entity that is currently unsupported.
-    BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
+    pub const UNSUPPORTED: blaze_symbolize_reason = blaze_symbolize_reason(6);
 }
+
 
 impl From<Reason> for blaze_symbolize_reason {
     fn from(reason: Reason) -> Self {
-        use blaze_symbolize_reason::*;
-
         match reason {
-            Reason::Unmapped => BLAZE_SYMBOLIZE_REASON_UNMAPPED,
-            Reason::InvalidFileOffset => BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
-            Reason::MissingComponent => BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
-            Reason::MissingSyms => BLAZE_SYMBOLIZE_REASON_MISSING_SYMS,
-            Reason::Unsupported => BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
-            Reason::UnknownAddr => BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR,
+            Reason::Unmapped => blaze_symbolize_reason::UNMAPPED,
+            Reason::InvalidFileOffset => blaze_symbolize_reason::INVALID_FILE_OFFSET,
+            Reason::MissingComponent => blaze_symbolize_reason::MISSING_COMPONENT,
+            Reason::MissingSyms => blaze_symbolize_reason::MISSING_SYMS,
+            Reason::Unsupported => blaze_symbolize_reason::UNSUPPORTED,
+            Reason::UnknownAddr => blaze_symbolize_reason::UNKNOWN_ADDR,
             _ => unreachable!(),
         }
     }
@@ -493,28 +494,18 @@ impl From<Reason> for blaze_symbolize_reason {
 /// failure.
 #[no_mangle]
 pub extern "C" fn blaze_symbolize_reason_str(err: blaze_symbolize_reason) -> *const c_char {
-    use blaze_symbolize_reason::*;
-
-    match err as i32 {
-        e if e == BLAZE_SYMBOLIZE_REASON_SUCCESS as i32 => b"success\0".as_ptr().cast(),
-        e if e == BLAZE_SYMBOLIZE_REASON_UNMAPPED as i32 => {
-            Reason::Unmapped.as_bytes().as_ptr().cast()
-        }
-        e if e == BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET as i32 => {
+    match err {
+        blaze_symbolize_reason::SUCCESS => b"success\0".as_ptr().cast(),
+        blaze_symbolize_reason::UNMAPPED => Reason::Unmapped.as_bytes().as_ptr().cast(),
+        blaze_symbolize_reason::INVALID_FILE_OFFSET => {
             Reason::InvalidFileOffset.as_bytes().as_ptr().cast()
         }
-        e if e == BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT as i32 => {
+        blaze_symbolize_reason::MISSING_COMPONENT => {
             Reason::MissingComponent.as_bytes().as_ptr().cast()
         }
-        e if e == BLAZE_SYMBOLIZE_REASON_MISSING_SYMS as i32 => {
-            Reason::MissingSyms.as_bytes().as_ptr().cast()
-        }
-        e if e == BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR as i32 => {
-            Reason::UnknownAddr.as_bytes().as_ptr().cast()
-        }
-        e if e == BLAZE_SYMBOLIZE_REASON_UNSUPPORTED as i32 => {
-            Reason::Unsupported.as_bytes().as_ptr().cast()
-        }
+        blaze_symbolize_reason::MISSING_SYMS => Reason::MissingSyms.as_bytes().as_ptr().cast(),
+        blaze_symbolize_reason::UNKNOWN_ADDR => Reason::UnknownAddr.as_bytes().as_ptr().cast(),
+        blaze_symbolize_reason::UNSUPPORTED => Reason::Unsupported.as_bytes().as_ptr().cast(),
         _ => b"unknown reason\0".as_ptr().cast(),
     }
 }
@@ -1004,7 +995,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
                 convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut make_cstr);
                 sym_ref.inlined_cnt = sym.inlined.len();
                 sym_ref.inlined = inlined_last;
-                sym_ref.reason = blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_SUCCESS;
+                sym_ref.reason = blaze_symbolize_reason::SUCCESS;
 
                 for inlined in sym.inlined.iter() {
                     let inlined_ref = unsafe { &mut *inlined_last };
@@ -1433,12 +1424,12 @@ mod tests {
             },
             inlined_cnt: 0,
             inlined: ptr::null(),
-            reason: blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
+            reason: blaze_symbolize_reason::UNSUPPORTED,
             reserved: [0; 15],
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, module: 0x0, addr: 4919, offset: 24, size: 16, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym { name: 0x0, module: 0x0, addr: 4919, offset: 24, size: 16, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: blaze_symbolize_reason(6), reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let inlined = blaze_symbolize_inlined_fn {
@@ -1475,21 +1466,19 @@ mod tests {
     #[tag(miri)]
     #[test]
     fn reason_stringification() {
-        use blaze_symbolize_reason::*;
-
         let data = [
-            (Reason::Unmapped, BLAZE_SYMBOLIZE_REASON_UNMAPPED),
+            (Reason::Unmapped, blaze_symbolize_reason::UNMAPPED),
             (
                 Reason::InvalidFileOffset,
-                BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
+                blaze_symbolize_reason::INVALID_FILE_OFFSET,
             ),
             (
                 Reason::MissingComponent,
-                BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
+                blaze_symbolize_reason::MISSING_COMPONENT,
             ),
-            (Reason::MissingSyms, BLAZE_SYMBOLIZE_REASON_MISSING_SYMS),
-            (Reason::Unsupported, BLAZE_SYMBOLIZE_REASON_UNSUPPORTED),
-            (Reason::UnknownAddr, BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR),
+            (Reason::MissingSyms, blaze_symbolize_reason::MISSING_SYMS),
+            (Reason::Unsupported, blaze_symbolize_reason::UNSUPPORTED),
+            (Reason::UnknownAddr, blaze_symbolize_reason::UNKNOWN_ADDR),
         ];
 
         for (reason, expected) in data {
@@ -1733,10 +1722,7 @@ mod tests {
                 unsafe { CStr::from_ptr(sym.name) },
                 CStr::from_bytes_with_nul(b"factorial\0").unwrap()
             );
-            assert_eq!(
-                sym.reason,
-                blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_SUCCESS
-            );
+            assert_eq!(sym.reason, blaze_symbolize_reason::SUCCESS);
             assert_eq!(sym.addr, 0x2000200);
             assert_eq!(sym.offset, 0);
             assert!(sym.size > 0);
@@ -1936,10 +1922,7 @@ mod tests {
             unsafe { CStr::from_ptr(sym.name) },
             CStr::from_bytes_with_nul(b"factorial\0").unwrap()
         );
-        assert_eq!(
-            sym.reason,
-            blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_SUCCESS
-        );
+        assert_eq!(sym.reason, blaze_symbolize_reason::SUCCESS);
         assert_eq!(sym.addr, 0x2000200);
 
         let () = unsafe { blaze_syms_free(result) };
@@ -2247,10 +2230,7 @@ mod tests {
         // found.
         assert_eq!(sym.name, ptr::null());
         assert_eq!(sym.module, ptr::null());
-        assert_eq!(
-            sym.reason,
-            blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_MISSING_SYMS
-        );
+        assert_eq!(sym.reason, blaze_symbolize_reason::MISSING_SYMS);
 
         let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
