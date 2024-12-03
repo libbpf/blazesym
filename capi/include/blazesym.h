@@ -151,54 +151,6 @@ typedef uint8_t blaze_sym_type;
 #endif // __cplusplus
 
 /**
- * The reason why symbolization failed.
- *
- * The reason is generally only meant as a hint. Reasons reported may
- * change over time and, hence, should not be relied upon for the
- * correctness of the application.
- */
-enum blaze_symbolize_reason
-#ifdef __cplusplus
-  : uint8_t
-#endif // __cplusplus
- {
-  /**
-   * Symbolization was successful.
-   */
-  BLAZE_SYMBOLIZE_REASON_SUCCESS = 0,
-  /**
-   * The absolute address was not found in the corresponding process'
-   * virtual memory map.
-   */
-  BLAZE_SYMBOLIZE_REASON_UNMAPPED,
-  /**
-   * The file offset does not map to a valid piece of code/data.
-   */
-  BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET,
-  /**
-   * The `/proc/<pid>/maps` entry corresponding to the address does
-   * not have a component (file system path, object, ...) associated
-   * with it.
-   */
-  BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT,
-  /**
-   * The symbolization source has no or no relevant symbols.
-   */
-  BLAZE_SYMBOLIZE_REASON_MISSING_SYMS,
-  /**
-   * The address could not be found in the symbolization source.
-   */
-  BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR,
-  /**
-   * The address belonged to an entity that is currently unsupported.
-   */
-  BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
-};
-#ifndef __cplusplus
-typedef uint8_t blaze_symbolize_reason;
-#endif // __cplusplus
-
-/**
  * The level at which to emit traces.
  */
 enum blaze_trace_lvl
@@ -595,6 +547,46 @@ typedef struct blaze_normalize_opts {
    */
   uint8_t reserved[21];
 } blaze_normalize_opts;
+
+/**
+ * The reason why symbolization failed.
+ *
+ * The reason is generally only meant as a hint. Reasons reported may
+ * change over time and, hence, should not be relied upon for the
+ * correctness of the application.
+ */
+typedef uint8_t blaze_symbolize_reason;
+/**
+ * Symbolization was successful.
+ */
+#define BLAZE_SYMBOLIZE_REASON_SUCCESS 0
+/**
+ * The absolute address was not found in the corresponding process'
+ * virtual memory map.
+ */
+#define BLAZE_SYMBOLIZE_REASON_UNMAPPED 1
+/**
+ * The file offset does not map to a valid piece of code/data.
+ */
+#define BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET 2
+/**
+ * The `/proc/<pid>/maps` entry corresponding to the address does
+ * not have a component (file system path, object, ...) associated
+ * with it.
+ */
+#define BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT 3
+/**
+ * The symbolization source has no or no relevant symbols.
+ */
+#define BLAZE_SYMBOLIZE_REASON_MISSING_SYMS 4
+/**
+ * The address could not be found in the symbolization source.
+ */
+#define BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR 5
+/**
+ * The address belonged to an entity that is currently unsupported.
+ */
+#define BLAZE_SYMBOLIZE_REASON_UNSUPPORTED 6
 
 /**
  * C ABI compatible version of [`blazesym::symbolize::Symbolizer`].

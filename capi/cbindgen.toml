@@ -16,5 +16,8 @@ item_types = ["globals", "enums", "structs", "unions", "typedefs", "opaque", "fu
 "Normalizer" = "struct blaze_normalizer"
 "Symbolizer" = "struct blaze_symbolizer"
 
+[struct]
+rename_associated_constant = "UpperCase"
+
 [fn]
 args = "Vertical"

@@ -258,7 +258,7 @@ dependencies = [
  "bindgen",
  "blazesym",
  "blazesym-c",
- "cbindgen",
+ "cbindgen-assoc-const",
  "criterion",
  "libc",
  "memoffset",
@@ -348,10 +348,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
-name = "cbindgen"
+name = "cbindgen-assoc-const"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eadd868a2ce9ca38de7eeafdcec9c7065ef89b42b32f0839278d55f35c54d1ff"
+checksum = "81326c7316397debae08f23dfb4b00c71243292122e59c4a50d7a969a8ee83b7"
 dependencies = [
  "clap",
  "heck 0.4.1",
@@ -1459,7 +1459,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
