@@ -33,6 +33,7 @@ use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
+use super::types::EI_NIDENT;
 use super::types::ELFCLASS32;
 use super::types::ELFCLASS64;
 use super::types::ELFCOMPRESS_ZLIB;
@@ -293,22 +294,18 @@ impl<'mmap> Cache<'mmap> {
 
     fn parse_ehdr(&self) -> Result<EhdrExt<'mmap>> {
         let mut elf_data = self.elf_data;
-        let ehdr = elf_data
-            .read_pod_ref::<Elf64_Ehdr>()
-            .ok_or_invalid_data(|| "failed to read Elf64_Ehdr")?;
-        if !(ehdr.e_ident[0] == 0x7f
-            && ehdr.e_ident[1] == b'E'
-            && ehdr.e_ident[2] == b'L'
-            && ehdr.e_ident[3] == b'F')
-        {
+        let e_ident = elf_data
+            .peek_array::<EI_NIDENT>()
+            .ok_or_invalid_data(|| "failed to read ELF e_ident information")?;
+        if !(e_ident[0] == 0x7f && e_ident[1] == b'E' && e_ident[2] == b'L' && e_ident[3] == b'F') {
             return Err(Error::with_invalid_data(format!(
                 "encountered unexpected e_ident: {:x?}",
-                &ehdr.e_ident[0..4]
+                &e_ident[0..4]
             )))
         }
 
         // At this point we only support ELF64.
-        let class = ehdr.e_ident[4];
+        let class = e_ident[4];
         if class != ELFCLASS64 {
             let class_str = match class {
                 ELFCLASS32 => Cow::Borrowed("ELF32"),
@@ -318,6 +315,10 @@ impl<'mmap> Cache<'mmap> {
                 "ELF class ({class_str}) is not currently supported"
             )))
         }
+
+        let ehdr = elf_data
+            .read_pod_ref::<Elf64_Ehdr>()
+            .ok_or_invalid_data(|| "failed to read Elf64_Ehdr")?;
 
         // "If the number of entries in the section header table is larger than
         // or equal to SHN_LORESERVE, e_shnum holds the value zero and the real
