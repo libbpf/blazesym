@@ -430,6 +430,10 @@ pub trait ReadRaw<'data> {
     /// Consume and return `len` bytes.
     fn read_slice(&mut self, len: usize) -> Option<&'data [u8]>;
 
+    /// Read a fixed size array of bytes without advancing the read
+    /// pointer.
+    fn peek_array<const N: usize>(&self) -> Option<[u8; N]>;
+
     /// Read a fixed size array of bytes.
     fn read_array<const N: usize>(&mut self) -> Option<[u8; N]>;
 
@@ -599,12 +603,18 @@ impl<'data> ReadRaw<'data> for &'data [u8] {
     }
 
     #[inline]
-    fn read_array<const N: usize>(&mut self) -> Option<[u8; N]> {
+    fn peek_array<const N: usize>(&self) -> Option<[u8; N]> {
         self.ensure(N)?;
-        let (a, b) = self.split_at(N);
-        *self = b;
+        let slice = &self[..N];
         // SAFETY: We *know* that `a` has length `N`.
-        let array = unsafe { <[u8; N]>::try_from(a).unwrap_unchecked() };
+        let array = unsafe { <[u8; N]>::try_from(slice).unwrap_unchecked() };
+        Some(array)
+    }
+
+    #[inline]
+    fn read_array<const N: usize>(&mut self) -> Option<[u8; N]> {
+        let array = self.peek_array::<N>()?;
+        *self = &self[N..];
         Some(array)
     }
 
@@ -890,6 +900,34 @@ mod tests {
         let data = 0xf936857fu32.to_ne_bytes();
         assert_eq!(data.as_slice().read_u16().unwrap(), 0x857f);
         assert_eq!(data.as_slice().read_u32().unwrap(), 0xf936857f);
+    }
+
+    /// Check that we can read an array from a slice as expected.
+    #[tag(miri)]
+    #[test]
+    fn array_reading() {
+        let data = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        let mut data = data.as_slice();
+
+        let read = data.peek_array::<1>().unwrap();
+        assert_eq!(read, [0]);
+        let read = data.peek_array::<1>().unwrap();
+        assert_eq!(read, [0]);
+        let read = data.read_array::<1>().unwrap();
+        assert_eq!(read, [0]);
+
+        let read = data.peek_array::<4>().unwrap();
+        assert_eq!(read, [1, 2, 3, 4]);
+        let read = data.read_array::<4>().unwrap();
+        assert_eq!(read, [1, 2, 3, 4]);
+
+        let result = data.peek_array::<20>();
+        assert_eq!(result, None);
+        let result = data.read_array::<20>();
+        assert_eq!(result, None);
+
+        let read = data.read_array::<3>().unwrap();
+        assert_eq!(read, [5, 6, 7]);
     }
 
     /// Make sure that we can read leb128 encoded values.

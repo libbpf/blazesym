@@ -1,7 +1,7 @@
 use crate::util::Pod;
 use crate::SymType;
 
-const EI_NIDENT: usize = 16;
+pub(crate) const EI_NIDENT: usize = 16;
 
 type Elf64_Addr = u64;
 type Elf64_Half = u16;
