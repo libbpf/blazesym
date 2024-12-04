@@ -9,6 +9,12 @@ type Elf64_Off = u64;
 type Elf64_Word = u32;
 type Elf64_Xword = u64;
 
+type Elf32_Addr = u32;
+type Elf32_Half = u16;
+type Elf32_Off = u32;
+type Elf32_Word = u32;
+type Elf32_Xword = u64;
+
 pub(crate) const ET_EXEC: u16 = 2;
 pub(crate) const ET_DYN: u16 = 3;
 
@@ -64,6 +70,29 @@ pub(crate) trait From32Bit {
 
 #[derive(Debug)]
 #[repr(C)]
+pub(crate) struct Elf32_Ehdr {
+    pub e_ident: [u8; EI_NIDENT],
+    pub e_type: Elf32_Half,
+    pub e_machine: Elf32_Half,
+    pub e_version: Elf32_Word,
+    pub e_entry: Elf32_Addr,
+    pub e_phoff: Elf32_Off,
+    pub e_shoff: Elf32_Off,
+    pub e_flags: Elf32_Word,
+    pub e_ehsize: Elf32_Half,
+    pub e_phentsize: Elf32_Half,
+    pub e_phnum: Elf32_Half,
+    pub e_shentsize: Elf32_Half,
+    pub e_shnum: Elf32_Half,
+    pub e_shstrndx: Elf32_Half,
+}
+
+// SAFETY: `Elf32_Ehdr` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Ehdr {}
+
+
+#[derive(Debug)]
+#[repr(C)]
 pub(crate) struct Elf64_Ehdr {
     pub e_ident: [u8; EI_NIDENT], /* ELF "magic number" */
     pub e_type: Elf64_Half,
@@ -83,6 +112,11 @@ pub(crate) struct Elf64_Ehdr {
 
 // SAFETY: `Elf64_Ehdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Ehdr {}
+
+impl From32Bit for Elf64_Ehdr {
+    type Ty32Bit = Elf32_Ehdr;
+}
+
 
 pub(crate) const PT_LOAD: u32 = 1;
 
