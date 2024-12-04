@@ -108,7 +108,7 @@ impl<'unit, 'dwarf> LocationRangeUnitIter<'unit, 'dwarf> {
     }
 }
 
-impl<'unit, 'dwarf> Iterator for LocationRangeUnitIter<'unit, 'dwarf> {
+impl<'unit> Iterator for LocationRangeUnitIter<'unit, '_> {
     type Item = (u64, u64, Location<'unit>);
 
     fn next(&mut self) -> Option<(u64, u64, Location<'unit>)> {
