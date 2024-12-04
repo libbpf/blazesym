@@ -341,6 +341,7 @@ impl<'dwarf> Units<'dwarf> {
     }
 
     /// Find the list of inlined functions that contain `probe`.
+    #[allow(clippy::type_complexity)]
     pub(super) fn find_inlined_functions<'slf>(
         &'slf self,
         probe: u64,
