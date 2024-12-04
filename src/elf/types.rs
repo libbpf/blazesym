@@ -9,6 +9,12 @@ type Elf64_Off = u64;
 type Elf64_Word = u32;
 type Elf64_Xword = u64;
 
+type Elf32_Addr = u32;
+type Elf32_Half = u16;
+type Elf32_Off = u32;
+type Elf32_Word = u32;
+type Elf32_Xword = u64;
+
 pub(crate) const ET_EXEC: u16 = 2;
 pub(crate) const ET_DYN: u16 = 3;
 
@@ -64,6 +70,29 @@ pub(crate) trait Has32BitTy {
 
 #[derive(Debug)]
 #[repr(C)]
+pub(crate) struct Elf32_Ehdr {
+    pub e_ident: [u8; EI_NIDENT],
+    pub e_type: Elf32_Half,
+    pub e_machine: Elf32_Half,
+    pub e_version: Elf32_Word,
+    pub e_entry: Elf32_Addr,
+    pub e_phoff: Elf32_Off,
+    pub e_shoff: Elf32_Off,
+    pub e_flags: Elf32_Word,
+    pub e_ehsize: Elf32_Half,
+    pub e_phentsize: Elf32_Half,
+    pub e_phnum: Elf32_Half,
+    pub e_shentsize: Elf32_Half,
+    pub e_shnum: Elf32_Half,
+    pub e_shstrndx: Elf32_Half,
+}
+
+// SAFETY: `Elf32_Ehdr` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Ehdr {}
+
+
+#[derive(Debug)]
+#[repr(C)]
 pub(crate) struct Elf64_Ehdr {
     pub e_ident: [u8; EI_NIDENT], /* ELF "magic number" */
     pub e_type: Elf64_Half,
@@ -83,6 +112,39 @@ pub(crate) struct Elf64_Ehdr {
 
 // SAFETY: `Elf64_Ehdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Ehdr {}
+
+impl Has32BitTy for Elf64_Ehdr {
+    type Ty32Bit = Elf32_Ehdr;
+}
+
+pub(crate) type ElfN_Ehdr<'elf> = ElfN<'elf, Elf64_Ehdr>;
+
+impl ElfN_Ehdr<'_> {
+    #[inline]
+    pub fn shoff(&self) -> Elf64_Off {
+        match self {
+            ElfN::B32(ehdr) => ehdr.e_shoff.into(),
+            ElfN::B64(ehdr) => ehdr.e_shoff,
+        }
+    }
+
+    #[inline]
+    pub fn phoff(&self) -> Elf64_Off {
+        match self {
+            ElfN::B32(ehdr) => ehdr.e_phoff.into(),
+            ElfN::B64(ehdr) => ehdr.e_phoff,
+        }
+    }
+
+    #[inline]
+    pub fn shstrndx(&self) -> Elf64_Half {
+        match self {
+            ElfN::B32(ehdr) => ehdr.e_shstrndx,
+            ElfN::B64(ehdr) => ehdr.e_shstrndx,
+        }
+    }
+}
+
 
 pub(crate) const PT_LOAD: u32 = 1;
 
