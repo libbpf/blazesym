@@ -3,6 +3,7 @@ use std::path::Path;
 
 use crate::elf;
 use crate::elf::types::Elf64_Nhdr;
+use crate::elf::types::ElfN;
 use crate::elf::ElfParser;
 use crate::file_cache::FileCache;
 use crate::log::warn;
@@ -22,7 +23,12 @@ pub type BuildId<'src> = Cow<'src, [u8]>;
 fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
     let shdrs = parser.section_headers()?;
     for (idx, shdr) in shdrs.iter().enumerate() {
-        if shdr.sh_type == elf::types::SHT_NOTE {
+        let sh_type = match shdr {
+            ElfN::B32(shdr) => shdr.sh_type,
+            ElfN::B64(shdr) => shdr.sh_type,
+        };
+
+        if sh_type == elf::types::SHT_NOTE {
             // SANITY: We just found the index so the section data should always
             //         be found.
             let mut bytes = parser.section_data(idx).unwrap();
@@ -55,11 +61,12 @@ fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<BuildId<
         // SANITY: We just found the index so the section should always be
         //         found.
         let shdr = parser.section_headers()?.get(idx).unwrap();
-        if shdr.sh_type != elf::types::SHT_NOTE {
-            warn!(
-                "build ID section {build_id_section} is of unsupported type ({})",
-                shdr.sh_type
-            );
+        let sh_type = match shdr {
+            ElfN::B32(shdr) => shdr.sh_type,
+            ElfN::B64(shdr) => shdr.sh_type,
+        };
+        if sh_type != elf::types::SHT_NOTE {
+            warn!("build ID section {build_id_section} is of unsupported type ({sh_type})");
             return Ok(None)
         }
 

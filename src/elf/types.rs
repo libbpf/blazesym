@@ -1,3 +1,4 @@
+use crate::util::Either;
 use crate::util::Pod;
 use crate::SymType;
 
@@ -14,6 +15,8 @@ type Elf32_Half = u16;
 type Elf32_Off = u32;
 type Elf32_Word = u32;
 type Elf32_Xword = u64;
+type Elf32_Section = u16;
+
 
 pub(crate) const ET_EXEC: u16 = 2;
 pub(crate) const ET_DYN: u16 = 3;
@@ -61,6 +64,35 @@ where
 }
 
 impl<T> Copy for ElfN<'_, T> where T: From32Bit {}
+
+
+#[derive(Copy, Clone, Debug)]
+pub(crate) enum ElfNSlice<'elf, T>
+where
+    T: From32Bit,
+{
+    B32(&'elf [T::Ty32Bit]),
+    B64(&'elf [T]),
+}
+
+impl<'elf, T> ElfNSlice<'elf, T>
+where
+    T: From32Bit,
+{
+    pub fn get(&self, idx: usize) -> Option<ElfN<'elf, T>> {
+        match self {
+            Self::B32(slice) => Some(ElfN::B32(slice.get(idx)?)),
+            Self::B64(slice) => Some(ElfN::B64(slice.get(idx)?)),
+        }
+    }
+
+    pub fn iter(&self) -> impl ExactSizeIterator<Item = ElfN<'elf, T>> {
+        match self {
+            Self::B32(slice) => Either::A(slice.iter().map(ElfN::B32)),
+            Self::B64(slice) => Either::B(slice.iter().map(ElfN::B64)),
+        }
+    }
+}
 
 
 pub(crate) trait From32Bit {
@@ -140,7 +172,27 @@ pub(crate) const PF_X: Elf64_Word = 1;
 
 pub(crate) const PN_XNUM: u16 = 0xffff;
 
-#[derive(Debug)]
+
+#[derive(Copy, Clone, Debug)]
+#[repr(C)]
+pub(crate) struct Elf32_Shdr {
+    pub sh_name: Elf32_Word,
+    pub sh_type: Elf32_Word,
+    pub sh_flags: Elf32_Word,
+    pub sh_addr: Elf32_Addr,
+    pub sh_offset: Elf32_Off,
+    pub sh_size: Elf32_Word,
+    pub sh_link: Elf32_Word,
+    pub sh_info: Elf32_Word,
+    pub sh_addralign: Elf32_Word,
+    pub sh_entsize: Elf32_Word,
+}
+
+// SAFETY: `Elf32_Shdr` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Shdr {}
+
+
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Shdr {
     pub sh_name: Elf64_Word,       /* Section name, index in string tbl */
@@ -157,6 +209,28 @@ pub(crate) struct Elf64_Shdr {
 
 // SAFETY: `Elf64_Shdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Shdr {}
+
+impl From<&Elf32_Shdr> for Elf64_Shdr {
+    fn from(other: &Elf32_Shdr) -> Self {
+        Self {
+            sh_name: other.sh_name,
+            sh_type: other.sh_type,
+            sh_flags: other.sh_flags.into(),
+            sh_addr: other.sh_addr.into(),
+            sh_offset: other.sh_offset.into(),
+            sh_size: other.sh_size.into(),
+            sh_link: other.sh_link,
+            sh_info: other.sh_info,
+            sh_addralign: other.sh_addralign.into(),
+            sh_entsize: other.sh_entsize.into(),
+        }
+    }
+}
+
+impl From32Bit for Elf64_Shdr {
+    type Ty32Bit = Elf32_Shdr;
+}
+
 
 pub(crate) const SHF_COMPRESSED: u64 = 0x800;
 
