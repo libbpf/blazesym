@@ -457,6 +457,18 @@ impl Has32BitTy for Elf64_Nhdr {
 
 #[derive(Debug)]
 #[repr(C)]
+pub(crate) struct Elf32_Chdr {
+    pub ch_type: Elf32_Word,      /* Compression format. */
+    pub ch_size: Elf32_Word,      /* Uncompressed data size. */
+    pub ch_addralign: Elf32_Word, /* Uncompressed data alignment. */
+}
+
+// SAFETY: `Elf32_Chdr` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Chdr {}
+
+
+#[derive(Debug)]
+#[repr(C)]
 pub(crate) struct Elf64_Chdr {
     /// Compression format.
     ///
@@ -471,6 +483,10 @@ pub(crate) struct Elf64_Chdr {
 
 // SAFETY: `Elf64_Chdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Chdr {}
+
+impl Has32BitTy for Elf64_Chdr {
+    type Ty32Bit = Elf32_Chdr;
+}
 
 
 /// zlib/deflate algorithm.
