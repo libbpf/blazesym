@@ -385,6 +385,19 @@ unsafe impl Pod for Elf64_Sym {}
 
 pub(crate) const NT_GNU_BUILD_ID: Elf64_Word = 3;
 
+
+#[derive(Debug)]
+#[repr(C)]
+pub(crate) struct Elf32_Nhdr {
+    pub n_namesz: Elf32_Word, /* Length of the note's name. */
+    pub n_descsz: Elf32_Word, /* Length of the note's descriptor. */
+    pub n_type: Elf32_Word,   /* Type of the note. */
+}
+
+// SAFETY: `Elf32_Nhdr` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Nhdr {}
+
+
 #[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Nhdr {
@@ -395,6 +408,10 @@ pub(crate) struct Elf64_Nhdr {
 
 // SAFETY: `Elf64_Nhdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Nhdr {}
+
+impl Has32BitTy for Elf64_Nhdr {
+    type Ty32Bit = Elf32_Nhdr;
+}
 
 
 #[derive(Debug)]
