@@ -95,6 +95,54 @@ where
 }
 
 
+#[derive(Debug)]
+pub(crate) enum ElfNBoxedSlice<'elf, T>
+where
+    T: Has32BitTy,
+{
+    B32(Box<[&'elf T::Ty32Bit]>),
+    B64(Box<[&'elf T]>),
+}
+
+impl<'elf, T> ElfNBoxedSlice<'elf, T>
+where
+    T: Has32BitTy,
+{
+    pub fn empty(tybit32: bool) -> Self {
+        if tybit32 {
+            Self::B32(Box::new([]))
+        } else {
+            Self::B64(Box::new([]))
+        }
+    }
+
+    pub fn get(&self, idx: usize) -> Option<ElfN<'elf, T>> {
+        match self {
+            Self::B32(slice) => Some(ElfN::B32(*slice.get(idx)?)),
+            Self::B64(slice) => Some(ElfN::B64(*slice.get(idx)?)),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::B32(slice) => slice.len(),
+            Self::B64(slice) => slice.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter(&self, start_idx: usize) -> impl ExactSizeIterator<Item = ElfN<'_, T>> {
+        match self {
+            Self::B32(slice) => Either::A(slice[start_idx..].iter().map(|x| ElfN::B32(*x))),
+            Self::B64(slice) => Either::B(slice[start_idx..].iter().map(|x| ElfN::B64(*x))),
+        }
+    }
+}
+
+
 pub(crate) trait Has32BitTy {
     type Ty32Bit;
 }
@@ -375,7 +423,51 @@ pub(crate) const STT_OBJECT: u8 = 1;
 pub(crate) const STT_FUNC: u8 = 2;
 pub(crate) const STT_GNU_IFUNC: u8 = 10;
 
-#[derive(Clone, Debug)]
+
+fn elf_type_matches(elf_ty: u8, type_: SymType) -> bool {
+    let is_func = elf_ty == STT_FUNC || elf_ty == STT_GNU_IFUNC;
+    let is_var = elf_ty == STT_OBJECT;
+
+    match type_ {
+        SymType::Undefined => is_func || is_var,
+        SymType::Function => is_func,
+        SymType::Variable => is_var,
+    }
+}
+
+
+#[derive(Clone, Copy, Debug)]
+#[repr(C)]
+pub(crate) struct Elf32_Sym {
+    pub st_name: Elf32_Word,
+    pub st_value: Elf32_Addr,
+    pub st_size: Elf32_Word,
+    pub st_info: u8,
+    pub st_other: u8,
+    pub st_shndx: Elf32_Section,
+}
+
+impl Elf32_Sym {
+    /// Extract the symbol's type, typically represented by a STT_*
+    /// constant.
+    #[inline]
+    pub fn type_(&self) -> u8 {
+        self.st_info & 0xf
+    }
+
+    /// Check whether the symbol's type matches that represented by the
+    /// given [`SymType`].
+    #[inline]
+    pub fn matches(&self, type_: SymType) -> bool {
+        elf_type_matches(self.type_(), type_)
+    }
+}
+
+// SAFETY: `Elf32_Sym` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Sym {}
+
+
+#[derive(Clone, Copy, Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Sym {
     pub st_name: Elf64_Word,  /* Symbol name, index in string tbl */
@@ -387,7 +479,8 @@ pub(crate) struct Elf64_Sym {
 }
 
 impl Elf64_Sym {
-    /// Extract the symbols type, typically represented by a STT_* constant.
+    /// Extract the symbol's type, typically represented by a STT_*
+    /// constant.
     #[inline]
     pub fn type_(&self) -> u8 {
         self.st_info & 0xf
@@ -397,14 +490,17 @@ impl Elf64_Sym {
     /// given [`SymType`].
     #[inline]
     pub fn matches(&self, type_: SymType) -> bool {
-        let elf_ty = self.type_();
-        let is_func = elf_ty == STT_FUNC || elf_ty == STT_GNU_IFUNC;
-        let is_var = elf_ty == STT_OBJECT;
+        elf_type_matches(self.type_(), type_)
+    }
+}
 
-        match type_ {
-            SymType::Undefined => is_func || is_var,
-            SymType::Function => is_func,
-            SymType::Variable => is_var,
+
+impl SymType {
+    fn try_from_elf_type(elf_type: u8) -> Result<Self, ()> {
+        match elf_type {
+            STT_FUNC | STT_GNU_IFUNC => Ok(SymType::Function),
+            STT_OBJECT => Ok(SymType::Variable),
+            _ => Err(()),
         }
     }
 }
@@ -413,16 +509,89 @@ impl TryFrom<&Elf64_Sym> for SymType {
     type Error = ();
 
     fn try_from(other: &Elf64_Sym) -> Result<Self, Self::Error> {
-        match other.type_() {
-            STT_FUNC | STT_GNU_IFUNC => Ok(SymType::Function),
-            STT_OBJECT => Ok(SymType::Variable),
-            _ => Err(()),
+        SymType::try_from_elf_type(other.type_())
+    }
+}
+
+impl TryFrom<ElfN<'_, Elf64_Sym>> for SymType {
+    type Error = ();
+
+    fn try_from(other: ElfN<'_, Elf64_Sym>) -> Result<Self, Self::Error> {
+        SymType::try_from_elf_type(other.type_())
+    }
+}
+
+
+// SAFETY: `Elf64_Sym` is valid for any bit pattern.
+unsafe impl Pod for Elf64_Sym {}
+
+impl From<&Elf32_Sym> for Elf64_Sym {
+    fn from(other: &Elf32_Sym) -> Self {
+        Self {
+            st_name: other.st_name,
+            st_info: other.st_info,
+            st_other: other.st_other,
+            st_shndx: other.st_shndx,
+            st_value: other.st_value.into(),
+            st_size: other.st_size.into(),
         }
     }
 }
 
-// SAFETY: `Elf64_Sym` is valid for any bit pattern.
-unsafe impl Pod for Elf64_Sym {}
+impl Has32BitTy for Elf64_Sym {
+    type Ty32Bit = Elf32_Sym;
+}
+
+pub(crate) type ElfN_Sym<'elf> = ElfN<'elf, Elf64_Sym>;
+pub(crate) type ElfN_BoxedSyms<'elf> = ElfNBoxedSlice<'elf, Elf64_Sym>;
+
+impl ElfN_Sym<'_> {
+    #[inline]
+    pub fn name(&self) -> Elf64_Word {
+        match self {
+            ElfN::B32(sym) => sym.st_name,
+            ElfN::B64(sym) => sym.st_name,
+        }
+    }
+
+    #[inline]
+    pub fn value(&self) -> Elf64_Addr {
+        match self {
+            ElfN::B32(sym) => sym.st_value.into(),
+            ElfN::B64(sym) => sym.st_value,
+        }
+    }
+
+    #[inline]
+    pub fn size(&self) -> Elf64_Xword {
+        match self {
+            ElfN::B32(sym) => sym.st_size.into(),
+            ElfN::B64(sym) => sym.st_size,
+        }
+    }
+
+    #[inline]
+    pub fn type_(&self) -> u8 {
+        match self {
+            ElfN::B32(sym) => sym.type_(),
+            ElfN::B64(sym) => sym.type_(),
+        }
+    }
+
+    #[inline]
+    pub fn shndx(&self) -> Elf64_Half {
+        match self {
+            ElfN::B32(sym) => sym.st_shndx,
+            ElfN::B64(sym) => sym.st_shndx,
+        }
+    }
+
+    #[inline]
+    pub fn matches(&self, type_: SymType) -> bool {
+        elf_type_matches(self.type_(), type_)
+    }
+}
+
 
 pub(crate) const NT_GNU_BUILD_ID: Elf64_Word = 3;
 
