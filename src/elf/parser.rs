@@ -165,9 +165,9 @@ struct SymbolTableCache<'mmap> {
 }
 
 impl<'mmap> SymbolTableCache<'mmap> {
-    fn new(syms: Vec<&'mmap Elf64_Sym>, strs: &'mmap [u8]) -> Self {
+    fn new(syms: Box<[&'mmap Elf64_Sym]>, strs: &'mmap [u8]) -> Self {
         Self {
-            syms: syms.into_boxed_slice(),
+            syms,
             strs,
             str2sym: OnceCell::new(),
         }
@@ -464,12 +464,12 @@ impl<'mmap> Cache<'mmap> {
         Ok(None)
     }
 
-    fn parse_syms(&self, section: &str) -> Result<Vec<&'mmap Elf64_Sym>> {
+    fn parse_syms(&self, section: &str) -> Result<Box<[&'mmap Elf64_Sym]>> {
         let idx = if let Some(idx) = self.find_section(section)? {
             idx
         } else {
             // The symbol table does not exists. Fake an empty one.
-            return Ok(Vec::new())
+            return Ok(Box::new([]))
         };
         let mut syms = self.section_data(idx)?;
 
@@ -483,7 +483,7 @@ impl<'mmap> Cache<'mmap> {
         // Short-circuit if there are no symbols. The data may not actually be
         // properly aligned in this case either, so don't attempt to even read.
         if count == 0 {
-            return Ok(Vec::new())
+            return Ok(Box::new([]))
         }
         let mut syms = syms
             .read_pod_slice_ref::<Elf64_Sym>(count)
@@ -491,7 +491,7 @@ impl<'mmap> Cache<'mmap> {
             .iter()
             // Filter out any symbols that we do not support.
             .filter(|sym| sym.matches(SymType::Undefined))
-            .collect::<Vec<&Elf64_Sym>>();
+            .collect::<Box<[&Elf64_Sym]>>();
         // Order symbols by address and those with equal address descending by
         // size.
         let () = syms.sort_by(|sym1, sym2| {
