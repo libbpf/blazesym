@@ -29,6 +29,7 @@ use crate::Result;
 use crate::SymType;
 
 use super::types::Elf32_Ehdr;
+use super::types::Elf32_Phdr;
 use super::types::Elf32_Shdr;
 use super::types::Elf64_Chdr;
 use super::types::Elf64_Ehdr;
@@ -36,6 +37,7 @@ use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
 use super::types::ElfN_Ehdr;
+use super::types::ElfN_Phdrs;
 use super::types::ElfN_Shdr;
 use super::types::ElfN_Shdrs;
 use super::types::EI_NIDENT;
@@ -239,7 +241,7 @@ struct Cache<'mmap> {
     shdrs: OnceCell<ElfN_Shdrs<'mmap>>,
     shstrtab: OnceCell<&'mmap [u8]>,
     /// The cached ELF program headers.
-    phdrs: OnceCell<&'mmap [Elf64_Phdr]>,
+    phdrs: OnceCell<ElfN_Phdrs<'mmap>>,
     /// The cached symbol table.
     symtab: OnceCell<SymbolTableCache<'mmap>>,
     /// The cached dynamic symbol table.
@@ -406,18 +408,27 @@ impl<'mmap> Cache<'mmap> {
         self.shdrs.get_or_try_init(|| self.parse_shdrs()).copied()
     }
 
-    fn parse_phdrs(&self) -> Result<&'mmap [Elf64_Phdr]> {
+    fn parse_phdrs(&self) -> Result<ElfN_Phdrs<'mmap>> {
         let ehdr = self.ensure_ehdr()?;
-        let phdrs = self
+
+        let mut data = self
             .elf_data
             .get(ehdr.ehdr.phoff() as usize..)
-            .ok_or_invalid_data(|| "Elf64_Ehdr::e_phoff is invalid")?
-            .read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
-            .ok_or_invalid_data(|| "failed to read Elf64_Phdr")?;
+            .ok_or_invalid_data(|| "ELF e_phoff is invalid")?;
+
+        let phdrs = if ehdr.is_32bit() {
+            data.read_pod_slice_ref::<Elf32_Phdr>(ehdr.phnum)
+                .map(ElfN_Phdrs::B32)
+        } else {
+            data.read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
+                .map(ElfN_Phdrs::B64)
+        }
+        .ok_or_invalid_data(|| "failed to read ELF program headers")?;
+
         Ok(phdrs)
     }
 
-    fn ensure_phdrs(&self) -> Result<&'mmap [Elf64_Phdr]> {
+    fn ensure_phdrs(&self) -> Result<ElfN_Phdrs<'mmap>> {
         self.phdrs.get_or_try_init(|| self.parse_phdrs()).copied()
     }
 
@@ -892,6 +903,8 @@ impl ElfParser {
     pub(crate) fn find_file_offset(&self, addr: Addr) -> Result<Option<u64>> {
         let phdrs = self.program_headers()?;
         let offset = phdrs.iter().find_map(|phdr| {
+            let phdr = phdr.to_64bit();
+
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
                     return Some(addr - phdr.p_vaddr + phdr.p_offset)
@@ -915,7 +928,7 @@ impl ElfParser {
         Ok(shdrs)
     }
 
-    pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr]> {
+    pub(crate) fn program_headers(&self) -> Result<ElfN_Phdrs<'_>> {
         let phdrs = self.cache.ensure_phdrs()?;
         Ok(phdrs)
     }
@@ -924,6 +937,7 @@ impl ElfParser {
     pub(crate) fn file_offset_to_virt_offset(&self, offset: u64) -> Result<Option<Addr>> {
         let phdrs = self.program_headers()?;
         let addr = phdrs.iter().find_map(|phdr| {
+            let phdr = phdr.to_64bit();
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&offset) {
                     return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
