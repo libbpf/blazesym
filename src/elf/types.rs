@@ -152,7 +152,25 @@ impl From32Bit for Elf64_Ehdr {
 
 pub(crate) const PT_LOAD: u32 = 1;
 
-#[derive(Debug)]
+
+#[derive(Copy, Clone, Debug)]
+#[repr(C)]
+pub(crate) struct Elf32_Phdr {
+    p_type: Elf32_Word,   /* Segment type */
+    p_offset: Elf32_Off,  /* Segment file offset */
+    p_vaddr: Elf32_Addr,  /* Segment virtual address */
+    p_paddr: Elf32_Addr,  /* Segment physical address */
+    p_filesz: Elf32_Word, /* Segment size in file */
+    p_memsz: Elf32_Word,  /* Segment size in memory */
+    p_flags: Elf32_Word,  /* Segment flags */
+    p_align: Elf32_Word,  /* Segment alignment */
+}
+
+// SAFETY: `Elf32_Phdr` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Phdr {}
+
+
+#[derive(Copy, Clone, Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Phdr {
     pub p_type: Elf64_Word,
@@ -167,6 +185,26 @@ pub(crate) struct Elf64_Phdr {
 
 // SAFETY: `Elf64_Phdr` is valid for any bit pattern.
 unsafe impl Pod for Elf64_Phdr {}
+
+impl From<&Elf32_Phdr> for Elf64_Phdr {
+    fn from(other: &Elf32_Phdr) -> Self {
+        Self {
+            p_type: other.p_type,
+            p_flags: other.p_flags,
+            p_offset: other.p_offset.into(),
+            p_vaddr: other.p_vaddr.into(),
+            p_paddr: other.p_paddr.into(),
+            p_filesz: other.p_filesz.into(),
+            p_memsz: other.p_memsz.into(),
+            p_align: other.p_align.into(),
+        }
+    }
+}
+
+impl From32Bit for Elf64_Phdr {
+    type Ty32Bit = Elf32_Phdr;
+}
+
 
 pub(crate) const PF_X: Elf64_Word = 1;
 
