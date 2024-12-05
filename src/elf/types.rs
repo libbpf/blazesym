@@ -18,6 +18,51 @@ pub(crate) const ELFCLASS64: u8 = 2;
 
 
 #[derive(Debug)]
+pub(crate) enum ElfN<'elf, T>
+where
+    T: Has32BitTy,
+{
+    B32(&'elf T::Ty32Bit),
+    B64(&'elf T),
+}
+
+impl<T> ElfN<'_, T>
+where
+    T: Has32BitTy,
+{
+    pub fn is_32bit(&self) -> bool {
+        matches!(self, Self::B32(..))
+    }
+
+    pub fn to_64bit(self) -> T
+    where
+        T: Copy + for<'ty> From<&'ty T::Ty32Bit>,
+    {
+        match self {
+            Self::B32(ty) => T::from(ty),
+            Self::B64(ty) => *ty,
+        }
+    }
+}
+
+impl<T> Clone for ElfN<'_, T>
+where
+    T: Has32BitTy,
+{
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for ElfN<'_, T> where T: Has32BitTy {}
+
+
+pub(crate) trait Has32BitTy {
+    type Ty32Bit;
+}
+
+
+#[derive(Debug)]
 #[repr(C)]
 pub(crate) struct Elf64_Ehdr {
     pub e_ident: [u8; EI_NIDENT], /* ELF "magic number" */
