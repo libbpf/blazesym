@@ -78,7 +78,7 @@ fn find_sym<'mmap>(
                 }
 
                 // In ELF, a symbol size of 0 indicates "no size or an unknown
-                // size" (see elf(5)). We take our changes and report these on a
+                // size" (see elf(5)). We take our chances and report these on a
                 // best-effort basis.
                 if sym.matches(type_)
                     && sym.st_shndx != SHN_UNDEF
@@ -187,12 +187,12 @@ impl<'mmap> SymbolTableCache<'mmap> {
                 let name = self
                     .strs
                     .get(sym.st_name as usize..)
-                    .ok_or_invalid_input(|| "string table index out of bounds")?
+                    .ok_or_invalid_input(|| "ELF string table index out of bounds")?
                     .read_cstr()
-                    .ok_or_invalid_input(|| "no valid string found in string table")?
+                    .ok_or_invalid_input(|| "no valid string found in ELF string table")?
                     .to_str()
                     .map_err(Error::with_invalid_data)
-                    .context("invalid symbol name")?;
+                    .context("invalid ELF symbol name")?;
                 Ok((name, i))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -261,9 +261,9 @@ impl<'mmap> Cache<'mmap> {
             let data = self
                 .elf_data
                 .get(shdr.sh_offset as usize..)
-                .ok_or_invalid_data(|| "failed to read section data: invalid offset")?
+                .ok_or_invalid_data(|| "failed to read ELF section data: invalid offset")?
                 .read_slice(shdr.sh_size as usize)
-                .ok_or_invalid_data(|| "failed to read section data: invalid size")?;
+                .ok_or_invalid_data(|| "failed to read ELF section data: invalid size")?;
             Ok((shdr, data))
         } else {
             Ok((shdr, &[]))
@@ -433,9 +433,9 @@ impl<'mmap> Cache<'mmap> {
             .ok_or_invalid_input(|| "ELF section index out of bounds")?;
         let name = shstrtab
             .get(sect.sh_name as usize..)
-            .ok_or_invalid_input(|| "string table index out of bounds")?
+            .ok_or_invalid_input(|| "ELF string table index out of bounds")?
             .read_cstr()
-            .ok_or_invalid_input(|| "no valid string found in string table")?
+            .ok_or_invalid_input(|| "no valid string found in ELF string table")?
             .to_str()
             .map_err(Error::with_invalid_data)
             .context("invalid section name")?;
@@ -476,7 +476,7 @@ impl<'mmap> Cache<'mmap> {
 
         if syms.len() % mem::size_of::<Elf64_Sym>() != 0 {
             return Err(Error::with_invalid_data(
-                "size of symbol table section is invalid",
+                "size of ELF symbol table section is invalid",
             ))
         }
 
@@ -488,7 +488,7 @@ impl<'mmap> Cache<'mmap> {
         }
         let mut syms = syms
             .read_pod_slice_ref::<Elf64_Sym>(count)
-            .ok_or_invalid_data(|| format!("failed to read {section} symbol table contents"))?
+            .ok_or_invalid_data(|| format!("failed to read ELF {section} symbol table contents"))?
             .iter()
             // Filter out any symbols that we do not support.
             .filter(|sym| sym.matches(SymType::Undefined))
@@ -757,7 +757,7 @@ impl ElfParser {
                         break
                     }
                     let sym_ref = &syms.get(*sym_i).ok_or_invalid_input(|| {
-                        format!("symbol table index ({sym_i}) out of bounds")
+                        format!("ELF symbol table index ({sym_i}) out of bounds")
                     })?;
                     if sym_ref.st_shndx != SHN_UNDEF {
                         found.push(SymInfo {
