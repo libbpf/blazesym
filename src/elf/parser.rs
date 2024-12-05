@@ -28,6 +28,7 @@ use crate::IntoError as _;
 use crate::Result;
 use crate::SymType;
 
+use super::types::Elf32_Chdr;
 use super::types::Elf32_Ehdr;
 use super::types::Elf32_Phdr;
 use super::types::Elf32_Shdr;
@@ -686,21 +687,28 @@ impl ElfParser {
             let data = self.decompressed.get_or_try_insert(idx, || {
                 // Compression header is contained in the actual section
                 // data.
-                let chdr = data
-                    .read_pod::<Elf64_Chdr>()
-                    .ok_or_invalid_data(|| "failed to read Elf64_Chdr")?;
+                let (ch_type, ch_size) = if shdr.is_32bit() {
+                    let chdr = data
+                        .read_pod_ref::<Elf32_Chdr>()
+                        .ok_or_invalid_data(|| "failed to read ELF compression header")?;
+                    (chdr.ch_type, chdr.ch_size.into())
+                } else {
+                    let chdr = data
+                        .read_pod_ref::<Elf64_Chdr>()
+                        .ok_or_invalid_data(|| "failed to read ELF compression header")?;
+                    (chdr.ch_type, chdr.ch_size)
+                };
 
-                let decompressed = match chdr.ch_type {
+                let decompressed = match ch_type {
                     t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data),
                     t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data),
                     _ => Err(Error::with_unsupported(format!(
-                        "ELF section is compressed with unknown compression algorithm ({})",
-                        chdr.ch_type
+                        "ELF section is compressed with unknown compression algorithm ({ch_type})",
                     ))),
                 }?;
                 debug_assert_eq!(
                     decompressed.len(),
-                    chdr.ch_size as usize,
+                    ch_size as usize,
                     "decompressed ELF section data does not have expected length"
                 );
                 Ok(decompressed)
