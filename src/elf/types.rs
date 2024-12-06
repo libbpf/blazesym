@@ -148,7 +148,7 @@ pub(crate) trait From32Bit {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf32_Ehdr {
     pub e_ident: [u8; EI_NIDENT],
@@ -171,7 +171,7 @@ pub(crate) struct Elf32_Ehdr {
 unsafe impl Pod for Elf32_Ehdr {}
 
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf64_Ehdr {
     pub e_ident: [u8; EI_NIDENT], /* ELF "magic number" */
@@ -201,7 +201,7 @@ impl From32Bit for Elf64_Ehdr {
 pub(crate) const PT_LOAD: u32 = 1;
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf32_Phdr {
     p_type: Elf32_Word,   /* Segment type */
@@ -218,7 +218,7 @@ pub(crate) struct Elf32_Phdr {
 unsafe impl Pod for Elf32_Phdr {}
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf64_Phdr {
     pub p_type: Elf64_Word,
@@ -259,7 +259,7 @@ pub(crate) const PF_X: Elf64_Word = 1;
 pub(crate) const PN_XNUM: u16 = 0xffff;
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf32_Shdr {
     pub sh_name: Elf32_Word,
@@ -278,7 +278,7 @@ pub(crate) struct Elf32_Shdr {
 unsafe impl Pod for Elf32_Shdr {}
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf64_Shdr {
     pub sh_name: Elf64_Word,       /* Section name, index in string tbl */
@@ -344,7 +344,7 @@ fn elf_type_matches(elf_ty: u8, type_: SymType) -> bool {
 }
 
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf32_Sym {
     pub st_name: Elf32_Word,
@@ -375,7 +375,7 @@ impl Elf32_Sym {
 unsafe impl Pod for Elf32_Sym {}
 
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf64_Sym {
     pub st_name: Elf64_Word,  /* Symbol name, index in string tbl */
@@ -468,7 +468,7 @@ impl From32Bit for Elf64_Sym {
 pub(crate) const NT_GNU_BUILD_ID: Elf64_Word = 3;
 
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf32_Nhdr {
     pub n_namesz: Elf32_Word, /* Length of the note's name. */
@@ -480,7 +480,7 @@ pub(crate) struct Elf32_Nhdr {
 unsafe impl Pod for Elf32_Nhdr {}
 
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub(crate) struct Elf64_Nhdr {
     pub n_namesz: Elf64_Word,
@@ -544,65 +544,37 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let ehdr = Elf64_Ehdr {
-            e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-            e_type: 3,
-            e_machine: 62,
-            e_version: 1,
-            e_entry: 4208,
-            e_phoff: 64,
-            e_shoff: 0,
-            e_flags: 0,
-            e_ehsize: 64,
-            e_phentsize: 56,
-            e_phnum: 13,
-            e_shentsize: 64,
-            e_shnum: 0,
-            e_shstrndx: 29,
-        };
+        let ehdr = Elf64_Ehdr::default();
         assert_ne!(format!("{ehdr:?}"), "");
 
-        let phdr = Elf64_Phdr {
-            p_type: 0,
-            p_flags: 0,
-            p_offset: 0,
-            p_vaddr: 0,
-            p_paddr: 0,
-            p_filesz: 0,
-            p_memsz: 0,
-            p_align: 0,
-        };
+        let phdr = Elf64_Phdr::default();
         assert_ne!(format!("{phdr:?}"), "");
 
-        let shdr = Elf64_Shdr {
-            sh_name: 27,
-            sh_type: 1,
-            sh_flags: 2,
-            sh_addr: 792,
-            sh_offset: 792,
-            sh_size: 28,
-            sh_link: 0,
-            sh_info: 0,
-            sh_addralign: 1,
-            sh_entsize: 0,
-        };
+        let shdr = Elf64_Shdr::default();
         assert_ne!(format!("{shdr:?}"), "");
 
-        let nhdr = Elf64_Nhdr {
-            n_namesz: 0,
-            n_descsz: 0,
-            n_type: 0,
-        };
+        let nhdr = Elf64_Nhdr::default();
         assert_ne!(format!("{nhdr:?}"), "");
 
-        let sym = Elf64_Sym {
-            st_name: 0,
-            st_info: 0,
-            st_other: 0,
-            st_shndx: 0,
-            st_value: 0,
-            st_size: 0,
-        };
+        let sym = Elf64_Sym::default();
         assert_ne!(format!("{sym:?}"), "");
+    }
+
+    /// Exercise some trivial type conversion functions.
+    #[test]
+    fn conversions() {
+        let ehdr64 = Elf64_Ehdr::default();
+        let ehdr = ElfN::B64(&ehdr64);
+        #[allow(clippy::clone_on_copy)]
+        let _ehdr2 = ehdr.clone();
+
+        let shdr = Elf32_Shdr::default();
+        let _shdr64 = Elf64_Shdr::from(&shdr);
+
+        let phdr = Elf32_Phdr::default();
+        let _phdr64 = Elf64_Phdr::from(&phdr);
+
+        let sym = Elf32_Sym::default();
+        let _sym64 = Elf64_Sym::from(&sym);
     }
 }
