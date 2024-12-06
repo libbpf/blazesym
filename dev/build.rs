@@ -438,7 +438,7 @@ fn prepare_test_files() {
     );
 
     cc_test_so("libtest-so.so", &["-Wl,--build-id=sha1"]);
-    cc_test_so("libtest-so-32.so", &["-m32"]);
+    cc_test_so("libtest-so-32.so", &["-m32", "-Wl,--build-id=sha1"]);
     cc_test_so(
         "libtest-so-no-separate-code.so",
         &["-Wl,--build-id=md5,-z,noseparate-code"],
@@ -518,6 +518,7 @@ fn prepare_test_files() {
             "-flto",
         ],
     );
+    cc_stable_addrs("test-stable-addrs-32-no-dwarf.bin", &["-m32", "-g0"]);
 
     let src = data_dir.join("test-stable-addrs.bin");
     gsym(&src, "test-stable-addrs.gsym");
