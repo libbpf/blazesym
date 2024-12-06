@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added support for 32 bit ELF binaries
+
+
 0.2.0-rc.2
 ----------
 - Added support for symbolizing BPF kernel program addresses including

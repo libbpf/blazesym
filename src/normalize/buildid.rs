@@ -264,10 +264,10 @@ mod tests {
     /// as well as ELF section type.
     #[test]
     fn build_id_reading_from_name_and_notes() {
-        fn test(f: fn(&ElfParser) -> Result<Option<BuildId>>) {
+        fn test(file: &str, f: fn(&ElfParser) -> Result<Option<BuildId>>) {
             let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
-                .join("libtest-so.so");
+                .join(file);
 
             let parser = ElfParser::open(&elf).unwrap();
             let build_id = f(&parser).unwrap().unwrap();
@@ -275,8 +275,10 @@ mod tests {
             assert_eq!(build_id.len(), 20, "'{build_id:?}'");
         }
 
-        test(read_build_id_from_section_name);
-        test(read_build_id_from_notes);
+        test("libtest-so.so", read_build_id_from_section_name);
+        test("libtest-so.so", read_build_id_from_notes);
+        test("libtest-so-32.so", read_build_id_from_section_name);
+        test("libtest-so-32.so", read_build_id_from_notes);
     }
 
     /// Check that we can read a binary's build ID.

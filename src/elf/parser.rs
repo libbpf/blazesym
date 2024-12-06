@@ -1366,23 +1366,31 @@ mod tests {
     /// Make sure that we can look up a symbol in an ELF file.
     #[test]
     fn lookup_symbol() {
-        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        fn test(path: &Path) {
+            let parser = ElfParser::open(path).unwrap();
+            let opts = FindAddrOpts::default();
+            let syms = parser.find_addr("factorial", &opts).unwrap();
+            assert_eq!(syms.len(), 1);
+            let sym = &syms[0];
+            assert_eq!(sym.name, "factorial");
+            assert_eq!(sym.addr, 0x2000100);
+
+            let syms = parser.find_addr("factorial_wrapper", &opts).unwrap();
+            assert_eq!(syms.len(), 2);
+            assert_eq!(syms[0].name, "factorial_wrapper");
+            assert_eq!(syms[1].name, "factorial_wrapper");
+            assert_ne!(syms[0].addr, syms[1].addr);
+        }
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs-no-dwarf.bin");
+        let () = test(&path);
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let opts = FindAddrOpts::default();
-        let syms = parser.find_addr("factorial", &opts).unwrap();
-        assert_eq!(syms.len(), 1);
-        let sym = &syms[0];
-        assert_eq!(sym.name, "factorial");
-        assert_eq!(sym.addr, 0x2000100);
-
-        let syms = parser.find_addr("factorial_wrapper", &opts).unwrap();
-        assert_eq!(syms.len(), 2);
-        assert_eq!(syms[0].name, "factorial_wrapper");
-        assert_eq!(syms[1].name, "factorial_wrapper");
-        assert_ne!(syms[0].addr, syms[1].addr);
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-32-no-dwarf.bin");
+        let () = test(&path);
     }
 
     /// Make sure that we do not report a symbol if there is no conceivable
