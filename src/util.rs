@@ -53,14 +53,12 @@ where
 }
 
 
-#[cfg(feature = "breakpad")]
 #[derive(Clone, Debug)]
 pub(crate) enum Either<A, B> {
     A(A),
     B(B),
 }
 
-#[cfg(feature = "breakpad")]
 impl<A, B, T> Iterator for Either<A, B>
 where
     A: Iterator<Item = T>,
@@ -74,6 +72,13 @@ where
             Self::B(b) => b.next(),
         }
     }
+}
+
+impl<A, B, T> ExactSizeIterator for Either<A, B>
+where
+    A: ExactSizeIterator<Item = T>,
+    B: ExactSizeIterator<Item = T>,
+{
 }
 
 

@@ -28,11 +28,19 @@ use crate::IntoError as _;
 use crate::Result;
 use crate::SymType;
 
+use super::types::Elf32_Chdr;
+use super::types::Elf32_Ehdr;
+use super::types::Elf32_Phdr;
+use super::types::Elf32_Shdr;
+use super::types::Elf32_Sym;
 use super::types::Elf64_Chdr;
 use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
+use super::types::ElfN;
+use super::types::ElfNBoxedSlice;
+use super::types::ElfNSlice;
 use super::types::EI_NIDENT;
 use super::types::ELFCLASS32;
 use super::types::ELFCLASS64;
@@ -61,15 +69,25 @@ fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str
 }
 
 fn find_sym<'mmap>(
-    symtab: &[&Elf64_Sym],
+    symtab: &ElfNBoxedSlice<'_, Elf64_Sym>,
     strtab: &'mmap [u8],
     addr: Addr,
     type_: SymType,
 ) -> Result<Option<ResolvedSym<'mmap>>> {
-    match find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr) {
+    let idx = match symtab {
+        ElfNBoxedSlice::B32(symtab) => {
+            find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr)
+        }
+        ElfNBoxedSlice::B64(symtab) => {
+            find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr)
+        }
+    };
+
+    match idx {
         None => Ok(None),
         Some(idx) => {
-            for sym in symtab[idx..].iter() {
+            for sym in symtab.iter(idx) {
+                let sym = sym.to_64bit();
                 if sym.st_value as Addr > addr {
                     // Once we are seeing start addresses past the provided
                     // address, we can no longer be dealing with a match and
@@ -85,7 +103,7 @@ fn find_sym<'mmap>(
                     && (sym.st_size == 0 || addr < sym.st_value + sym.st_size)
                 {
                     let sym = ResolvedSym {
-                        name: symbol_name(strtab, sym)?,
+                        name: symbol_name(strtab, &sym)?,
                         addr: sym.st_value as Addr,
                         size: if sym.st_size == 0 {
                             None
@@ -142,10 +160,10 @@ fn decompress_zstd(_data: &[u8]) -> Result<Vec<u8>> {
 }
 
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug)]
 struct EhdrExt<'mmap> {
     /// The ELF header.
-    ehdr: &'mmap Elf64_Ehdr,
+    ehdr: ElfN<'mmap, Elf64_Ehdr>,
     /// Override of `ehdr.e_shnum`, handling of which is special-cased by
     /// the ELF standard.
     shnum: usize,
@@ -154,11 +172,17 @@ struct EhdrExt<'mmap> {
     phnum: usize,
 }
 
+impl EhdrExt<'_> {
+    fn is_32bit(&self) -> bool {
+        self.ehdr.is_32bit()
+    }
+}
+
 
 #[derive(Debug)]
 struct SymbolTableCache<'mmap> {
     /// The cached symbols (in address order).
-    syms: Box<[&'mmap Elf64_Sym]>,
+    syms: ElfNBoxedSlice<'mmap, Elf64_Sym>,
     /// The string table.
     strs: &'mmap [u8],
     /// The cached name to symbol index table (in dictionary order).
@@ -166,7 +190,7 @@ struct SymbolTableCache<'mmap> {
 }
 
 impl<'mmap> SymbolTableCache<'mmap> {
-    fn new(syms: Box<[&'mmap Elf64_Sym]>, strs: &'mmap [u8]) -> Self {
+    fn new(syms: ElfNBoxedSlice<'mmap, Elf64_Sym>, strs: &'mmap [u8]) -> Self {
         Self {
             syms,
             strs,
@@ -176,17 +200,22 @@ impl<'mmap> SymbolTableCache<'mmap> {
 
     fn create_str2sym<F>(&self, mut filter: F) -> Result<Vec<(&'mmap str, usize)>>
     where
-        F: FnMut(&Elf64_Sym) -> bool,
+        F: FnMut(ElfN<'_, Elf64_Sym>) -> bool,
     {
         let mut str2sym = self
             .syms
-            .iter()
-            .filter(|sym| filter(sym))
+            .iter(0)
+            .filter(|sym| filter(*sym))
             .enumerate()
             .map(|(i, sym)| {
+                let st_name = match sym {
+                    ElfN::B32(sym) => sym.st_name,
+                    ElfN::B64(sym) => sym.st_name,
+                };
+
                 let name = self
                     .strs
-                    .get(sym.st_name as usize..)
+                    .get(st_name as usize..)
                     .ok_or_invalid_input(|| "ELF string table index out of bounds")?
                     .read_cstr()
                     .ok_or_invalid_input(|| "no valid string found in ELF string table")?
@@ -203,7 +232,7 @@ impl<'mmap> SymbolTableCache<'mmap> {
 
     fn ensure_str2sym<F>(&self, filter: F) -> Result<&[(&'mmap str, usize)]>
     where
-        F: FnMut(&Elf64_Sym) -> bool,
+        F: FnMut(ElfN<'_, Elf64_Sym>) -> bool,
     {
         let str2sym = self
             .str2sym
@@ -225,10 +254,10 @@ struct Cache<'mmap> {
     /// The cached ELF header.
     ehdr: OnceCell<EhdrExt<'mmap>>,
     /// The cached ELF section headers.
-    shdrs: OnceCell<&'mmap [Elf64_Shdr]>,
+    shdrs: OnceCell<ElfNSlice<'mmap, Elf64_Shdr>>,
     shstrtab: OnceCell<&'mmap [u8]>,
     /// The cached ELF program headers.
-    phdrs: OnceCell<&'mmap [Elf64_Phdr]>,
+    phdrs: OnceCell<ElfNSlice<'mmap, Elf64_Phdr>>,
     /// The cached symbol table.
     symtab: OnceCell<SymbolTableCache<'mmap>>,
     /// The cached dynamic symbol table.
@@ -250,19 +279,24 @@ impl<'mmap> Cache<'mmap> {
     }
 
     /// Retrieve the raw section data for the ELF section at index
-    /// `idx`, along with it's section header.
-    fn section_data_raw(&self, idx: usize) -> Result<(&'mmap Elf64_Shdr, &'mmap [u8])> {
+    /// `idx`, along with its section header.
+    fn section_data_raw(&self, idx: usize) -> Result<(ElfN<'mmap, Elf64_Shdr>, &'mmap [u8])> {
         let shdrs = self.ensure_shdrs()?;
         let shdr = shdrs
             .get(idx)
             .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?;
 
-        if shdr.sh_type != SHT_NOBITS {
+        let (sh_type, sh_offset, sh_size) = match shdr {
+            ElfN::B32(shdr) => (shdr.sh_type, shdr.sh_offset.into(), shdr.sh_size.into()),
+            ElfN::B64(shdr) => (shdr.sh_type, shdr.sh_offset, shdr.sh_size),
+        };
+
+        if sh_type != SHT_NOBITS {
             let data = self
                 .elf_data
-                .get(shdr.sh_offset as usize..)
+                .get(sh_offset as usize..)
                 .ok_or_invalid_data(|| "failed to read ELF section data: invalid offset")?
-                .read_slice(shdr.sh_size as usize)
+                .read_slice(sh_size as usize)
                 .ok_or_invalid_data(|| "failed to read ELF section data: invalid size")?;
             Ok((shdr, data))
         } else {
@@ -282,13 +316,24 @@ impl<'mmap> Cache<'mmap> {
     /// of certain member variables to reference data from this header,
     /// which otherwise is zeroed out.
     #[inline]
-    fn read_first_shdr(&self, ehdr: &Elf64_Ehdr) -> Result<&'mmap Elf64_Shdr> {
-        let shdr = self
+    fn read_first_shdr(&self, ehdr: ElfN<'_, Elf64_Ehdr>) -> Result<ElfN<'mmap, Elf64_Shdr>> {
+        let e_shoff = match ehdr {
+            ElfN::B32(ehdr) => ehdr.e_shoff.into(),
+            ElfN::B64(ehdr) => ehdr.e_shoff,
+        };
+
+        let mut data = self
             .elf_data
-            .get(ehdr.e_shoff as usize..)
-            .ok_or_invalid_data(|| "Elf64_Ehdr::e_shoff is invalid")?
-            .read_pod_ref::<Elf64_Shdr>()
-            .ok_or_invalid_data(|| "failed to read Elf64_Shdr")?;
+            .get(e_shoff as usize..)
+            .ok_or_invalid_data(|| "ELF e_shoff is invalid")?;
+
+        let shdr = if ehdr.is_32bit() {
+            data.read_pod_ref::<Elf32_Shdr>().map(ElfN::B32)
+        } else {
+            data.read_pod_ref::<Elf64_Shdr>().map(ElfN::B64)
+        }
+        .ok_or_invalid_data(|| "failed to read ELF section header")?;
+
         Ok(shdr)
     }
 
@@ -304,28 +349,32 @@ impl<'mmap> Cache<'mmap> {
             )))
         }
 
-        // At this point we only support ELF64.
         let class = e_ident[4];
-        if class != ELFCLASS64 {
-            let class_str = match class {
-                ELFCLASS32 => Cow::Borrowed("ELF32"),
-                _ => Cow::Owned(class.to_string()),
-            };
+        if ![ELFCLASS32, ELFCLASS64].contains(&class) {
             return Err(Error::with_unsupported(format!(
-                "ELF class ({class_str}) is not currently supported"
+                "ELF class ({class}) is not currently supported"
             )))
         }
 
-        let ehdr = elf_data
-            .read_pod_ref::<Elf64_Ehdr>()
-            .ok_or_invalid_data(|| "failed to read Elf64_Ehdr")?;
+        let bit32 = class == ELFCLASS32;
+        let (ehdr, e_shnum, e_phnum) = if bit32 {
+            let ehdr = elf_data
+                .read_pod_ref::<Elf32_Ehdr>()
+                .ok_or_invalid_data(|| "failed to read ELF header")?;
+            (ElfN::B32(ehdr), ehdr.e_shnum, ehdr.e_phnum)
+        } else {
+            let ehdr = elf_data
+                .read_pod_ref::<Elf64_Ehdr>()
+                .ok_or_invalid_data(|| "failed to read ELF header")?;
+            (ElfN::B64(ehdr), ehdr.e_shnum, ehdr.e_phnum)
+        };
 
         // "If the number of entries in the section header table is larger than
         // or equal to SHN_LORESERVE, e_shnum holds the value zero and the real
         // number of entries in the section header table is held in the sh_size
         // member of the initial entry in section header table."
-        let shnum = if ehdr.e_shnum == 0 {
-            let shdr = self.read_first_shdr(ehdr)?;
+        let shnum = if e_shnum == 0 {
+            let shdr = self.read_first_shdr(ehdr)?.to_64bit();
             usize::try_from(shdr.sh_size).ok().ok_or_invalid_data(|| {
                 format!(
                     "ELF file contains unsupported number of sections ({})",
@@ -333,7 +382,7 @@ impl<'mmap> Cache<'mmap> {
                 )
             })?
         } else {
-            ehdr.e_shnum.into()
+            e_shnum.into()
         };
 
         // "If the number of entries in the program header table is
@@ -341,8 +390,8 @@ impl<'mmap> Cache<'mmap> {
         // PN_XNUM (0xffff) and the real number of entries in the
         // program header table is held in the sh_info member of the
         // initial entry in section header table."
-        let phnum = if ehdr.e_phnum == PN_XNUM {
-            let shdr = self.read_first_shdr(ehdr)?;
+        let phnum = if e_phnum == PN_XNUM {
+            let shdr = self.read_first_shdr(ehdr)?.to_64bit();
             usize::try_from(shdr.sh_info).ok().ok_or_invalid_data(|| {
                 format!(
                     "ELF file contains unsupported number of program headers ({})",
@@ -350,7 +399,7 @@ impl<'mmap> Cache<'mmap> {
                 )
             })?
         } else {
-            ehdr.e_phnum.into()
+            e_phnum.into()
         };
 
         let ehdr = EhdrExt { ehdr, shnum, phnum };
@@ -361,47 +410,81 @@ impl<'mmap> Cache<'mmap> {
         self.ehdr.get_or_try_init(|| self.parse_ehdr())
     }
 
-    fn parse_shdrs(&self) -> Result<&'mmap [Elf64_Shdr]> {
+    fn parse_shdrs(&self) -> Result<ElfNSlice<'mmap, Elf64_Shdr>> {
         let ehdr = self.ensure_ehdr()?;
-        let shdrs = self
+        let e_shoff = match ehdr.ehdr {
+            ElfN::B32(ehdr) => ehdr.e_shoff.into(),
+            ElfN::B64(ehdr) => ehdr.e_shoff,
+        };
+
+        let mut data = self
             .elf_data
-            .get(ehdr.ehdr.e_shoff as usize..)
-            .ok_or_invalid_data(|| "Elf64_Ehdr::e_shoff is invalid")?
-            .read_pod_slice_ref::<Elf64_Shdr>(ehdr.shnum)
-            .ok_or_invalid_data(|| "failed to read Elf64_Shdr")?;
+            .get(e_shoff as usize..)
+            .ok_or_invalid_data(|| "ELF e_shoff is invalid")?;
+
+        let shdrs = if ehdr.is_32bit() {
+            data.read_pod_slice_ref::<Elf32_Shdr>(ehdr.shnum)
+                .map(ElfNSlice::B32)
+        } else {
+            data.read_pod_slice_ref::<Elf64_Shdr>(ehdr.shnum)
+                .map(ElfNSlice::B64)
+        }
+        .ok_or_invalid_data(|| "failed to read ELF section headers")?;
+
         Ok(shdrs)
     }
 
-    fn ensure_shdrs(&self) -> Result<&'mmap [Elf64_Shdr]> {
+    fn ensure_shdrs(&self) -> Result<ElfNSlice<'mmap, Elf64_Shdr>> {
         self.shdrs.get_or_try_init(|| self.parse_shdrs()).copied()
     }
 
-    fn parse_phdrs(&self) -> Result<&'mmap [Elf64_Phdr]> {
+    fn parse_phdrs(&self) -> Result<ElfNSlice<'mmap, Elf64_Phdr>> {
         let ehdr = self.ensure_ehdr()?;
-        let phdrs = self
+        let e_phoff = match ehdr.ehdr {
+            ElfN::B32(ehdr) => ehdr.e_phoff.into(),
+            ElfN::B64(ehdr) => ehdr.e_phoff,
+        };
+
+        let mut data = self
             .elf_data
-            .get(ehdr.ehdr.e_phoff as usize..)
-            .ok_or_invalid_data(|| "Elf64_Ehdr::e_phoff is invalid")?
-            .read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
-            .ok_or_invalid_data(|| "failed to read Elf64_Phdr")?;
+            .get(e_phoff as usize..)
+            .ok_or_invalid_data(|| "ELF e_phoff is invalid")?;
+
+        let phdrs = if ehdr.is_32bit() {
+            data.read_pod_slice_ref::<Elf32_Phdr>(ehdr.phnum)
+                .map(ElfNSlice::B32)
+        } else {
+            data.read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
+                .map(ElfNSlice::B64)
+        }
+        .ok_or_invalid_data(|| "failed to read ELF program headers")?;
+
         Ok(phdrs)
     }
 
-    fn ensure_phdrs(&self) -> Result<&'mmap [Elf64_Phdr]> {
+    fn ensure_phdrs(&self) -> Result<ElfNSlice<'mmap, Elf64_Phdr>> {
         self.phdrs.get_or_try_init(|| self.parse_phdrs()).copied()
     }
 
-    fn shstrndx(&self, ehdr: &Elf64_Ehdr) -> Result<usize> {
+    fn shstrndx(&self, ehdr: ElfN<'_, Elf64_Ehdr>) -> Result<usize> {
+        let e_shstrndx = match ehdr {
+            ElfN::B32(ehdr) => ehdr.e_shstrndx,
+            ElfN::B64(ehdr) => ehdr.e_shstrndx,
+        };
+
         // "If the index of section name string table section is larger
         // than or equal to SHN_LORESERVE (0xff00), this member holds
         // SHN_XINDEX (0xffff) and  the real index of the section name
         // string table section is held in the sh_link member of the
         // initial entry in section header table."
-        let shstrndx = if ehdr.e_shstrndx == SHN_XINDEX {
+        let shstrndx = if e_shstrndx == SHN_XINDEX {
             let shdr = self.read_first_shdr(ehdr)?;
-            shdr.sh_link
+            match shdr {
+                ElfN::B32(shdr) => shdr.sh_link,
+                ElfN::B64(shdr) => shdr.sh_link,
+            }
         } else {
-            u32::from(ehdr.e_shstrndx)
+            u32::from(e_shstrndx)
         };
 
         let shstrndx = usize::try_from(shstrndx).ok().ok_or_invalid_data(|| {
@@ -428,11 +511,16 @@ impl<'mmap> Cache<'mmap> {
         let shdrs = self.ensure_shdrs()?;
         let shstrtab = self.ensure_shstrtab()?;
 
-        let sect = shdrs
+        let shdr = shdrs
             .get(idx)
             .ok_or_invalid_input(|| "ELF section index out of bounds")?;
+        let sh_name = match shdr {
+            ElfN::B32(shdr) => shdr.sh_name,
+            ElfN::B64(shdr) => shdr.sh_name,
+        };
+
         let name = shstrtab
-            .get(sect.sh_name as usize..)
+            .get(sh_name as usize..)
             .ok_or_invalid_input(|| "ELF string table index out of bounds")?
             .read_cstr()
             .ok_or_invalid_input(|| "no valid string found in ELF string table")?
@@ -443,7 +531,7 @@ impl<'mmap> Cache<'mmap> {
     }
 
     #[cfg(test)]
-    fn symbol(&self, idx: usize) -> Result<&'mmap Elf64_Sym> {
+    fn symbol(&self, idx: usize) -> Result<ElfN<'_, Elf64_Sym>> {
         let symtab = self.ensure_symtab()?;
         let symbol = symtab
             .get(idx)
@@ -465,41 +553,69 @@ impl<'mmap> Cache<'mmap> {
         Ok(None)
     }
 
-    fn parse_syms(&self, section: &str) -> Result<Box<[&'mmap Elf64_Sym]>> {
+    fn parse_syms(&self, section: &str) -> Result<ElfNBoxedSlice<'mmap, Elf64_Sym>> {
+        let ehdr = self.ensure_ehdr()?;
         let idx = if let Some(idx) = self.find_section(section)? {
             idx
         } else {
             // The symbol table does not exists. Fake an empty one.
-            return Ok(Box::new([]))
+            return Ok(ElfNBoxedSlice::empty(ehdr.is_32bit()))
         };
         let mut syms = self.section_data(idx)?;
+        let sym_size = if ehdr.is_32bit() {
+            mem::size_of::<Elf32_Sym>()
+        } else {
+            mem::size_of::<Elf64_Sym>()
+        };
 
-        if syms.len() % mem::size_of::<Elf64_Sym>() != 0 {
+        if syms.len() % sym_size != 0 {
             return Err(Error::with_invalid_data(
                 "size of ELF symbol table section is invalid",
             ))
         }
 
-        let count = syms.len() / mem::size_of::<Elf64_Sym>();
+        let count = syms.len() / sym_size;
         // Short-circuit if there are no symbols. The data may not actually be
         // properly aligned in this case either, so don't attempt to even read.
         if count == 0 {
-            return Ok(Box::new([]))
+            return Ok(ElfNBoxedSlice::empty(ehdr.is_32bit()))
         }
-        let mut syms = syms
-            .read_pod_slice_ref::<Elf64_Sym>(count)
-            .ok_or_invalid_data(|| format!("failed to read ELF {section} symbol table contents"))?
-            .iter()
-            // Filter out any symbols that we do not support.
-            .filter(|sym| sym.matches(SymType::Undefined))
-            .collect::<Box<[&Elf64_Sym]>>();
-        // Order symbols by address and those with equal address descending by
-        // size.
-        let () = syms.sort_by(|sym1, sym2| {
-            sym1.st_value
-                .cmp(&sym2.st_value)
-                .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
-        });
+        let syms = if ehdr.is_32bit() {
+            let slice = syms
+                .read_pod_slice_ref::<Elf32_Sym>(count)
+                .ok_or_invalid_data(|| {
+                    format!("failed to read ELF {section} symbol table contents")
+                })?;
+            let mut syms = slice
+                .iter()
+                // Filter out any symbols that we do not support.
+                .filter(|sym| sym.matches(SymType::Undefined))
+                .collect::<Box<[&_]>>();
+            // Order symbols by address and those with equal address descending by
+            // size.
+            let () = syms.sort_by(|sym1, sym2| {
+                sym1.st_value
+                    .cmp(&sym2.st_value)
+                    .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
+            });
+            ElfNBoxedSlice::B32(syms)
+        } else {
+            let slice = syms
+                .read_pod_slice_ref::<Elf64_Sym>(count)
+                .ok_or_invalid_data(|| {
+                    format!("failed to read ELF {section} symbol table contents")
+                })?;
+            let mut syms = slice
+                .iter()
+                .filter(|sym| sym.matches(SymType::Undefined))
+                .collect::<Box<[&_]>>();
+            let () = syms.sort_by(|sym1, sym2| {
+                sym1.st_value
+                    .cmp(&sym2.st_value)
+                    .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
+            });
+            ElfNBoxedSlice::B64(syms)
+        };
 
         Ok(syms)
     }
@@ -525,12 +641,12 @@ impl<'mmap> Cache<'mmap> {
         })
     }
 
-    fn ensure_symtab(&self) -> Result<&[&'mmap Elf64_Sym]> {
+    fn ensure_symtab(&self) -> Result<&ElfNBoxedSlice<'_, Elf64_Sym>> {
         let symtab = self.ensure_symtab_cache()?;
         Ok(&symtab.syms)
     }
 
-    fn ensure_dynsym(&self) -> Result<&[&'mmap Elf64_Sym]> {
+    fn ensure_dynsym(&self) -> Result<&ElfNBoxedSlice<'_, Elf64_Sym>> {
         let dynsym = self.ensure_dynsym_cache()?;
         Ok(&dynsym.syms)
     }
@@ -554,12 +670,17 @@ impl<'mmap> Cache<'mmap> {
         let symtab = self.ensure_symtab_cache()?;
         let dynsym = self.ensure_dynsym_cache()?;
         let str2sym = dynsym.ensure_str2sym(|sym| {
+            let st_value = match sym {
+                ElfN::B32(sym) => sym.st_value.into(),
+                ElfN::B64(sym) => sym.st_value,
+            };
+
             // We filter out all the symbols that already exist in symtab,
             // to prevent any duplicates from showing up.
             let result = find_sym(
                 &symtab.syms,
                 symtab.strs,
-                sym.st_value,
+                st_value,
                 // SANITY: We filter out all unsupported symbol types,
                 //         so this conversion should always succeed.
                 SymType::try_from(sym).unwrap(),
@@ -639,26 +760,37 @@ impl ElfParser {
     /// will be cached for the life time of this object.
     pub(crate) fn section_data(&self, idx: usize) -> Result<&[u8]> {
         let (shdr, mut data) = self.cache.section_data_raw(idx)?;
+        let sh_flags = match shdr {
+            ElfN::B32(shdr) => shdr.sh_flags.into(),
+            ElfN::B64(shdr) => shdr.sh_flags,
+        };
 
-        if shdr.sh_flags & SHF_COMPRESSED != 0 {
+        if sh_flags & SHF_COMPRESSED != 0 {
             let data = self.decompressed.get_or_try_insert(idx, || {
                 // Compression header is contained in the actual section
                 // data.
-                let chdr = data
-                    .read_pod::<Elf64_Chdr>()
-                    .ok_or_invalid_data(|| "failed to read Elf64_Chdr")?;
+                let (ch_type, ch_size) = if shdr.is_32bit() {
+                    let chdr = data
+                        .read_pod_ref::<Elf32_Chdr>()
+                        .ok_or_invalid_data(|| "failed to read ELF compression header")?;
+                    (chdr.ch_type, chdr.ch_size.into())
+                } else {
+                    let chdr = data
+                        .read_pod_ref::<Elf64_Chdr>()
+                        .ok_or_invalid_data(|| "failed to read ELF compression header")?;
+                    (chdr.ch_type, chdr.ch_size)
+                };
 
-                let decompressed = match chdr.ch_type {
+                let decompressed = match ch_type {
                     t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data),
                     t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data),
                     _ => Err(Error::with_unsupported(format!(
-                        "ELF section is compressed with unknown compression algorithm ({})",
-                        chdr.ch_type
+                        "ELF section is compressed with unknown compression algorithm ({ch_type})",
                     ))),
                 }?;
                 debug_assert_eq!(
                     decompressed.len(),
-                    chdr.ch_size as usize,
+                    ch_size as usize,
                     "decompressed ELF section data does not have expected length"
                 );
                 Ok(decompressed)
@@ -722,14 +854,18 @@ impl ElfParser {
     /// # Notes
     /// It is the caller's responsibility to ensure that the symbol's section
     /// index is not `SHN_UNDEF`.
-    fn file_offset(&self, shdrs: &[Elf64_Shdr], sym: &Elf64_Sym) -> Result<Option<u64>> {
+    fn file_offset(
+        &self,
+        shdrs: ElfNSlice<'_, Elf64_Shdr>,
+        sym: &Elf64_Sym,
+    ) -> Result<Option<u64>> {
         debug_assert_ne!(sym.st_shndx, SHN_UNDEF);
 
         if sym.st_shndx >= SHN_LORESERVE {
             return Ok(None)
         }
 
-        let section = shdrs
+        let shdr = shdrs
             .get(usize::from(sym.st_shndx))
             .ok_or_invalid_input(|| {
                 format!(
@@ -737,15 +873,20 @@ impl ElfParser {
                     sym.st_shndx, sym.st_value
                 )
             })?;
-        Ok(Some(sym.st_value - section.sh_addr + section.sh_offset))
+
+        let (sh_addr, sh_offset) = match shdr {
+            ElfN::B32(shdr) => (shdr.sh_addr.into(), shdr.sh_offset.into()),
+            ElfN::B64(shdr) => (shdr.sh_addr, shdr.sh_offset),
+        };
+        Ok(Some(sym.st_value - sh_addr + sh_offset))
     }
 
     fn find_addr_impl<'slf>(
         &'slf self,
         name: &str,
         opts: &FindAddrOpts,
-        shdrs: &'slf [Elf64_Shdr],
-        syms: &[&'slf Elf64_Sym],
+        shdrs: ElfNSlice<'_, Elf64_Shdr>,
+        syms: &ElfNBoxedSlice<'slf, Elf64_Sym>,
         str2sym: &'slf [(&'slf str, usize)],
     ) -> Result<Vec<SymInfo<'slf>>> {
         let r = find_match_or_lower_bound_by_key(str2sym, name, |&(name, _i)| name);
@@ -759,18 +900,19 @@ impl ElfParser {
                     let sym_ref = &syms.get(*sym_i).ok_or_invalid_input(|| {
                         format!("ELF symbol table index ({sym_i}) out of bounds")
                     })?;
-                    if sym_ref.st_shndx != SHN_UNDEF {
+                    let sym = sym_ref.to_64bit();
+                    if sym.st_shndx != SHN_UNDEF {
                         found.push(SymInfo {
                             name: Cow::Borrowed(name_visit),
-                            addr: sym_ref.st_value as Addr,
-                            size: sym_ref.st_size as usize,
+                            addr: sym.st_value as Addr,
+                            size: sym.st_size as usize,
                             // SANITY: We filter out all unsupported symbol
                             //         types, so this conversion should always
                             //         succeed.
-                            sym_type: SymType::try_from(**sym_ref).unwrap(),
+                            sym_type: SymType::try_from(&sym).unwrap(),
                             file_offset: opts
                                 .offset_in_file
-                                .then(|| self.file_offset(shdrs, sym_ref))
+                                .then(|| self.file_offset(shdrs, &sym))
                                 .transpose()?
                                 .flatten(),
                             obj_file_name: self.path().map(Cow::Borrowed),
@@ -805,7 +947,7 @@ impl ElfParser {
     fn for_each_sym_impl(
         &self,
         opts: &FindAddrOpts,
-        syms: &[&Elf64_Sym],
+        syms: &ElfNBoxedSlice<'_, Elf64_Sym>,
         str2sym: &[(&str, usize)],
         f: &mut ForEachFn<'_>,
     ) -> Result<()> {
@@ -815,6 +957,8 @@ impl ElfParser {
             let sym = &syms
                 .get(*idx)
                 .ok_or_invalid_input(|| format!("symbol table index ({idx}) out of bounds"))?;
+            let sym = sym.to_64bit();
+
             if sym.matches(opts.sym_type) && sym.st_shndx != SHN_UNDEF {
                 let sym_info = SymInfo {
                     name: Cow::Borrowed(name),
@@ -823,10 +967,10 @@ impl ElfParser {
                     // SANITY: We filter out all unsupported symbol
                     //         types, so this conversion should always
                     //         succeed.
-                    sym_type: SymType::try_from(**sym).unwrap(),
+                    sym_type: SymType::try_from(&sym).unwrap(),
                     file_offset: opts
                         .offset_in_file
-                        .then(|| self.file_offset(shdrs, sym))
+                        .then(|| self.file_offset(shdrs, &sym))
                         .transpose()?
                         .flatten(),
                     obj_file_name: None,
@@ -860,6 +1004,8 @@ impl ElfParser {
     pub(crate) fn find_file_offset(&self, addr: Addr) -> Result<Option<u64>> {
         let phdrs = self.program_headers()?;
         let offset = phdrs.iter().find_map(|phdr| {
+            let phdr = phdr.to_64bit();
+
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
                     return Some(addr - phdr.p_vaddr + phdr.p_offset)
@@ -874,16 +1020,16 @@ impl ElfParser {
     fn get_symbol_name(&self, idx: usize) -> Result<&str> {
         let symtab_cache = self.cache.ensure_symtab_cache()?;
         let sym = self.cache.symbol(idx)?;
-        let name = symbol_name(symtab_cache.strs, sym)?;
+        let name = symbol_name(symtab_cache.strs, &sym.to_64bit())?;
         Ok(name)
     }
 
-    pub(crate) fn section_headers(&self) -> Result<&[Elf64_Shdr]> {
-        let phdrs = self.cache.ensure_shdrs()?;
-        Ok(phdrs)
+    pub(crate) fn section_headers(&self) -> Result<ElfNSlice<'_, Elf64_Shdr>> {
+        let shdrs = self.cache.ensure_shdrs()?;
+        Ok(shdrs)
     }
 
-    pub(crate) fn program_headers(&self) -> Result<&[Elf64_Phdr]> {
+    pub(crate) fn program_headers(&self) -> Result<ElfNSlice<'_, Elf64_Phdr>> {
         let phdrs = self.cache.ensure_phdrs()?;
         Ok(phdrs)
     }
@@ -892,6 +1038,7 @@ impl ElfParser {
     pub(crate) fn file_offset_to_virt_offset(&self, offset: u64) -> Result<Option<Addr>> {
         let phdrs = self.program_headers()?;
         let addr = phdrs.iter().find_map(|phdr| {
+            let phdr = phdr.to_64bit();
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&offset) {
                     return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
@@ -908,12 +1055,22 @@ impl ElfParser {
         let symtab = self.cache.ensure_symtab().unwrap();
 
         let mut idx = symtab.len() / 2;
-        while !symtab[idx].matches(SymType::Function) || symtab[idx].st_shndx == SHN_UNDEF {
+        let (addr, size) = loop {
+            let sym = symtab.get(idx).unwrap();
+            if sym.matches(SymType::Function) {
+                let st_shndx = match sym {
+                    ElfN::B32(sym) => sym.st_shndx,
+                    ElfN::B64(sym) => sym.st_shndx,
+                };
+                if st_shndx != SHN_UNDEF {
+                    match symtab.get(idx).unwrap() {
+                        ElfN::B32(sym) => break (sym.st_value.into(), sym.st_size.into()),
+                        ElfN::B64(sym) => break (sym.st_value, sym.st_size),
+                    }
+                }
+            }
             idx += 1;
-        }
-        let sym = &symtab[idx];
-        let addr = sym.st_value;
-        let size = sym.st_size;
+        };
 
         let sym_name = self.get_symbol_name(idx).unwrap();
         (
@@ -969,7 +1126,7 @@ mod tests {
             e_shstrndx: 29,
         };
         let ehdr = EhdrExt {
-            ehdr: &ehdr,
+            ehdr: ElfN::B64(&ehdr),
             shnum: 42,
             phnum: 0,
         };
@@ -1264,23 +1421,31 @@ mod tests {
     /// Make sure that we can look up a symbol in an ELF file.
     #[test]
     fn lookup_symbol() {
-        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        fn test(path: &Path) {
+            let parser = ElfParser::open(path).unwrap();
+            let opts = FindAddrOpts::default();
+            let syms = parser.find_addr("factorial", &opts).unwrap();
+            assert_eq!(syms.len(), 1);
+            let sym = &syms[0];
+            assert_eq!(sym.name, "factorial");
+            assert_eq!(sym.addr, 0x2000100);
+
+            let syms = parser.find_addr("factorial_wrapper", &opts).unwrap();
+            assert_eq!(syms.len(), 2);
+            assert_eq!(syms[0].name, "factorial_wrapper");
+            assert_eq!(syms[1].name, "factorial_wrapper");
+            assert_ne!(syms[0].addr, syms[1].addr);
+        }
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs-no-dwarf.bin");
+        let () = test(&path);
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
-        let opts = FindAddrOpts::default();
-        let syms = parser.find_addr("factorial", &opts).unwrap();
-        assert_eq!(syms.len(), 1);
-        let sym = &syms[0];
-        assert_eq!(sym.name, "factorial");
-        assert_eq!(sym.addr, 0x2000100);
-
-        let syms = parser.find_addr("factorial_wrapper", &opts).unwrap();
-        assert_eq!(syms.len(), 2);
-        assert_eq!(syms[0].name, "factorial_wrapper");
-        assert_eq!(syms[1].name, "factorial_wrapper");
-        assert_ne!(syms[0].addr, syms[1].addr);
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-32-no-dwarf.bin");
+        let () = test(&path);
     }
 
     /// Make sure that we do not report a symbol if there is no conceivable
@@ -1288,33 +1453,36 @@ mod tests {
     #[test]
     fn lookup_symbol_without_match() {
         let strtab = b"\x00_glapi_tls_Context\x00_glapi_get_dispatch_table_size\x00";
-        let symtab = [
-            &Elf64_Sym {
-                st_name: 0,
-                st_info: 0,
-                st_other: 0,
-                st_shndx: 0,
-                st_value: 0,
-                st_size: 0,
-            },
-            &Elf64_Sym {
-                st_name: 0x1,
-                // Note: the type is *not* `STT_FUNC`.
-                st_info: 0x16,
-                st_other: 0x0,
-                st_shndx: 0x14,
-                st_value: 0x8,
-                st_size: 0x8,
-            },
-            &Elf64_Sym {
-                st_name: 0x21,
-                st_info: 0x12,
-                st_other: 0x0,
-                st_shndx: 0xe,
-                st_value: 0x1a4a0,
-                st_size: 0xa,
-            },
-        ];
+        let symtab = ElfNBoxedSlice::B64(
+            [
+                &Elf64_Sym {
+                    st_name: 0,
+                    st_info: 0,
+                    st_other: 0,
+                    st_shndx: 0,
+                    st_value: 0,
+                    st_size: 0,
+                },
+                &Elf64_Sym {
+                    st_name: 0x1,
+                    // Note: the type is *not* `STT_FUNC`.
+                    st_info: 0x16,
+                    st_other: 0x0,
+                    st_shndx: 0x14,
+                    st_value: 0x8,
+                    st_size: 0x8,
+                },
+                &Elf64_Sym {
+                    st_name: 0x21,
+                    st_info: 0x12,
+                    st_other: 0x0,
+                    st_shndx: 0xe,
+                    st_value: 0x1a4a0,
+                    st_size: 0xa,
+                },
+            ]
+            .into(),
+        );
 
         let result = find_sym(&symtab, strtab, 0x10d20, SymType::Function).unwrap();
         assert_eq!(result, None);
@@ -1324,7 +1492,7 @@ mod tests {
     /// reported, if it is the only conceivable match.
     #[test]
     fn lookup_symbol_with_unknown_size() {
-        fn test(symtab: &[&Elf64_Sym]) {
+        fn test(symtab: &ElfNBoxedSlice<'_, Elf64_Sym>) {
             let strtab = b"\x00__libc_init_first\x00versionsort64\x00";
             let sym = find_sym(symtab, strtab, 0x29d00, SymType::Function)
                 .unwrap()
@@ -1377,8 +1545,8 @@ mod tests {
             },
         ];
 
-        test(&symtab);
-        test(&symtab[0..2]);
+        test(&ElfNBoxedSlice::B64(symtab.into()));
+        test(&ElfNBoxedSlice::B64(symtab[0..2].into()));
     }
 
     /// Check that we can properly read empty symbol tables, even if not
@@ -1402,7 +1570,7 @@ mod tests {
             e_shstrndx: 1,
         };
         let ehdr = EhdrExt {
-            ehdr: &ehdr,
+            ehdr: ElfN::B64(&ehdr),
             shnum: 3,
             phnum: 0,
         };
@@ -1455,7 +1623,7 @@ mod tests {
         let cache = Cache {
             elf_data: aligned_data,
             ehdr: OnceCell::from(ehdr),
-            shdrs: OnceCell::from(shdrs.as_slice()),
+            shdrs: OnceCell::from(ElfNSlice::B64(shdrs.as_slice())),
             shstrtab: OnceCell::from(b".shstrtab\x00.symtab\x00".as_slice()),
             phdrs: OnceCell::new(),
             symtab: OnceCell::new(),

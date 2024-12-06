@@ -6,6 +6,7 @@ SECTIONS {
     *(.text.factorial)
     . = ABSOLUTE(0x2000200);
     *(.text.inline)
+    *(.text.*)
   }
   .data (0x4001000): {
     *(.data)
@@ -14,6 +15,7 @@ SECTIONS {
   }
   .bss : { *(.bss) }
 
+  .got.plt : { *(.got.plt) *(.igot.plt) }
   /*
    * Discarding .shstrtab is not supported by LLD (LLVM LD) and will trigger an
    * error. Also keep the rest of the control sections to match GNU LD behavior.
