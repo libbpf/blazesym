@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.8
+-----
 - Significantly shortened tracing output when enabled (via `-v`)
 
 
