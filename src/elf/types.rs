@@ -86,6 +86,13 @@ where
         }
     }
 
+    pub fn len(&self) -> usize {
+        match self {
+            Self::B32(slice) => slice.len(),
+            Self::B64(slice) => slice.len(),
+        }
+    }
+
     pub fn iter(&self) -> impl ExactSizeIterator<Item = ElfN<'elf, T>> {
         match self {
             Self::B32(slice) => Either::A(slice.iter().map(ElfN::B32)),
