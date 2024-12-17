@@ -144,12 +144,12 @@ jobs:
       - run: cargo build --features="apk,backtrace,bpf,demangle,dwarf,gsym,tracing"
   nop-rebuilds:
     name: No-op rebuilds
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
     - name: Install development dependencies
-      run: sudo apt-get install -y llvm-14 gcc-multilib libelf-dev zlib1g-dev
+      run: sudo apt-get install -y llvm-18 gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: Check incremental rebuilds
@@ -165,13 +165,13 @@ jobs:
         [ -z "${output}" ] || (echo "!!!! cargo check --tests rebuild was not a no-op: ${output} !!!!" && false)
   test-coverage:
     name: Test and coverage
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: [build-linux-kernel]
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
     - name: Install development dependencies
-      run: sudo apt-get install -y llvm-14 gcc-multilib libelf-dev zlib1g-dev
+      run: sudo apt-get install -y llvm-18 gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - uses: Swatinem/rust-cache@v2
@@ -250,12 +250,12 @@ jobs:
     # but take quite a bit longer than Linux based ones.
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     name: Build test artifacts
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
     - name: Install development dependencies
-      run: sudo apt-get install -y llvm-14 gcc-multilib libelf-dev zlib1g-dev
+      run: sudo apt-get install -y llvm-18 gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo check --package=blazesym-dev --features=generate-unit-test-files
@@ -289,9 +289,9 @@ jobs:
       fail-fast: false
       matrix:
         sanitizer: [address]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
     - name: Install development dependencies
       run: sudo apt-get install -y gcc-multilib libelf-dev zlib1g-dev
@@ -303,7 +303,7 @@ jobs:
     - name: Enable debug symbols
       run: |
           # to get the symbolizer for debug symbol resolution
-          sudo apt-get install -y llvm-14
+          sudo apt-get install -y llvm-18
           cat Cargo.toml
     - name: cargo test -Zsanitizer=${{ matrix.sanitizer }}
       env:
@@ -317,12 +317,12 @@ jobs:
       run: cargo test --workspace --lib --tests --target x86_64-unknown-linux-gnu
   test-release:
     name: Test with release build
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
     - name: Install development dependencies
-      run: sudo apt-get install -y llvm-14 gcc-multilib libelf-dev zlib1g-dev
+      run: sudo apt-get install -y llvm-18 gcc-multilib libelf-dev zlib1g-dev liblzma-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
@@ -355,9 +355,9 @@ jobs:
       run: cargo miri test --workspace --features=blazesym-dev/dont-generate-unit-test-files -- ":miri:"
   test-examples:
     name: Test examples
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
     - name: Install development dependencies
       run: sudo apt-get install -y gcc-multilib libelf-dev zlib1g-dev
@@ -383,12 +383,12 @@ jobs:
     # performance baseline anyway.
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     name: Benchmark
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
     - name: Install development dependencies
-      run: sudo apt-get install -y llvm-14 gcc-multilib libelf-dev zlib1g-dev
+      run: sudo apt-get install -y llvm-18 gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
     - name: Run benchmarks
@@ -424,9 +424,9 @@ jobs:
       - run: cargo +nightly fmt --all -- --check
   cargo-doc:
     name: Generate documentation
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
-      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-14
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
       RUSTDOCFLAGS: '--cfg docsrs -D warnings'
     steps:
       - uses: actions/checkout@v4
