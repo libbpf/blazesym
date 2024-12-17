@@ -202,12 +202,12 @@ impl<'mmap> SymbolTableCache<'mmap> {
 
     fn create_str2sym<F>(&self, mut filter: F) -> Result<Vec<(&'mmap str, usize)>>
     where
-        F: FnMut(ElfN_Sym<'_>) -> bool,
+        F: FnMut(&ElfN_Sym<'_>) -> bool,
     {
         let mut str2sym = self
             .syms
             .iter(0)
-            .filter(|sym| filter(*sym))
+            .filter(|sym| filter(sym))
             .enumerate()
             .map(|(i, sym)| {
                 let name = self
@@ -229,7 +229,7 @@ impl<'mmap> SymbolTableCache<'mmap> {
 
     fn ensure_str2sym<F>(&self, filter: F) -> Result<&[(&'mmap str, usize)]>
     where
-        F: FnMut(ElfN_Sym<'_>) -> bool,
+        F: FnMut(&ElfN_Sym<'_>) -> bool,
     {
         let str2sym = self
             .str2sym
@@ -377,7 +377,7 @@ impl<'mmap> Cache<'mmap> {
     /// of certain member variables to reference data from this header,
     /// which otherwise is zeroed out.
     #[inline]
-    fn read_first_shdr(&self, ehdr: ElfN_Ehdr<'_>) -> Result<ElfN_Shdr<'mmap>> {
+    fn read_first_shdr(&self, ehdr: &ElfN_Ehdr<'_>) -> Result<ElfN_Shdr<'mmap>> {
         let mut data = self
             .elf_data
             .get(ehdr.shoff() as usize..)
@@ -430,7 +430,7 @@ impl<'mmap> Cache<'mmap> {
         // number of entries in the section header table is held in the sh_size
         // member of the initial entry in section header table."
         let shnum = if e_shnum == 0 {
-            let shdr = self.read_first_shdr(ehdr)?.to_64bit();
+            let shdr = self.read_first_shdr(&ehdr)?.to_64bit();
             usize::try_from(shdr.sh_size).ok().ok_or_invalid_data(|| {
                 format!(
                     "ELF file contains unsupported number of sections ({})",
@@ -447,7 +447,7 @@ impl<'mmap> Cache<'mmap> {
         // program header table is held in the sh_info member of the
         // initial entry in section header table."
         let phnum = if e_phnum == PN_XNUM {
-            let shdr = self.read_first_shdr(ehdr)?.to_64bit();
+            let shdr = self.read_first_shdr(&ehdr)?.to_64bit();
             usize::try_from(shdr.sh_info).ok().ok_or_invalid_data(|| {
                 format!(
                     "ELF file contains unsupported number of program headers ({})",
@@ -514,7 +514,7 @@ impl<'mmap> Cache<'mmap> {
         self.phdrs.get_or_try_init(|| self.parse_phdrs()).copied()
     }
 
-    fn shstrndx(&self, ehdr: ElfN_Ehdr<'_>) -> Result<usize> {
+    fn shstrndx(&self, ehdr: &ElfN_Ehdr<'_>) -> Result<usize> {
         let e_shstrndx = ehdr.shstrndx();
         // "If the index of section name string table section is larger
         // than or equal to SHN_LORESERVE (0xff00), this member holds
@@ -535,7 +535,7 @@ impl<'mmap> Cache<'mmap> {
 
     fn parse_shstrtab(&self) -> Result<&'mmap [u8]> {
         let ehdr = self.ensure_ehdr()?;
-        let shstrndx = self.shstrndx(ehdr.ehdr)?;
+        let shstrndx = self.shstrndx(&ehdr.ehdr)?;
         let shstrtab = self.section_data_raw(shstrndx)?;
         Ok(shstrtab)
     }
@@ -1233,7 +1233,7 @@ mod tests {
 
         let parser = ElfParser::open_file(file.as_file(), file.path()).unwrap();
         let ehdr = parser.cache.ensure_ehdr().unwrap();
-        let shstrndx = parser.cache.shstrndx(ehdr.ehdr).unwrap();
+        let shstrndx = parser.cache.shstrndx(&ehdr.ehdr).unwrap();
         assert_eq!(shstrndx, usize::from(SHSTRNDX));
     }
 

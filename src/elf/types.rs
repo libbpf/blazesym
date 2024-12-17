@@ -43,27 +43,16 @@ where
         matches!(self, Self::B32(..))
     }
 
-    pub fn to_64bit(self) -> T
+    pub fn to_64bit(&self) -> T
     where
         T: Copy + for<'ty> From<&'ty T::Ty32Bit>,
     {
         match self {
             Self::B32(ty) => T::from(ty),
-            Self::B64(ty) => *ty,
+            Self::B64(ty) => **ty,
         }
     }
 }
-
-impl<T> Clone for ElfN<'_, T>
-where
-    T: Has32BitTy,
-{
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for ElfN<'_, T> where T: Has32BitTy {}
 
 
 #[derive(Copy, Clone, Debug)]
@@ -520,10 +509,10 @@ impl TryFrom<&Elf64_Sym> for SymType {
     }
 }
 
-impl TryFrom<ElfN<'_, Elf64_Sym>> for SymType {
+impl TryFrom<&ElfN<'_, Elf64_Sym>> for SymType {
     type Error = ();
 
-    fn try_from(other: ElfN<'_, Elf64_Sym>) -> Result<Self, Self::Error> {
+    fn try_from(other: &ElfN<'_, Elf64_Sym>) -> Result<Self, Self::Error> {
         SymType::try_from_elf_type(other.type_())
     }
 }
@@ -698,11 +687,6 @@ mod tests {
     /// Exercise some trivial type conversion functions.
     #[test]
     fn conversions() {
-        let ehdr64 = Elf64_Ehdr::default();
-        let ehdr = ElfN::B64(&ehdr64);
-        #[allow(clippy::clone_on_copy)]
-        let _ehdr2 = ehdr.clone();
-
         let shdr = Elf32_Shdr::default();
         let _shdr64 = Elf64_Shdr::from(&shdr);
 
