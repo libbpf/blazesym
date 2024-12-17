@@ -129,6 +129,9 @@ pub mod inspect {
         /// The path to the ELF file.
         #[clap(short, long)]
         pub path: PathBuf,
+        /// Dump ELF symbols instead of DWARF ones.
+        #[clap(long)]
+        pub no_debug_syms: bool,
     }
 }
 
