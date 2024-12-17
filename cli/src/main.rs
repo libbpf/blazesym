@@ -109,8 +109,13 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
                 args::inspect::Dump::Breakpad(args::inspect::BreakpadDump { path }) => {
                     inspect::Source::from(inspect::Breakpad::new(path))
                 }
-                args::inspect::Dump::Elf(args::inspect::ElfDump { path }) => {
-                    inspect::Source::from(inspect::Elf::new(path))
+                args::inspect::Dump::Elf(args::inspect::ElfDump {
+                    path,
+                    no_debug_syms,
+                }) => {
+                    let mut elf = inspect::Elf::new(path);
+                    elf.debug_syms = !no_debug_syms;
+                    inspect::Source::from(elf)
                 }
             };
             let mut sym_infos = Vec::new();

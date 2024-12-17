@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added `--no-debug-syms` option to `inspect dump elf` sub-command
+
+
 0.1.8
 -----
 - Significantly shortened tracing output when enabled (via `-v`)
