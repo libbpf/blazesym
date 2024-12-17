@@ -411,23 +411,23 @@ impl<'mmap> Cache<'mmap> {
         }
 
         let bit32 = class == ELFCLASS32;
-        let (ehdr, e_shnum, e_phnum) = if bit32 {
-            let ehdr = elf_data
+        let ehdr = if bit32 {
+            elf_data
                 .read_pod_ref::<Elf32_Ehdr>()
-                .ok_or_invalid_data(|| "failed to read ELF header")?;
-            (ElfN_Ehdr::B32(ehdr), ehdr.e_shnum, ehdr.e_phnum)
+                .map(ElfN_Ehdr::B32)
+                .ok_or_invalid_data(|| "failed to read ELF header")?
         } else {
-            let ehdr = elf_data
+            elf_data
                 .read_pod_ref::<Elf64_Ehdr>()
-                .ok_or_invalid_data(|| "failed to read ELF header")?;
-            (ElfN_Ehdr::B64(ehdr), ehdr.e_shnum, ehdr.e_phnum)
+                .map(ElfN_Ehdr::B64)
+                .ok_or_invalid_data(|| "failed to read ELF header")?
         };
 
         // "If the number of entries in the section header table is larger than
         // or equal to SHN_LORESERVE, e_shnum holds the value zero and the real
         // number of entries in the section header table is held in the sh_size
         // member of the initial entry in section header table."
-        let shnum = if e_shnum == 0 {
+        let shnum = if ehdr.shnum() == 0 {
             let shdr = self.read_first_shdr(&ehdr)?.to_64bit();
             usize::try_from(shdr.sh_size).ok().ok_or_invalid_data(|| {
                 format!(
@@ -436,7 +436,7 @@ impl<'mmap> Cache<'mmap> {
                 )
             })?
         } else {
-            e_shnum.into()
+            ehdr.shnum().into()
         };
 
         // "If the number of entries in the program header table is
@@ -444,7 +444,7 @@ impl<'mmap> Cache<'mmap> {
         // PN_XNUM (0xffff) and the real number of entries in the
         // program header table is held in the sh_info member of the
         // initial entry in section header table."
-        let phnum = if e_phnum == PN_XNUM {
+        let phnum = if ehdr.phnum() == PN_XNUM {
             let shdr = self.read_first_shdr(&ehdr)?.to_64bit();
             usize::try_from(shdr.sh_info).ok().ok_or_invalid_data(|| {
                 format!(
@@ -453,7 +453,7 @@ impl<'mmap> Cache<'mmap> {
                 )
             })?
         } else {
-            e_phnum.into()
+            ehdr.phnum().into()
         };
 
         let ehdr = EhdrExt { ehdr, shnum, phnum };
