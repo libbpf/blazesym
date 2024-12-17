@@ -197,6 +197,22 @@ pub(crate) type ElfN_Ehdr<'elf> = ElfN<'elf, Elf64_Ehdr>;
 
 impl ElfN_Ehdr<'_> {
     #[inline]
+    pub fn shnum(&self) -> Elf64_Half {
+        match self {
+            ElfN::B32(ehdr) => ehdr.e_shnum,
+            ElfN::B64(ehdr) => ehdr.e_shnum,
+        }
+    }
+
+    #[inline]
+    pub fn phnum(&self) -> Elf64_Half {
+        match self {
+            ElfN::B32(ehdr) => ehdr.e_phnum,
+            ElfN::B64(ehdr) => ehdr.e_phnum,
+        }
+    }
+
+    #[inline]
     pub fn shoff(&self) -> Elf64_Off {
         match self {
             ElfN::B32(ehdr) => ehdr.e_shoff.into(),
