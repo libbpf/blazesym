@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::util::Either;
 use crate::util::Pod;
 use crate::SymType;
@@ -29,15 +31,17 @@ pub(crate) const ELFCLASS64: u8 = 2;
 #[derive(Debug)]
 pub(crate) enum ElfN<'elf, T>
 where
-    T: Has32BitTy,
+    T: Clone + Has32BitTy,
+    T::Ty32Bit: Clone,
 {
-    B32(&'elf T::Ty32Bit),
-    B64(&'elf T),
+    B32(Cow<'elf, T::Ty32Bit>),
+    B64(Cow<'elf, T>),
 }
 
 impl<T> ElfN<'_, T>
 where
-    T: Has32BitTy,
+    T: Clone + Has32BitTy,
+    T::Ty32Bit: Clone,
 {
     pub fn is_32bit(&self) -> bool {
         matches!(self, Self::B32(..))
@@ -66,7 +70,8 @@ where
 
 impl<'elf, T> ElfNSlice<'elf, T>
 where
-    T: Has32BitTy,
+    T: Clone + Has32BitTy,
+    T::Ty32Bit: Clone,
 {
     pub fn empty(tybit32: bool) -> Self {
         if tybit32 {
@@ -82,8 +87,8 @@ where
 
     pub fn get(&self, idx: usize) -> Option<ElfN<'elf, T>> {
         match self {
-            Self::B32(slice) => Some(ElfN::B32(slice.get(idx)?)),
-            Self::B64(slice) => Some(ElfN::B64(slice.get(idx)?)),
+            Self::B32(slice) => Some(ElfN::B32(Cow::Borrowed(slice.get(idx)?))),
+            Self::B64(slice) => Some(ElfN::B64(Cow::Borrowed(slice.get(idx)?))),
         }
     }
 
@@ -96,8 +101,16 @@ where
 
     pub fn iter(&self, start_idx: usize) -> impl ExactSizeIterator<Item = ElfN<'elf, T>> {
         match self {
-            Self::B32(slice) => Either::A(slice[start_idx..].iter().map(|x| ElfN::B32(x))),
-            Self::B64(slice) => Either::B(slice[start_idx..].iter().map(|x| ElfN::B64(x))),
+            Self::B32(slice) => Either::A(
+                slice[start_idx..]
+                    .iter()
+                    .map(|x| ElfN::B32(Cow::Borrowed(x))),
+            ),
+            Self::B64(slice) => Either::B(
+                slice[start_idx..]
+                    .iter()
+                    .map(|x| ElfN::B64(Cow::Borrowed(x))),
+            ),
         }
     }
 }
@@ -681,16 +694,16 @@ mod tests {
     #[test]
     fn accessors() {
         let ehdr32 = Elf32_Ehdr::default();
-        let ehdr = ElfN_Ehdr::B32(&ehdr32);
+        let ehdr = ElfN_Ehdr::B32(Cow::Borrowed(&ehdr32));
         let _val = ehdr.phoff();
 
         let shdr32 = Elf32_Shdr::default();
-        let shdr = ElfN_Shdr::B32(&shdr32);
+        let shdr = ElfN_Shdr::B32(Cow::Borrowed(&shdr32));
         let _val = shdr.addr();
         let _val = shdr.link();
 
         let sym32 = Elf32_Sym::default();
-        let sym = ElfN_Sym::B32(&sym32);
+        let sym = ElfN_Sym::B32(Cow::Borrowed(&sym32));
         let _val = sym.value();
         let _val = sym.size();
         let _val = sym.type_();

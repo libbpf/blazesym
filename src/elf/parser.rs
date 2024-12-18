@@ -459,9 +459,13 @@ impl<'mmap> Cache<'mmap> {
             .ok_or_invalid_data(|| "ELF e_shoff is invalid")?;
 
         let shdr = if ehdr.is_32bit() {
-            data.read_pod_ref::<Elf32_Shdr>().map(ElfN_Shdr::B32)
+            data.read_pod_ref::<Elf32_Shdr>()
+                .map(Cow::Borrowed)
+                .map(ElfN_Shdr::B32)
         } else {
-            data.read_pod_ref::<Elf64_Shdr>().map(ElfN_Shdr::B64)
+            data.read_pod_ref::<Elf64_Shdr>()
+                .map(Cow::Borrowed)
+                .map(ElfN_Shdr::B64)
         }
         .ok_or_invalid_data(|| "failed to read ELF section header")?;
 
@@ -491,11 +495,13 @@ impl<'mmap> Cache<'mmap> {
         let ehdr = if bit32 {
             elf_data
                 .read_pod_ref::<Elf32_Ehdr>()
+                .map(Cow::Borrowed)
                 .map(ElfN_Ehdr::B32)
                 .ok_or_invalid_data(|| "failed to read ELF header")?
         } else {
             elf_data
                 .read_pod_ref::<Elf64_Ehdr>()
+                .map(Cow::Borrowed)
                 .map(ElfN_Ehdr::B64)
                 .ok_or_invalid_data(|| "failed to read ELF header")?
         };
@@ -1257,7 +1263,7 @@ mod tests {
             e_shstrndx: 29,
         };
         let ehdr = EhdrExt {
-            ehdr: ElfN_Ehdr::B64(&ehdr),
+            ehdr: ElfN_Ehdr::B64(Cow::Borrowed(&ehdr)),
             shnum: 42,
             phnum: 0,
         };
@@ -1700,7 +1706,7 @@ mod tests {
             e_shstrndx: 1,
         };
         let ehdr = EhdrExt {
-            ehdr: ElfN_Ehdr::B64(&ehdr),
+            ehdr: ElfN_Ehdr::B64(Cow::Borrowed(&ehdr)),
             shnum: 3,
             phnum: 0,
         };
