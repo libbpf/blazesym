@@ -486,8 +486,8 @@ impl<'mmap> Cache<'mmap> {
         Ok(shdrs)
     }
 
-    fn ensure_shdrs(&self) -> Result<ElfN_Shdrs<'mmap>> {
-        self.shdrs.get_or_try_init(|| self.parse_shdrs()).copied()
+    fn ensure_shdrs(&self) -> Result<&ElfN_Shdrs<'mmap>> {
+        self.shdrs.get_or_try_init(|| self.parse_shdrs())
     }
 
     fn parse_phdrs(&self) -> Result<ElfN_Phdrs<'mmap>> {
@@ -510,8 +510,8 @@ impl<'mmap> Cache<'mmap> {
         Ok(phdrs)
     }
 
-    fn ensure_phdrs(&self) -> Result<ElfN_Phdrs<'mmap>> {
-        self.phdrs.get_or_try_init(|| self.parse_phdrs()).copied()
+    fn ensure_phdrs(&self) -> Result<&ElfN_Phdrs<'mmap>> {
+        self.phdrs.get_or_try_init(|| self.parse_phdrs())
     }
 
     fn shstrndx(&self, ehdr: &ElfN_Ehdr<'_>) -> Result<usize> {
@@ -836,7 +836,7 @@ impl ElfParser {
     /// # Notes
     /// It is the caller's responsibility to ensure that the symbol's section
     /// index is not `SHN_UNDEF`.
-    fn file_offset(&self, shdrs: ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
+    fn file_offset(&self, shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
         debug_assert_ne!(sym.st_shndx, SHN_UNDEF);
 
         if sym.st_shndx >= SHN_LORESERVE {
@@ -859,7 +859,7 @@ impl ElfParser {
         &'slf self,
         name: &str,
         opts: &FindAddrOpts,
-        shdrs: ElfN_Shdrs<'_>,
+        shdrs: &ElfN_Shdrs<'_>,
         syms: &ElfN_BoxedSyms,
         str2sym: &'slf [(&'slf str, usize)],
     ) -> Result<Vec<SymInfo<'slf>>> {
@@ -998,12 +998,12 @@ impl ElfParser {
         Ok(name)
     }
 
-    pub(crate) fn section_headers(&self) -> Result<ElfN_Shdrs<'_>> {
+    pub(crate) fn section_headers(&self) -> Result<&ElfN_Shdrs<'_>> {
         let shdrs = self.cache.ensure_shdrs()?;
         Ok(shdrs)
     }
 
-    pub(crate) fn program_headers(&self) -> Result<ElfN_Phdrs<'_>> {
+    pub(crate) fn program_headers(&self) -> Result<&ElfN_Phdrs<'_>> {
         let phdrs = self.cache.ensure_phdrs()?;
         Ok(phdrs)
     }

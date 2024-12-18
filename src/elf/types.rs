@@ -55,7 +55,7 @@ where
 }
 
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub(crate) enum ElfNSlice<'elf, T>
 where
     T: Has32BitTy,
