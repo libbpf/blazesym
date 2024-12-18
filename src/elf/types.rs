@@ -62,22 +62,23 @@ where
 #[derive(Debug)]
 pub(crate) enum ElfNSlice<'elf, T>
 where
-    T: Has32BitTy,
+    T: Clone + Has32BitTy,
+    T::Ty32Bit: Clone,
 {
-    B32(&'elf [T::Ty32Bit]),
-    B64(&'elf [T]),
+    B32(Cow<'elf, [T::Ty32Bit]>),
+    B64(Cow<'elf, [T]>),
 }
 
-impl<'elf, T> ElfNSlice<'elf, T>
+impl<T> ElfNSlice<'_, T>
 where
     T: Clone + Has32BitTy,
     T::Ty32Bit: Clone,
 {
     pub fn empty(tybit32: bool) -> Self {
         if tybit32 {
-            Self::B32(&[])
+            Self::B32(Cow::Borrowed(&[]))
         } else {
-            Self::B64(&[])
+            Self::B64(Cow::Borrowed(&[]))
         }
     }
 
@@ -85,7 +86,7 @@ where
         self.len() == 0
     }
 
-    pub fn get(&self, idx: usize) -> Option<ElfN<'elf, T>> {
+    pub fn get(&self, idx: usize) -> Option<ElfN<'_, T>> {
         match self {
             Self::B32(slice) => Some(ElfN::B32(Cow::Borrowed(slice.get(idx)?))),
             Self::B64(slice) => Some(ElfN::B64(Cow::Borrowed(slice.get(idx)?))),
@@ -99,7 +100,7 @@ where
         }
     }
 
-    pub fn iter(&self, start_idx: usize) -> impl ExactSizeIterator<Item = ElfN<'elf, T>> {
+    pub fn iter(&self, start_idx: usize) -> impl ExactSizeIterator<Item = ElfN<'_, T>> {
         match self {
             Self::B32(slice) => Either::A(
                 slice[start_idx..]
