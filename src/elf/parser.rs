@@ -560,9 +560,11 @@ impl<'elf, B> Cache<'elf, B> {
 
         let shdrs = if ehdr.is_32bit() {
             data.read_pod_slice_ref::<Elf32_Shdr>(ehdr.shnum)
+                .map(Cow::Borrowed)
                 .map(ElfN_Shdrs::B32)
         } else {
             data.read_pod_slice_ref::<Elf64_Shdr>(ehdr.shnum)
+                .map(Cow::Borrowed)
                 .map(ElfN_Shdrs::B64)
         }
         .ok_or_invalid_data(|| "failed to read ELF section headers")?;
@@ -584,9 +586,11 @@ impl<'elf, B> Cache<'elf, B> {
 
         let phdrs = if ehdr.is_32bit() {
             data.read_pod_slice_ref::<Elf32_Phdr>(ehdr.phnum)
+                .map(Cow::Borrowed)
                 .map(ElfN_Phdrs::B32)
         } else {
             data.read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
+                .map(Cow::Borrowed)
                 .map(ElfN_Phdrs::B64)
         }
         .ok_or_invalid_data(|| "failed to read ELF program headers")?;
@@ -709,9 +713,11 @@ impl<'elf, B> Cache<'elf, B> {
         let mut data = self.section_data_raw(idx)?;
         let syms = if ehdr.is_32bit() {
             data.read_pod_slice_ref::<Elf32_Sym>(count)
+                .map(Cow::Borrowed)
                 .map(ElfN_Syms::B32)
         } else {
             data.read_pod_slice_ref::<Elf64_Sym>(count)
+                .map(Cow::Borrowed)
                 .map(ElfN_Syms::B64)
         }
         .ok_or_invalid_data(|| format!("failed to read ELF {section} symbol table contents"))?;
@@ -1595,7 +1601,7 @@ mod tests {
     #[test]
     fn lookup_symbol_without_match() {
         let strs = b"\x00_glapi_tls_Context\x00_glapi_get_dispatch_table_size\x00";
-        let syms = ElfN_Syms::B64(&[
+        let syms = ElfN_Syms::B64(Cow::Borrowed(&[
             Elf64_Sym {
                 st_name: 0x21,
                 st_info: 0x12,
@@ -1621,7 +1627,7 @@ mod tests {
                 st_value: 0,
                 st_size: 0,
             },
-        ]);
+        ]));
         let by_addr_idx = [2, 1, 0];
 
         let result = find_sym(&syms, &by_addr_idx, strs, 0x10d20, SymType::Function).unwrap();
@@ -1658,7 +1664,7 @@ mod tests {
             assert_eq!(result, None);
         }
 
-        let syms = ElfN_Syms::B64(&[
+        let syms = ElfN_Syms::B64(Cow::Borrowed(&[
             Elf64_Sym {
                 st_name: 0,
                 st_info: 0,
@@ -1683,7 +1689,7 @@ mod tests {
                 st_value: 0x29d00,
                 st_size: 0x0,
             },
-        ]);
+        ]));
         let by_addr_idx = [0, 2, 1];
 
         test(&syms, &by_addr_idx);
@@ -1765,7 +1771,7 @@ mod tests {
             backend: aligned_data,
             elf_data: aligned_data,
             ehdr: OnceCell::from(ehdr),
-            shdrs: OnceCell::from(ElfN_Shdrs::B64(shdrs.as_slice())),
+            shdrs: OnceCell::from(ElfN_Shdrs::B64(Cow::Borrowed(shdrs.as_slice()))),
             shstrtab: OnceCell::from(b".shstrtab\x00.symtab\x00".as_slice()),
             phdrs: OnceCell::new(),
             symtab: OnceCell::new(),
