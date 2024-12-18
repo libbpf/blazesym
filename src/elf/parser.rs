@@ -221,13 +221,13 @@ struct SymbolTableCache<'elf> {
     /// contains a relevant subset of symbols.
     by_addr_idx: OnceCell<Box<[usize]>>,
     /// The string table.
-    strs: &'elf [u8],
+    strs: Cow<'elf, [u8]>,
     /// The cached name to symbol index table (in dictionary order).
     str2sym: OnceCell<Box<[(SymName, usize)]>>,
 }
 
 impl<'elf> SymbolTableCache<'elf> {
-    fn new(syms: ElfN_Syms<'elf>, strs: &'elf [u8]) -> Self {
+    fn new(syms: ElfN_Syms<'elf>, strs: Cow<'elf, [u8]>) -> Self {
         Self {
             syms,
             by_addr_idx: OnceCell::new(),
@@ -297,7 +297,7 @@ impl<'elf> SymbolTableCache<'elf> {
             })
             .collect::<Result<Box<[_]>>>()?;
 
-        let () = str2sym.sort_by_key(|(name, _i)| name.bytes(self.strs));
+        let () = str2sym.sort_by_key(|(name, _i)| name.bytes(&self.strs));
         Ok(str2sym)
     }
 
@@ -321,13 +321,11 @@ impl<'elf> SymbolTableCache<'elf> {
 struct Cache<'elf, B> {
     /// The backend being used for reading ELF data.
     backend: B,
-    /// A slice of the raw ELF data that we are about to parse.
-    elf_data: &'elf [u8],
     /// The cached ELF header.
     ehdr: OnceCell<EhdrExt<'elf>>,
     /// The cached ELF section headers.
     shdrs: OnceCell<ElfN_Shdrs<'elf>>,
-    shstrtab: OnceCell<&'elf [u8]>,
+    shstrtab: OnceCell<Cow<'elf, [u8]>>,
     /// The cached ELF program headers.
     phdrs: OnceCell<ElfN_Phdrs<'elf>>,
     /// The cached symbol table.
@@ -338,12 +336,14 @@ struct Cache<'elf, B> {
     section_data: OnceCell<Box<[OnceCell<Cow<'elf, [u8]>>]>>,
 }
 
-impl<'elf, B> Cache<'elf, B> {
+impl<'elf, B> Cache<'elf, B>
+where
+    B: BackendImpl<'elf>,
+{
     /// Create a new `Cache` using the provided raw ELF object data.
-    fn new(backend: B, elf_data: &'elf [u8]) -> Self {
+    fn new(backend: B) -> Self {
         Self {
             backend,
-            elf_data,
             ehdr: OnceCell::new(),
             shdrs: OnceCell::new(),
             shstrtab: OnceCell::new(),
@@ -370,18 +370,14 @@ impl<'elf, B> Cache<'elf, B> {
     /// This method returns potentially compressed data, but adheres is
     /// able to do so with 'elf lifetime. To transparently decompress,
     /// use [`Cache::section_data`] instead.
-    fn section_data_raw(&self, idx: usize) -> Result<&'elf [u8]> {
+    fn section_data_raw(&self, idx: usize) -> Result<Cow<'elf, [u8]>> {
         let shdr = self.section_hdr(idx)?;
         if shdr.type_() != SHT_NOBITS {
-            let data = self
-                .elf_data
-                .get(shdr.offset() as usize..)
-                .ok_or_invalid_data(|| "failed to read ELF section data: invalid offset")?
-                .read_slice(shdr.size() as usize)
-                .ok_or_invalid_data(|| "failed to read ELF section data: invalid size")?;
-            Ok(data)
+            self.backend
+                .read_pod_slice::<u8>(shdr.offset(), shdr.size() as usize)
+                .context("failed to read ELF section data")
         } else {
-            Ok(&[])
+            Ok(Cow::Borrowed(&[]))
         }
     }
 
@@ -405,14 +401,13 @@ impl<'elf, B> Cache<'elf, B> {
                 .get(idx)
                 .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?
                 .get_or_try_init(|| -> Result<Cow<'elf, [u8]>> {
-                    let mut data = self
-                        .elf_data
-                        .get(shdr.offset() as usize..)
-                        .ok_or_invalid_data(|| "failed to read ELF section data: invalid offset")?
-                        .read_slice(shdr.size() as usize)
-                        .ok_or_invalid_data(|| "failed to read ELF section data: invalid size")?;
+                    let data = self
+                                .backend
+                                .read_pod_slice::<u8>(shdr.offset(), shdr.size() as usize)
+                                .context("failed to read ELF section data")?;
 
                     if shdr.flags() & SHF_COMPRESSED != 0 {
+                        let mut data = data.deref();
                         // Compression header is contained in the actual section
                         // data.
                         let (ch_type, ch_size) = if shdr.is_32bit() {
@@ -441,7 +436,7 @@ impl<'elf, B> Cache<'elf, B> {
                         );
                         Ok(Cow::Owned(decompressed))
                     } else {
-                        Ok(Cow::Borrowed(data))
+                        Ok(data)
                     }
                 }).map(Cow::deref)
         } else {
@@ -456,30 +451,25 @@ impl<'elf, B> Cache<'elf, B> {
     /// which otherwise is zeroed out.
     #[inline]
     fn read_first_shdr(&self, ehdr: &ElfN_Ehdr<'_>) -> Result<ElfN_Shdr<'elf>> {
-        let mut data = self
-            .elf_data
-            .get(ehdr.shoff() as usize..)
-            .ok_or_invalid_data(|| "ELF e_shoff is invalid")?;
-
         let shdr = if ehdr.is_32bit() {
-            data.read_pod_ref::<Elf32_Shdr>()
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_obj::<Elf32_Shdr>(ehdr.shoff() as _)
                 .map(ElfN_Shdr::B32)
         } else {
-            data.read_pod_ref::<Elf64_Shdr>()
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_obj::<Elf64_Shdr>(ehdr.shoff() as _)
                 .map(ElfN_Shdr::B64)
         }
-        .ok_or_invalid_data(|| "failed to read ELF section header")?;
+        .context("failed to read ELF section header")?;
 
         Ok(shdr)
     }
 
     fn parse_ehdr(&self) -> Result<EhdrExt<'elf>> {
-        let mut elf_data = self.elf_data;
-        let e_ident = elf_data
-            .peek_array::<EI_NIDENT>()
-            .ok_or_invalid_data(|| "failed to read ELF e_ident information")?;
+        let e_ident = self
+            .backend
+            .read_pod_slice::<u8>(0, EI_NIDENT)
+            .context("failed to read ELF e_ident information")?;
         if !(e_ident[0] == 0x7f && e_ident[1] == b'E' && e_ident[2] == b'L' && e_ident[3] == b'F') {
             return Err(Error::with_invalid_data(format!(
                 "encountered unexpected e_ident: {:x?}",
@@ -496,17 +486,15 @@ impl<'elf, B> Cache<'elf, B> {
 
         let bit32 = class == ELFCLASS32;
         let ehdr = if bit32 {
-            elf_data
-                .read_pod_ref::<Elf32_Ehdr>()
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_obj::<Elf32_Ehdr>(0)
                 .map(ElfN_Ehdr::B32)
-                .ok_or_invalid_data(|| "failed to read ELF header")?
+                .context("failed to read ELF header")?
         } else {
-            elf_data
-                .read_pod_ref::<Elf64_Ehdr>()
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_obj::<Elf64_Ehdr>(0)
                 .map(ElfN_Ehdr::B64)
-                .ok_or_invalid_data(|| "failed to read ELF header")?
+                .context("failed to read ELF header")?
         };
 
         // "If the number of entries in the section header table is larger than
@@ -552,22 +540,18 @@ impl<'elf, B> Cache<'elf, B> {
 
     fn parse_shdrs(&self) -> Result<ElfN_Shdrs<'elf>> {
         let ehdr = self.ensure_ehdr()?;
-
-        let mut data = self
-            .elf_data
-            .get(ehdr.ehdr.shoff() as usize..)
-            .ok_or_invalid_data(|| "ELF e_shoff is invalid")?;
+        let e_shoff = ehdr.ehdr.shoff();
 
         let shdrs = if ehdr.is_32bit() {
-            data.read_pod_slice_ref::<Elf32_Shdr>(ehdr.shnum)
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_slice::<Elf32_Shdr>(e_shoff, ehdr.shnum)
                 .map(ElfN_Shdrs::B32)
         } else {
-            data.read_pod_slice_ref::<Elf64_Shdr>(ehdr.shnum)
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_slice::<Elf64_Shdr>(e_shoff, ehdr.shnum)
                 .map(ElfN_Shdrs::B64)
         }
-        .ok_or_invalid_data(|| "failed to read ELF section headers")?;
+        .context("failed to read ELF section headers")?;
 
         Ok(shdrs)
     }
@@ -578,22 +562,18 @@ impl<'elf, B> Cache<'elf, B> {
 
     fn parse_phdrs(&self) -> Result<ElfN_Phdrs<'elf>> {
         let ehdr = self.ensure_ehdr()?;
-
-        let mut data = self
-            .elf_data
-            .get(ehdr.ehdr.phoff() as usize..)
-            .ok_or_invalid_data(|| "ELF e_phoff is invalid")?;
+        let e_phoff = ehdr.ehdr.phoff();
 
         let phdrs = if ehdr.is_32bit() {
-            data.read_pod_slice_ref::<Elf32_Phdr>(ehdr.phnum)
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_slice::<Elf32_Phdr>(e_phoff, ehdr.phnum)
                 .map(ElfN_Phdrs::B32)
         } else {
-            data.read_pod_slice_ref::<Elf64_Phdr>(ehdr.phnum)
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_slice::<Elf64_Phdr>(e_phoff, ehdr.phnum)
                 .map(ElfN_Phdrs::B64)
         }
-        .ok_or_invalid_data(|| "failed to read ELF program headers")?;
+        .context("failed to read ELF program headers")?;
 
         Ok(phdrs)
     }
@@ -621,21 +601,19 @@ impl<'elf, B> Cache<'elf, B> {
         Ok(shstrndx)
     }
 
-    fn parse_shstrtab(&self) -> Result<&'elf [u8]> {
+    fn parse_shstrtab(&self) -> Result<Cow<'elf, [u8]>> {
         let ehdr = self.ensure_ehdr()?;
         let shstrndx = self.shstrndx(&ehdr.ehdr)?;
         let shstrtab = self.section_data_raw(shstrndx)?;
         Ok(shstrtab)
     }
 
-    fn ensure_shstrtab(&self) -> Result<&'elf [u8]> {
-        self.shstrtab
-            .get_or_try_init(|| self.parse_shstrtab())
-            .copied()
+    fn ensure_shstrtab(&self) -> Result<&Cow<'elf, [u8]>> {
+        self.shstrtab.get_or_try_init(|| self.parse_shstrtab())
     }
 
     /// Get the name of the section at a given index.
-    fn section_name(&self, idx: usize) -> Result<&'elf str> {
+    fn section_name(&self, idx: usize) -> Result<&str> {
         let shdr = self.section_hdr(idx)?;
         let shstrtab = self.ensure_shstrtab()?;
 
@@ -691,6 +669,8 @@ impl<'elf, B> Cache<'elf, B> {
         }
 
         let sh_size = shdr.size();
+        let sh_offset = shdr.offset();
+
         let sym_size = if ehdr.is_32bit() {
             mem::size_of::<Elf32_Sym>()
         } else {
@@ -710,17 +690,16 @@ impl<'elf, B> Cache<'elf, B> {
             return Ok(ElfN_Syms::empty(ehdr.is_32bit()))
         }
 
-        let mut data = self.section_data_raw(idx)?;
         let syms = if ehdr.is_32bit() {
-            data.read_pod_slice_ref::<Elf32_Sym>(count)
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_slice::<Elf32_Sym>(sh_offset, count)
                 .map(ElfN_Syms::B32)
         } else {
-            data.read_pod_slice_ref::<Elf64_Sym>(count)
-                .map(Cow::Borrowed)
+            self.backend
+                .read_pod_slice::<Elf64_Sym>(sh_offset, count)
                 .map(ElfN_Syms::B64)
         }
-        .ok_or_invalid_data(|| format!("failed to read ELF {section} symbol table contents"))?;
+        .with_context(|| format!("failed to read ELF {section} symbol table contents"))?;
 
         Ok(syms)
     }
@@ -752,11 +731,11 @@ impl<'elf, B> Cache<'elf, B> {
         Ok(&symtab.syms)
     }
 
-    fn parse_strs(&self, section: &str) -> Result<&'elf [u8]> {
+    fn parse_strs(&self, section: &str) -> Result<Cow<'elf, [u8]>> {
         let strs = if let Some(idx) = self.find_section(section)? {
             self.section_data_raw(idx)?
         } else {
-            &[]
+            Cow::Borrowed([].as_slice())
         };
         Ok(strs)
     }
@@ -778,7 +757,7 @@ impl<'elf, B> Cache<'elf, B> {
             let result = find_sym(
                 &symtab.syms,
                 symtab_by_addr_idx,
-                symtab.strs,
+                &symtab.strs,
                 sym.value(),
                 // SANITY: We filter out all unsupported symbol types,
                 //         so this conversion should always succeed.
@@ -892,17 +871,20 @@ impl<'elf> BackendImpl<'elf> for &File {
 
 /// A parser for ELF64 files.
 #[derive(Debug)]
-pub(crate) struct ElfParser<B = Mmap> {
+pub(crate) struct ElfParser<B = Mmap>
+where
+    B: Backend,
+{
     /// A cache for relevant parts of the ELF file.
     // SAFETY: We must not hand out references with a 'static lifetime to
     //         this member. Rather, they should never outlive `self`.
     //         Furthermore, this member has to be listed before `_mmap`
     //         to make sure we never end up with a dangling reference.
-    cache: Cache<'static, B>,
+    cache: Cache<'static, B::ImplTy<'static>>,
     /// The path to the ELF file being worked on, if available.
     path: Option<PathBuf>,
     /// The backend used.
-    _backend: B,
+    _backend: B::ObjTy,
 }
 
 impl ElfParser<Mmap> {
@@ -921,12 +903,13 @@ impl ElfParser<Mmap> {
         // necessity for self-referentiality.
         // SAFETY: We never hand out any 'static references to cache
         //         data.
-        let elf_data = unsafe { mem::transmute::<&[u8], &'static [u8]>(mmap.deref()) };
+        let data = unsafe { mem::transmute::<&[u8], &'static [u8]>(mmap.deref()) };
+        let _backend = mmap;
 
         let parser = ElfParser {
-            cache: Cache::new(mmap.clone(), elf_data),
+            cache: Cache::new(data),
             path,
-            _backend: mmap,
+            _backend,
         };
         parser
     }
@@ -939,7 +922,10 @@ impl ElfParser<Mmap> {
     }
 }
 
-impl<B> ElfParser<B> {
+impl<B> ElfParser<B>
+where
+    B: Backend,
+{
     /// Retrieve the data corresponding to the ELF section at index
     /// `idx`, optionally decompressing it if it is compressed.
     pub(crate) fn section_data(&self, idx: usize) -> Result<&[u8]> {
@@ -968,7 +954,7 @@ impl<B> ElfParser<B> {
         if let Some(sym) = find_sym(
             &symtab_cache.syms,
             symtab_by_addr_idx,
-            symtab_cache.strs,
+            &symtab_cache.strs,
             addr,
             SymType::Undefined,
         )? {
@@ -980,7 +966,7 @@ impl<B> ElfParser<B> {
         if let Some(sym) = find_sym(
             &dynsym_cache.syms,
             dynsym_by_addr_idx,
-            dynsym_cache.strs,
+            &dynsym_cache.strs,
             addr,
             SymType::Undefined,
         )? {
@@ -1174,7 +1160,7 @@ impl<B> ElfParser<B> {
     fn get_symbol_name(&self, idx: usize) -> Result<&str> {
         let symtab_cache = self.cache.ensure_symtab_cache()?;
         let sym = self.cache.symbol(idx)?;
-        let name = symbol_name(symtab_cache.strs, &sym.to_64bit())?;
+        let name = symbol_name(&symtab_cache.strs, &sym.to_64bit())?;
         Ok(name)
     }
 
@@ -1769,10 +1755,9 @@ mod tests {
 
         let cache = Cache {
             backend: aligned_data,
-            elf_data: aligned_data,
             ehdr: OnceCell::from(ehdr),
             shdrs: OnceCell::from(ElfN_Shdrs::B64(Cow::Borrowed(shdrs.as_slice()))),
-            shstrtab: OnceCell::from(b".shstrtab\x00.symtab\x00".as_slice()),
+            shstrtab: OnceCell::from(Cow::Borrowed(b".shstrtab\x00.symtab\x00".as_slice())),
             phdrs: OnceCell::new(),
             symtab: OnceCell::new(),
             dynsym: OnceCell::new(),
