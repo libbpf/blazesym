@@ -618,7 +618,6 @@ impl<'tmp, 'slf: 'tmp> Resolver<'tmp, 'slf> {
 /// Please note that demangling results are not cached.
 #[derive(Debug)]
 pub struct Symbolizer {
-    #[allow(clippy::type_complexity)]
     #[cfg(feature = "apk")]
     apk_cache: FileCache<(zip::Archive, InsertMap<Range<u64>, Box<dyn Resolve>>)>,
     #[cfg(feature = "breakpad")]

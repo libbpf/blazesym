@@ -36,7 +36,8 @@
     clippy::collapsible_if,
     clippy::fn_to_numeric_cast,
     clippy::let_and_return,
-    clippy::let_unit_value
+    clippy::let_unit_value,
+    clippy::type_complexity
 )]
 #![deny(unsafe_op_in_unsafe_fn)]
 #![warn(

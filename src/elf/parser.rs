@@ -259,7 +259,6 @@ struct Cache<'mmap> {
     /// The cached dynamic symbol table.
     dynsym: OnceCell<SymbolTableCache<'mmap>>,
     /// The section data.
-    #[allow(clippy::type_complexity)]
     section_data: OnceCell<Box<[OnceCell<Cow<'mmap, [u8]>>]>>,
 }
 
