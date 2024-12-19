@@ -200,7 +200,7 @@ impl<'mmap> SymbolTableCache<'mmap> {
         }
     }
 
-    fn create_str2sym<F>(&self, mut filter: F) -> Result<Vec<(&'mmap str, usize)>>
+    fn create_str2sym<F>(&self, mut filter: F) -> Result<Box<[(&'mmap str, usize)]>>
     where
         F: FnMut(&ElfN_Sym<'_>) -> bool,
     {
@@ -221,7 +221,7 @@ impl<'mmap> SymbolTableCache<'mmap> {
                     .context("invalid ELF symbol name")?;
                 Ok((name, i))
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<Box<[_]>>>()?;
 
         let () = str2sym.sort_by_key(|&(name, _i)| name);
         Ok(str2sym)
@@ -235,7 +235,6 @@ impl<'mmap> SymbolTableCache<'mmap> {
             .str2sym
             .get_or_try_init(|| {
                 let str2sym = self.create_str2sym(filter)?;
-                let str2sym = str2sym.into_boxed_slice();
                 Result::<_, Error>::Ok(str2sym)
             })?
             .deref();
