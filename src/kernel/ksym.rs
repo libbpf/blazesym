@@ -262,8 +262,8 @@ impl KSymResolver {
         }
     }
 
-    fn create_by_name_idx(syms: &[Ksym]) -> Vec<usize> {
-        let mut by_name_idx = (0..syms.len()).collect::<Vec<_>>();
+    fn create_by_name_idx(syms: &[Ksym]) -> Box<[usize]> {
+        let mut by_name_idx = (0..syms.len()).collect::<Box<[_]>>();
         let () = by_name_idx.sort_by(|idx1, idx2| {
             let sym1 = &syms[*idx1];
             let sym2 = &syms[*idx2];
@@ -299,11 +299,9 @@ impl Inspect for KSymResolver {
             return Ok(Vec::new())
         }
 
-        let by_name_idx = self.by_name_idx.get_or_init(|| {
-            let by_name_idx = Self::create_by_name_idx(&self.syms);
-            let by_name_idx = by_name_idx.into_boxed_slice();
-            by_name_idx
-        });
+        let by_name_idx = self
+            .by_name_idx
+            .get_or_init(|| Self::create_by_name_idx(&self.syms));
 
         let result =
             find_match_or_lower_bound_by_key(by_name_idx, name, |idx| self.syms[*idx].name());
