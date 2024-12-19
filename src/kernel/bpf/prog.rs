@@ -183,7 +183,7 @@ struct LineInfoRecord {
 fn query_line_info(
     bpf_fd: BorrowedFd<'_>,
     info: &sys::bpf_prog_info,
-) -> Result<Option<Vec<(Addr, LineInfoRecord)>>> {
+) -> Result<Option<Box<[(Addr, LineInfoRecord)]>>> {
     let prog_id = info.id;
 
     assert_eq!(
@@ -214,7 +214,6 @@ fn query_line_info(
         format!("failed to retrieve BPF program information for program {prog_id}")
     })?;
 
-    let mut line_records = Vec::with_capacity(info.nr_jited_line_info as _);
     let mut file_cache = HashMap::new();
 
     let btf = if let Some(btf) = Btf::load_from_id(info.btf_id)
@@ -227,36 +226,38 @@ fn query_line_info(
         return Ok(None)
     };
 
-    for (i, addr) in jited_line_info.into_iter().enumerate() {
-        let info = line_info.get(i).ok_or_invalid_data(|| {
-            format!("failed to get BPF program {prog_id} line record {i} for address {addr:#x}")
-        })?;
-        let file = btf.name(info.file_name_off).ok_or_invalid_data(|| {
-            format!(
+    let mut line_records = jited_line_info
+        .into_iter()
+        .enumerate()
+        .map(|(i, addr)| {
+            let info = line_info.get(i).ok_or_invalid_data(|| {
+                format!("failed to get BPF program {prog_id} line record {i} for address {addr:#x}")
+            })?;
+            let file = btf.name(info.file_name_off).ok_or_invalid_data(|| {
+                format!(
                 "failed to retrieve BPF program {prog_id} file information for address {addr:#x}"
             )
-        })?;
+            })?;
 
-        // Check if we already have the file cached (and do so if
-        // not), to not have dozens of duplicate allocations flying
-        // around.
-        let path = match file_cache.entry(file) {
-            Entry::Vacant(vacancy) => {
-                let path = Rc::<Path>::from(PathBuf::from(file).into_boxed_path());
-                vacancy.insert(path)
-            }
-            Entry::Occupied(occupancy) => occupancy.into_mut(),
-        };
+            // Check if we already have the file cached (and do so if
+            // not), to not have dozens of duplicate allocations flying
+            // around.
+            let path = match file_cache.entry(file) {
+                Entry::Vacant(vacancy) => {
+                    let path = Rc::<Path>::from(PathBuf::from(file).into_boxed_path());
+                    vacancy.insert(path)
+                }
+                Entry::Occupied(occupancy) => occupancy.into_mut(),
+            };
 
-        let () = line_records.push((
-            addr,
-            LineInfoRecord {
+            let record = LineInfoRecord {
                 path: Rc::clone(path),
                 line: info.line(),
                 col: info.column(),
-            },
-        ));
-    }
+            };
+            Ok((addr, record))
+        })
+        .collect::<Result<Box<[_]>>>()?;
 
     let () = line_records.sort_by_key(|(addr, _record)| *addr);
     Ok(Some(line_records))
@@ -269,7 +270,7 @@ pub struct BpfProg {
     addr: Addr,
     name: Box<str>,
     tag: BpfTag,
-    line_info: OnceCell<Option<Vec<(Addr, LineInfoRecord)>>>,
+    line_info: OnceCell<Option<Box<[(Addr, LineInfoRecord)]>>>,
 }
 
 impl BpfProg {
