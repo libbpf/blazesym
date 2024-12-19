@@ -13,7 +13,6 @@ use std::os::fd::AsFd as _;
 use std::os::fd::AsRawFd as _;
 use std::os::fd::BorrowedFd;
 use std::path::Path;
-use std::path::PathBuf;
 use std::rc::Rc;
 use std::str::FromStr;
 
@@ -244,7 +243,7 @@ fn query_line_info(
             // around.
             let path = match file_cache.entry(file) {
                 Entry::Vacant(vacancy) => {
-                    let path = Rc::<Path>::from(PathBuf::from(file).into_boxed_path());
+                    let path = Rc::<Path>::from(Path::new(file));
                     vacancy.insert(path)
                 }
                 Entry::Occupied(occupancy) => occupancy.into_mut(),
