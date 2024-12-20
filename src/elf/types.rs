@@ -68,6 +68,18 @@ impl<'elf, T> ElfNSlice<'elf, T>
 where
     T: Has32BitTy,
 {
+    pub fn empty(tybit32: bool) -> Self {
+        if tybit32 {
+            Self::B32(&[])
+        } else {
+            Self::B64(&[])
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     pub fn get(&self, idx: usize) -> Option<ElfN<'elf, T>> {
         match self {
             Self::B32(slice) => Some(ElfN::B32(slice.get(idx)?)),
@@ -555,6 +567,7 @@ impl Has32BitTy for Elf64_Sym {
 }
 
 pub(crate) type ElfN_Sym<'elf> = ElfN<'elf, Elf64_Sym>;
+pub(crate) type ElfN_Syms<'elf> = ElfNSlice<'elf, Elf64_Sym>;
 pub(crate) type ElfN_BoxedSyms<'elf> = ElfNBoxedSlice<'elf, Elf64_Sym>;
 
 impl ElfN_Sym<'_> {

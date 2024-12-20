@@ -38,12 +38,12 @@ use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
-use super::types::ElfN_BoxedSyms;
 use super::types::ElfN_Ehdr;
 use super::types::ElfN_Phdrs;
 use super::types::ElfN_Shdr;
 use super::types::ElfN_Shdrs;
 use super::types::ElfN_Sym;
+use super::types::ElfN_Syms;
 use super::types::EI_NIDENT;
 use super::types::ELFCLASS32;
 use super::types::ELFCLASS64;
@@ -72,25 +72,25 @@ fn symbol_name<'mmap>(strtab: &'mmap [u8], sym: &Elf64_Sym) -> Result<&'mmap str
 }
 
 fn find_sym<'mmap>(
-    symtab: &ElfN_BoxedSyms<'_>,
+    syms: &ElfN_Syms<'_>,
+    by_addr_idx: &[usize],
     strtab: &'mmap [u8],
     addr: Addr,
     type_: SymType,
 ) -> Result<Option<ResolvedSym<'mmap>>> {
-    let idx = match symtab {
-        ElfN_BoxedSyms::B32(symtab) => {
-            find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr)
-        }
-        ElfN_BoxedSyms::B64(symtab) => {
-            find_match_or_lower_bound_by_key(symtab, addr, |sym| sym.st_value as Addr)
-        }
-    };
+    let idx = find_match_or_lower_bound_by_key(by_addr_idx, addr, |&idx| {
+        // SANITY: The index originates in our code and is known to be
+        //         in bounds.
+        syms.get(idx).unwrap().value() as Addr
+    });
 
     match idx {
         None => Ok(None),
         Some(idx) => {
-            for sym in symtab.iter(idx) {
-                let sym = sym.to_64bit();
+            for idx in &by_addr_idx[idx..] {
+                // SANITY: The index originates in our code and is known
+                //         to be in bounds.
+                let sym = syms.get(*idx).unwrap().to_64bit();
                 if sym.st_value as Addr > addr {
                     // Once we are seeing start addresses past the provided
                     // address, we can no longer be dealing with a match and
@@ -206,8 +206,14 @@ impl SymName {
 
 #[derive(Debug)]
 struct SymbolTableCache<'mmap> {
-    /// The cached symbols (in address order).
-    syms: ElfN_BoxedSyms<'mmap>,
+    /// The cached symbols.
+    ///
+    /// Note that these are the symbols as they appear in the file,
+    /// without any filtering applied.
+    syms: ElfN_Syms<'mmap>,
+    /// An index over `syms` that is sorted by address and that only
+    /// contains a relevant subset of symbols.
+    by_addr_idx: OnceCell<Box<[usize]>>,
     /// The string table.
     strs: &'mmap [u8],
     /// The cached name to symbol index table (in dictionary order).
@@ -215,38 +221,73 @@ struct SymbolTableCache<'mmap> {
 }
 
 impl<'mmap> SymbolTableCache<'mmap> {
-    fn new(syms: ElfN_BoxedSyms<'mmap>, strs: &'mmap [u8]) -> Self {
+    fn new(syms: ElfN_Syms<'mmap>, strs: &'mmap [u8]) -> Self {
         Self {
             syms,
+            by_addr_idx: OnceCell::new(),
             strs,
             str2sym: OnceCell::new(),
         }
+    }
+
+    fn create_by_addr_idx(&self) -> Box<[usize]> {
+        let mut by_addr_idx = self
+            .syms
+            .iter(0)
+            .enumerate()
+            // Filter out any symbols that we do not support.
+            .filter(|(_idx, sym)| sym.matches(SymType::Undefined))
+            .map(|(idx, _sym)| idx)
+            .collect::<Box<[_]>>();
+
+        // Order symbols by address and those with equal address descending by
+        // size.
+        let () = by_addr_idx.sort_by(|idx1, idx2| {
+            // SANITY: Both indexes originate in our code and are known
+            //         to be in bounds.
+            let sym1 = self.syms.get(*idx1).unwrap();
+            let sym2 = self.syms.get(*idx2).unwrap();
+            sym1.value()
+                .cmp(&sym2.value())
+                .then_with(|| sym1.size().cmp(&sym2.size()).reverse())
+        });
+
+        by_addr_idx
+    }
+
+    fn ensure_by_addr_idx(&self) -> &[usize] {
+        self.by_addr_idx.get_or_init(|| self.create_by_addr_idx())
     }
 
     fn create_str2sym<F>(&self, mut filter: F) -> Result<Box<[(SymName, usize)]>>
     where
         F: FnMut(&ElfN_Sym<'_>) -> bool,
     {
-        let mut str2sym = self
-            .syms
-            .iter(0)
-            .filter(|sym| filter(sym))
-            .enumerate()
-            .map(|(i, sym)| {
-                let idx = sym.name() as usize;
+        let by_addr_idx = self.ensure_by_addr_idx();
+
+        // We use `by_addr_idx` as the base, because we want the
+        // filtering that had been applied to it to be in effect.
+        let mut str2sym = by_addr_idx
+            .iter()
+            // SANITY: The index originates in our code and is known to
+            //         be in bounds.
+            .map(|&idx| (self.syms.get(idx).unwrap(), idx))
+            .filter(|(sym, _idx)| filter(sym))
+            .map(|(sym, idx)| {
+                let name_idx = sym.name() as usize;
                 let cname = self
                     .strs
-                    .get(idx..)
+                    .get(name_idx..)
                     .ok_or_invalid_input(|| "ELF string table index out of bounds")?
                     .read_cstr()
                     .ok_or_invalid_input(|| "no valid string found in ELF string table")?;
                 let name = SymName {
-                    idx,
+                    idx: name_idx,
                     // TODO: May want to use `CStr::count_bytes` once
                     //       our MSRV is >=1.79.
                     len: cname.to_bytes().len(),
                 };
-                Ok((name, i))
+                Ok((name, idx))
             })
             .collect::<Result<Box<[_]>>>()?;
 
@@ -613,13 +654,13 @@ impl<'mmap> Cache<'mmap> {
         Ok(None)
     }
 
-    fn parse_syms(&self, section: &str) -> Result<ElfN_BoxedSyms<'mmap>> {
+    fn parse_syms(&self, section: &str) -> Result<ElfN_Syms<'mmap>> {
         let ehdr = self.ensure_ehdr()?;
         let idx = if let Some(idx) = self.find_section(section)? {
             idx
         } else {
             // The symbol table does not exists. Fake an empty one.
-            return Ok(ElfN_BoxedSyms::empty(ehdr.is_32bit()))
+            return Ok(ElfN_Syms::empty(ehdr.is_32bit()))
         };
 
         let shdr = self.section_hdr(idx)?;
@@ -627,7 +668,7 @@ impl<'mmap> Cache<'mmap> {
         // which may only preserve (some) meta data but no section
         // contents.
         if shdr.type_() == SHT_NOBITS {
-            return Ok(ElfN_BoxedSyms::empty(ehdr.is_32bit()))
+            return Ok(ElfN_Syms::empty(ehdr.is_32bit()))
         }
 
         let sh_size = shdr.size();
@@ -647,46 +688,18 @@ impl<'mmap> Cache<'mmap> {
         // Short-circuit if there are no symbols. The data may not actually be
         // properly aligned in this case either, so don't attempt to even read.
         if count == 0 {
-            return Ok(ElfN_BoxedSyms::empty(ehdr.is_32bit()))
+            return Ok(ElfN_Syms::empty(ehdr.is_32bit()))
         }
 
         let mut data = self.section_data_raw(idx)?;
         let syms = if ehdr.is_32bit() {
-            let slice = data
-                .read_pod_slice_ref::<Elf32_Sym>(count)
-                .ok_or_invalid_data(|| {
-                    format!("failed to read ELF {section} symbol table contents")
-                })?;
-            let mut syms = slice
-                .iter()
-                // Filter out any symbols that we do not support.
-                .filter(|sym| sym.matches(SymType::Undefined))
-                .collect::<Box<[&_]>>();
-            // Order symbols by address and those with equal address descending by
-            // size.
-            let () = syms.sort_by(|sym1, sym2| {
-                sym1.st_value
-                    .cmp(&sym2.st_value)
-                    .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
-            });
-            ElfN_BoxedSyms::B32(syms)
+            data.read_pod_slice_ref::<Elf32_Sym>(count)
+                .map(ElfN_Syms::B32)
         } else {
-            let slice = data
-                .read_pod_slice_ref::<Elf64_Sym>(count)
-                .ok_or_invalid_data(|| {
-                    format!("failed to read ELF {section} symbol table contents")
-                })?;
-            let mut syms = slice
-                .iter()
-                .filter(|sym| sym.matches(SymType::Undefined))
-                .collect::<Box<[&_]>>();
-            let () = syms.sort_by(|sym1, sym2| {
-                sym1.st_value
-                    .cmp(&sym2.st_value)
-                    .then_with(|| sym1.st_size.cmp(&sym2.st_size).reverse())
-            });
-            ElfN_BoxedSyms::B64(syms)
-        };
+            data.read_pod_slice_ref::<Elf64_Sym>(count)
+                .map(ElfN_Syms::B64)
+        }
+        .ok_or_invalid_data(|| format!("failed to read ELF {section} symbol table contents"))?;
 
         Ok(syms)
     }
@@ -713,7 +726,7 @@ impl<'mmap> Cache<'mmap> {
     }
 
     #[cfg(test)]
-    fn ensure_symtab(&self) -> Result<&ElfN_BoxedSyms<'_>> {
+    fn ensure_symtab(&self) -> Result<&ElfN_Syms<'_>> {
         let symtab = self.ensure_symtab_cache()?;
         Ok(&symtab.syms)
     }
@@ -735,12 +748,15 @@ impl<'mmap> Cache<'mmap> {
 
     fn ensure_str2dynsym(&self) -> Result<&[(SymName, usize)]> {
         let symtab = self.ensure_symtab_cache()?;
+        let symtab_by_addr_idx = symtab.ensure_by_addr_idx();
+
         let dynsym = self.ensure_dynsym_cache()?;
         let str2sym = dynsym.ensure_str2sym(|sym| {
             // We filter out all the symbols that already exist in symtab,
             // to prevent any duplicates from showing up.
             let result = find_sym(
                 &symtab.syms,
+                symtab_by_addr_idx,
                 symtab.strs,
                 sym.value(),
                 // SANITY: We filter out all unsupported symbol types,
@@ -831,8 +847,11 @@ impl ElfParser {
         let _opts = opts;
 
         let symtab_cache = self.cache.ensure_symtab_cache()?;
+        let symtab_by_addr_idx = symtab_cache.ensure_by_addr_idx();
+
         if let Some(sym) = find_sym(
             &symtab_cache.syms,
+            symtab_by_addr_idx,
             symtab_cache.strs,
             addr,
             SymType::Undefined,
@@ -841,8 +860,10 @@ impl ElfParser {
         }
 
         let dynsym_cache = self.cache.ensure_dynsym_cache()?;
+        let dynsym_by_addr_idx = dynsym_cache.ensure_by_addr_idx();
         if let Some(sym) = find_sym(
             &dynsym_cache.syms,
+            dynsym_by_addr_idx,
             dynsym_cache.strs,
             addr,
             SymType::Undefined,
@@ -891,7 +912,7 @@ impl ElfParser {
         name: &str,
         opts: &FindAddrOpts,
         shdrs: &ElfN_Shdrs<'_>,
-        syms: &ElfN_BoxedSyms,
+        syms: &ElfN_Syms,
         strs: &'slf [u8],
         str2sym: &'slf [(SymName, usize)],
     ) -> Result<Vec<SymInfo<'slf>>> {
@@ -959,7 +980,7 @@ impl ElfParser {
     fn for_each_sym_impl(
         &self,
         opts: &FindAddrOpts,
-        syms: &ElfN_BoxedSyms<'_>,
+        syms: &ElfN_Syms<'_>,
         strs: &[u8],
         str2sym: &[(SymName, usize)],
         f: &mut ForEachFn<'_>,
@@ -1069,14 +1090,15 @@ impl ElfParser {
 
     #[cfg(test)]
     fn pick_symtab_addr(&self) -> (&str, Addr, usize) {
-        let symtab = self.cache.ensure_symtab().unwrap();
+        let cache = self.cache.ensure_symtab_cache().unwrap();
+        let by_addr_idx = cache.ensure_by_addr_idx();
 
-        let mut idx = symtab.len() / 2;
+        let mut idx = by_addr_idx.len() / 2;
         let (addr, size) = loop {
-            let sym = symtab.get(idx).unwrap();
+            let sym = cache.syms.get(idx).unwrap();
             if sym.matches(SymType::Function) {
                 if sym.shndx() != SHN_UNDEF {
-                    let sym = symtab.get(idx).unwrap();
+                    let sym = cache.syms.get(idx).unwrap();
                     break (sym.value(), sym.size())
                 }
             }
@@ -1463,39 +1485,37 @@ mod tests {
     /// match.
     #[test]
     fn lookup_symbol_without_match() {
-        let strtab = b"\x00_glapi_tls_Context\x00_glapi_get_dispatch_table_size\x00";
-        let symtab = ElfN_BoxedSyms::B64(
-            [
-                &Elf64_Sym {
-                    st_name: 0,
-                    st_info: 0,
-                    st_other: 0,
-                    st_shndx: 0,
-                    st_value: 0,
-                    st_size: 0,
-                },
-                &Elf64_Sym {
-                    st_name: 0x1,
-                    // Note: the type is *not* `STT_FUNC`.
-                    st_info: 0x16,
-                    st_other: 0x0,
-                    st_shndx: 0x14,
-                    st_value: 0x8,
-                    st_size: 0x8,
-                },
-                &Elf64_Sym {
-                    st_name: 0x21,
-                    st_info: 0x12,
-                    st_other: 0x0,
-                    st_shndx: 0xe,
-                    st_value: 0x1a4a0,
-                    st_size: 0xa,
-                },
-            ]
-            .into(),
-        );
+        let strs = b"\x00_glapi_tls_Context\x00_glapi_get_dispatch_table_size\x00";
+        let syms = ElfN_Syms::B64(&[
+            Elf64_Sym {
+                st_name: 0x21,
+                st_info: 0x12,
+                st_other: 0x0,
+                st_shndx: 0xe,
+                st_value: 0x1a4a0,
+                st_size: 0xa,
+            },
+            Elf64_Sym {
+                st_name: 0x1,
+                // Note: the type is *not* `STT_FUNC`.
+                st_info: 0x16,
+                st_other: 0x0,
+                st_shndx: 0x14,
+                st_value: 0x8,
+                st_size: 0x8,
+            },
+            Elf64_Sym {
+                st_name: 0,
+                st_info: 0,
+                st_other: 0,
+                st_shndx: 0,
+                st_value: 0,
+                st_size: 0,
+            },
+        ]);
+        let by_addr_idx = [2, 1, 0];
 
-        let result = find_sym(&symtab, strtab, 0x10d20, SymType::Function).unwrap();
+        let result = find_sym(&syms, &by_addr_idx, strs, 0x10d20, SymType::Function).unwrap();
         assert_eq!(result, None);
     }
 
@@ -1503,9 +1523,9 @@ mod tests {
     /// reported, if it is the only conceivable match.
     #[test]
     fn lookup_symbol_with_unknown_size() {
-        fn test(symtab: &ElfN_BoxedSyms<'_>) {
-            let strtab = b"\x00__libc_init_first\x00versionsort64\x00";
-            let sym = find_sym(symtab, strtab, 0x29d00, SymType::Function)
+        fn test(syms: &ElfN_Syms<'_>, by_addr_idx: &[usize]) {
+            let strs = b"\x00__libc_init_first\x00versionsort64\x00";
+            let sym = find_sym(syms, by_addr_idx, strs, 0x29d00, SymType::Function)
                 .unwrap()
                 .unwrap();
             assert_eq!(sym.name, "__libc_init_first");
@@ -1515,7 +1535,7 @@ mod tests {
             // Because the symbol has a size of 0 and is the only conceivable
             // match, we report it on the basis that ELF reserves these for "no
             // size or an unknown size" cases.
-            let sym = find_sym(symtab, strtab, 0x29d90, SymType::Function)
+            let sym = find_sym(syms, by_addr_idx, strs, 0x29d90, SymType::Function)
                 .unwrap()
                 .unwrap();
             assert_eq!(sym.name, "__libc_init_first");
@@ -1525,12 +1545,12 @@ mod tests {
             // Note that despite of the first symbol (the invalid one; present
             // by default and reserved by ELF), is not being reported here
             // because it has an `st_shndx` value of `SHN_UNDEF`.
-            let result = find_sym(symtab, strtab, 0x1, SymType::Function).unwrap();
+            let result = find_sym(syms, by_addr_idx, strs, 0x1, SymType::Function).unwrap();
             assert_eq!(result, None);
         }
 
-        let symtab = [
-            &Elf64_Sym {
+        let syms = ElfN_Syms::B64(&[
+            Elf64_Sym {
                 st_name: 0,
                 st_info: 0,
                 st_other: 0,
@@ -1538,15 +1558,7 @@ mod tests {
                 st_value: 0,
                 st_size: 0,
             },
-            &Elf64_Sym {
-                st_name: 0x1,
-                st_info: 0x12,
-                st_other: 0x0,
-                st_shndx: 0xf,
-                st_value: 0x29d00,
-                st_size: 0x0,
-            },
-            &Elf64_Sym {
+            Elf64_Sym {
                 st_name: 0xdeadbeef,
                 st_info: 0x12,
                 st_other: 0x0,
@@ -1554,10 +1566,19 @@ mod tests {
                 st_value: 0x29dc0,
                 st_size: 0x148,
             },
-        ];
+            Elf64_Sym {
+                st_name: 0x1,
+                st_info: 0x12,
+                st_other: 0x0,
+                st_shndx: 0xf,
+                st_value: 0x29d00,
+                st_size: 0x0,
+            },
+        ]);
+        let by_addr_idx = [0, 2, 1];
 
-        test(&ElfN_BoxedSyms::B64(symtab.into()));
-        test(&ElfN_BoxedSyms::B64(symtab[0..2].into()));
+        test(&syms, &by_addr_idx);
+        test(&syms, &by_addr_idx[0..2]);
     }
 
     /// Check that we can properly read empty symbol tables, even if not
