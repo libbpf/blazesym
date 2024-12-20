@@ -82,10 +82,10 @@ where
         }
     }
 
-    pub fn iter(&self) -> impl ExactSizeIterator<Item = ElfN<'elf, T>> {
+    pub fn iter(&self, start_idx: usize) -> impl ExactSizeIterator<Item = ElfN<'elf, T>> {
         match self {
-            Self::B32(slice) => Either::A(slice.iter().map(ElfN::B32)),
-            Self::B64(slice) => Either::B(slice.iter().map(ElfN::B64)),
+            Self::B32(slice) => Either::A(slice[start_idx..].iter().map(|x| ElfN::B32(x))),
+            Self::B64(slice) => Either::B(slice[start_idx..].iter().map(|x| ElfN::B64(x))),
         }
     }
 }

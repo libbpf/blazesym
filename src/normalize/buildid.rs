@@ -22,7 +22,7 @@ pub type BuildId<'src> = Cow<'src, [u8]>;
 /// [`NT_GNU_BUILD_ID`][elf::types::NT_GNU_BUILD_ID].
 fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
     let shdrs = parser.section_headers()?;
-    for (idx, shdr) in shdrs.iter().enumerate() {
+    for (idx, shdr) in shdrs.iter(0).enumerate() {
         if shdr.type_() == elf::types::SHT_NOTE {
             // SANITY: We just found the index so the section data should always
             //         be found.
