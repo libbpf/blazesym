@@ -985,7 +985,7 @@ impl ElfParser {
     // method instead.
     pub(crate) fn find_file_offset(&self, addr: Addr) -> Result<Option<u64>> {
         let phdrs = self.program_headers()?;
-        let offset = phdrs.iter().find_map(|phdr| {
+        let offset = phdrs.iter(0).find_map(|phdr| {
             let phdr = phdr.to_64bit();
 
             if phdr.p_type == PT_LOAD {
@@ -1019,7 +1019,7 @@ impl ElfParser {
     /// Translate a file offset into a virtual offset.
     pub(crate) fn file_offset_to_virt_offset(&self, offset: u64) -> Result<Option<Addr>> {
         let phdrs = self.program_headers()?;
-        let addr = phdrs.iter().find_map(|phdr| {
+        let addr = phdrs.iter(0).find_map(|phdr| {
             let phdr = phdr.to_64bit();
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&offset) {
