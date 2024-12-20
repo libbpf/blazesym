@@ -277,6 +277,15 @@ impl<'mmap> Cache<'mmap> {
         }
     }
 
+    /// A convenience helper for retrieving a given ELF section header.
+    fn section_hdr(&self, idx: usize) -> Result<ElfN_Shdr<'_>> {
+        let shdrs = self.ensure_shdrs()?;
+        let shdr = shdrs
+            .get(idx)
+            .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?;
+        Ok(shdr)
+    }
+
     /// Retrieve the raw section data for the ELF section at index
     /// `idx`.
     ///
@@ -285,11 +294,7 @@ impl<'mmap> Cache<'mmap> {
     /// able to do so with 'mmap lifetime. To transparently decompress,
     /// use [`Cache::section_data`] instead.
     fn section_data_raw(&self, idx: usize) -> Result<&'mmap [u8]> {
-        let shdrs = self.ensure_shdrs()?;
-        let shdr = shdrs
-            .get(idx)
-            .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?;
-
+        let shdr = self.section_hdr(idx)?;
         if shdr.type_() != SHT_NOBITS {
             let data = self
                 .elf_data
@@ -309,17 +314,15 @@ impl<'mmap> Cache<'mmap> {
     /// If the section is compressed the resulting decompressed data
     /// will be cached for the life time of this object.
     fn section_data(&self, idx: usize) -> Result<&[u8]> {
-        let shdrs = self.ensure_shdrs()?;
-        let shdr = shdrs
-            .get(idx)
-            .ok_or_invalid_input(|| format!("ELF section index ({idx}) out of bounds"))?;
-
+        let shdr = self.section_hdr(idx)?;
         if shdr.type_() != SHT_NOBITS {
-            let datas = self.section_data.get_or_init(|| {
-                (0..shdrs.len())
+            let datas = self.section_data.get_or_try_init(|| {
+                let shdrs = self.ensure_shdrs()?;
+                let datas = (0..shdrs.len())
                     .map(|_| OnceCell::new())
-                    .collect::<Box<[_]>>()
-            });
+                    .collect::<Box<[_]>>();
+                Result::<_, Error>::Ok(datas)
+            })?;
 
             datas
                 .get(idx)
@@ -546,12 +549,8 @@ impl<'mmap> Cache<'mmap> {
 
     /// Get the name of the section at a given index.
     fn section_name(&self, idx: usize) -> Result<&'mmap str> {
-        let shdrs = self.ensure_shdrs()?;
+        let shdr = self.section_hdr(idx)?;
         let shstrtab = self.ensure_shstrtab()?;
-
-        let shdr = shdrs
-            .get(idx)
-            .ok_or_invalid_input(|| "ELF section index out of bounds")?;
 
         let name = shstrtab
             .get(shdr.name() as usize..)
@@ -595,27 +594,38 @@ impl<'mmap> Cache<'mmap> {
             // The symbol table does not exists. Fake an empty one.
             return Ok(ElfN_BoxedSyms::empty(ehdr.is_32bit()))
         };
-        let mut syms = self.section_data_raw(idx)?;
+
+        let shdr = self.section_hdr(idx)?;
+        // There may be no data in case of certain split debug binaries,
+        // which may only preserve (some) meta data but no section
+        // contents.
+        if shdr.type_() == SHT_NOBITS {
+            return Ok(ElfN_BoxedSyms::empty(ehdr.is_32bit()))
+        }
+
+        let sh_size = shdr.size();
         let sym_size = if ehdr.is_32bit() {
             mem::size_of::<Elf32_Sym>()
         } else {
             mem::size_of::<Elf64_Sym>()
-        };
+        } as u64;
 
-        if syms.len() % sym_size != 0 {
+        if sh_size % sym_size != 0 {
             return Err(Error::with_invalid_data(
                 "size of ELF symbol table section is invalid",
             ))
         }
 
-        let count = syms.len() / sym_size;
+        let count = (sh_size / sym_size) as usize;
         // Short-circuit if there are no symbols. The data may not actually be
         // properly aligned in this case either, so don't attempt to even read.
         if count == 0 {
             return Ok(ElfN_BoxedSyms::empty(ehdr.is_32bit()))
         }
+
+        let mut data = self.section_data_raw(idx)?;
         let syms = if ehdr.is_32bit() {
-            let slice = syms
+            let slice = data
                 .read_pod_slice_ref::<Elf32_Sym>(count)
                 .ok_or_invalid_data(|| {
                     format!("failed to read ELF {section} symbol table contents")
@@ -634,7 +644,7 @@ impl<'mmap> Cache<'mmap> {
             });
             ElfN_BoxedSyms::B32(syms)
         } else {
-            let slice = syms
+            let slice = data
                 .read_pod_slice_ref::<Elf64_Sym>(count)
                 .ok_or_invalid_data(|| {
                     format!("failed to read ELF {section} symbol table contents")
