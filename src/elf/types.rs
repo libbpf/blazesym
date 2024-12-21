@@ -103,54 +103,6 @@ where
 }
 
 
-#[derive(Debug)]
-pub(crate) enum ElfNBoxedSlice<'elf, T>
-where
-    T: Has32BitTy,
-{
-    B32(Box<[&'elf T::Ty32Bit]>),
-    B64(Box<[&'elf T]>),
-}
-
-impl<'elf, T> ElfNBoxedSlice<'elf, T>
-where
-    T: Has32BitTy,
-{
-    pub fn empty(tybit32: bool) -> Self {
-        if tybit32 {
-            Self::B32(Box::new([]))
-        } else {
-            Self::B64(Box::new([]))
-        }
-    }
-
-    pub fn get(&self, idx: usize) -> Option<ElfN<'elf, T>> {
-        match self {
-            Self::B32(slice) => Some(ElfN::B32(*slice.get(idx)?)),
-            Self::B64(slice) => Some(ElfN::B64(*slice.get(idx)?)),
-        }
-    }
-
-    pub fn len(&self) -> usize {
-        match self {
-            Self::B32(slice) => slice.len(),
-            Self::B64(slice) => slice.len(),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn iter(&self, start_idx: usize) -> impl ExactSizeIterator<Item = ElfN<'_, T>> {
-        match self {
-            Self::B32(slice) => Either::A(slice[start_idx..].iter().map(|x| ElfN::B32(*x))),
-            Self::B64(slice) => Either::B(slice[start_idx..].iter().map(|x| ElfN::B64(*x))),
-        }
-    }
-}
-
-
 pub(crate) trait Has32BitTy {
     type Ty32Bit;
 }
@@ -568,7 +520,6 @@ impl Has32BitTy for Elf64_Sym {
 
 pub(crate) type ElfN_Sym<'elf> = ElfN<'elf, Elf64_Sym>;
 pub(crate) type ElfN_Syms<'elf> = ElfNSlice<'elf, Elf64_Sym>;
-pub(crate) type ElfN_BoxedSyms<'elf> = ElfNBoxedSlice<'elf, Elf64_Sym>;
 
 impl ElfN_Sym<'_> {
     #[inline]
