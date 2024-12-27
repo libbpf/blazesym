@@ -20,7 +20,7 @@ use std::path::PathBuf;
 
 use crate::elf::ElfParser;
 use crate::error::IntoError as _;
-use crate::util::align_up;
+use crate::util::align_up_usize;
 use crate::util::bytes_to_os_str;
 use crate::util::ReadRaw as _;
 use crate::Result;
@@ -162,7 +162,7 @@ fn parse_debug_link_section_data(mut data: &[u8]) -> Result<Option<(&OsStr, u32)
     // The offset is aligned to the next four byte boundary relative to
     // the start of the section.
     let align = 4;
-    let crc_offset = align_up(cur_offset, align);
+    let crc_offset = align_up_usize(cur_offset, align);
     let () = data
         .advance(crc_offset - cur_offset)
         .ok_or_invalid_data(|| {
