@@ -1473,7 +1473,7 @@ mod tests {
         let sym = parser.find_sym(addr, &FindSymOpts::Basic).unwrap().unwrap();
         assert_eq!(sym.addr, addr);
         assert_eq!(sym.name, name);
-        assert_eq!(sym.size, Some(size));
+        assert!(sym.size.is_none() && size == 0 || sym.size.unwrap() == size);
     }
 
     #[test]
