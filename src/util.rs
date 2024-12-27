@@ -82,6 +82,17 @@ where
 }
 
 
+/// Align a value to the next power of two.
+pub(crate) fn align_up(value: usize, align_to: usize) -> usize {
+    debug_assert_eq!(
+        align_to.next_power_of_two(),
+        align_to,
+        "alignment ({align_to}) is no power of two"
+    );
+    (value + (align_to - 1)) & !(align_to - 1)
+}
+
+
 /// Split a byte slice at the first byte for which `check` returns
 /// `true`.
 ///
@@ -716,6 +727,28 @@ mod tests {
             format!("{dbg:?}"),
             format!("{:?}", &dbg.0 .0 as *const usize)
         );
+    }
+
+    /// Check that we can properly align values to a power of two.
+    #[tag(miri)]
+    #[test]
+    fn upwards_alignment() {
+        assert_eq!(align_up(0, 4), 0);
+        assert_eq!(align_up(1, 4), 4);
+        assert_eq!(align_up(2, 4), 4);
+        assert_eq!(align_up(3, 4), 4);
+        assert_eq!(align_up(4, 4), 4);
+        assert_eq!(align_up(5, 4), 8);
+    }
+
+    /// Make sure that `align_up` panics when attempting to align to
+    /// something other than a power of two.
+    #[cfg(debug_assertions)]
+    #[tag(miri)]
+    #[test]
+    #[should_panic = "alignment (3) is no power of two"]
+    fn upwards_alignment_no_power_of_two() {
+        assert_eq!(align_up(0, 3), 0);
     }
 
     /// Check that we can reorder elements in an array as expected.
