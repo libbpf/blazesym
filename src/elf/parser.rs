@@ -1249,6 +1249,8 @@ mod tests {
 
     use std::env;
     use std::env::current_exe;
+    #[cfg(feature = "nightly")]
+    use std::hint::black_box;
     use std::io::Write as _;
     use std::mem::size_of;
     use std::slice;
@@ -1256,6 +1258,9 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use test_log::test;
+
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -1819,5 +1824,31 @@ mod tests {
 
         let symtab = cache.ensure_symtab().unwrap();
         assert!(symtab.is_empty());
+    }
+
+    /// Benchmark creation of our "str2symtab" table.
+    ///
+    /// Creating this table exercises a lot of the parser code paths and
+    /// is expected to be a somewhat reasonable approximation of overall
+    /// end-to-end performance.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_str2sym_creation(b: &mut Bencher) {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("vmlinux-5.17.12-100.fc34.x86_64.elf");
+        let parser = ElfParser::open(&path).unwrap();
+        let mmap = &parser._backend;
+
+        // Our memory mapping is created only once and criterion does a
+        // few warm up runs that should make sure that everything is
+        // paged in. So we expect to benchmark parsing & data structure
+        // traversing performance here.
+
+        let () = b.iter(|| {
+            let cache = Cache::new(mmap.deref());
+            let syms = cache.ensure_str2symtab().unwrap();
+            let _syms = black_box(syms);
+        });
     }
 }
