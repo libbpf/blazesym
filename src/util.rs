@@ -82,15 +82,21 @@ where
 }
 
 
-/// Align a value to the next power of two.
-pub(crate) fn align_up(value: usize, align_to: usize) -> usize {
-    debug_assert_eq!(
-        align_to.next_power_of_two(),
-        align_to,
-        "alignment ({align_to}) is no power of two"
-    );
-    (value + (align_to - 1)) & !(align_to - 1)
+macro_rules! def_align_up {
+    ($name:ident, $type:ty) => {
+        /// Align a value to the next power of two.
+        pub(crate) fn $name(value: $type, align_to: $type) -> $type {
+            debug_assert_eq!(
+                align_to.next_power_of_two(),
+                align_to,
+                "alignment ({align_to}) is no power of two"
+            );
+            (value + (align_to - 1)) & !(align_to - 1)
+        }
+    };
 }
+
+def_align_up!(align_up_usize, usize);
 
 
 /// Split a byte slice at the first byte for which `check` returns
@@ -733,12 +739,12 @@ mod tests {
     #[tag(miri)]
     #[test]
     fn upwards_alignment() {
-        assert_eq!(align_up(0, 4), 0);
-        assert_eq!(align_up(1, 4), 4);
-        assert_eq!(align_up(2, 4), 4);
-        assert_eq!(align_up(3, 4), 4);
-        assert_eq!(align_up(4, 4), 4);
-        assert_eq!(align_up(5, 4), 8);
+        assert_eq!(align_up_usize(0, 4), 0);
+        assert_eq!(align_up_usize(1, 4), 4);
+        assert_eq!(align_up_usize(2, 4), 4);
+        assert_eq!(align_up_usize(3, 4), 4);
+        assert_eq!(align_up_usize(4, 4), 4);
+        assert_eq!(align_up_usize(5, 4), 8);
     }
 
     /// Make sure that `align_up` panics when attempting to align to
@@ -748,7 +754,7 @@ mod tests {
     #[test]
     #[should_panic = "alignment (3) is no power of two"]
     fn upwards_alignment_no_power_of_two() {
-        assert_eq!(align_up(0, 3), 0);
+        assert_eq!(align_up_usize(0, 3), 0);
     }
 
     /// Check that we can reorder elements in an array as expected.
