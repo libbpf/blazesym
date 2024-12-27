@@ -390,14 +390,14 @@ jobs:
       shell: bash
       run: |
         echo '```' >> $GITHUB_STEP_SUMMARY
-        cargo bench --workspace --features=nightly -- bench_ | tee --append $GITHUB_STEP_SUMMARY
+        cargo bench --workspace --features=nightly,blazesym-dev/generate-large-test-files -- bench_ | tee --append $GITHUB_STEP_SUMMARY
         # We use bencher format here for better relation to the above
         # but also because it emits less other crap into our summary.
         # Note that because libtest does not understand the
         # `--output-format` option, we need to specify the benchmark
         # binary (`main`) here and have a different invocation for
         # libtest style benchmarks above. Sigh.
-        cargo bench --workspace --bench=main --bench=capi --features=blazesym-dev/generate-large-test-files,blazesym-dev/dont-generate-unit-test-files -- --output-format=bencher | tee --append $GITHUB_STEP_SUMMARY
+        cargo bench --workspace --bench=main --bench=capi --features=blazesym-dev/dont-generate-unit-test-files -- --output-format=bencher | tee --append $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
   clippy:
     name: Lint with clippy
