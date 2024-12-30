@@ -15,11 +15,17 @@ jobs:
       shell: bash
       run: |
         cargo generate-lockfile
-        version="$(cargo pkgid | cut -d '#' -f2 | cut -d '@' -f2 | grep -o '[^:]*$')"
+        pkgid="$(cargo pkgid)"
+        # Format is typically
+        #   file://<path>/<crate>#<version>
+        # but could also be along the lines of
+        #   file://<path>/<crate>#<actual-crate-name>@<version>
+        version="$(echo ${pkgid} | cut -d '#' -f2 | cut -d '@' -f2 | grep -o '[^:]*$')"
         if [ -z "${version}" ]; then
-          echo "Invalid version number"
+          echo "Invalid version string: ${pkgid}"
           exit 1
         fi
+        echo "Determined crate version: ${version}"
         echo "version=${version}" >> $GITHUB_OUTPUT
   test:
     uses: ./.github/workflows/test.yml
