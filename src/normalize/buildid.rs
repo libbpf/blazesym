@@ -6,7 +6,6 @@ use crate::elf;
 use crate::elf::types::ElfN_Nhdr;
 use crate::elf::ElfParser;
 use crate::file_cache::FileCache;
-use crate::log::warn;
 use crate::util::align_up_u32;
 use crate::util::ReadRaw as _;
 use crate::Error;
@@ -21,7 +20,7 @@ pub type BuildId<'src> = Cow<'src, [u8]>;
 
 /// Iterate over all note sections to find one of type
 /// [`NT_GNU_BUILD_ID`][elf::types::NT_GNU_BUILD_ID].
-fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
+fn read_build_id(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
     let shdrs = parser.section_headers()?;
     for (idx, shdr) in shdrs.iter(0).enumerate() {
         if shdr.type_() == elf::types::SHT_NOTE {
@@ -56,61 +55,6 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
     Ok(None)
 }
 
-/// Attempt to read an ELF binary's build ID from the .note.gnu.build-id
-/// section.
-fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
-    let build_id_section = ".note.gnu.build-id";
-    // The build ID is contained in the `.note.gnu.build-id` section. See
-    // elf(5).
-    if let Ok(Some(idx)) = parser.find_section(build_id_section) {
-        // SANITY: We just found the index so the section should always be
-        //         found.
-        let shdr = parser.section_headers()?.get(idx).unwrap();
-        let sh_type = shdr.type_();
-
-        if sh_type != elf::types::SHT_NOTE {
-            warn!("build ID section {build_id_section} is of unsupported type ({sh_type})");
-            return Ok(None)
-        }
-
-        // SANITY: We just found the index so the section should always be
-        //         found.
-        let mut bytes = parser.section_data(idx).unwrap();
-        let (n_namesz, n_descsz) = {
-            let nhdr = bytes
-                .read_pod_ref::<ElfN_Nhdr>()
-                .ok_or_invalid_data(|| "failed to read build ID section header")?;
-            (nhdr.n_namesz, nhdr.n_descsz)
-        };
-
-        let name = bytes
-            .read_slice(n_namesz as _)
-            .and_then(|mut name| name.read_cstr())
-            .ok_or_invalid_data(|| "failed to read build ID section name")?;
-        if name.to_bytes() != b"GNU" {
-            warn!("encountered unsupported build ID type {:?}; ignoring", name);
-            Ok(None)
-        } else {
-            let build_id = bytes
-                .read_slice(n_descsz as _)
-                .ok_or_invalid_data(|| "failed to read build ID section contents")?;
-            Ok(Some(Cow::Borrowed(build_id)))
-        }
-    } else {
-        Ok(None)
-    }
-}
-
-
-fn read_build_id_impl(parser: &ElfParser) -> Result<Option<BuildId>> {
-    if let Some(build_id) = read_build_id_from_section_name(parser)? {
-        Ok(Some(build_id))
-    } else if let Some(build_id) = read_build_id_from_notes(parser)? {
-        Ok(Some(build_id))
-    } else {
-        Ok(None)
-    }
-}
 
 pub(super) trait BuildIdReader<'src> {
     fn read_build_id(&self, path: &Path) -> Option<BuildId<'src>> {
@@ -138,7 +82,7 @@ impl BuildIdReader<'_> for DefaultBuildIdReader {
     /// Attempt to read an ELF binary's build ID from a file.
     fn read_build_id_fallible(&self, path: &Path) -> Result<Option<BuildId<'static>>> {
         let parser = ElfParser::open(path)?;
-        let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+        let buildid = read_build_id(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
         Ok(buildid)
     }
 }
@@ -163,8 +107,7 @@ impl<'src> BuildIdReader<'src> for CachingBuildIdReader<'src> {
         let build_id = cell
             .get_or_try_init(|| {
                 let parser = ElfParser::open_file(file, path)?;
-                let buildid =
-                    read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+                let buildid = read_build_id(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
                 Result::<_, Error>::Ok(buildid)
             })?
             .as_deref()
@@ -227,7 +170,7 @@ where
     P: AsRef<Path> + ?Sized,
 {
     let parser = ElfParser::open(path.as_ref())?;
-    let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+    let buildid = read_build_id(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
     Ok(buildid)
 }
 
@@ -240,7 +183,7 @@ where
 #[inline]
 pub fn read_elf_build_id_from_mmap(mmap: &Mmap) -> Result<Option<BuildId<'static>>> {
     let parser = ElfParser::from_mmap(mmap.clone(), None);
-    let buildid = read_build_id_impl(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
+    let buildid = read_build_id(&parser)?.map(|buildid| Cow::Owned(buildid.to_vec()));
     Ok(buildid)
 }
 
@@ -271,10 +214,8 @@ mod tests {
             assert_eq!(build_id.len(), 20, "'{build_id:?}'");
         }
 
-        test("libtest-so.so", read_build_id_from_section_name);
-        test("libtest-so.so", read_build_id_from_notes);
-        test("libtest-so-32.so", read_build_id_from_section_name);
-        test("libtest-so-32.so", read_build_id_from_notes);
+        test("libtest-so.so", read_build_id);
+        test("libtest-so-32.so", read_build_id);
     }
 
     /// Check that we can read a binary's build ID.
