@@ -101,9 +101,7 @@ impl GsymContext<'_> {
             let num_addrs = data.read_u32()?;
             let strtab_offset = data.read_u32()?;
             let strtab_size = data.read_u32()?;
-            // SANITY: We know that the slice has 20 elements if read
-            //         successful.
-            let uuid = <[u8; 20]>::try_from(data.read_slice(20)?).unwrap();
+            let uuid = data.read_array::<20>()?;
 
             let addr_tab = data.read_slice(num_addrs as usize * usize::from(addr_off_size))?;
             let () = data.align(align_of::<u32>())?;
