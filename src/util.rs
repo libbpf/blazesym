@@ -96,6 +96,8 @@ macro_rules! def_align_up {
     };
 }
 
+#[cfg(test)]
+def_align_up!(align_up_u32, u32);
 def_align_up!(align_up_usize, usize);
 
 

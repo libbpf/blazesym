@@ -11,6 +11,8 @@ pub(crate) mod types;
 //       of concerns that is not a workable location.
 pub(crate) static DEFAULT_DEBUG_DIRS: &[&str] = &["/usr/lib/debug", "/lib/debug/"];
 
+#[cfg(test)]
+pub(crate) use parser::BackendImpl;
 pub(crate) use parser::ElfParser;
 pub(crate) use resolver::ElfResolverData;
 
