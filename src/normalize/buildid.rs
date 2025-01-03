@@ -2,8 +2,7 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use crate::elf;
-use crate::elf::types::Elf32_Nhdr;
-use crate::elf::types::Elf64_Nhdr;
+use crate::elf::types::ElfN_Nhdr;
 use crate::elf::ElfParser;
 use crate::file_cache::FileCache;
 use crate::log::warn;
@@ -27,14 +26,9 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
             // SANITY: We just found the index so the section data should always
             //         be found.
             let mut bytes = parser.section_data(idx).unwrap();
-            let (n_type, n_namesz, n_descsz) = if shdr.is_32bit() {
+            let (n_type, n_namesz, n_descsz) = {
                 let nhdr = bytes
-                    .read_pod_ref::<Elf32_Nhdr>()
-                    .ok_or_invalid_data(|| "failed to read build ID section header")?;
-                (nhdr.n_type, nhdr.n_namesz, nhdr.n_descsz)
-            } else {
-                let nhdr = bytes
-                    .read_pod_ref::<Elf64_Nhdr>()
+                    .read_pod_ref::<ElfN_Nhdr>()
                     .ok_or_invalid_data(|| "failed to read build ID section header")?;
                 (nhdr.n_type, nhdr.n_namesz, nhdr.n_descsz)
             };
@@ -75,14 +69,9 @@ fn read_build_id_from_section_name(parser: &ElfParser) -> Result<Option<BuildId<
         // SANITY: We just found the index so the section should always be
         //         found.
         let mut bytes = parser.section_data(idx).unwrap();
-        let (n_namesz, n_descsz) = if shdr.is_32bit() {
+        let (n_namesz, n_descsz) = {
             let nhdr = bytes
-                .read_pod_ref::<Elf32_Nhdr>()
-                .ok_or_invalid_data(|| "failed to read build ID section header")?;
-            (nhdr.n_namesz, nhdr.n_descsz)
-        } else {
-            let nhdr = bytes
-                .read_pod_ref::<Elf64_Nhdr>()
+                .read_pod_ref::<ElfN_Nhdr>()
                 .ok_or_invalid_data(|| "failed to read build ID section header")?;
             (nhdr.n_namesz, nhdr.n_descsz)
         };

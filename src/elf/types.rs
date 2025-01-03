@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::mem::size_of;
 
 use crate::util::Either;
 use crate::util::Pod;
@@ -612,6 +613,10 @@ unsafe impl Pod for Elf64_Nhdr {}
 impl Has32BitTy for Elf64_Nhdr {
     type Ty32Bit = Elf32_Nhdr;
 }
+
+const _: () = assert!(size_of::<Elf32_Nhdr>() == size_of::<Elf64_Nhdr>());
+
+pub(crate) type ElfN_Nhdr = Elf64_Nhdr;
 
 
 #[derive(Clone, Debug)]
