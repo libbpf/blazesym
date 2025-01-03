@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::mem::size_of;
 use std::path::Path;
 
 use crate::elf;
@@ -6,6 +7,7 @@ use crate::elf::types::ElfN_Nhdr;
 use crate::elf::ElfParser;
 use crate::file_cache::FileCache;
 use crate::log::warn;
+use crate::util::align_up_u32;
 use crate::util::ReadRaw as _;
 use crate::Error;
 use crate::IntoError as _;
@@ -26,23 +28,28 @@ fn read_build_id_from_notes(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
             // SANITY: We just found the index so the section data should always
             //         be found.
             let mut bytes = parser.section_data(idx).unwrap();
-            let (n_type, n_namesz, n_descsz) = {
+
+            while bytes.len() >= size_of::<ElfN_Nhdr>() {
                 let nhdr = bytes
                     .read_pod_ref::<ElfN_Nhdr>()
                     .ok_or_invalid_data(|| "failed to read build ID section header")?;
-                (nhdr.n_type, nhdr.n_namesz, nhdr.n_descsz)
-            };
 
-            if n_type == elf::types::NT_GNU_BUILD_ID {
                 // Type check is assumed to suffice, but we still need
                 // to skip the name bytes.
-                let _name = bytes
-                    .read_slice(n_namesz as _)
-                    .ok_or_invalid_data(|| "failed to read build ID section name")?;
-                let build_id = bytes
-                    .read_slice(n_descsz as _)
-                    .ok_or_invalid_data(|| "failed to read build ID section contents")?;
-                return Ok(Some(Cow::Borrowed(build_id)))
+                let () = bytes
+                    .advance(align_up_u32(nhdr.n_namesz, 4) as _)
+                    .ok_or_invalid_data(|| "failed to skip over ELF note name")?;
+
+                if nhdr.n_type == elf::types::NT_GNU_BUILD_ID {
+                    let build_id = bytes
+                        .read_slice(nhdr.n_descsz as _)
+                        .ok_or_invalid_data(|| "failed to read build ID section contents")?;
+                    return Ok(Some(Cow::Borrowed(build_id)))
+                } else {
+                    let () = bytes
+                        .advance(align_up_u32(nhdr.n_descsz, 4) as _)
+                        .ok_or_invalid_data(|| "failed to skip over ELF note descriptor")?;
+                }
             }
         }
     }
