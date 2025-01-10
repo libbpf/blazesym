@@ -244,9 +244,9 @@ jobs:
       with:
         files: lcov.info
   build-test-artifacts:
-    # Only run tests on other operating systems tests on the final push.
-    # They are very unlikely to break at runtime (we build them anyway),
-    # but take quite a bit longer than Linux based ones.
+    # Only run tests on other operating systems on the final push. They
+    # are very unlikely to break at runtime (we build them anyway), but
+    # take quite a bit longer than Linux based ones.
     if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
     name: Build test artifacts
     runs-on: ubuntu-24.04
