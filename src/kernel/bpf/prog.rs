@@ -63,7 +63,7 @@ impl FromStr for BpfTag {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.as_bytes().len() != 2 * size_of::<BpfTag>() {
+        if s.len() != 2 * size_of::<BpfTag>() {
             return Err(())
         }
 
