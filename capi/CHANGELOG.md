@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Introduced `blaze_trace` function for tapping into the library's
   tracing functionality
+- Added `size` attribute to `blaze_sym` type
 
 
 0.1.0-rc.2

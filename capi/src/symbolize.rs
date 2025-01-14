@@ -456,6 +456,13 @@ pub struct blaze_sym {
     /// context (which may have been relocated and/or have layout randomizations
     /// applied).
     pub offset: usize,
+    /// The size of the symbol.
+    ///
+    /// If the symbol's size is not available, this member will be `-1`.
+    /// Note that some symbol sources may not distinguish between
+    /// "unknown" size and `0`. In that case the size will be reported
+    /// as `0` here as well.
+    pub size: isize,
     /// Source code location information for the symbol.
     pub code_info: blaze_symbolize_code_info,
     /// The number of symbolized inlined function calls present.
@@ -768,6 +775,10 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
                 sym_ref.name = name_ptr;
                 sym_ref.addr = sym.addr;
                 sym_ref.offset = sym.offset;
+                sym_ref.size = sym
+                    .size
+                    .map(|size| isize::try_from(size).unwrap_or(isize::MAX))
+                    .unwrap_or(-1);
                 convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut make_cstr);
                 sym_ref.inlined_cnt = sym.inlined.len();
                 sym_ref.inlined = inlined_last;
@@ -1123,7 +1134,7 @@ mod tests {
         assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_code_info>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_inlined_fn>(), 48);
-        assert_eq!(mem::size_of::<blaze_sym>(), 80);
+        assert_eq!(mem::size_of::<blaze_sym>(), 88);
     }
 
     /// Exercise the `Debug` representation of various types.
@@ -1185,6 +1196,7 @@ mod tests {
             name: ptr::null(),
             addr: 0x1337,
             offset: 24,
+            size: 16,
             code_info: blaze_symbolize_code_info {
                 dir: ptr::null(),
                 file: ptr::null(),
@@ -1199,7 +1211,7 @@ mod tests {
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, offset: 24, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym { name: 0x0, addr: 4919, offset: 24, size: 16, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let inlined = blaze_symbolize_inlined_fn {
@@ -1324,6 +1336,7 @@ mod tests {
                     name,
                     addr,
                     offset,
+                    size,
                     code_info,
                     inlined_cnt,
                     inlined,
@@ -1334,6 +1347,7 @@ mod tests {
                 let () = touch_cstr(*name);
                 let _x = touch(addr);
                 let _x = touch(offset);
+                let _x = touch(size);
                 let () = touch_code_info(code_info);
 
                 for j in 0..*inlined_cnt {
@@ -1465,6 +1479,7 @@ mod tests {
             );
             assert_eq!(sym.addr, 0x2000100);
             assert_eq!(sym.offset, 0);
+            assert!(sym.size > 0);
 
             if has_code_info {
                 assert!(!sym.code_info.dir.is_null());
@@ -1601,6 +1616,7 @@ mod tests {
         let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
         let sym = &syms[0];
         assert!(!sym.name.is_null());
+        assert!(sym.size > 0);
         assert_eq!(
             unsafe { CStr::from_ptr(sym.name) },
             CStr::from_bytes_with_nul(b"the_answer\0").unwrap()
