@@ -38,7 +38,7 @@ impl<'func> From<&'func Function> for SymInfo<'func> {
         Self {
             name: Cow::Borrowed(&func.name),
             addr: func.addr,
-            size: func.size as _,
+            size: Some(func.size as _),
             sym_type: SymType::Function,
             file_offset: None,
             obj_file_name: None,

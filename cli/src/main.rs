@@ -69,7 +69,11 @@ fn print_sym_infos(sym_infos: &[inspect::SymInfo]) {
         };
         println!(
             "{name:<name_width$} {addr:#0ADDR_WIDTH$x} {size:<11}{type_}",
-            size = format!("(size={size})")
+            size = format!(
+                "(size={})",
+                size.map(|size| size.to_string())
+                    .unwrap_or_else(|| "N/A".to_string())
+            ),
         );
     }
 }

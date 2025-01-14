@@ -406,7 +406,7 @@ impl<'prog> TryFrom<&'prog BpfProg> for SymInfo<'prog> {
         let sym = SymInfo {
             name: Cow::Borrowed(name),
             addr: *addr,
-            size: 0,
+            size: None,
             sym_type: SymType::Function,
             file_offset: None,
             obj_file_name: None,

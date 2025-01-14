@@ -238,7 +238,7 @@ impl DwarfResolver {
         let info = SymInfo {
             name: Cow::Borrowed(name),
             addr,
-            size,
+            size: Some(size),
             sym_type: SymType::Function,
             file_offset: offset_in_file
                 .then(|| self.parser.find_file_offset(addr))

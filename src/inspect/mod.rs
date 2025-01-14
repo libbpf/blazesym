@@ -40,8 +40,14 @@ pub struct SymInfo<'src> {
     pub name: Cow<'src, str>,
     /// Start address (the first byte) of the symbol.
     pub addr: Addr,
-    /// The size of the symbol. The size of a function for example.
-    pub size: usize,
+    /// The size of the symbol.
+    ///
+    /// Note that some symbolization sources report a size of `0` to
+    /// mean *either* that the symbol's size is actually `0` or that it
+    /// has an unknown size. Given that the library has way to
+    /// differentiate, a value of `Some(0)` will be reported in such
+    /// ambiguous cases.
+    pub size: Option<usize>,
     /// A function or a variable.
     pub sym_type: SymType,
     /// The offset in the object file.

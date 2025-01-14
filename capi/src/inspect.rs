@@ -237,7 +237,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 (*sym_ptr) = blaze_sym_info {
                     name: name_ptr,
                     addr,
-                    size,
+                    size: size.unwrap_or(0),
                     sym_type: sym_type.into(),
                     file_offset: file_offset.unwrap_or(0),
                     obj_file_name,
@@ -500,7 +500,7 @@ mod tests {
                         CString::new(sym.name.deref()).unwrap().to_bytes()
                     );
                     assert_eq!(c_sym.addr, sym.addr);
-                    assert_eq!(c_sym.size, sym.size);
+                    assert_eq!(c_sym.size, sym.size.unwrap_or(0));
                     assert_eq!(c_sym.sym_type, blaze_sym_type::from(sym.sym_type));
                     assert_eq!(Some(c_sym.file_offset), sym.file_offset);
                     assert_eq!(
@@ -530,7 +530,7 @@ mod tests {
         let syms = vec![vec![SymInfo {
             name: "sym1".into(),
             addr: 0xdeadbeef,
-            size: 42,
+            size: Some(42),
             sym_type: SymType::Function,
             file_offset: Some(1337),
             obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
@@ -542,7 +542,7 @@ mod tests {
             SymInfo {
                 name: "sym1".into(),
                 addr: 0xdeadbeef,
-                size: 42,
+                size: Some(42),
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
                 obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
@@ -550,7 +550,7 @@ mod tests {
             SymInfo {
                 name: "sym2".into(),
                 addr: 0xdeadbeef + 52,
-                size: 45,
+                size: Some(45),
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
                 obj_file_name: Some(Path::new("other.so").into()),
@@ -563,7 +563,7 @@ mod tests {
             vec![SymInfo {
                 name: "sym1".into(),
                 addr: 0xdeadbeef,
-                size: 42,
+                size: Some(42),
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
                 obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
@@ -571,7 +571,7 @@ mod tests {
             vec![SymInfo {
                 name: "sym2".into(),
                 addr: 0xdeadbeef + 52,
-                size: 45,
+                size: Some(45),
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
                 obj_file_name: Some(Path::new("other.so").into()),
@@ -583,7 +583,7 @@ mod tests {
         let sym = SymInfo {
             name: "sym1".into(),
             addr: 0xdeadbeef,
-            size: 42,
+            size: Some(42),
             sym_type: SymType::Function,
             file_offset: Some(1337),
             obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
