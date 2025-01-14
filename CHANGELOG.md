@@ -12,6 +12,7 @@ Unreleased
   into account system KASLR state
   - Added `kaslr_offset` member to `symbolize::Kernel`
 - Moved symbolization and inspection sources into `source` sub-module
+- Changed `inspect::SymInfo::size` to be an `Option`
 
 
 0.2.0-rc.2
