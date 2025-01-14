@@ -42,10 +42,6 @@ zstd = {version = "0.13.1", default-features = false, optional = true}
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.build-dependencies]
 libbpf-sys = {version = "1.4.1", default-features = false, optional = true}
 
-[target.'cfg(target_os = "windows")'.build-dependencies]
-# 12.13.x causes broken Windows builds.
-_symbolic_demangle_lowered = {package = "symbolic-demangle", version = "=12.12.4"}
-
 [dependencies]
 # TODO: Enable `zstd` feature once toolchain support for it is more
 #       widespread (enabled by default in `ld`). Remove conditionals in
