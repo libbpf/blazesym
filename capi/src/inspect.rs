@@ -396,6 +396,8 @@ mod tests {
     use test_log::test;
     use test_tag::tag;
 
+    use crate::blaze_err_last;
+
 
     /// Check that various types have expected sizes.
     #[test]
@@ -601,6 +603,31 @@ mod tests {
         let () = unsafe { blaze_inspector_free(inspector) };
     }
 
+    /// Check that `blaze_inspect_syms_elf` fails if the input source
+    /// does not have reserved fields set to zero.
+    #[test]
+    fn non_zero_reserved() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addrs.bin");
+
+        let mut src = blaze_inspect_elf_src::from(Elf::new(path));
+        src.reserved[1] = 1;
+
+        let factorial = CString::new("factorial").unwrap();
+        let names = [factorial.as_ptr()];
+        let inspector = blaze_inspector_new();
+
+        let result =
+            unsafe { blaze_inspect_syms_elf(inspector, &*src, names.as_ptr(), names.len()) };
+        let () = unsafe { ManuallyDrop::into_inner(src).free() };
+        assert_eq!(result, ptr::null());
+        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_INVALID_INPUT);
+
+        let () = unsafe { blaze_inspector_free(inspector) };
+    }
+
     /// Check that we see the expected error being reported when a source file
     /// does not exist.
     #[test]
@@ -619,6 +646,7 @@ mod tests {
             unsafe { blaze_inspect_syms_elf(inspector, &*src, names.as_ptr(), names.len()) };
         let () = unsafe { ManuallyDrop::into_inner(src).free() };
         assert_eq!(result, ptr::null());
+        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_NOT_FOUND);
 
         let () = unsafe { blaze_inspector_free(inspector) };
     }
