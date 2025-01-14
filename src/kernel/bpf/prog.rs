@@ -427,6 +427,21 @@ mod tests {
     use test_tag::tag;
 
 
+    /// Check that we can convert a `BpfProg` into a `SymInfo`.
+    #[tag(miri)]
+    #[test]
+    fn bpf_prog_conversion() {
+        let addr = 0x1337;
+        let name = "bpf_prog_30304e82b4033ea3_kprobe__cap_capable";
+        let bpf_prog = BpfProg::parse(name, addr).unwrap();
+
+        let sym = SymInfo::try_from(&bpf_prog).unwrap();
+        assert_eq!(sym.name, "kprobe__cap_capable");
+        assert_eq!(sym.addr, 0x1337);
+        assert_eq!(sym.sym_type, SymType::Function);
+        assert_eq!(sym.file_offset, None);
+    }
+
     /// Test that we can parse a BPF program string as it may appear in
     /// `kallsyms` successfully.
     #[tag(miri)]
