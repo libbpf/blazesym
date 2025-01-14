@@ -1765,6 +1765,41 @@ mod tests {
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
     }
 
+    /// Make sure that we can symbolize an address in the kernel via
+    /// kallsyms.
+    #[test]
+    fn symbolize_in_kernel() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("kallsyms");
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let src = blaze_symbolize_src_kernel {
+            kallsyms: path_c.as_ptr(),
+            ..Default::default()
+        };
+
+        let symbolizer = blaze_symbolizer_new();
+        let addrs = [0xc080a470];
+        let result = unsafe {
+            blaze_symbolize_kernel_abs_addrs(symbolizer, &src, addrs.as_ptr(), addrs.len())
+        };
+
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym.name) },
+            CStr::from_bytes_with_nul(b"init_task\0").unwrap()
+        );
+
+        let () = unsafe { blaze_syms_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
     /// Check that we report the expected error when attempting to
     /// symbolize data using a non-existent source.
     #[test]
