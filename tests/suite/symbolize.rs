@@ -1015,6 +1015,28 @@ fn symbolize_zip_with_custom_dispatch_errors() {
     let () = test(zip_delayed_error_dispatch);
 }
 
+/// Test symbolization of a kernel address present in a kallsyms style
+/// file.
+#[test]
+fn symbolize_kernel() {
+    let kernel = Kernel {
+        kallsyms: Some(
+            Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("kallsyms"),
+        ),
+        ..Default::default()
+    };
+    let src = Source::Kernel(kernel);
+    let symbolizer = Symbolizer::new();
+    let symbolized = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(0xc080a470))
+        .unwrap();
+    let init_task_sym = symbolized.into_sym().unwrap();
+    assert_eq!(init_task_sym.name, "init_task");
+    assert_eq!(init_task_sym.code_info, None);
+}
+
 /// Test symbolization of a kernel address inside a BPF program.
 #[cfg(linux)]
 #[test]
