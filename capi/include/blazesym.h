@@ -693,6 +693,15 @@ typedef struct blaze_sym {
    */
   size_t offset;
   /**
+   * The size of the symbol.
+   *
+   * If the symbol's size is not available, this member will be `-1`.
+   * Note that some symbol sources may not distinguish between
+   * "unknown" size and `0`. In that case the size will be reported
+   * as `0` here as well.
+   */
+  ptrdiff_t size;
+  /**
    * Source code location information for the symbol.
    */
   struct blaze_symbolize_code_info code_info;
