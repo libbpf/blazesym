@@ -3,6 +3,7 @@ Unreleased
 - Introduced `blaze_trace` function for tapping into the library's
   tracing functionality
 - Added `size` attribute to `blaze_sym` type
+- Changed `size` attribute of `blaze_sym_info` to be signed
 - Renamed `kernel_image` member of `blaze_symbolize_src_kernel` to
   `vmlinux`
 - Added support for disabling `kallsyms` and `vmlinux` to

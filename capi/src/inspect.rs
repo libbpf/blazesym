@@ -160,7 +160,12 @@ pub struct blaze_sym_info {
     /// See [`inspect::SymInfo::addr`].
     pub addr: Addr,
     /// See [`inspect::SymInfo::size`].
-    pub size: usize,
+    ///
+    /// If the symbol's size is not available, this member will be `-1`.
+    /// Note that some symbol sources may not distinguish between
+    /// "unknown" size and `0`. In that case the size will be reported
+    /// as `0` here as well.
+    pub size: isize,
     /// See [`inspect::SymInfo::file_offset`].
     pub file_offset: u64,
     /// See [`inspect::SymInfo::obj_file_name`].
@@ -237,7 +242,9 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 (*sym_ptr) = blaze_sym_info {
                     name: name_ptr,
                     addr,
-                    size: size.unwrap_or(0),
+                    size: size
+                        .map(|size| isize::try_from(size).unwrap_or(isize::MAX))
+                        .unwrap_or(-1),
                     sym_type: sym_type.into(),
                     file_offset: file_offset.unwrap_or(0),
                     obj_file_name,
@@ -500,7 +507,12 @@ mod tests {
                         CString::new(sym.name.deref()).unwrap().to_bytes()
                     );
                     assert_eq!(c_sym.addr, sym.addr);
-                    assert_eq!(c_sym.size, sym.size.unwrap_or(0));
+                    assert_eq!(
+                        c_sym.size,
+                        sym.size
+                            .map(|size| isize::try_from(size).unwrap_or(isize::MAX))
+                            .unwrap_or(-1)
+                    );
                     assert_eq!(c_sym.sym_type, blaze_sym_type::from(sym.sym_type));
                     assert_eq!(Some(c_sym.file_offset), sym.file_offset);
                     assert_eq!(
