@@ -252,8 +252,13 @@ typedef struct blaze_sym_info {
   uint64_t addr;
   /**
    * See [`inspect::SymInfo::size`].
+   *
+   * If the symbol's size is not available, this member will be `-1`.
+   * Note that some symbol sources may not distinguish between
+   * "unknown" size and `0`. In that case the size will be reported
+   * as `0` here as well.
    */
-  size_t size;
+  ptrdiff_t size;
   /**
    * See [`inspect::SymInfo::file_offset`].
    */
