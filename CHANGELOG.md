@@ -1,6 +1,8 @@
 Unreleased
 ----------
 - Added support for 32 bit ELF binaries
+- Adjusted kernel symbolization logic to give preference to ELF kernel
+  image, if present
 
 
 0.2.0-rc.2

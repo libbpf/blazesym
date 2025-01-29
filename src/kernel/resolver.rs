@@ -41,13 +41,10 @@ impl KernelResolver {
 
 impl Symbolize for KernelResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
-        // TODO: If an `ElfResolver` is available we probably should give
-        //       preference to it, if for no other reason than the fact that it
-        //       may report source code location information.
-        if let Some(ksym_resolver) = self.ksym_resolver.as_ref() {
-            ksym_resolver.find_sym(addr, opts)
+        if let Some(elf_resolver) = self.elf_resolver.as_ref() {
+            elf_resolver.find_sym(addr, opts)
         } else {
-            self.elf_resolver.as_ref().unwrap().find_sym(addr, opts)
+            self.ksym_resolver.as_ref().unwrap().find_sym(addr, opts)
         }
     }
 }

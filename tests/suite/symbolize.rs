@@ -1037,6 +1037,67 @@ fn symbolize_kernel() {
     assert_eq!(init_task_sym.code_info, None);
 }
 
+/// Test symbolization of a "kernel" address in an ELF file.
+#[test]
+fn symbolize_kernel_elf() {
+    #[track_caller]
+    fn test(kernel: Kernel, has_code_info: bool) {
+        let src = Source::Kernel(kernel);
+        let symbolizer = Symbolizer::new();
+        let symbolized = symbolizer
+            .symbolize_single(&src, Input::AbsAddr(0x2000100))
+            .unwrap();
+        let sym = symbolized.into_sym().unwrap();
+        assert_eq!(sym.name, "factorial");
+        assert_eq!(sym.addr, 0x2000100);
+
+        if has_code_info {
+            let code_info = sym.code_info.as_ref().unwrap();
+            assert_ne!(code_info.dir, None);
+            assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
+            assert!(code_info.line.is_some());
+        } else {
+            assert_eq!(sym.code_info, None);
+        }
+    }
+
+    let mut src = Kernel {
+        kallsyms: Some(
+            Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("kallsyms"),
+        ),
+        // We use a fake kernel image here for testing purposes, which
+        // really is just a regular ELF file, but that's what the kernel
+        // image would be anyway.
+        kernel_image: Some(
+            Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("test-stable-addrs.bin"),
+        ),
+        debug_syms: true,
+        ..Default::default()
+    };
+    // Source has debug syms and we want to use them.
+    test(src.clone(), true);
+
+    // Source has debug syms, but we do not want to use them.
+    src.debug_syms = false;
+    test(src.clone(), false);
+
+    // Source has no debug syms and we do not want to use them.
+    src.kernel_image = Some(
+        Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-no-dwarf.bin"),
+    );
+    test(src.clone(), false);
+
+    // Source has no debug syms and we do want to use them.
+    src.debug_syms = true;
+    test(src.clone(), false);
+}
+
 /// Test symbolization of a kernel address inside a BPF program.
 #[cfg(linux)]
 #[test]
