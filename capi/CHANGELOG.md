@@ -3,6 +3,8 @@ Unreleased
 - Introduced `blaze_trace` function for tapping into the library's
   tracing functionality
 - Added `size` attribute to `blaze_sym` type
+- Added support for disabling `kallsyms` and ELF kernel image to
+  `blaze_symbolize_src_kernel`
 
 
 0.1.0-rc.2

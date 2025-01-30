@@ -807,21 +807,21 @@ typedef struct blaze_symbolize_src_kernel {
    */
   size_t type_size;
   /**
-   * The path of a copy of kallsyms.
+   * The path of a `kallsyms` file to use.
    *
-   * It can be `"/proc/kallsyms"` for the running kernel on the
-   * device.  However, you can make copies for later.  In that situation,
-   * you should give the path of a copy.
-   * Passing a `NULL`, by default, will result in `"/proc/kallsyms"`.
+   * When `NULL`, this will refer to `kallsyms` of the running kernel.
+   * If set to `'\0'` (`""`) usage of `kallsyms` will be disabled.
+   * Otherwise the copy at the given path will be used.
    */
   const char *kallsyms;
   /**
-   * The path of a kernel image.
+   * The path of the kernel image to use.
    *
-   * The path of a kernel image should be, for instance,
-   * `"/boot/vmlinux-xxxx"`.  For a `NULL` value, it will locate the
-   * kernel image of the running kernel in `"/boot/"` or
-   * `"/usr/lib/debug/boot/"`.
+   * When `NULL`, the library will search for kernel image candidates
+   * in various locations, taking into account the currently running
+   * kernel version. If set to `'\0'` (`""`) usage of a kernel image
+   * will be disabled. Otherwise the copy at the given path will be
+   * used.
    */
   const char *kernel_image;
   /**
