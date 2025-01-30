@@ -17,8 +17,8 @@ use super::ksym::KSymResolver;
 
 
 pub(crate) struct KernelResolver {
-    pub ksym_resolver: Option<Rc<KSymResolver>>,
-    pub elf_resolver: Option<Rc<ElfResolver>>,
+    ksym_resolver: Option<Rc<KSymResolver>>,
+    elf_resolver: Option<Rc<ElfResolver>>,
 }
 
 impl KernelResolver {
