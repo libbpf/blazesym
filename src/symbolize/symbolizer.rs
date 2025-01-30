@@ -936,6 +936,7 @@ impl Symbolizer {
 
     #[cfg(linux)]
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
+        use crate::util::bytes_to_os_str;
         use crate::MaybeDefault;
 
         let Kernel {
@@ -975,11 +976,14 @@ impl Symbolizer {
                 Some(resolver)
             }
             MaybeDefault::Default => {
-                let release = uname_release()?.to_str().unwrap().to_string();
-                let basename = "vmlinux-";
+                let release = uname_release()?;
+                let release = bytes_to_os_str(release.as_bytes())?;
+                let basename = OsStr::new("vmlinux-");
                 let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
                 let kernel_image = dirs.iter().find_map(|dir| {
-                    let path = dir.join(format!("{basename}{release}"));
+                    let mut file = basename.to_os_string();
+                    let () = file.push(release);
+                    let path = dir.join(file);
                     path.exists().then_some(path)
                 });
 
