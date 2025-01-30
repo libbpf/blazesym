@@ -936,6 +936,8 @@ impl Symbolizer {
 
     #[cfg(linux)]
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
+        use crate::MaybeDefault;
+
         let Kernel {
             kallsyms,
             kernel_image,
@@ -943,55 +945,63 @@ impl Symbolizer {
             _non_exhaustive: (),
         } = src;
 
-        let ksym_resolver = if let Some(kallsyms) = kallsyms {
-            let ksym_resolver = self.ksym_resolver(kallsyms)?;
-            Some(ksym_resolver)
-        } else {
-            let kallsyms = Path::new(KALLSYMS);
-            let result = self.ksym_resolver(kallsyms);
-            match result {
-                Ok(resolver) => Some(resolver),
-                Err(err) => {
-                    log::warn!(
-                        "failed to load kallsyms from {}: {err}; ignoring...",
-                        kallsyms.display()
-                    );
-                    None
-                }
+        let ksym_resolver = match kallsyms {
+            MaybeDefault::Some(kallsyms) => {
+                let ksym_resolver = self.ksym_resolver(kallsyms)?;
+                Some(ksym_resolver)
             }
-        };
-
-        let elf_resolver = if let Some(image) = kernel_image {
-            let resolver = self
-                .elf_cache
-                .elf_resolver(image, self.maybe_debug_dirs(*debug_syms))?;
-            Some(resolver)
-        } else {
-            let release = uname_release()?.to_str().unwrap().to_string();
-            let basename = "vmlinux-";
-            let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
-            let kernel_image = dirs.iter().find_map(|dir| {
-                let path = dir.join(format!("{basename}{release}"));
-                path.exists().then_some(path)
-            });
-
-            if let Some(image) = kernel_image {
-                let result = self
-                    .elf_cache
-                    .elf_resolver(&image, self.maybe_debug_dirs(*debug_syms));
+            MaybeDefault::Default => {
+                let kallsyms = Path::new(KALLSYMS);
+                let result = self.ksym_resolver(kallsyms);
                 match result {
                     Ok(resolver) => Some(resolver),
                     Err(err) => {
                         log::warn!(
-                            "failed to load kernel image {}: {err}; ignoring...",
-                            image.display()
+                            "failed to load kallsyms from {}: {err}; ignoring...",
+                            kallsyms.display()
                         );
                         None
                     }
                 }
-            } else {
-                None
             }
+            MaybeDefault::None => None,
+        };
+
+        let elf_resolver = match kernel_image {
+            MaybeDefault::Some(image) => {
+                let resolver = self
+                    .elf_cache
+                    .elf_resolver(image, self.maybe_debug_dirs(*debug_syms))?;
+                Some(resolver)
+            }
+            MaybeDefault::Default => {
+                let release = uname_release()?.to_str().unwrap().to_string();
+                let basename = "vmlinux-";
+                let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
+                let kernel_image = dirs.iter().find_map(|dir| {
+                    let path = dir.join(format!("{basename}{release}"));
+                    path.exists().then_some(path)
+                });
+
+                if let Some(image) = kernel_image {
+                    let result = self
+                        .elf_cache
+                        .elf_resolver(&image, self.maybe_debug_dirs(*debug_syms));
+                    match result {
+                        Ok(resolver) => Some(resolver),
+                        Err(err) => {
+                            log::warn!(
+                                "failed to load kernel image {}: {err}; ignoring...",
+                                image.display()
+                            );
+                            None
+                        }
+                    }
+                } else {
+                    None
+                }
+            }
+            MaybeDefault::None => None,
         };
 
         KernelResolver::new(ksym_resolver.cloned(), elf_resolver.cloned())

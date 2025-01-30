@@ -3,6 +3,8 @@ Unreleased
 - Added support for 32 bit ELF binaries
 - Adjusted kernel symbolization logic to give preference to ELF kernel
   image, if present
+- Changed `symbolize::Kernel::{kallsyms,kernel_image}` to support
+  disabling of the source
 
 
 0.2.0-rc.2

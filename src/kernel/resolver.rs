@@ -74,7 +74,6 @@ mod tests {
     use super::*;
 
     use crate::kernel::KALLSYMS;
-    use crate::ErrorKind;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -83,12 +82,5 @@ mod tests {
         let ksym = Rc::new(KSymResolver::load_file_name(Path::new(KALLSYMS)).unwrap());
         let kernel = KernelResolver::new(Some(ksym), None).unwrap();
         assert_ne!(format!("{kernel:?}"), "");
-    }
-
-    /// Exercise the error path when no sub-resolver is provided.
-    #[test]
-    fn no_sub_resolver() {
-        let err = KernelResolver::new(None, None).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
     }
 }
