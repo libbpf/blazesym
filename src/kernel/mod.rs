@@ -2,6 +2,10 @@
 mod bpf;
 mod ksym;
 mod resolver;
+// Still work in progress.
+#[allow(unused)]
+#[cfg(test)]
+mod kaslr;
 
 // TODO: KsymResolver should ideally be an implementation detail.
 pub(crate) use ksym::KSymResolver;

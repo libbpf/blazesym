@@ -44,10 +44,6 @@
 
 pub(crate) mod buildid;
 pub(crate) mod ioctl;
-// Still work in progress.
-#[allow(unused)]
-#[cfg(test)]
-mod kernel;
 mod meta;
 mod normalizer;
 mod user;

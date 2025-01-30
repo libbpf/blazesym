@@ -19,8 +19,6 @@ use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Result;
 
-use super::normalizer::Output;
-
 
 /// The absolute path to the `kcore` `proc` node.
 const PROC_KCORE: &str = "/proc/kcore";

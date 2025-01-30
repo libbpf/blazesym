@@ -33,7 +33,7 @@ where
 
     // Make sure that we restore the real user before tearing down,
     // because shut down code may need the original permissions (e.g., for
-    // writing down code coverage files or similar.
+    // writing down code coverage files or similar).
     if unsafe { seteuid(ruid) } == -1 {
         panic!(
             "failed to restore effective user ID to {ruid}: {}",
