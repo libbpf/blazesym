@@ -173,6 +173,10 @@ pub struct Kernel {
     /// By default, this will refer to `kallsyms` of the running kernel.
     /// If set to [`None`][MaybeDefault::None] usage of `kallsyms` will
     /// be disabled. Otherwise the copy at the given path will be used.
+    ///
+    /// If both a kernel image as well as a `kallsyms` file are found,
+    /// the kernel image will generally be given preference and
+    /// `kallsyms` acts as a fallback.
     pub kallsyms: MaybeDefault<PathBuf>,
     /// The path of the kernel image to use.
     ///
@@ -181,6 +185,10 @@ pub struct Kernel {
     /// kernel version. If set to [`None`][MaybeDefault::None] usage of
     /// a kernel image will be disabled. Otherwise the copy at the given
     /// path will be used.
+    ///
+    /// If both a kernel image as well as a `kallsyms` file are found,
+    /// the kernel image will generally be given preference and
+    /// `kallsyms` acts as a fallback.
     pub kernel_image: MaybeDefault<PathBuf>,
     /// Whether or not to consult debug symbols from `kernel_image`
     /// to satisfy the request (if present).
