@@ -128,6 +128,25 @@ pub enum SymType {
 }
 
 
+/// A type representing an optional value or a default.
+#[derive(Clone, Debug, PartialEq)]
+pub enum MaybeDefault<T> {
+    /// Nothing.
+    None,
+    /// Use the context-dependent default value.
+    Default,
+    /// A provided value.
+    Some(T),
+}
+
+impl<T> From<T> for MaybeDefault<T> {
+    #[inline]
+    fn from(value: T) -> Self {
+        Self::Some(value)
+    }
+}
+
+
 /// Utility functionality not specific to any overarching theme.
 pub mod helper {
     use super::*;

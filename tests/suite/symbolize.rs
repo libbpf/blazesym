@@ -37,6 +37,7 @@ use blazesym::symbolize::TranslateFileOffset;
 use blazesym::Addr;
 use blazesym::Error;
 use blazesym::ErrorKind;
+use blazesym::MaybeDefault;
 use blazesym::Mmap;
 use blazesym::Pid;
 use blazesym::Result;
@@ -1015,12 +1016,34 @@ fn symbolize_zip_with_custom_dispatch_errors() {
     let () = test(zip_delayed_error_dispatch);
 }
 
+/// Check that we fail symbolization if no kernel symbolization source
+/// is provided.
+#[test]
+fn symbolize_kernel_no_valid_source() {
+    let kernel = Kernel {
+        kallsyms: MaybeDefault::None,
+        kernel_image: MaybeDefault::None,
+        ..Default::default()
+    };
+    let src = Source::Kernel(kernel);
+    let symbolizer = Symbolizer::new();
+    let err = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(0xc080a470))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+    assert!(
+        err.to_string()
+            .starts_with("failed to create kernel resolver"),
+        "{err:?}"
+    );
+}
+
 /// Test symbolization of a kernel address present in a kallsyms style
 /// file.
 #[test]
 fn symbolize_kernel() {
     let kernel = Kernel {
-        kallsyms: Some(
+        kallsyms: MaybeDefault::from(
             Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join("kallsyms"),
@@ -1039,7 +1062,7 @@ fn symbolize_kernel() {
 
 /// Test symbolization of a "kernel" address in an ELF file.
 #[test]
-fn symbolize_kernel_elf() {
+fn symbolize_kernel_image() {
     #[track_caller]
     fn test(kernel: Kernel, has_code_info: bool) {
         let src = Source::Kernel(kernel);
@@ -1062,15 +1085,11 @@ fn symbolize_kernel_elf() {
     }
 
     let mut src = Kernel {
-        kallsyms: Some(
-            Path::new(&env!("CARGO_MANIFEST_DIR"))
-                .join("data")
-                .join("kallsyms"),
-        ),
+        kallsyms: MaybeDefault::None,
         // We use a fake kernel image here for testing purposes, which
         // really is just a regular ELF file, but that's what the kernel
         // image would be anyway.
-        kernel_image: Some(
+        kernel_image: MaybeDefault::Some(
             Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join("test-stable-addrs.bin"),
@@ -1086,7 +1105,7 @@ fn symbolize_kernel_elf() {
     test(src.clone(), false);
 
     // Source has no debug syms and we do not want to use them.
-    src.kernel_image = Some(
+    src.kernel_image = MaybeDefault::Some(
         Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs-no-dwarf.bin"),

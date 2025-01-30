@@ -4,6 +4,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::path::PathBuf;
 
+use crate::MaybeDefault;
 use crate::Pid;
 
 #[cfg(doc)]
@@ -162,32 +163,32 @@ impl Debug for Elf {
 }
 
 
-/// Linux Kernel's binary image and a copy of `/proc/kallsyms`.
+/// Configuration for kernel address symbolization.
 ///
 /// This type is used in the [`Source::Kernel`] variant.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Kernel {
-    /// The path of a kallsyms copy.
+    /// The path of a `kallsyms` file to use.
     ///
-    /// For the running kernel on the device, it can be
-    /// "/proc/kallsyms".  However, you can make a copy for later.
-    /// In that situation, you should give the path of the
-    /// copy.  Passing `None`, by default, will be
-    /// `"/proc/kallsyms"`.
-    pub kallsyms: Option<PathBuf>,
-    /// The path of a kernel image.
+    /// By default, this will refer to `kallsyms` of the running kernel.
+    /// If set to [`None`][MaybeDefault::None] usage of `kallsyms` will
+    /// be disabled. Otherwise the copy at the given path will be used.
+    pub kallsyms: MaybeDefault<PathBuf>,
+    /// The path of the kernel image to use.
     ///
-    /// This should be the path of a kernel image.  For example,
-    /// `"/boot/vmlinux-xxxx"`.  A `None` value will find the
-    /// kernel image of the running kernel in `"/boot/"` or
-    /// `"/usr/lib/debug/boot/"`.
-    pub kernel_image: Option<PathBuf>,
+    /// By default, the library will search for kernel image candidates
+    /// in various locations, taking into account the currently running
+    /// kernel version. If set to [`None`][MaybeDefault::None] usage of
+    /// a kernel image will be disabled. Otherwise the copy at the given
+    /// path will be used.
+    pub kernel_image: MaybeDefault<PathBuf>,
     /// Whether or not to consult debug symbols from `kernel_image`
     /// to satisfy the request (if present).
     ///
     /// On top of this runtime configuration, the crate needs to be
     /// built with the `dwarf` feature to actually consult debug
-    /// symbols. If neither is satisfied, ELF symbols will be used.
+    /// symbols. If either is not satisfied, only ELF symbols will be
+    /// used.
     pub debug_syms: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
@@ -197,8 +198,8 @@ pub struct Kernel {
 impl Default for Kernel {
     fn default() -> Self {
         Self {
-            kallsyms: None,
-            kernel_image: None,
+            kallsyms: MaybeDefault::Default,
+            kernel_image: MaybeDefault::Default,
             debug_syms: true,
             _non_exhaustive: (),
         }

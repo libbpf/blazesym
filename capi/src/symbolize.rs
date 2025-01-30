@@ -26,6 +26,7 @@ use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
+use blazesym::MaybeDefault;
 
 use crate::blaze_err;
 #[cfg(doc)]
@@ -138,6 +139,14 @@ impl Default for blaze_symbolize_src_kernel {
 
 impl From<blaze_symbolize_src_kernel> for Kernel {
     fn from(kernel: blaze_symbolize_src_kernel) -> Self {
+        fn to_maybe_path(path: *const c_char) -> MaybeDefault<PathBuf> {
+            if !path.is_null() {
+                MaybeDefault::Some(unsafe { from_cstr(path) })
+            } else {
+                MaybeDefault::Default
+            }
+        }
+
         let blaze_symbolize_src_kernel {
             type_size: _,
             kallsyms,
@@ -146,8 +155,8 @@ impl From<blaze_symbolize_src_kernel> for Kernel {
             reserved: _,
         } = kernel;
         Self {
-            kallsyms: (!kallsyms.is_null()).then(|| unsafe { from_cstr(kallsyms) }),
-            kernel_image: (!kernel_image.is_null()).then(|| unsafe { from_cstr(kernel_image) }),
+            kallsyms: to_maybe_path(kallsyms),
+            kernel_image: to_maybe_path(kernel_image),
             debug_syms,
             _non_exhaustive: (),
         }
@@ -1281,8 +1290,8 @@ mod tests {
     fn kernel_conversion() {
         let kernel = blaze_symbolize_src_kernel::default();
         let kernel = Kernel::from(kernel);
-        assert_eq!(kernel.kallsyms, None);
-        assert_eq!(kernel.kernel_image, None);
+        assert_eq!(kernel.kallsyms, MaybeDefault::Default);
+        assert_eq!(kernel.kernel_image, MaybeDefault::Default);
 
         let kernel = blaze_symbolize_src_kernel {
             kallsyms: b"/proc/kallsyms\0" as *const _ as *const c_char,
@@ -1292,8 +1301,14 @@ mod tests {
         };
 
         let kernel = Kernel::from(kernel);
-        assert_eq!(kernel.kallsyms, Some(PathBuf::from("/proc/kallsyms")));
-        assert_eq!(kernel.kernel_image, Some(PathBuf::from("/boot/image")));
+        assert_eq!(
+            kernel.kallsyms,
+            MaybeDefault::Some(PathBuf::from("/proc/kallsyms"))
+        );
+        assert_eq!(
+            kernel.kernel_image,
+            MaybeDefault::Some(PathBuf::from("/boot/image"))
+        );
     }
 
     /// Test the Rust to C symbol conversion.
