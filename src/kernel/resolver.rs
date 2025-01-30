@@ -41,10 +41,25 @@ impl KernelResolver {
 
 impl Symbolize for KernelResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
-        if let Some(elf_resolver) = self.elf_resolver.as_ref() {
-            elf_resolver.find_sym(addr, opts)
-        } else {
-            self.ksym_resolver.as_ref().unwrap().find_sym(addr, opts)
+        match (self.elf_resolver.as_ref(), self.ksym_resolver.as_ref()) {
+            (Some(elf_resolver), None) => elf_resolver.find_sym(addr, opts),
+            (None, Some(ksym_resolver)) => ksym_resolver.find_sym(addr, opts),
+            (Some(elf_resolver), Some(ksym_resolver)) => {
+                // We give preference to the kernel image resolver, because it
+                // is likely to report more information. If it could not find
+                // an address, though, we fall back to kallsyms. This is
+                // helpful for example for kernel modules, which naturally are
+                // not captured by the core kernel image.
+                let result = elf_resolver.find_sym(addr, opts)?;
+                if result.is_ok() {
+                    Ok(result)
+                } else {
+                    ksym_resolver.find_sym(addr, opts)
+                }
+            }
+            // SANITY: We ensure that at least one resolver is present at
+            //         construction time.
+            (None, None) => unreachable!(),
         }
     }
 }

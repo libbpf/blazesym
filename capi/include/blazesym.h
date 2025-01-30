@@ -812,6 +812,10 @@ typedef struct blaze_symbolize_src_kernel {
    * When `NULL`, this will refer to `kallsyms` of the running kernel.
    * If set to `'\0'` (`""`) usage of `kallsyms` will be disabled.
    * Otherwise the copy at the given path will be used.
+   *
+   * If both a kernel image as well as a `kallsyms` file are found,
+   * the kernel image will generally be given preference and
+   * `kallsyms` acts as a fallback.
    */
   const char *kallsyms;
   /**
@@ -822,6 +826,10 @@ typedef struct blaze_symbolize_src_kernel {
    * kernel version. If set to `'\0'` (`""`) usage of a kernel image
    * will be disabled. Otherwise the copy at the given path will be
    * used.
+   *
+   * If both a kernel image as well as a `kallsyms` file are found,
+   * the kernel image will generally be given preference and
+   * `kallsyms` acts as a fallback.
    */
   const char *kernel_image;
   /**

@@ -6,6 +6,7 @@ use std::io;
 use std::io::Read as _;
 use std::io::Write as _;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use std::process::Stdio;
 use std::str;
@@ -1041,23 +1042,36 @@ fn symbolize_kernel_no_valid_source() {
 /// Test symbolization of a kernel address present in a kallsyms style
 /// file.
 #[test]
-fn symbolize_kernel() {
-    let kernel = Kernel {
-        kallsyms: MaybeDefault::from(
-            Path::new(&env!("CARGO_MANIFEST_DIR"))
-                .join("data")
-                .join("kallsyms"),
-        ),
-        ..Default::default()
-    };
-    let src = Source::Kernel(kernel);
-    let symbolizer = Symbolizer::new();
-    let symbolized = symbolizer
-        .symbolize_single(&src, Input::AbsAddr(0xc080a470))
-        .unwrap();
-    let init_task_sym = symbolized.into_sym().unwrap();
-    assert_eq!(init_task_sym.name, "init_task");
-    assert_eq!(init_task_sym.code_info, None);
+fn symbolize_kernel_kallsyms() {
+    fn test(kernel_image: MaybeDefault<PathBuf>) {
+        let kernel = Kernel {
+            kallsyms: MaybeDefault::from(
+                Path::new(&env!("CARGO_MANIFEST_DIR"))
+                    .join("data")
+                    .join("kallsyms"),
+            ),
+            kernel_image,
+            ..Default::default()
+        };
+        let src = Source::Kernel(kernel);
+        let symbolizer = Symbolizer::new();
+        let symbolized = symbolizer
+            .symbolize_single(&src, Input::AbsAddr(0xc080a470))
+            .unwrap();
+        let init_task_sym = symbolized.into_sym().unwrap();
+        assert_eq!(init_task_sym.name, "init_task");
+        assert_eq!(init_task_sym.code_info, None);
+    }
+
+    test(MaybeDefault::None);
+    // Provide a valid "kernel" image file, but given that it does not
+    // contain the address we attempt to symbolize we should end up
+    // falling back to using kallsyms.
+    test(MaybeDefault::Some(
+        Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs.bin"),
+    ));
 }
 
 /// Test symbolization of a "kernel" address in an ELF file.
