@@ -22,8 +22,8 @@ use crate::file_cache::FileCache;
 #[cfg(feature = "gsym")]
 use crate::gsym::GsymResolver;
 use crate::insert_map::InsertMap;
-use crate::kernel::KSymResolver;
 use crate::kernel::KernelResolver;
+use crate::kernel::KsymResolver;
 use crate::kernel::KALLSYMS;
 use crate::log;
 use crate::maps;
@@ -625,7 +625,7 @@ pub struct Symbolizer {
     elf_cache: FileCache<ElfResolverData>,
     #[cfg(feature = "gsym")]
     gsym_cache: FileCache<GsymResolver<'static>>,
-    ksym_cache: FileCache<Rc<KSymResolver>>,
+    ksym_cache: FileCache<Rc<KsymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
     process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
     find_sym_opts: FindSymOpts,
@@ -922,13 +922,13 @@ impl Symbolizer {
         Ok(handler.all_symbols)
     }
 
-    fn create_ksym_resolver(&self, path: &Path, file: &File) -> Result<Rc<KSymResolver>> {
-        let resolver = KSymResolver::load_from_reader(file, path)?;
+    fn create_ksym_resolver(&self, path: &Path, file: &File) -> Result<Rc<KsymResolver>> {
+        let resolver = KsymResolver::load_from_reader(file, path)?;
         let resolver = Rc::new(resolver);
         Ok(resolver)
     }
 
-    fn ksym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<KSymResolver>> {
+    fn ksym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<KsymResolver>> {
         let (file, cell) = self.ksym_cache.entry(path)?;
         let resolver = cell.get_or_try_init(|| self.create_ksym_resolver(path, file))?;
         Ok(resolver)
