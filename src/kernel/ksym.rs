@@ -169,7 +169,7 @@ impl<'kfunc> TryFrom<&'kfunc Kfunc> for SymInfo<'kfunc> {
 ///
 /// The users should provide the path of kallsyms, so you can provide
 /// a copy from other devices.
-pub(crate) struct KSymResolver {
+pub(crate) struct KsymResolver {
     /// An index over `syms` that is sorted by name.
     by_name_idx: OnceCell<Box<[usize]>>,
     syms: Box<[Ksym]>,
@@ -177,7 +177,7 @@ pub(crate) struct KSymResolver {
     bpf_info_cache: BpfInfoCache,
 }
 
-impl KSymResolver {
+impl KsymResolver {
     #[cfg(test)]
     pub fn load_file_name(path: &Path) -> Result<Self> {
         let f = File::open(path)?;
@@ -281,7 +281,7 @@ impl KSymResolver {
     }
 }
 
-impl Symbolize for KSymResolver {
+impl Symbolize for KsymResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         match self.find_ksym(addr) {
             Ok(ksym) => {
@@ -293,7 +293,7 @@ impl Symbolize for KSymResolver {
     }
 }
 
-impl Inspect for KSymResolver {
+impl Inspect for KsymResolver {
     fn find_addr<'slf>(&'slf self, name: &str, opts: &FindAddrOpts) -> Result<Vec<SymInfo<'slf>>> {
         if let SymType::Variable = opts.sym_type {
             return Ok(Vec::new())
@@ -331,9 +331,9 @@ impl Inspect for KSymResolver {
     }
 }
 
-impl Debug for KSymResolver {
+impl Debug for KsymResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "KSymResolver")
+        write!(f, "KsymResolver")
     }
 }
 
@@ -362,7 +362,7 @@ mod tests {
     #[tag(miri)]
     #[test]
     fn debug_repr() {
-        let resolver = KSymResolver {
+        let resolver = KsymResolver {
             syms: Box::default(),
             by_name_idx: OnceCell::new(),
             file_name: PathBuf::new(),
@@ -390,7 +390,7 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
 "#;
 
         let resolver =
-            KSymResolver::load_from_reader(&mut kallsyms.as_slice(), Path::new("<dummy>")).unwrap();
+            KsymResolver::load_from_reader(&mut kallsyms.as_slice(), Path::new("<dummy>")).unwrap();
         assert_eq!(resolver.syms.len(), 5);
 
         // Spot-check some of the parsed symbols for sanity.
@@ -418,14 +418,14 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
         }
     }
 
-    /// Check that we can use a `KSymResolver` to find symbols.
+    /// Check that we can use a `KsymResolver` to find symbols.
     #[test]
     fn ksym_resolver_load_find() {
-        let result = KSymResolver::load_file_name(Path::new(KALLSYMS));
+        let result = KsymResolver::load_file_name(Path::new(KALLSYMS));
         let resolver = match result {
             Ok(resolver) => resolver,
             Err(err) if err.kind() == ErrorKind::NotFound => return,
-            Err(err) => panic!("failed to instantiate KSymResolver: {err}"),
+            Err(err) => panic!("failed to instantiate KsymResolver: {err}"),
         };
 
         assert!(
@@ -479,7 +479,7 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
     #[tag(miri)]
     #[test]
     fn find_ksym() {
-        let resolver = KSymResolver::from_kfuncs([
+        let resolver = KsymResolver::from_kfuncs([
             Kfunc {
                 addr: 0x123,
                 name: Box::from("1"),
@@ -536,7 +536,7 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
     #[tag(miri)]
     #[test]
     fn symbol_iteration() {
-        let resolver = KSymResolver::from_kfuncs([
+        let resolver = KsymResolver::from_kfuncs([
             Kfunc {
                 addr: 0x123,
                 name: Box::from("j"),
@@ -567,13 +567,13 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
         assert_eq!(syms, vec!["a", "b", "j", "z"]);
     }
 
-    /// Check that [`KSymResolver::find_addr`] and
-    /// [`KSymResolver::for_each`] behave as expected for variable
+    /// Check that [`KsymResolver::find_addr`] and
+    /// [`KsymResolver::for_each`] behave as expected for variable
     /// inquiries.
     #[tag(miri)]
     #[test]
     fn variable_operations() {
-        let resolver = KSymResolver::from_kfuncs([
+        let resolver = KsymResolver::from_kfuncs([
             Kfunc {
                 addr: 0x123,
                 name: Box::from("j"),
@@ -618,7 +618,7 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
 
         let () = b.iter(|| {
             let _resolver = black_box(
-                KSymResolver::load_from_reader(black_box(&mut kallsyms.as_slice()), &path).unwrap(),
+                KsymResolver::load_from_reader(black_box(&mut kallsyms.as_slice()), &path).unwrap(),
             );
         });
     }

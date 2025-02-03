@@ -13,17 +13,17 @@ use crate::Addr;
 use crate::Error;
 use crate::Result;
 
-use super::ksym::KSymResolver;
+use super::ksym::KsymResolver;
 
 
 pub(crate) struct KernelResolver {
-    ksym_resolver: Option<Rc<KSymResolver>>,
+    ksym_resolver: Option<Rc<KsymResolver>>,
     elf_resolver: Option<Rc<ElfResolver>>,
 }
 
 impl KernelResolver {
     pub(crate) fn new(
-        ksym_resolver: Option<Rc<KSymResolver>>,
+        ksym_resolver: Option<Rc<KsymResolver>>,
         elf_resolver: Option<Rc<ElfResolver>>,
     ) -> Result<KernelResolver> {
         if ksym_resolver.is_none() && elf_resolver.is_none() {
@@ -94,7 +94,7 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
-        let ksym = Rc::new(KSymResolver::load_file_name(Path::new(KALLSYMS)).unwrap());
+        let ksym = Rc::new(KsymResolver::load_file_name(Path::new(KALLSYMS)).unwrap());
         let kernel = KernelResolver::new(Some(ksym), None).unwrap();
         assert_ne!(format!("{kernel:?}"), "");
     }
