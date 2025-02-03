@@ -171,6 +171,7 @@ impl From<blaze_symbolize_src_kernel> for Kernel {
         Self {
             kallsyms: to_maybe_path(kallsyms),
             vmlinux: to_maybe_path(vmlinux),
+            kaslr_offset: None,
             debug_syms,
             _non_exhaustive: (),
         }

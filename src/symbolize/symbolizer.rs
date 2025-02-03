@@ -942,6 +942,7 @@ impl Symbolizer {
         let Kernel {
             kallsyms,
             vmlinux,
+            kaslr_offset,
             debug_syms,
             _non_exhaustive: (),
         } = src;
@@ -992,7 +993,10 @@ impl Symbolizer {
                         .elf_cache
                         .elf_resolver(&vmlinux, self.maybe_debug_dirs(*debug_syms));
                     match result {
-                        Ok(resolver) => Some(resolver),
+                        Ok(resolver) => {
+                            log::debug!("found suitable vmlinux file `{}`", vmlinux.display());
+                            Some(resolver)
+                        }
                         Err(err) => {
                             log::warn!(
                                 "failed to load vmlinux `{}`: {err}; ignoring...",
@@ -1008,7 +1012,7 @@ impl Symbolizer {
             MaybeDefault::None => None,
         };
 
-        KernelResolver::new(ksym_resolver.cloned(), elf_resolver.cloned())
+        KernelResolver::new(ksym_resolver.cloned(), elf_resolver.cloned(), *kaslr_offset)
     }
 
     #[cfg(not(linux))]
