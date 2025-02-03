@@ -16,6 +16,7 @@ use crate::util::split_bytes;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
+use crate::ErrorKind;
 use crate::IntoError as _;
 use crate::Result;
 
@@ -46,7 +47,7 @@ fn parse_vmcoreinfo_desc(desc: &[u8]) -> impl Iterator<Item = (&[u8], &[u8])> {
 
 /// Find and read the `KERNELOFFSET` note in a "kcore" file represented by
 /// `parser` (i.e., already opened as an ELF).
-fn find_kaslr_offset(parser: &ElfParser<File>) -> Result<Option<u64>> {
+fn read_kcore_kaslr_offset(parser: &ElfParser<File>) -> Result<Option<u64>> {
     let phdrs = parser.program_headers()?;
     for phdr in phdrs.iter(0) {
         if phdr.type_() != elf::types::PT_NOTE {
@@ -98,14 +99,25 @@ fn find_kaslr_offset(parser: &ElfParser<File>) -> Result<Option<u64>> {
     Ok(None)
 }
 
+fn find_kcore_kaslr_offset() -> Result<Option<u64>> {
+    // Note that we cannot use the regular mmap based ELF parser
+    // backend for this file, as it cannot be mmap'ed. We have to
+    // fall back to using regular I/O instead.
+    let parser = match ElfParser::open_non_mmap(PROC_KCORE) {
+        Ok(parser) => parser,
+        Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(err),
+    };
+    let offset = read_kcore_kaslr_offset(&parser)?;
+    Ok(offset)
+}
+
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     use test_log::test;
-
-    use crate::ErrorKind;
 
 
     /// Check that we can parse a dummy VMCOREINFO descriptor.
@@ -128,18 +140,10 @@ PAGESIZE=4096
     /// Check that we can determine the system's KASLR state.
     #[test]
     fn kaslr_offset_reading() {
-        // Always attempt reading the KASLR to exercise the VMCOREINFO
-        // parsing path.
-        // Note that we cannot use the regular mmap based ELF parser
-        // backend for this file, as it cannot be mmap'ed. We have to
-        // fall back to using regular I/O instead.
-        let parser = match ElfParser::open_non_mmap(PROC_KCORE) {
-            Ok(parser) => parser,
-            Err(err) if err.kind() == ErrorKind::NotFound => return,
-            Err(err) => panic!("{err}"),
-        };
-        // We care about the parsing logic, but can't make any claims
-        // about the expected offset at this point.
-        let _offset = find_kaslr_offset(&parser).unwrap();
+        // Always attempt reading the KASLR offset to exercise the
+        // VMCOREINFO parsing path.
+        // Also, we care about the parsing logic, but can't make any
+        // claims about the expected offset at this point.
+        let _offset = find_kcore_kaslr_offset().unwrap();
     }
 }
