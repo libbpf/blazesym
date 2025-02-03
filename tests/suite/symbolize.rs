@@ -2,6 +2,7 @@ use std::env;
 use std::ffi::OsStr;
 use std::fs::copy;
 use std::fs::read as read_file;
+use std::fs::File;
 use std::io;
 use std::io::Read as _;
 use std::io::Write as _;
@@ -47,6 +48,7 @@ use blazesym::__private::find_the_answer_fn_in_zip;
 #[cfg(linux)]
 use blazesym_dev::with_bpf_symbolization_target_addrs;
 
+use rand::Rng as _;
 use scopeguard::defer;
 
 use tempfile::tempdir;
@@ -1024,6 +1026,7 @@ fn symbolize_kernel_no_valid_source() {
     let kernel = Kernel {
         kallsyms: MaybeDefault::None,
         vmlinux: MaybeDefault::None,
+        kaslr_offset: Some(0),
         ..Default::default()
     };
     let src = Source::Kernel(kernel);
@@ -1035,6 +1038,33 @@ fn symbolize_kernel_no_valid_source() {
     assert!(
         err.to_string()
             .starts_with("failed to create kernel resolver"),
+        "{err:?}"
+    );
+}
+
+/// Make sure that we fail vmlinux based symbolization if the provided
+/// address is less than the KASLR offset.
+#[test]
+fn symbolize_kernel_vmlinux_invalid_address() {
+    let kernel = Kernel {
+        kallsyms: MaybeDefault::None,
+        vmlinux: MaybeDefault::Some(
+            Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join("test-stable-addrs.bin"),
+        ),
+        kaslr_offset: Some(0xffffffff),
+        ..Default::default()
+    };
+    let src = Source::Kernel(kernel);
+    let symbolizer = Symbolizer::new();
+    let err = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(0xfffffffe))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::InvalidInput);
+    assert_eq!(
+        err.to_string(),
+        "address 0xfffffffe is less than KASLR offset (0xffffffff)",
         "{err:?}"
     );
 }
@@ -1051,6 +1081,7 @@ fn symbolize_kernel_kallsyms() {
                     .join("kallsyms"),
             ),
             vmlinux,
+            kaslr_offset: Some(0),
             ..Default::default()
         };
         let src = Source::Kernel(kernel);
@@ -1107,6 +1138,7 @@ fn symbolize_kernel_vmlinux() {
                 .join("data")
                 .join("test-stable-addrs.bin"),
         ),
+        kaslr_offset: Some(0),
         debug_syms: true,
         ..Default::default()
     };
@@ -1130,12 +1162,83 @@ fn symbolize_kernel_vmlinux() {
     test(src.clone(), false);
 }
 
+/// Test symbolization of a kernel address using vmlinux and the system
+/// KASLR state.
+#[test]
+#[ignore = "test requires discoverable vmlinux file present"]
+fn symbolize_kernel_system_vmlinux() {
+    fn find_kernel_syms() -> Vec<(Addr, String)> {
+        let mut file = File::open("/proc/kallsyms").unwrap();
+        let mut content = String::new();
+        let _cnt = file.read_to_string(&mut content).unwrap();
+        let pairs = content
+            .lines()
+            .filter_map(|line| {
+                let [addr, ty, name] = line
+                    .split_ascii_whitespace()
+                    .collect::<Vec<_>>()
+                    .get(0..3)?
+                    .try_into()
+                    .unwrap();
+                if !["T", "t"].contains(&ty) {
+                    return None
+                }
+                let addr = Addr::from_str_radix(addr, 16).unwrap();
+                Some((addr, name))
+            })
+            .collect::<Vec<_>>();
+
+        let mut rng = rand::rng();
+        let pairs = (0..20)
+            .map(|_| {
+                let idx = rng.random_range(0..pairs.len());
+                let addr = pairs[idx].0;
+                let name = pairs[idx].1;
+                (addr, name.to_string())
+            })
+            .collect::<Vec<_>>();
+
+        pairs
+    }
+
+    let syms = find_kernel_syms();
+    let kernel = Kernel {
+        kallsyms: MaybeDefault::None,
+        ..Default::default()
+    };
+    let src = Source::Kernel(kernel);
+    let symbolizer = Symbolizer::new();
+    let symbolized = symbolizer
+        .symbolize(
+            &src,
+            Input::AbsAddr(
+                syms.iter()
+                    .map(|(addr, _name)| *addr)
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            ),
+        )
+        .unwrap();
+    assert_eq!(symbolized.len(), syms.len());
+    for (i, sym) in symbolized.iter().enumerate() {
+        let sym = sym.as_sym().unwrap();
+        assert_eq!(sym.name, syms[i].1, "{sym:?} | {:?}", syms[i]);
+    }
+}
+
 /// Test symbolization of a kernel address inside a BPF program.
 #[cfg(linux)]
 #[test]
 fn symbolize_kernel_bpf_program() {
     with_bpf_symbolization_target_addrs(|handle_getpid, subprogram| {
-        let src = Source::Kernel(Kernel::default());
+        let kernel = Kernel {
+            vmlinux: MaybeDefault::None,
+            // KASLR offset shouldn't have any effect for BPF program
+            // symbolization.
+            kaslr_offset: Some(u64::MAX),
+            ..Default::default()
+        };
+        let src = Source::Kernel(kernel);
         let symbolizer = Symbolizer::new();
         let result = symbolizer
             .symbolize(&src, Input::AbsAddr(&[handle_getpid, subprogram]))

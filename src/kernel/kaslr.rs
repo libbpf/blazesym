@@ -1,20 +1,15 @@
-use std::error::Error as StdError;
 use std::fs::File;
-use std::io;
-use std::io::Read as _;
-use std::path::Path;
+use std::mem::size_of;
 use std::str;
-use std::str::FromStr;
 
 use crate::elf;
 use crate::elf::types::ElfN_Nhdr;
 use crate::elf::BackendImpl;
 use crate::elf::ElfParser;
+use crate::log;
 use crate::util::align_up_u32;
 use crate::util::from_radix_16;
 use crate::util::split_bytes;
-use crate::Addr;
-use crate::Error;
 use crate::ErrorExt as _;
 use crate::ErrorKind;
 use crate::IntoError as _;
@@ -32,7 +27,7 @@ const VMCOREINFO_NAME: &[u8] = b"VMCOREINFO\0";
 /// "Parse" the VMCOREINFO descriptor.
 ///
 /// This underspecified blob roughly has the following format:
-/// ```
+/// ```text
 /// OSRELEASE=6.2.15-100.fc36.x86_64
 /// BUILD-ID=d3d01c80278f8927486b7f01d0ab6be77784dceb
 /// PAGESIZE=4096
@@ -110,6 +105,18 @@ fn find_kcore_kaslr_offset() -> Result<Option<u64>> {
     };
     let offset = read_kcore_kaslr_offset(&parser)?;
     Ok(offset)
+}
+
+pub(crate) fn find_kalsr_offset() -> Result<Option<u64>> {
+    // TODO: Try other methods of determining KASLR offset, including
+    //       comparisons between `/proc/kallsyms` values to
+    //       `System.map-*` contents or parsing `dmesg` (no, really...)
+
+    if let offset @ Some(o) = find_kcore_kaslr_offset()? {
+        log::debug!("determined KASLR offset to be {o:#x} based on {PROC_KCORE} contents");
+        return Ok(offset)
+    }
+    Ok(None)
 }
 
 

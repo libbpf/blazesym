@@ -151,6 +151,7 @@ anyhow = "1.0.71"
 blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
+rand = {version = "0.9", default-features = false, features = ["std", "thread_rng"]}
 scopeguard = "1.2"
 stats_alloc = {version = "0.1.1", features = ["nightly"]}
 tempfile = "3.4"

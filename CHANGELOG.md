@@ -6,6 +6,9 @@ Unreleased
   file, if present
 - Changed `symbolize::Kernel::{kallsyms,kernel_image}` to support
   disabling of the source
+- Adjusted `vmlinux` based kernel address symbolization logic to take
+  into account system KASLR state
+  - Added `kaslr_offset` member to `symbolize::Kernel`
 
 
 0.2.0-rc.2

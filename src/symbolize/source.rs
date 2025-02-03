@@ -194,6 +194,13 @@ pub struct Kernel {
     /// `vmlinux` will generally be given preference and `kallsyms` acts
     /// as a fallback.
     pub vmlinux: MaybeDefault<PathBuf>,
+    /// The KASLR offset to use.
+    ///
+    /// Given a value of `None`, the library will attempt to deduce the
+    /// offset itself. Note that this value only has relevance when a
+    /// kernel image is used for symbolization, because `kallsyms` based
+    /// data already include randomization adjusted addresses.
+    pub kaslr_offset: Option<u64>,
     /// Whether or not to consult debug symbols from `vmlinux` to
     /// satisfy the request (if present).
     ///
@@ -212,6 +219,7 @@ impl Default for Kernel {
         Self {
             kallsyms: MaybeDefault::Default,
             vmlinux: MaybeDefault::Default,
+            kaslr_offset: None,
             debug_syms: true,
             _non_exhaustive: (),
         }

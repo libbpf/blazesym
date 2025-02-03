@@ -887,7 +887,6 @@ where
     _backend: B::ObjTy,
 }
 
-#[cfg(test)]
 impl ElfParser<File> {
     fn open_file_io<P>(file: File, path: P) -> Self
     where
