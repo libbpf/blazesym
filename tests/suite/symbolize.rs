@@ -554,7 +554,7 @@ fn symbolize_breakpad_inlined() {
 }
 
 /// Check that we can symbolize the `abort_creds` function inside a
-/// kernel image properly. Inside of
+/// vmlinux file properly. Inside of
 /// vmlinux-5.17.12-100.fc34.x86_64.dwarf, this function's address range
 /// and name are in separate attributes:
 /// ```text
@@ -1023,7 +1023,7 @@ fn symbolize_zip_with_custom_dispatch_errors() {
 fn symbolize_kernel_no_valid_source() {
     let kernel = Kernel {
         kallsyms: MaybeDefault::None,
-        kernel_image: MaybeDefault::None,
+        vmlinux: MaybeDefault::None,
         ..Default::default()
     };
     let src = Source::Kernel(kernel);
@@ -1043,14 +1043,14 @@ fn symbolize_kernel_no_valid_source() {
 /// file.
 #[test]
 fn symbolize_kernel_kallsyms() {
-    fn test(kernel_image: MaybeDefault<PathBuf>) {
+    fn test(vmlinux: MaybeDefault<PathBuf>) {
         let kernel = Kernel {
             kallsyms: MaybeDefault::from(
                 Path::new(&env!("CARGO_MANIFEST_DIR"))
                     .join("data")
                     .join("kallsyms"),
             ),
-            kernel_image,
+            vmlinux,
             ..Default::default()
         };
         let src = Source::Kernel(kernel);
@@ -1064,7 +1064,7 @@ fn symbolize_kernel_kallsyms() {
     }
 
     test(MaybeDefault::None);
-    // Provide a valid "kernel" image file, but given that it does not
+    // Provide a valid "vmlinux" file, but given that it does not
     // contain the address we attempt to symbolize we should end up
     // falling back to using kallsyms.
     test(MaybeDefault::Some(
@@ -1074,9 +1074,9 @@ fn symbolize_kernel_kallsyms() {
     ));
 }
 
-/// Test symbolization of a "kernel" address in an ELF file.
+/// Test symbolization of a "kernel" address in an vmlinux ELF file.
 #[test]
-fn symbolize_kernel_image() {
+fn symbolize_kernel_vmlinux() {
     #[track_caller]
     fn test(kernel: Kernel, has_code_info: bool) {
         let src = Source::Kernel(kernel);
@@ -1100,10 +1100,9 @@ fn symbolize_kernel_image() {
 
     let mut src = Kernel {
         kallsyms: MaybeDefault::None,
-        // We use a fake kernel image here for testing purposes, which
-        // really is just a regular ELF file, but that's what the kernel
-        // image would be anyway.
-        kernel_image: MaybeDefault::Some(
+        // We use a fake vmlinux here for testing purposes, which really
+        // is just a regular ELF file.
+        vmlinux: MaybeDefault::Some(
             Path::new(&env!("CARGO_MANIFEST_DIR"))
                 .join("data")
                 .join("test-stable-addrs.bin"),
@@ -1119,7 +1118,7 @@ fn symbolize_kernel_image() {
     test(src.clone(), false);
 
     // Source has no debug syms and we do not want to use them.
-    src.kernel_image = MaybeDefault::Some(
+    src.vmlinux = MaybeDefault::Some(
         Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs-no-dwarf.bin"),

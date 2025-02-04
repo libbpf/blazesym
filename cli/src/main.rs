@@ -270,7 +270,7 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
         }
         args::symbolize::Symbolize::Kernel(args::symbolize::Kernel {
             kallsyms,
-            kernel_image,
+            vmlinux,
             ref addrs,
         }) => {
             let kernel = symbolize::Kernel {
@@ -279,7 +279,7 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
                     Some(path) if path.as_os_str().is_empty() => MaybeDefault::None,
                     Some(path) => MaybeDefault::Some(path.into()),
                 },
-                kernel_image: match kernel_image {
+                vmlinux: match vmlinux {
                     None => MaybeDefault::Default,
                     Some(path) if path.as_os_str().is_empty() => MaybeDefault::None,
                     Some(path) => MaybeDefault::Some(path.into()),

@@ -941,7 +941,7 @@ impl Symbolizer {
 
         let Kernel {
             kallsyms,
-            kernel_image,
+            vmlinux,
             debug_syms,
             _non_exhaustive: (),
         } = src;
@@ -968,11 +968,11 @@ impl Symbolizer {
             MaybeDefault::None => None,
         };
 
-        let elf_resolver = match kernel_image {
-            MaybeDefault::Some(image) => {
+        let elf_resolver = match vmlinux {
+            MaybeDefault::Some(vmlinux) => {
                 let resolver = self
                     .elf_cache
-                    .elf_resolver(image, self.maybe_debug_dirs(*debug_syms))?;
+                    .elf_resolver(vmlinux, self.maybe_debug_dirs(*debug_syms))?;
                 Some(resolver)
             }
             MaybeDefault::Default => {
@@ -980,23 +980,23 @@ impl Symbolizer {
                 let release = bytes_to_os_str(release.as_bytes())?;
                 let basename = OsStr::new("vmlinux-");
                 let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
-                let kernel_image = dirs.iter().find_map(|dir| {
+                let vmlinux = dirs.iter().find_map(|dir| {
                     let mut file = basename.to_os_string();
                     let () = file.push(release);
                     let path = dir.join(file);
                     path.exists().then_some(path)
                 });
 
-                if let Some(image) = kernel_image {
+                if let Some(vmlinux) = vmlinux {
                     let result = self
                         .elf_cache
-                        .elf_resolver(&image, self.maybe_debug_dirs(*debug_syms));
+                        .elf_resolver(&vmlinux, self.maybe_debug_dirs(*debug_syms));
                     match result {
                         Ok(resolver) => Some(resolver),
                         Err(err) => {
                             log::warn!(
-                                "failed to load kernel image {}: {err}; ignoring...",
-                                image.display()
+                                "failed to load vmlinux `{}`: {err}; ignoring...",
+                                vmlinux.display()
                             );
                             None
                         }

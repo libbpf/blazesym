@@ -1,7 +1,7 @@
 Unreleased
 ----------
 - Added `--no-debug-syms` option to `inspect dump elf` sub-command
-- Added `--kallsyms` and `--kernel-image` options to `symbolize-kernel
+- Added `--kallsyms` and `--vmlinux` options to `symbolize-kernel
   sub-command
 
 
