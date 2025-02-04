@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
@@ -10,6 +11,7 @@ use clap::ArgAction;
 use clap::Args as Arguments;
 use clap::Parser;
 use clap::Subcommand;
+use clap::ValueHint;
 
 
 /// Parse a PID from a string.
@@ -255,6 +257,17 @@ pub mod symbolize {
 
     #[derive(Debug, Arguments)]
     pub struct Kernel {
+        /// The kallsyms file to use. Defaults to the system one. To
+        /// disable kallsyms usage provide an empty argument.
+        // We use `OsString`, because it natively supports ""
+        // assignment, whereas `PathBuf` does not.
+        #[arg(long, value_hint = ValueHint::FilePath)]
+        pub kallsyms: Option<OsString>,
+        /// The kernel image file to use. If not provided, default
+        /// system locations will be searched for suitable candidates.
+        /// To disable usage provide an empty argument.
+        #[arg(long, value_hint = ValueHint::FilePath)]
+        pub kernel_image: Option<OsString>,
         /// The addresses to symbolize.
         #[arg(value_parser = parse_addr)]
         pub addrs: Vec<Addr>,
