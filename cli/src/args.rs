@@ -35,7 +35,7 @@ fn parse_addr(s: &str) -> Result<Addr> {
 
 /// A command line interface for blazesym.
 #[derive(Debug, Parser)]
-#[clap(version = env!("VERSION"))]
+#[command(version = env!("VERSION"))]
 pub struct Args {
     #[command(subcommand)]
     pub command: Command,
@@ -102,7 +102,7 @@ pub mod inspect {
     #[derive(Debug, Arguments)]
     pub struct BreakpadLookup {
         /// The path to the Breakpad (*.sym) file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         pub path: PathBuf,
         /// A list of names of symbols.
         pub names: Vec<String>,
@@ -111,14 +111,14 @@ pub mod inspect {
     #[derive(Debug, Arguments)]
     pub struct BreakpadDump {
         /// The path to the Breakpad (*.sym) file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         pub path: PathBuf,
     }
 
     #[derive(Debug, Arguments)]
     pub struct ElfLookup {
         /// The path to the ELF file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         pub path: PathBuf,
         /// A list of names of symbols.
         pub names: Vec<String>,
@@ -127,10 +127,10 @@ pub mod inspect {
     #[derive(Debug, Arguments)]
     pub struct ElfDump {
         /// The path to the ELF file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         pub path: PathBuf,
         /// Dump ELF symbols instead of DWARF ones.
-        #[clap(long)]
+        #[arg(long)]
         pub no_debug_syms: bool,
     }
 }
@@ -150,22 +150,21 @@ pub mod normalize {
     #[derive(Debug, Arguments)]
     pub struct User {
         /// The PID of the process the provided addresses belong to.
-        #[clap(short, long)]
-        #[arg(value_parser = parse_pid)]
+        #[arg(short, long, value_parser = parse_pid)]
         pub pid: Pid,
         /// The addresses to normalize.
         #[arg(value_parser = parse_addr)]
         pub addrs: Vec<Addr>,
         /// Disable the reading of build IDs of the corresponding binaries.
-        #[clap(long)]
+        #[arg(long)]
         pub no_build_ids: bool,
         /// Report `/proc/<pid>/map_files/` entry paths instead of
         /// symbolic paths mentioned in `/proc/<pid>/maps`.
-        #[clap(long)]
+        #[arg(long)]
         pub map_files: bool,
         /// Enable the usage of the `PROCMAP_QUERY` ioctl instead of
         /// parsing `/proc/<pid>/maps` for getting available VMA ranges.
-        #[clap(long)]
+        #[arg(long)]
         pub procmap_query: bool,
     }
 }
@@ -188,7 +187,7 @@ pub mod symbolize {
     #[derive(Debug, Arguments)]
     pub struct Breakpad {
         /// The path to the Breakpad (*.sym) file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         pub path: PathBuf,
         /// The addresses to symbolize.
         ///
@@ -203,17 +202,17 @@ pub mod symbolize {
     pub struct DebugArgs {
         /// Comma-separated list of debug directories to search when
         /// resolving debug links.
-        #[clap(long, value_parser, value_delimiter = ',')]
+        #[arg(long, value_parser, value_delimiter = ',')]
         pub debug_dirs: Option<Vec<PathBuf>>,
         /// Disable the use of debug symbols.
-        #[clap(long)]
+        #[arg(long)]
         pub no_debug_syms: bool,
     }
 
     #[derive(Debug, Arguments)]
     pub struct Elf {
         /// The path to the ELF file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         pub path: PathBuf,
         #[command(flatten)]
         pub debug_args: DebugArgs,
@@ -229,7 +228,7 @@ pub mod symbolize {
     #[derive(Debug, Arguments)]
     pub struct Gsym {
         /// The path to the Gsym file.
-        #[clap(short, long)]
+        #[arg(short, long)]
         pub path: PathBuf,
         /// The addresses to symbolize.
         ///
@@ -243,15 +242,14 @@ pub mod symbolize {
     #[derive(Debug, Arguments)]
     pub struct Process {
         /// The PID of the process the provided addresses belong to.
-        #[clap(short, long)]
-        #[arg(value_parser = parse_pid)]
+        #[arg(short, long, value_parser = parse_pid)]
         pub pid: Pid,
         /// The addresses to symbolize.
         #[arg(value_parser = parse_addr)]
         pub addrs: Vec<Addr>,
         /// Disable the use of `/proc/<pid>/map_files/` entries and use
         /// symbolic paths instead.
-        #[clap(long)]
+        #[arg(long)]
         pub no_map_files: bool,
     }
 
