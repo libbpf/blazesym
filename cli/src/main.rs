@@ -19,6 +19,7 @@ use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
+use blazesym::MaybeDefault;
 use blazesym::SymType;
 
 use clap::Parser as _;
@@ -267,8 +268,24 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
             let input = symbolize::Input::AbsAddr(addrs);
             (src, input, addrs)
         }
-        args::symbolize::Symbolize::Kernel(args::symbolize::Kernel { ref addrs }) => {
-            let kernel = symbolize::Kernel::default();
+        args::symbolize::Symbolize::Kernel(args::symbolize::Kernel {
+            kallsyms,
+            kernel_image,
+            ref addrs,
+        }) => {
+            let kernel = symbolize::Kernel {
+                kallsyms: match kallsyms {
+                    None => MaybeDefault::Default,
+                    Some(path) if path.as_os_str().is_empty() => MaybeDefault::None,
+                    Some(path) => MaybeDefault::Some(path.into()),
+                },
+                kernel_image: match kernel_image {
+                    None => MaybeDefault::Default,
+                    Some(path) if path.as_os_str().is_empty() => MaybeDefault::None,
+                    Some(path) => MaybeDefault::Some(path.into()),
+                },
+                ..Default::default()
+            };
             let src = symbolize::Source::from(kernel);
             let addrs = addrs.as_slice();
             let input = symbolize::Input::AbsAddr(addrs);
