@@ -263,11 +263,11 @@ pub mod symbolize {
         // assignment, whereas `PathBuf` does not.
         #[arg(long, value_hint = ValueHint::FilePath)]
         pub kallsyms: Option<OsString>,
-        /// The kernel image file to use. If not provided, default
-        /// system locations will be searched for suitable candidates.
-        /// To disable usage provide an empty argument.
+        /// The vmlinux file to use. If not provided, default system
+        /// locations will be searched for suitable candidates. To
+        /// disable usage provide an empty argument.
         #[arg(long, value_hint = ValueHint::FilePath)]
-        pub kernel_image: Option<OsString>,
+        pub vmlinux: Option<OsString>,
         /// The addresses to symbolize.
         #[arg(value_parser = parse_addr)]
         pub addrs: Vec<Addr>,

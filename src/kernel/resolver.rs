@@ -28,7 +28,7 @@ impl KernelResolver {
     ) -> Result<KernelResolver> {
         if ksym_resolver.is_none() && elf_resolver.is_none() {
             return Err(Error::with_not_found(
-                    "failed to create kernel resolver: neither ksym resolver nor kernel image ELF resolver are present",
+                "failed to create kernel resolver: neither kallsyms nor vmlinux symbol source are present",
             ))
         }
 
@@ -45,11 +45,11 @@ impl Symbolize for KernelResolver {
             (Some(elf_resolver), None) => elf_resolver.find_sym(addr, opts),
             (None, Some(ksym_resolver)) => ksym_resolver.find_sym(addr, opts),
             (Some(elf_resolver), Some(ksym_resolver)) => {
-                // We give preference to the kernel image resolver, because it
-                // is likely to report more information. If it could not find
-                // an address, though, we fall back to kallsyms. This is
-                // helpful for example for kernel modules, which naturally are
-                // not captured by the core kernel image.
+                // We give preference to vmlinux, because it is likely
+                // to report more information. If it could not find an
+                // address, though, we fall back to kallsyms. This is
+                // helpful for example for kernel modules, which
+                // naturally are not captured by vmlinux.
                 let result = elf_resolver.find_sym(addr, opts)?;
                 if result.is_ok() {
                     Ok(result)

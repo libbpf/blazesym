@@ -92,9 +92,6 @@ impl From<blaze_symbolize_src_elf> for Elf {
 
 
 /// The parameters to load symbols and debug information from a kernel.
-///
-/// Use a kernel image and a snapshot of its kallsyms as a source of symbols and
-/// debug information.
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_symbolize_src_kernel {
@@ -109,24 +106,28 @@ pub struct blaze_symbolize_src_kernel {
     /// If set to `'\0'` (`""`) usage of `kallsyms` will be disabled.
     /// Otherwise the copy at the given path will be used.
     ///
-    /// If both a kernel image as well as a `kallsyms` file are found,
-    /// the kernel image will generally be given preference and
-    /// `kallsyms` acts as a fallback.
+    /// If both a `vmlinux` as well as a `kallsyms` file are found,
+    /// `vmlinux` will generally be given preference and `kallsyms` acts
+    /// as a fallback.
     pub kallsyms: *const c_char,
-    /// The path of the kernel image to use.
+    /// The path of the `vmlinux` file to use.
     ///
-    /// When `NULL`, the library will search for kernel image candidates
-    /// in various locations, taking into account the currently running
-    /// kernel version. If set to `'\0'` (`""`) usage of a kernel image
-    /// will be disabled. Otherwise the copy at the given path will be
-    /// used.
+    /// `vmlinux` is generally an uncompressed and unstripped object
+    /// file that is typically used in debugging, profiling, and
+    /// similar use cases.
     ///
-    /// If both a kernel image as well as a `kallsyms` file are found,
-    /// the kernel image will generally be given preference and
-    /// `kallsyms` acts as a fallback.
-    pub kernel_image: *const c_char,
-    /// Whether or not to consult debug symbols from `kernel_image`
-    /// to satisfy the request (if present).
+    /// When `NULL`, the library will search for `vmlinux` candidates in
+    /// various locations, taking into account the currently running
+    /// kernel version. If set to `'\0'` (`""`) discovery and usage of a
+    /// `vmlinux` will be disabled. Otherwise the copy at the given path
+    /// will be used.
+    ///
+    /// If both a `vmlinux` as well as a `kallsyms` file are found,
+    /// `vmlinux` will generally be given preference and `kallsyms` acts
+    /// as a fallback.
+    pub vmlinux: *const c_char,
+    /// Whether or not to consult debug symbols from `vmlinux` to
+    /// satisfy the request (if present).
     pub debug_syms: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
@@ -138,7 +139,7 @@ impl Default for blaze_symbolize_src_kernel {
         Self {
             type_size: mem::size_of::<Self>(),
             kallsyms: ptr::null(),
-            kernel_image: ptr::null(),
+            vmlinux: ptr::null(),
             debug_syms: false,
             reserved: [0; 7],
         }
@@ -163,13 +164,13 @@ impl From<blaze_symbolize_src_kernel> for Kernel {
         let blaze_symbolize_src_kernel {
             type_size: _,
             kallsyms,
-            kernel_image,
+            vmlinux,
             debug_syms,
             reserved: _,
         } = kernel;
         Self {
             kallsyms: to_maybe_path(kallsyms),
-            kernel_image: to_maybe_path(kernel_image),
+            vmlinux: to_maybe_path(vmlinux),
             debug_syms,
             _non_exhaustive: (),
         }
@@ -1179,7 +1180,7 @@ mod tests {
         };
         assert_eq!(
             format!("{kernel:?}"),
-            "blaze_symbolize_src_kernel { type_size: 32, kallsyms: 0x0, kernel_image: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_symbolize_src_kernel { type_size: 32, kallsyms: 0x0, vmlinux: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let process = blaze_symbolize_src_process {
@@ -1304,20 +1305,20 @@ mod tests {
         let kernel = blaze_symbolize_src_kernel::default();
         let kernel = Kernel::from(kernel);
         assert_eq!(kernel.kallsyms, MaybeDefault::Default);
-        assert_eq!(kernel.kernel_image, MaybeDefault::Default);
+        assert_eq!(kernel.vmlinux, MaybeDefault::Default);
 
         let kernel = blaze_symbolize_src_kernel {
             kallsyms: b"\0" as *const _ as *const c_char,
-            kernel_image: b"\0" as *const _ as *const c_char,
+            vmlinux: b"\0" as *const _ as *const c_char,
             ..Default::default()
         };
         let kernel = Kernel::from(kernel);
         assert_eq!(kernel.kallsyms, MaybeDefault::None);
-        assert_eq!(kernel.kernel_image, MaybeDefault::None);
+        assert_eq!(kernel.vmlinux, MaybeDefault::None);
 
         let kernel = blaze_symbolize_src_kernel {
             kallsyms: b"/proc/kallsyms\0" as *const _ as *const c_char,
-            kernel_image: b"/boot/image\0" as *const _ as *const c_char,
+            vmlinux: b"/boot/vmlinux\0" as *const _ as *const c_char,
             debug_syms: false,
             ..Default::default()
         };
@@ -1328,8 +1329,8 @@ mod tests {
             MaybeDefault::Some(PathBuf::from("/proc/kallsyms"))
         );
         assert_eq!(
-            kernel.kernel_image,
-            MaybeDefault::Some(PathBuf::from("/boot/image"))
+            kernel.vmlinux,
+            MaybeDefault::Some(PathBuf::from("/boot/vmlinux"))
         );
     }
 

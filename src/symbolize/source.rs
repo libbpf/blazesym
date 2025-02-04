@@ -174,24 +174,28 @@ pub struct Kernel {
     /// If set to [`None`][MaybeDefault::None] usage of `kallsyms` will
     /// be disabled. Otherwise the copy at the given path will be used.
     ///
-    /// If both a kernel image as well as a `kallsyms` file are found,
-    /// the kernel image will generally be given preference and
-    /// `kallsyms` acts as a fallback.
+    /// If both a `vmlinux` as well as a `kallsyms` file are found,
+    /// `vmlinux` will generally be given preference and `kallsyms` acts
+    /// as a fallback.
     pub kallsyms: MaybeDefault<PathBuf>,
-    /// The path of the kernel image to use.
+    /// The path of the `vmlinux` file to use.
     ///
-    /// By default, the library will search for kernel image candidates
-    /// in various locations, taking into account the currently running
-    /// kernel version. If set to [`None`][MaybeDefault::None] usage of
-    /// a kernel image will be disabled. Otherwise the copy at the given
-    /// path will be used.
+    /// `vmlinux` is generally an uncompressed and unstripped object
+    /// file that is typically used in debugging, profiling, and
+    /// similar use cases.
     ///
-    /// If both a kernel image as well as a `kallsyms` file are found,
-    /// the kernel image will generally be given preference and
-    /// `kallsyms` acts as a fallback.
-    pub kernel_image: MaybeDefault<PathBuf>,
-    /// Whether or not to consult debug symbols from `kernel_image`
-    /// to satisfy the request (if present).
+    /// By default, the library will search for candidates in various
+    /// locations, taking into account the currently running kernel
+    /// version. If set to [`None`][MaybeDefault::None] discovery and
+    /// usage of a vmlinux file will be disabled. Otherwise the copy at
+    /// the given path will be used.
+    ///
+    /// If both a `vmlinux` as well as a `kallsyms` file are found,
+    /// `vmlinux` will generally be given preference and `kallsyms` acts
+    /// as a fallback.
+    pub vmlinux: MaybeDefault<PathBuf>,
+    /// Whether or not to consult debug symbols from `vmlinux` to
+    /// satisfy the request (if present).
     ///
     /// On top of this runtime configuration, the crate needs to be
     /// built with the `dwarf` feature to actually consult debug
@@ -207,7 +211,7 @@ impl Default for Kernel {
     fn default() -> Self {
         Self {
             kallsyms: MaybeDefault::Default,
-            kernel_image: MaybeDefault::Default,
+            vmlinux: MaybeDefault::Default,
             debug_syms: true,
             _non_exhaustive: (),
         }

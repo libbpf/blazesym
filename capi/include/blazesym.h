@@ -794,9 +794,6 @@ typedef struct blaze_symbolize_src_process {
 
 /**
  * The parameters to load symbols and debug information from a kernel.
- *
- * Use a kernel image and a snapshot of its kallsyms as a source of symbols and
- * debug information.
  */
 typedef struct blaze_symbolize_src_kernel {
   /**
@@ -813,28 +810,32 @@ typedef struct blaze_symbolize_src_kernel {
    * If set to `'\0'` (`""`) usage of `kallsyms` will be disabled.
    * Otherwise the copy at the given path will be used.
    *
-   * If both a kernel image as well as a `kallsyms` file are found,
-   * the kernel image will generally be given preference and
-   * `kallsyms` acts as a fallback.
+   * If both a `vmlinux` as well as a `kallsyms` file are found,
+   * `vmlinux` will generally be given preference and `kallsyms` acts
+   * as a fallback.
    */
   const char *kallsyms;
   /**
-   * The path of the kernel image to use.
+   * The path of the `vmlinux` file to use.
    *
-   * When `NULL`, the library will search for kernel image candidates
-   * in various locations, taking into account the currently running
-   * kernel version. If set to `'\0'` (`""`) usage of a kernel image
-   * will be disabled. Otherwise the copy at the given path will be
-   * used.
+   * `vmlinux` is generally an uncompressed and unstripped object
+   * file that is typically used in debugging, profiling, and
+   * similar use cases.
    *
-   * If both a kernel image as well as a `kallsyms` file are found,
-   * the kernel image will generally be given preference and
-   * `kallsyms` acts as a fallback.
+   * When `NULL`, the library will search for `vmlinux` candidates in
+   * various locations, taking into account the currently running
+   * kernel version. If set to `'\0'` (`""`) discovery and usage of a
+   * `vmlinux` will be disabled. Otherwise the copy at the given path
+   * will be used.
+   *
+   * If both a `vmlinux` as well as a `kallsyms` file are found,
+   * `vmlinux` will generally be given preference and `kallsyms` acts
+   * as a fallback.
    */
-  const char *kernel_image;
+  const char *vmlinux;
   /**
-   * Whether or not to consult debug symbols from `kernel_image`
-   * to satisfy the request (if present).
+   * Whether or not to consult debug symbols from `vmlinux` to
+   * satisfy the request (if present).
    */
   bool debug_syms;
   /**
