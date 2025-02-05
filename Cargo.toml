@@ -29,6 +29,7 @@ license.workspace = true
 repository.workspace = true
 homepage.workspace = true
 readme = "README.md"
+documentation = "https://docs.rs/blazesym"
 categories = [
   "algorithms",
   "api-bindings",
