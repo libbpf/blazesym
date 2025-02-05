@@ -34,8 +34,8 @@ jobs:
       - uses: actions/cache/restore@v4
         id: restore-cached-kernel
         with:
-          path: build/arch/x86/boot/bzImage
-          key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
+          path: build/
+          key: linux-kernel-wtf-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/checkout@v4
         with:
@@ -52,7 +52,7 @@ jobs:
           config=$(readlink --canonicalize-existing ${{ inputs.config }})
           build=$(pwd)/build/
 
-          cd linux/
+          pushd linux/
           export KBUILD_OUTPUT="${build}"
           mkdir "${KBUILD_OUTPUT}"
 
@@ -62,12 +62,17 @@ jobs:
           cat "${KBUILD_OUTPUT}/.config"
           echo "::endgroup::"
 
-          make O="${KBUILD_OUTPUT}" --jobs $(($(nproc) * 2))
+          make O="${KBUILD_OUTPUT}" --jobs $(($(nproc) * 2)) bzImage vmlinux
+
+          popd
+          mv build/arch/x86/boot/bzImage build/
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          path: build/arch/x86/boot/bzImage
-          key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
+          path: |
+            build/bzImage
+            build/vmlinux
+          key: linux-kernel-wtf-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - uses: actions/upload-artifact@v4
         id: upload-linux-kernel
         # TODO: Having a single path/name may be problematic should we
@@ -78,4 +83,6 @@ jobs:
           if-no-files-found: error
           # The kernel image is already compressed.
           compression-level: 0
-          path: build/arch/x86/boot/bzImage
+          path: |
+            build/bzImage
+            build/vmlinux
