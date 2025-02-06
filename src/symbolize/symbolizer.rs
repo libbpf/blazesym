@@ -898,7 +898,7 @@ impl Symbolizer {
         perf_map: bool,
         map_files: bool,
     ) -> Result<Vec<Symbolized>> {
-        let mut entry_iter = maps::parse(pid)?;
+        let mut entry_iter = maps::parse_filtered(pid)?;
         let entries = |_addr| entry_iter.next();
 
         let mut handler = SymbolizeHandler {
