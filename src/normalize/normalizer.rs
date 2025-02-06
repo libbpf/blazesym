@@ -173,7 +173,7 @@ impl Default for Builder {
 pub struct Normalizer {
     /// See [`Builder::enable_procmap_query`].
     use_procmap_query: bool,
-    /// See [`Builder::enable_maps_caching`].
+    /// See [`Builder::enable_vma_caching`].
     cache_vmas: bool,
     /// See [`Builder::enable_build_ids`].
     build_ids: bool,
@@ -281,10 +281,8 @@ impl Normalizer {
                     // If we use the cached maps entries but don't have anything
                     // cached yet, then just parse the file eagerly and take it from
                     // there.
-                    let parsed = maps::parse_filtered(pid)?
-                        .collect::<Result<Vec<_>>>()?
-                        .into_boxed_slice();
-                    Result::<Box<[maps::MapsEntry]>>::Ok(parsed)
+                    let parsed = maps::parse_filtered(pid)?.collect::<Result<Box<_>>>()?;
+                    Ok(parsed)
                 })?;
 
                 let mut entry_iter = parsed.iter().map(Ok);
