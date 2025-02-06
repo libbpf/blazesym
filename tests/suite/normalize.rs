@@ -22,7 +22,10 @@ use scopeguard::defer;
 
 use tempfile::tempdir;
 
+use test_fork::test as forked_test;
 use test_log::test;
+
+use crate::suite::common::run_user_symbolization_test;
 
 
 /// Check that we detect unsorted input addresses.
@@ -431,4 +434,33 @@ fn normalize_no_self_vma_path_reporting() {
     let meta = &normalized.meta[output.1];
     let elf = meta.as_elf().unwrap();
     assert!(!elf.path.to_string_lossy().contains("self"), "{elf:?}");
+}
+
+fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
+    let normalizer = Normalizer::builder().enable_build_ids(true).build();
+    let opts = NormalizeOpts {
+        sorted_addrs: false,
+        map_files: false,
+        _non_exhaustive: (),
+    };
+
+    let normalized = normalizer
+        .normalize_user_addrs_opts(pid, &[addr], &opts)
+        .unwrap();
+
+    let output = normalized.outputs[0];
+    let meta = &normalized.meta[output.1].as_elf().unwrap();
+
+    assert_eq!(
+        meta.build_id,
+        Some(read_elf_build_id(&test_lib).unwrap().unwrap())
+    );
+}
+
+/// Check that we can normalize an address in a process using only
+/// symbolic paths.
+#[cfg(linux)]
+#[forked_test]
+fn normalize_process_symbolic_paths() {
+    run_user_symbolization_test(normalize_permissionless_impl)
 }
