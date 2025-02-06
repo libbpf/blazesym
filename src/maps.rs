@@ -564,6 +564,8 @@ ffffffffff600000-ffffffffff601000 --xp 00000000 00:00 0                  [vsysca
             b"7fa7bb75a000-7fa7bb75c000".as_slice(),
             b"7fa7b$#5a000-7fa7bb75c000".as_slice(),
             b"7fa7bb75a000-7fa7@%@5c000".as_slice(),
+            b"7fa7bb75a000-7fa7bb75c000 r".as_slice(),
+            b"7fa7bb75a000-7fa7bb75c000 r 00000000".as_slice(),
             b"7fa7bb75a000+7fa7bb75c000 r--p".as_slice(),
             b"7fa7bb75a000-7fa7bb75c000 r--p".as_slice(),
             b"7fa7b$#5a000-7fa7bb75c000 r--p".as_slice(),
