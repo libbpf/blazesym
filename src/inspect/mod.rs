@@ -3,10 +3,11 @@
 //! etc.) by name or iterating over all available symbols.
 //!
 //! ```no_run
-//! use blazesym::inspect;
+//! use blazesym::inspect::source::Elf;
+//! use blazesym::inspect::source::Source;
 //! use blazesym::inspect::Inspector;
 //!
-//! let src = inspect::Source::Elf(inspect::Elf::new("/usr/bin/libc.so"));
+//! let src = Source::Elf(Elf::new("/usr/bin/libc.so"));
 //! let inspector = Inspector::new();
 //! let results = inspector
 //!     .lookup(&src, &["fopen"])
@@ -18,7 +19,7 @@
 
 #[cfg_attr(not(feature = "dwarf"), allow(unused_variables))]
 mod inspector;
-mod source;
+pub mod source;
 
 use std::borrow::Cow;
 use std::fmt::Debug;
@@ -30,11 +31,6 @@ use crate::Result;
 use crate::SymType;
 
 pub use inspector::Inspector;
-cfg_breakpad! {
-  pub use source::Breakpad;
-}
-pub use source::Elf;
-pub use source::Source;
 
 
 /// Information about a symbol.

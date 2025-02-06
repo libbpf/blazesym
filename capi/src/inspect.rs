@@ -17,9 +17,9 @@ use std::ptr;
 
 #[cfg(doc)]
 use blazesym::inspect;
-use blazesym::inspect::Elf;
+use blazesym::inspect::source::Elf;
+use blazesym::inspect::source::Source;
 use blazesym::inspect::Inspector;
-use blazesym::inspect::Source;
 use blazesym::inspect::SymInfo;
 use blazesym::Addr;
 use blazesym::SymType;
@@ -38,7 +38,7 @@ pub type blaze_inspector = Inspector;
 
 /// An object representing an ELF inspection source.
 ///
-/// C ABI compatible version of [`inspect::Elf`].
+/// C ABI compatible version of [`inspect::source::Elf`].
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_inspect_elf_src {

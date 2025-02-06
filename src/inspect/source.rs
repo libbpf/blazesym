@@ -1,3 +1,5 @@
+//! Definitions of supported inspection sources.
+
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;

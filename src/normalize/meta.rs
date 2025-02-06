@@ -10,8 +10,8 @@ use super::Reason;
 ///
 /// The corresponding file offset is normalized only to the APK container, not
 /// any potential internal ELF files. Use the
-/// [`Apk`][crate::symbolize::Source::Apk] symbolization source in order to
-/// symbolize the offset:
+/// [`Apk`][crate::symbolize::source::Source::Apk] symbolization source in order
+/// to symbolize the offset:
 /// ```no_run
 /// # use std::path::Path;
 /// # use blazesym::Pid;
@@ -29,7 +29,7 @@ use super::Reason;
 ///
 /// // We assume that we have the APK lying around at the same path as on the
 /// // "remote" system.
-/// let src = symbolize::Source::from(symbolize::Apk::new(&apk.path));
+/// let src = symbolize::source::Source::from(symbolize::source::Apk::new(&apk.path));
 /// let symbolizer = symbolize::Symbolizer::new();
 /// let sym = symbolizer
 ///   .symbolize_single(&src, symbolize::Input::FileOffset(output))

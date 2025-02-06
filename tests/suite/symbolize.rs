@@ -16,23 +16,23 @@ use std::process;
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
 use blazesym::normalize;
+use blazesym::symbolize::source::Breakpad;
+use blazesym::symbolize::source::Elf;
+use blazesym::symbolize::source::GsymData;
+use blazesym::symbolize::source::GsymFile;
+use blazesym::symbolize::source::Kernel;
+use blazesym::symbolize::source::Process;
+use blazesym::symbolize::source::Source;
 use blazesym::symbolize::ApkDispatch;
 use blazesym::symbolize::ApkMemberInfo;
-use blazesym::symbolize::Breakpad;
-use blazesym::symbolize::Elf;
 use blazesym::symbolize::FindSymOpts;
-use blazesym::symbolize::GsymData;
-use blazesym::symbolize::GsymFile;
 use blazesym::symbolize::Input;
-use blazesym::symbolize::Kernel;
-use blazesym::symbolize::Process;
 use blazesym::symbolize::ProcessDispatch;
 use blazesym::symbolize::ProcessMemberInfo;
 use blazesym::symbolize::ProcessMemberType;
 use blazesym::symbolize::Reason;
 use blazesym::symbolize::Resolve;
 use blazesym::symbolize::ResolvedSym;
-use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolize;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
@@ -239,7 +239,7 @@ fn symbolize_zero_size_gsym() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.bin");
-    let src = inspect::Source::Elf(inspect::Elf::new(path));
+    let src = inspect::source::Source::Elf(inspect::source::Elf::new(path));
     let inspector = inspect::Inspector::new();
     let results = inspector
         .lookup(&src, &["zero_size"])
@@ -703,8 +703,8 @@ fn symbolize_dwarf_demangle() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-rs.bin");
-    let elf = inspect::Elf::new(&test_dwarf);
-    let src = inspect::Source::Elf(elf);
+    let elf = inspect::source::Elf::new(&test_dwarf);
+    let src = inspect::source::Source::Elf(elf);
 
     let inspector = inspect::Inspector::new();
     let results = inspector

@@ -177,7 +177,8 @@ fn main() -> Result<()> {
         .context("failed to find valid URLs in DEBUGINFOD_URLS environment variable")?;
     let client = CachingClient::from_env(client)?;
 
-    let src = symbolize::Source::Process(symbolize::Process::new(Pid::from(args.pid)));
+    let src =
+        symbolize::source::Source::Process(symbolize::source::Process::new(Pid::from(args.pid)));
     let symbolizer = Symbolizer::builder()
         .set_process_dispatcher(move |info| dispatch_process(info, &client))
         .build();

@@ -83,11 +83,11 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
                     path,
                     ref names,
                 }) => {
-                    let src = inspect::Source::from(inspect::Breakpad::new(path));
+                    let src = inspect::source::Source::from(inspect::source::Breakpad::new(path));
                     (src, names)
                 }
                 args::inspect::Lookup::Elf(args::inspect::ElfLookup { path, ref names }) => {
-                    let src = inspect::Source::from(inspect::Elf::new(path));
+                    let src = inspect::source::Source::from(inspect::source::Elf::new(path));
                     (src, names)
                 }
             };
@@ -108,15 +108,15 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
         args::inspect::Inspect::Dump(dump) => {
             let src = match dump {
                 args::inspect::Dump::Breakpad(args::inspect::BreakpadDump { path }) => {
-                    inspect::Source::from(inspect::Breakpad::new(path))
+                    inspect::source::Source::from(inspect::source::Breakpad::new(path))
                 }
                 args::inspect::Dump::Elf(args::inspect::ElfDump {
                     path,
                     no_debug_syms,
                 }) => {
-                    let mut elf = inspect::Elf::new(path);
+                    let mut elf = inspect::source::Elf::new(path);
                     elf.debug_syms = !no_debug_syms;
-                    inspect::Source::from(elf)
+                    inspect::source::Source::from(elf)
                 }
             };
             let mut sym_infos = Vec::new();
@@ -227,7 +227,7 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
     let mut builder = Symbolizer::builder();
     let (src, input, addrs) = match symbolize {
         args::symbolize::Symbolize::Breakpad(args::symbolize::Breakpad { path, ref addrs }) => {
-            let src = symbolize::Source::from(symbolize::Breakpad::new(path));
+            let src = symbolize::source::Source::from(symbolize::source::Breakpad::new(path));
             let addrs = addrs.as_slice();
             let input = symbolize::Input::FileOffset(addrs);
             (src, input, addrs)
@@ -243,15 +243,15 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
         }) => {
             builder = builder.set_debug_dirs(debug_dirs);
 
-            let mut elf = symbolize::Elf::new(path);
+            let mut elf = symbolize::source::Elf::new(path);
             elf.debug_syms = !no_debug_syms;
-            let src = symbolize::Source::from(elf);
+            let src = symbolize::source::Source::from(elf);
             let addrs = addrs.as_slice();
             let input = symbolize::Input::VirtOffset(addrs);
             (src, input, addrs)
         }
         args::symbolize::Symbolize::Gsym(args::symbolize::Gsym { path, ref addrs }) => {
-            let src = symbolize::Source::from(symbolize::GsymFile::new(path));
+            let src = symbolize::source::Source::from(symbolize::source::GsymFile::new(path));
             let addrs = addrs.as_slice();
             let input = symbolize::Input::VirtOffset(addrs);
             (src, input, addrs)
@@ -261,9 +261,9 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
             ref addrs,
             no_map_files,
         }) => {
-            let mut process = symbolize::Process::new(pid);
+            let mut process = symbolize::source::Process::new(pid);
             process.map_files = !no_map_files;
-            let src = symbolize::Source::from(process);
+            let src = symbolize::source::Source::from(process);
             let addrs = addrs.as_slice();
             let input = symbolize::Input::AbsAddr(addrs);
             (src, input, addrs)
@@ -273,7 +273,7 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
             vmlinux,
             ref addrs,
         }) => {
-            let kernel = symbolize::Kernel {
+            let kernel = symbolize::source::Kernel {
                 kallsyms: match kallsyms {
                     None => MaybeDefault::Default,
                     Some(path) if path.as_os_str().is_empty() => MaybeDefault::None,
@@ -286,7 +286,7 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
                 },
                 ..Default::default()
             };
-            let src = symbolize::Source::from(kernel);
+            let src = symbolize::source::Source::from(kernel);
             let addrs = addrs.as_slice();
             let input = symbolize::Input::AbsAddr(addrs);
             (src, input, addrs)

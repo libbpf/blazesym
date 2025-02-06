@@ -6,9 +6,9 @@
 //! For example, here we symbolize the address of `libc`'s `fopen` and `fseek`
 //! functions, given their addresses in the current process:
 //! ```no_run
+//! use blazesym::symbolize::source::Process;
+//! use blazesym::symbolize::source::Source;
 //! use blazesym::symbolize::Input;
-//! use blazesym::symbolize::Process;
-//! use blazesym::symbolize::Source;
 //! use blazesym::symbolize::Symbolizer;
 //! use blazesym::Addr;
 //! use blazesym::Pid;
@@ -91,7 +91,7 @@
 //! [`gsym-in-apk`](https://github.com/libbpf/blazesym/blob/main/examples/gsym-in-apk)
 //! example, which illustrates the basic workflow.
 
-mod source;
+pub mod source;
 mod symbolizer;
 
 use std::borrow::Cow;
@@ -102,22 +102,6 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::path::Path;
 use std::str;
-
-cfg_apk! {
-    pub use source::Apk;
-}
-cfg_breakpad! {
-    pub use source::Breakpad;
-}
-pub use source::Elf;
-cfg_gsym! {
-    pub use source::Gsym;
-    pub use source::GsymData;
-    pub use source::GsymFile;
-}
-pub use source::Kernel;
-pub use source::Process;
-pub use source::Source;
 
 cfg_apk! {
     pub use symbolizer::ApkDispatch;

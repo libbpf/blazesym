@@ -3,13 +3,13 @@
 use std::hint::black_box;
 use std::path::Path;
 
-use blazesym::symbolize::Breakpad;
-use blazesym::symbolize::Elf;
-use blazesym::symbolize::GsymFile;
+use blazesym::symbolize::source::Breakpad;
+use blazesym::symbolize::source::Elf;
+use blazesym::symbolize::source::GsymFile;
+use blazesym::symbolize::source::Kernel;
+use blazesym::symbolize::source::Process;
+use blazesym::symbolize::source::Source;
 use blazesym::symbolize::Input;
-use blazesym::symbolize::Kernel;
-use blazesym::symbolize::Process;
-use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
 use blazesym::Pid;

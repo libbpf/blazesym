@@ -1,3 +1,5 @@
+//! Definitions of supported symbolization sources.
+
 use std::cmp::min;
 use std::fmt::Debug;
 use std::fmt::Formatter;
