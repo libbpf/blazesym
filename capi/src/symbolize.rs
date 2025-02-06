@@ -12,16 +12,16 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 
+use blazesym::symbolize::source::Elf;
+use blazesym::symbolize::source::GsymData;
+use blazesym::symbolize::source::GsymFile;
+use blazesym::symbolize::source::Kernel;
+use blazesym::symbolize::source::Process;
+use blazesym::symbolize::source::Source;
 use blazesym::symbolize::CodeInfo;
-use blazesym::symbolize::Elf;
-use blazesym::symbolize::GsymData;
-use blazesym::symbolize::GsymFile;
 use blazesym::symbolize::InlinedFn;
 use blazesym::symbolize::Input;
-use blazesym::symbolize::Kernel;
-use blazesym::symbolize::Process;
 use blazesym::symbolize::Reason;
-use blazesym::symbolize::Source;
 use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
@@ -1757,8 +1757,8 @@ mod tests {
             .join("..")
             .join("data")
             .join("test-rs.bin");
-        let elf = inspect::Elf::new(&test_dwarf);
-        let src = inspect::Source::Elf(elf);
+        let elf = inspect::source::Elf::new(&test_dwarf);
+        let src = inspect::source::Source::Elf(elf);
 
         let inspector = inspect::Inspector::new();
         let results = inspector

@@ -280,7 +280,7 @@ typedef struct blaze_inspector blaze_inspector;
 /**
  * An object representing an ELF inspection source.
  *
- * C ABI compatible version of [`inspect::Elf`].
+ * C ABI compatible version of [`inspect::source::Elf`].
  */
 typedef struct blaze_inspect_elf_src {
   /**

@@ -6,10 +6,10 @@ use std::ops::Deref as _;
 use std::path::Path;
 use std::str;
 
-use blazesym::inspect::Breakpad;
-use blazesym::inspect::Elf;
+use blazesym::inspect::source::Breakpad;
+use blazesym::inspect::source::Elf;
+use blazesym::inspect::source::Source;
 use blazesym::inspect::Inspector;
-use blazesym::inspect::Source;
 use blazesym::inspect::SymInfo;
 use blazesym::symbolize;
 use blazesym::SymType;
@@ -128,7 +128,7 @@ fn inspect_elf_dynamic_symbol() {
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 1);
 
-        let src = symbolize::Source::Elf(symbolize::Elf::new(&bin));
+        let src = symbolize::source::Source::Elf(symbolize::source::Elf::new(&bin));
         let symbolizer = symbolize::Symbolizer::new();
         let result = symbolizer
             .symbolize_single(&src, symbolize::Input::VirtOffset(results[0].addr))
@@ -162,7 +162,7 @@ fn inspect_elf_indirect_function() {
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
 
-    let src = symbolize::Source::Elf(symbolize::Elf::new(&bin));
+    let src = symbolize::source::Source::Elf(symbolize::source::Elf::new(&bin));
     let symbolizer = symbolize::Symbolizer::new();
     let result = symbolizer
         .symbolize_single(&src, symbolize::Input::VirtOffset(results[0].addr))

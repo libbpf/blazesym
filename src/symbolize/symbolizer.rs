@@ -1442,7 +1442,6 @@ mod tests {
     use test_log::test;
 
     use crate::maps::Perm;
-    use crate::symbolize;
     use crate::symbolize::CodeInfo;
 
 
@@ -1532,39 +1531,39 @@ mod tests {
 
         let unsupported = [
             (
-                symbolize::Source::Apk(symbolize::Apk::new(test_zip)),
+                Source::Apk(Apk::new(test_zip)),
                 &[
                     Input::VirtOffset([40].as_slice()),
                     Input::AbsAddr([41].as_slice()),
                 ][..],
             ),
             (
-                symbolize::Source::Breakpad(symbolize::Breakpad::new(test_sym)),
+                Source::Breakpad(Breakpad::new(test_sym)),
                 &[
                     Input::VirtOffset([50].as_slice()),
                     Input::AbsAddr([51].as_slice()),
                 ][..],
             ),
             (
-                symbolize::Source::Process(symbolize::Process::new(Pid::Slf)),
+                Source::Process(Process::new(Pid::Slf)),
                 &[
                     Input::VirtOffset([42].as_slice()),
                     Input::FileOffset([43].as_slice()),
                 ][..],
             ),
             (
-                symbolize::Source::Kernel(symbolize::Kernel::default()),
+                Source::Kernel(Kernel::default()),
                 &[
                     Input::VirtOffset([44].as_slice()),
                     Input::FileOffset([45].as_slice()),
                 ][..],
             ),
             (
-                symbolize::Source::Elf(symbolize::Elf::new(test_elf)),
+                Source::Elf(Elf::new(test_elf)),
                 &[Input::AbsAddr([46].as_slice())][..],
             ),
             (
-                symbolize::Source::Gsym(symbolize::Gsym::File(symbolize::GsymFile::new(test_gsym))),
+                Source::Gsym(Gsym::File(GsymFile::new(test_gsym))),
                 &[
                     Input::AbsAddr([48].as_slice()),
                     Input::FileOffset([49].as_slice()),

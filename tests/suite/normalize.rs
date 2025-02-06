@@ -164,8 +164,8 @@ fn normalize_elf_addr() {
         );
         assert_eq!(path.canonicalize().unwrap(), test_so);
 
-        let elf = symbolize::Elf::new(test_so);
-        let src = symbolize::Source::Elf(elf);
+        let elf = symbolize::source::Elf::new(test_so);
+        let src = symbolize::source::Source::Elf(elf);
         let symbolizer = symbolize::Symbolizer::new();
         let result = symbolizer
             .symbolize_single(&src, symbolize::Input::FileOffset(output.0))
@@ -264,8 +264,8 @@ fn normalize_custom_so_in_zip() {
         assert_eq!(meta, &normalize::UserMeta::Apk(expected));
 
         // Also symbolize the normalization output.
-        let apk = symbolize::Apk::new(test_zip);
-        let src = symbolize::Source::Apk(apk);
+        let apk = symbolize::source::Apk::new(test_zip);
+        let src = symbolize::source::Source::Apk(apk);
         let symbolizer = symbolize::Symbolizer::new();
         let result = symbolizer
             .symbolize_single(&src, symbolize::Input::FileOffset(output.0))

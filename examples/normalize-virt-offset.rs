@@ -6,9 +6,9 @@
 
 use blazesym::helper::ElfResolver;
 use blazesym::normalize::Normalizer;
-use blazesym::symbolize::Elf;
+use blazesym::symbolize::source::Elf;
+use blazesym::symbolize::source::Source;
 use blazesym::symbolize::Input;
-use blazesym::symbolize::Source;
 use blazesym::symbolize::Symbolizer;
 use blazesym::symbolize::TranslateFileOffset as _;
 use blazesym::Addr;

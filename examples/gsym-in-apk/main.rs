@@ -117,7 +117,7 @@ fn find_the_answer_fn_file_offset() -> Addr {
         .join("data")
         .join("libtest-so.so");
     let inspector = inspect::Inspector::new();
-    let src = inspect::Source::from(inspect::Elf::new(so));
+    let src = inspect::source::Source::from(inspect::source::Elf::new(so));
     let syms = inspector
         .lookup(&src, &["the_answer"])
         .unwrap()
@@ -139,7 +139,7 @@ fn find_the_answer_fn_file_offset() -> Addr {
 fn main() -> Result<()> {
     let fn_file_offset = find_the_answer_fn_file_offset();
     let apk = apk_path();
-    let src = symbolize::Source::Apk(symbolize::Apk::new(apk));
+    let src = symbolize::source::Source::Apk(symbolize::source::Apk::new(apk));
     let symbolizer = Symbolizer::builder()
         // Set a custom "dispatcher" function for symbolizing APKs. This will
         // cause the library to invoke our `dispatch_apk` function with some

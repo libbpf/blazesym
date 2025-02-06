@@ -5,10 +5,10 @@ use std::mem::size_of;
 use std::mem::transmute;
 use std::ptr;
 
+use blazesym::symbolize::source::Process;
+use blazesym::symbolize::source::Source;
 use blazesym::symbolize::CodeInfo;
 use blazesym::symbolize::Input;
-use blazesym::symbolize::Process;
-use blazesym::symbolize::Source;
 use blazesym::symbolize::Sym;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;

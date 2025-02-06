@@ -1,7 +1,8 @@
 use std::hint::black_box;
 use std::path::Path;
 
-use blazesym::inspect;
+use blazesym::inspect::source::Elf;
+use blazesym::inspect::source::Source;
 use blazesym::inspect::Inspector;
 
 use criterion::measurement::Measurement;
@@ -14,7 +15,7 @@ fn lookup_elf() {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.elf");
-    let src = inspect::Source::Elf(inspect::Elf::new(dwarf_vmlinux));
+    let src = Source::Elf(Elf::new(dwarf_vmlinux));
 
     let inspector = Inspector::new();
     let results = inspector
@@ -35,7 +36,7 @@ fn lookup_dwarf() {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
-    let src = inspect::Source::Elf(inspect::Elf::new(dwarf_vmlinux));
+    let src = Source::Elf(Elf::new(dwarf_vmlinux));
 
     let inspector = Inspector::new();
     let results = inspector

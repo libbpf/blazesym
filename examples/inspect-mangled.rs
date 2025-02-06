@@ -6,9 +6,9 @@ use std::path::Path;
 
 use anyhow::Result;
 
-use blazesym::inspect::Elf;
+use blazesym::inspect::source::Elf;
+use blazesym::inspect::source::Source;
 use blazesym::inspect::Inspector;
-use blazesym::inspect::Source;
 use blazesym::inspect::SymInfo;
 
 use rustc_demangle::demangle;
