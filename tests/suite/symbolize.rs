@@ -1,7 +1,9 @@
 use std::env;
 use std::ffi::OsStr;
 use std::fs::copy;
+use std::fs::metadata;
 use std::fs::read as read_file;
+use std::fs::set_permissions;
 use std::fs::File;
 use std::io;
 use std::io::Read as _;
@@ -54,8 +56,13 @@ use scopeguard::defer;
 use tempfile::tempdir;
 use tempfile::NamedTempFile;
 
+use test_fork::test as forked_test;
 use test_log::test;
 use test_tag::tag;
+
+use crate::suite::common::as_user;
+use crate::suite::common::non_root_uid;
+use crate::suite::common::run_user_symbolization_test;
 
 
 /// Make sure that we fail symbolization when providing a non-existent source.
@@ -171,6 +178,56 @@ fn symbolize_elf_dwarf_gsym() {
     let data = read_file(&path).unwrap();
     let src = Source::from(GsymData::new(&data));
     test(src, true);
+}
+
+
+fn symbolize_no_permission_impl(path: &Path) {
+    let src = Source::Elf(Elf::new(path));
+    let symbolizer = Symbolizer::new();
+    let err = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+}
+
+
+/// Check that we fail symbolization as expected when we don't have the
+/// permission to open the symbolization source.
+#[cfg(linux)]
+#[forked_test]
+fn symbolize_elf_no_permission() {
+    use libc::getresuid;
+    use std::os::unix::fs::PermissionsExt as _;
+
+    // We run as root. Even if we limit permissions for a root-owned file we can
+    // still access it (unlike the behavior for regular users). As such, we have
+    // to work as a different user to check handling of permission denied
+    // errors. Because such a change is process-wide, though, we can't do that
+    // directly but have to fork first.
+    let mut ruid = 0;
+    let mut euid = 0;
+    let mut suid = 0;
+
+    let result = unsafe { getresuid(&mut ruid, &mut euid, &mut suid) };
+    if result == -1 {
+        panic!("failed to get user IDs: {}", io::Error::last_os_error());
+    }
+
+    let src = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-no-dwarf.bin");
+
+    let tmpfile = NamedTempFile::new().unwrap();
+    let path = tmpfile.path();
+    let _bytes = copy(src, path).unwrap();
+
+    let mut permissions = metadata(path).unwrap().permissions();
+    // Clear all permissions.
+    let () = permissions.set_mode(0o0);
+    let () = set_permissions(path, permissions).unwrap();
+    let uid = non_root_uid();
+
+    as_user(ruid, uid, || symbolize_no_permission_impl(path))
 }
 
 /// Check that we correctly symbolize zero sized symbols.
@@ -915,6 +972,38 @@ if __name__ == "__main__":
     // "Signal" the child to terminate gracefully.
     let () = child.stdin.as_ref().unwrap().write_all(b"\n").unwrap();
     let _status = child.wait().unwrap();
+}
+
+fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
+    let process = Process::new(pid);
+    assert!(process.map_files);
+
+    let src = Source::Process(process);
+    let symbolizer = Symbolizer::new();
+    let err = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+
+    let mut process = Process::new(pid);
+    process.map_files = false;
+
+    let src = Source::Process(process);
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(result.name, "await_input");
+}
+
+/// Check that we can symbolize an address in a process using only
+/// symbolic paths.
+#[cfg(linux)]
+#[forked_test]
+fn symbolize_process_symbolic_paths() {
+    run_user_symbolization_test(symbolize_permissionless_impl)
 }
 
 /// Check that we can symbolize an address residing in a zip archive, using

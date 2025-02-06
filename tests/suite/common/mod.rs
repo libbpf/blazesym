@@ -3,85 +3,81 @@
     clippy::let_and_return,
     clippy::let_unit_value
 )]
-#![cfg_attr(not(linux), allow(dead_code, unused_imports))]
 
-#[cfg(linux)]
-mod common;
-
+use std::env::current_exe;
 use std::io::Error;
 use std::io::Read as _;
 use std::io::Write as _;
+use std::panic::catch_unwind;
 use std::panic::UnwindSafe;
 use std::path::Path;
 use std::process::Command;
 use std::process::Stdio;
 use std::str;
 
-use blazesym::helper::read_elf_build_id;
-use blazesym::normalize::NormalizeOpts;
-use blazesym::normalize::Normalizer;
-use blazesym::symbolize;
-use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
-use blazesym::ErrorKind;
 use blazesym::Pid;
+use blazesym::__private::stat;
+
+#[cfg(not(windows))]
+use libc::uid_t;
+#[cfg(windows)]
+#[allow(non_camel_case_types)]
+type uid_t = i16;
 
 use scopeguard::defer;
 
-use test_log::test;
 
-fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
-    let process = symbolize::Process::new(pid);
-    assert!(process.map_files);
+/// Run a function with a different effective user ID.
+#[cfg(linux)]
+pub fn as_user<F, R>(ruid: uid_t, euid: uid_t, f: F) -> R
+where
+    F: FnOnce() -> R + UnwindSafe,
+{
+    use libc::seteuid;
 
-    let src = symbolize::Source::Process(process);
-    let symbolizer = Symbolizer::new();
-    let err = symbolizer
-        .symbolize_single(&src, symbolize::Input::AbsAddr(addr))
-        .unwrap_err();
-    assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+    if unsafe { seteuid(euid) } == -1 {
+        panic!(
+            "failed to set effective user ID to {euid}: {}",
+            Error::last_os_error()
+        )
+    }
 
-    let mut process = symbolize::Process::new(pid);
-    process.map_files = false;
+    let result = catch_unwind(f);
 
-    let src = symbolize::Source::Process(process);
-    let symbolizer = Symbolizer::new();
-    let result = symbolizer
-        .symbolize_single(&src, symbolize::Input::AbsAddr(addr))
-        .unwrap()
-        .into_sym()
-        .unwrap();
-    assert_eq!(result.name, "await_input");
+    // Make sure that we restore the real user before tearing down,
+    // because shut down code may need the original permissions (e.g., for
+    // writing down code coverage files or similar).
+    if unsafe { seteuid(ruid) } == -1 {
+        panic!(
+            "failed to restore effective user ID to {ruid}: {}",
+            Error::last_os_error()
+        )
+    }
+
+    result.unwrap()
 }
 
-fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
-    let normalizer = Normalizer::builder().enable_build_ids(true).build();
-    let opts = NormalizeOpts {
-        sorted_addrs: false,
-        map_files: false,
-        _non_exhaustive: (),
-    };
+#[cfg(not(linux))]
+pub fn as_user<F, R>(_ruid: uid_t, _euid: uid_t, _f: F) -> R
+where
+    F: FnOnce() -> R + UnwindSafe,
+{
+    unimplemented!()
+}
 
-    let normalized = normalizer
-        .normalize_user_addrs_opts(pid, &[addr], &opts)
-        .unwrap();
-
-    let output = normalized.outputs[0];
-    let meta = &normalized.meta[output.1].as_elf().unwrap();
-
-    assert_eq!(
-        meta.build_id,
-        Some(read_elf_build_id(&test_lib).unwrap().unwrap())
-    );
+/// Attempt to infer a usable non-root UID on the system.
+pub fn non_root_uid() -> uid_t {
+    let exe = current_exe().expect("failed to retrieve executable path");
+    let stat = stat(&exe).unwrap_or_else(|err| panic!("failed to stat `{exe:?}`: {err}"));
+    stat.st_uid
 }
 
 #[cfg(linux)]
-fn run_test<F>(callback_fn: F)
+pub fn run_user_symbolization_test<F>(callback_fn: F)
 where
     F: FnOnce(Pid, u64, &Path) + UnwindSafe,
 {
-    use common::as_user;
-    use common::non_root_uid;
     use libc::getresuid;
     use libc::kill;
     use libc::SIGKILL;
@@ -143,18 +139,10 @@ where
     let _status = child.wait().unwrap();
 }
 
-/// Check that we can symbolize an address in a process using only
-/// symbolic paths.
-#[cfg(linux)]
-#[test]
-fn symbolize_process_symbolic_paths() {
-    run_test(symbolize_permissionless_impl)
-}
-
-/// Check that we can normalize an address in a process using only
-/// symbolic paths.
-#[cfg(linux)]
-#[test]
-fn normalize_process_symbolic_paths() {
-    run_test(normalize_permissionless_impl)
+#[cfg(not(linux))]
+pub fn run_user_symbolization_test<F>(_callback_fn: F)
+where
+    F: FnOnce(Pid, u64, &Path) + UnwindSafe,
+{
+    unimplemented!()
 }
