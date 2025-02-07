@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::fs::copy;
 use std::fs::metadata;
 use std::fs::read as read_file;
+use std::fs::remove_file;
 use std::fs::set_permissions;
 use std::fs::File;
 use std::io;
@@ -10,6 +11,7 @@ use std::io::Read as _;
 use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process;
 use std::process::Command;
 use std::process::Stdio;
 use std::str;
@@ -893,9 +895,38 @@ fn symbolize_process_with_custom_dispatch() {
     test(process_no_dispatch);
 }
 
+
+/// Make sure that we do not fail symbolization when an empty perf
+/// map is present.
+#[forked_test]
+fn symbolize_with_empty_perf_map() {
+    let heap = vec![0; 4096];
+    let path = format!("/tmp/perf-{}.map", process::id());
+    let _file = File::options()
+        .create_new(true)
+        .write(true)
+        .read(true)
+        .open(&path)
+        .unwrap();
+    defer!({
+        let _result = remove_file(&path);
+    });
+
+    let src = Source::Process(Process::new(Pid::Slf));
+    // We attempt symbolization of an address inside the heap, whose
+    // corresponding proc maps entry is likely "unnamed". That
+    // should trigger the perf map symbolization path, and the perf
+    // map that we created above is empty.
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(heap.as_slice().as_ptr() as Addr))
+        .unwrap();
+    assert!(matches!(result, Symbolized::Unknown(..)));
+}
+
 /// Check that we can symbolize an address using a perf map.
 #[cfg(linux)]
-#[test]
+#[forked_test]
 #[ignore = "test requires python 3.12 or higher"]
 fn symbolize_process_perf_map() {
     use std::ffi::OsString;
