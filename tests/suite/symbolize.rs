@@ -16,6 +16,7 @@ use std::process;
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
 use blazesym::normalize;
+use blazesym::symbolize::cache;
 use blazesym::symbolize::source::Breakpad;
 use blazesym::symbolize::source::Elf;
 use blazesym::symbolize::source::GsymData;
@@ -786,6 +787,45 @@ fn symbolize_process_in_mount_namespace() {
                 .unwrap();
             assert_eq!(result.name, "await_input");
         });
+}
+
+/// Check that we can symbolize addresses from a process that has
+/// already exited, based on VMA data cached earlier.
+#[cfg(linux)]
+#[test]
+fn symbolize_process_exited_cached_vmas() {
+    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so.so");
+    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-wait.bin");
+
+    let symbolizer = Symbolizer::new();
+
+    let (pid, addr) = RemoteProcess::default()
+        .arg(&test_so)
+        .exec(&wait, |pid, addr| {
+            // Cache VMA information about the process while it is alive.
+            let () = symbolizer
+                .cache(&cache::Cache::from(cache::Process::new(pid)))
+                .unwrap();
+            (pid, addr)
+        });
+
+    // By now the process is guaranteed to be dead (modulo PID reuse...).
+    let mut process = Process::new(pid);
+    // We need to opt out of map file usage, because those files will no
+    // longer be present with the process having exited.
+    process.map_files = false;
+
+    let src = Source::Process(process);
+    let result = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(result.name, "await_input");
 }
 
 /// Check that we can symbolize an address residing in a zip archive.

@@ -1,4 +1,6 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -54,6 +56,8 @@ use crate::IntoError as _;
 use crate::Pid;
 use crate::Result;
 
+use super::cache;
+use super::cache::Cache;
 #[cfg(feature = "apk")]
 use super::source::Apk;
 #[cfg(feature = "breakpad")]
@@ -396,6 +400,7 @@ impl Builder {
             gsym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             ksym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
+            process_vma_cache: RefCell::new(HashMap::new()),
             process_cache: InsertMap::new(),
             find_sym_opts,
             demangle,
@@ -627,6 +632,11 @@ pub struct Symbolizer {
     gsym_cache: FileCache<GsymResolver<'static>>,
     ksym_cache: FileCache<Rc<KsymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
+    /// Cache of VMA data on per-process basis.
+    ///
+    /// This member is only populated by explicit requests for caching
+    /// data by the user.
+    process_vma_cache: RefCell<HashMap<Pid, Box<[maps::MapsEntry]>>>,
     process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
     find_sym_opts: FindSymOpts,
     demangle: bool,
@@ -898,9 +908,6 @@ impl Symbolizer {
         perf_map: bool,
         map_files: bool,
     ) -> Result<Vec<Symbolized>> {
-        let mut entry_iter = maps::parse_filtered(pid)?;
-        let entries = |_addr| entry_iter.next();
-
         let mut handler = SymbolizeHandler {
             symbolizer: self,
             pid,
@@ -914,9 +921,27 @@ impl Symbolizer {
             addrs,
             |handler: &mut SymbolizeHandler<'_>| handler.all_symbols.as_mut_slice(),
             |sorted_addrs| -> Result<SymbolizeHandler<'_>> {
-                let () =
-                    normalize_sorted_user_addrs_with_entries(sorted_addrs, entries, &mut handler)?;
-                Ok(handler)
+                if let Some(cached) = self.process_vma_cache.borrow().get(&pid) {
+                    let mut entry_iter = cached.iter().map(Ok);
+                    let entries = |_addr| entry_iter.next();
+
+                    let () = normalize_sorted_user_addrs_with_entries(
+                        sorted_addrs,
+                        entries,
+                        &mut handler,
+                    )?;
+                    Ok(handler)
+                } else {
+                    let mut entry_iter = maps::parse_filtered(pid)?;
+                    let entries = |_addr| entry_iter.next();
+
+                    let () = normalize_sorted_user_addrs_with_entries(
+                        sorted_addrs,
+                        entries,
+                        &mut handler,
+                    )?;
+                    Ok(handler)
+                }
             },
         )?;
         Ok(handler.all_symbols)
@@ -1020,6 +1045,34 @@ impl Symbolizer {
         Err(Error::with_unsupported(
             "kernel address symbolization is unsupported on operating systems other than Linux",
         ))
+    }
+
+    /// Cache some or all information associated with a symbolization
+    /// source.
+    ///
+    /// Symbolization data is generally being cached when symbolization
+    /// is performed. However, sometimes it is necessary to cache data
+    /// early, for example to make subsequent symbolization requests as
+    /// fast running as possible. In rare instances it can also be a
+    /// matter of correctness. Process metadata such as VMAs and their
+    /// offsets can be cached so that even after the processes exited it
+    /// symbolization requests can still be satisfied.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(cache = ?cache), err))]
+    pub fn cache(&self, cache: &Cache) -> Result<()> {
+        match cache {
+            Cache::Process(cache::Process {
+                pid,
+                cache_vmas,
+                _non_exhaustive: (),
+            }) => {
+                if *cache_vmas {
+                    let parsed = maps::parse_filtered(*pid)?.collect::<Result<Box<_>>>()?;
+                    let _prev = self.process_vma_cache.borrow_mut().insert(*pid, parsed);
+                }
+            }
+            Cache::Phantom(()) => unreachable!(),
+        }
+        Ok(())
     }
 
     /// Symbolize a list of addresses.
