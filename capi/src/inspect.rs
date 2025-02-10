@@ -400,6 +400,7 @@ mod tests {
 
 
     /// Check that various types have expected sizes.
+    #[tag(miri)]
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {

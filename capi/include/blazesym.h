@@ -608,6 +608,49 @@ typedef struct blaze_symbolizer_opts {
 } blaze_symbolizer_opts;
 
 /**
+ * Configuration for caching of process-level data.
+ */
+typedef struct blaze_cache_src_process {
+  /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
+  /**
+   * The referenced process' ID.
+   */
+  uint32_t pid;
+  /**
+   * Whether to cache the process' VMAs for later use.
+   *
+   * Caching VMAs can be useful, because it conceptually enables the
+   * library to serve a symbolization request targeting a process
+   * even if said process has since exited the system.
+   *
+   * Note that once VMAs have been cached this way, the library will
+   * refrain from re-reading updated VMAs unless instructed to.
+   * Hence, if you have reason to believe that a process may have
+   * changed its memory regions (by loading a new shared object, for
+   * example), you would have to make another request to cache them
+   * yourself.
+   *
+   * Note furthermore that if you cache VMAs to later symbolize
+   * addresses after the original process has already exited, you
+   * will have to opt-out of usage of `/proc/<pid>/map_files/` as
+   * part of the symbolization request. Refer to
+   * [`blaze_symbolize_src_process::map_files`].
+   */
+  bool cache_vmas;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[15];
+} blaze_cache_src_process;
+
+/**
  * Source code location information for a symbol or inlined function.
  */
 typedef struct blaze_symbolize_code_info {
@@ -1192,6 +1235,26 @@ blaze_symbolizer *blaze_symbolizer_new_opts(const struct blaze_symbolizer_opts *
  * [`blaze_symbolizer_new_opts`].
  */
 void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
+
+/**
+ * Symbolize a list of process absolute addresses.
+ *
+ * On success, the function returns a [`blaze_syms`] containing an
+ * array of `abs_addr_cnt` [`blaze_sym`] objects. The returned object
+ * should be released using [`blaze_syms_free`] once it is no longer
+ * needed.
+ *
+ * On error, the function returns `NULL` and sets the thread's last error to
+ * indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+ * error.
+ *
+ * # Safety
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `src` needs to point to a valid [`blaze_symbolize_src_process`] object
+ * - `abs_addrs` point to an array of `abs_addr_cnt` addresses
+ */
+void blaze_symbolize_cache_process(blaze_symbolizer *symbolizer,
+                                   const struct blaze_cache_src_process *cache);
 
 /**
  * Symbolize a list of process absolute addresses.
