@@ -48,7 +48,7 @@ impl Apk {
 impl From<Apk> for Source<'static> {
     #[inline]
     fn from(apk: Apk) -> Self {
-        Source::Apk(apk)
+        Self::Apk(apk)
     }
 }
 
@@ -93,7 +93,7 @@ impl Breakpad {
 impl From<Breakpad> for Source<'static> {
     #[inline]
     fn from(breakpad: Breakpad) -> Self {
-        Source::Breakpad(breakpad)
+        Self::Breakpad(breakpad)
     }
 }
 
@@ -146,7 +146,7 @@ impl Elf {
 impl From<Elf> for Source<'static> {
     #[inline]
     fn from(elf: Elf) -> Self {
-        Source::Elf(elf)
+        Self::Elf(elf)
     }
 }
 
@@ -229,7 +229,7 @@ impl Default for Kernel {
 impl From<Kernel> for Source<'static> {
     #[inline]
     fn from(kernel: Kernel) -> Self {
-        Source::Kernel(kernel)
+        Self::Kernel(kernel)
     }
 }
 
@@ -318,7 +318,7 @@ impl Debug for Process {
 impl From<Process> for Source<'static> {
     #[inline]
     fn from(process: Process) -> Self {
-        Source::Process(process)
+        Self::Process(process)
     }
 }
 
@@ -347,7 +347,7 @@ impl Debug for Gsym<'_> {
 impl<'dat> From<Gsym<'dat>> for Source<'dat> {
     #[inline]
     fn from(gsym: Gsym<'dat>) -> Self {
-        Source::Gsym(gsym)
+        Self::Gsym(gsym)
     }
 }
 
@@ -389,7 +389,7 @@ impl Debug for GsymData<'_> {
 impl<'dat> From<GsymData<'dat>> for Source<'dat> {
     #[inline]
     fn from(gsym: GsymData<'dat>) -> Self {
-        Source::Gsym(Gsym::Data(gsym))
+        Self::Gsym(Gsym::Data(gsym))
     }
 }
 
@@ -429,7 +429,7 @@ impl Debug for GsymFile {
 impl From<GsymFile> for Source<'static> {
     #[inline]
     fn from(gsym: GsymFile) -> Self {
-        Source::Gsym(Gsym::File(gsym))
+        Self::Gsym(Gsym::File(gsym))
     }
 }
 }

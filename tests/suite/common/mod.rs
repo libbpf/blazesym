@@ -101,11 +101,11 @@ where
     let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
-    let mnt_ns = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-wait.bin");
 
-    let mut child = Command::new(mnt_ns)
+    let mut child = Command::new(wait)
         .arg(&test_so)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
