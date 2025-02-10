@@ -91,6 +91,7 @@
 //! [`gsym-in-apk`](https://github.com/libbpf/blazesym/blob/main/examples/gsym-in-apk)
 //! example, which illustrates the basic workflow.
 
+pub mod cache;
 pub mod source;
 mod symbolizer;
 

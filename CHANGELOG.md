@@ -1,6 +1,8 @@
 Unreleased
 ----------
 - Added support for 32 bit ELF binaries
+- Added `symbolize::Symbolizer::cache` method for caching process VMA
+  metadata
 - Renamed `symbolize::Source::kernel_image` to `vmlinux`
 - Adjusted kernel symbolization logic to give preference to `vmlinux`
   file, if present
