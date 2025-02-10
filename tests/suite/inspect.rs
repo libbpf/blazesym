@@ -6,8 +6,11 @@ use std::ops::Deref as _;
 use std::path::Path;
 use std::str;
 
-use blazesym::inspect;
+use blazesym::inspect::Breakpad;
+use blazesym::inspect::Elf;
 use blazesym::inspect::Inspector;
+use blazesym::inspect::Source;
+use blazesym::inspect::SymInfo;
 use blazesym::symbolize;
 use blazesym::SymType;
 
@@ -17,7 +20,7 @@ use test_log::test;
 /// Check that we can look up an address.
 #[test]
 fn inspect_elf() {
-    fn test(src: inspect::Source, no_vars: bool) {
+    fn test(src: Source, no_vars: bool) {
         let inspector = Inspector::new();
         let results = inspector
             .lookup(&src, &["factorial", "a_variable"])
@@ -52,7 +55,7 @@ fn inspect_elf() {
     let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let src = inspect::Source::Elf(inspect::Elf::new(test_dwarf));
+    let src = Source::Elf(Elf::new(test_dwarf));
     // Our `DwarfResolver` type does not currently support look up of
     // variables.
     let no_vars = true;
@@ -62,19 +65,19 @@ fn inspect_elf() {
         .join("data")
         .join("test-stable-addrs.bin");
     for debug_syms in [true, false] {
-        let mut elf = inspect::Elf::new(&test_elf);
+        let mut elf = Elf::new(&test_elf);
         elf.debug_syms = debug_syms;
-        let src = inspect::Source::Elf(elf);
+        let src = Source::Elf(elf);
         let () = test(src, false);
     }
 
     let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(test_elf);
+    let mut elf = Elf::new(test_elf);
     assert!(elf.debug_syms);
     elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
+    let src = Source::Elf(elf);
     let () = test(src, false);
 }
 
@@ -85,8 +88,8 @@ fn inspect_breakpad() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.sym");
-    let breakpad = inspect::Breakpad::new(path);
-    let src = inspect::Source::from(breakpad);
+    let breakpad = Breakpad::new(path);
+    let src = Source::from(breakpad);
 
     let inspector = Inspector::new();
     let results = inspector
@@ -115,7 +118,7 @@ fn inspect_elf_dynamic_symbol() {
             .join("data")
             .join(bin);
 
-        let src = inspect::Source::Elf(inspect::Elf::new(&bin));
+        let src = Source::Elf(Elf::new(&bin));
         let inspector = Inspector::new();
         let results = inspector
             .lookup(&src, &["the_answer"])
@@ -149,7 +152,7 @@ fn inspect_elf_indirect_function() {
         .join("data")
         .join("test-stable-addrs-no-dwarf.bin");
 
-    let src = inspect::Source::Elf(inspect::Elf::new(&bin));
+    let src = Source::Elf(Elf::new(&bin));
     let inspector = Inspector::new();
     let results = inspector
         .lookup(&src, &["indirect_func"])
@@ -189,8 +192,8 @@ fn inspect_elf_file_offset() {
         let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join(file);
-        let elf = inspect::Elf::new(test_elf);
-        let src = inspect::Source::Elf(elf);
+        let elf = Elf::new(test_elf);
+        let src = Source::Elf(elf);
 
         let inspector = Inspector::new();
         let results = inspector
@@ -219,17 +222,17 @@ fn inspect_elf_file_offset() {
 /// Check that we can iterate over all symbols in a symbolization source.
 #[test]
 fn inspect_elf_dwarf_breakpad_all_symbols() {
-    fn test(src: &inspect::Source) {
-        let breakpad = matches!(src, inspect::Source::Breakpad(..));
+    fn test(src: &Source) {
+        let breakpad = matches!(src, Source::Breakpad(..));
         let dwarf = matches!(
             src,
-            inspect::Source::Elf(inspect::Elf {
+            Source::Elf(Elf {
                 debug_syms: true,
                 ..
             })
         );
         let inspector = Inspector::new();
-        let mut syms = HashMap::<String, inspect::SymInfo>::new();
+        let mut syms = HashMap::<String, SymInfo>::new();
         let () = inspector
             .for_each(src, |sym| {
                 let _inserted = syms.insert(sym.name.to_string(), sym.to_owned());
@@ -273,23 +276,23 @@ fn inspect_elf_dwarf_breakpad_all_symbols() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
+    let mut elf = Elf::new(path);
     elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
+    let src = Source::Elf(elf);
     test(&src);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let elf = inspect::Elf::new(path);
-    let src = inspect::Source::Elf(elf);
+    let elf = Elf::new(path);
+    let src = Source::Elf(elf);
     test(&src);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.sym");
-    let breakpad = inspect::Breakpad::new(path);
-    let src = inspect::Source::Breakpad(breakpad);
+    let breakpad = Breakpad::new(path);
+    let src = Source::Breakpad(breakpad);
     test(&src);
 }
 
@@ -297,7 +300,7 @@ fn inspect_elf_dwarf_breakpad_all_symbols() {
 /// Check that early stopping of symbol iteration works as expected.
 #[test]
 fn inspect_elf_dwarf_breakpad_early_iter_stop() {
-    fn test(src: &inspect::Source) {
+    fn test(src: &Source) {
         let mut i = 0;
         let inspector = Inspector::new();
         let () = inspector
@@ -315,23 +318,23 @@ fn inspect_elf_dwarf_breakpad_early_iter_stop() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
+    let mut elf = Elf::new(path);
     elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
+    let src = Source::Elf(elf);
     test(&src);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let elf = inspect::Elf::new(path);
-    let src = inspect::Source::Elf(elf);
+    let elf = Elf::new(path);
+    let src = Source::Elf(elf);
     test(&src);
 
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs.sym");
-    let breakpad = inspect::Breakpad::new(path);
-    let src = inspect::Source::Breakpad(breakpad);
+    let breakpad = Breakpad::new(path);
+    let src = Source::Breakpad(breakpad);
     test(&src);
 }
 
@@ -342,9 +345,9 @@ fn inspect_debug_syms_flag() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-no-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
+    let mut elf = Elf::new(path);
     elf.debug_syms = true;
-    let src = inspect::Source::Elf(elf);
+    let src = Source::Elf(elf);
     let inspector = Inspector::new();
     // There aren't any debug symbols in the source (although there are ELF
     // symbols).
@@ -353,9 +356,9 @@ fn inspect_debug_syms_flag() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
-    let mut elf = inspect::Elf::new(path);
+    let mut elf = Elf::new(path);
     elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
+    let src = Source::Elf(elf);
     // There aren't any ELF symbols in the source (although there are DWARF
     // symbols).
     let () = inspector.for_each(&src, |_sym| panic!()).unwrap();
@@ -369,9 +372,9 @@ fn inspect_elf_all_symbols_without_duplicates() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
-    let mut elf = inspect::Elf::new(path);
+    let mut elf = Elf::new(path);
     elf.debug_syms = false;
-    let src = inspect::Source::Elf(elf);
+    let src = Source::Elf(elf);
 
     let inspector = Inspector::new();
     let mut syms = Vec::<String>::new();
