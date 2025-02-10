@@ -12,6 +12,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::ptr;
 
+use blazesym::symbolize::cache;
 use blazesym::symbolize::source::Elf;
 use blazesym::symbolize::source::GsymData;
 use blazesym::symbolize::source::GsymFile;
@@ -34,6 +35,69 @@ use crate::blaze_err_last;
 use crate::set_last_err;
 use crate::util::slice_from_aligned_user_array;
 use crate::util::slice_from_user_array;
+
+
+/// Configuration for caching of process-level data.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_cache_src_process {
+    /// The size of this object's type.
+    ///
+    /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
+    /// ensure compatibility in the presence of member additions.
+    pub type_size: usize,
+    /// The referenced process' ID.
+    pub pid: u32,
+    /// Whether to cache the process' VMAs for later use.
+    ///
+    /// Caching VMAs can be useful, because it conceptually enables the
+    /// library to serve a symbolization request targeting a process
+    /// even if said process has since exited the system.
+    ///
+    /// Note that once VMAs have been cached this way, the library will
+    /// refrain from re-reading updated VMAs unless instructed to.
+    /// Hence, if you have reason to believe that a process may have
+    /// changed its memory regions (by loading a new shared object, for
+    /// example), you would have to make another request to cache them
+    /// yourself.
+    ///
+    /// Note furthermore that if you cache VMAs to later symbolize
+    /// addresses after the original process has already exited, you
+    /// will have to opt-out of usage of `/proc/<pid>/map_files/` as
+    /// part of the symbolization request. Refer to
+    /// [`blaze_symbolize_src_process::map_files`].
+    pub cache_vmas: bool,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 15],
+}
+
+impl Default for blaze_cache_src_process {
+    fn default() -> Self {
+        Self {
+            type_size: mem::size_of::<Self>(),
+            pid: 0,
+            cache_vmas: false,
+            reserved: [0; 15],
+        }
+    }
+}
+
+impl From<blaze_cache_src_process> for cache::Process {
+    fn from(process: blaze_cache_src_process) -> Self {
+        let blaze_cache_src_process {
+            type_size: _,
+            pid,
+            cache_vmas,
+            reserved: _,
+        } = process;
+        Self {
+            pid: pid.into(),
+            cache_vmas,
+            _non_exhaustive: (),
+        }
+    }
+}
 
 
 /// The parameters to load symbols and debug information from an ELF.
@@ -689,6 +753,43 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
     }
 }
 
+
+/// Symbolize a list of process absolute addresses.
+///
+/// On success, the function returns a [`blaze_syms`] containing an
+/// array of `abs_addr_cnt` [`blaze_sym`] objects. The returned object
+/// should be released using [`blaze_syms_free`] once it is no longer
+/// needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
+///
+/// # Safety
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_process`] object
+/// - `abs_addrs` point to an array of `abs_addr_cnt` addresses
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_cache_process(
+    symbolizer: *mut blaze_symbolizer,
+    cache: *const blaze_cache_src_process,
+) {
+    if !input_zeroed!(cache, blaze_cache_src_process) {
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return
+    }
+    let cache = input_sanitize!(cache, blaze_cache_src_process);
+    let cache = cache::Cache::from(cache::Process::from(cache));
+
+    // SAFETY: The caller ensures that the pointer is valid.
+    let symbolizer = unsafe { &*symbolizer };
+    let result = symbolizer.cache(&cache);
+    let err = result
+        .map(|()| blaze_err::BLAZE_ERR_OK)
+        .unwrap_or_else(|err| err.kind().into());
+    let () = set_last_err(err);
+}
+
 fn code_info_strtab_size(code_info: &Option<CodeInfo>) -> usize {
     code_info
         .as_ref()
@@ -1150,6 +1251,7 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
+        assert_eq!(mem::size_of::<blaze_cache_src_process>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_src_elf>(), 24);
         assert_eq!(mem::size_of::<blaze_symbolize_src_kernel>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_src_process>(), 16);
@@ -1803,6 +1905,45 @@ mod tests {
         let addrs = [blaze_symbolizer_new as Addr];
         let result = unsafe {
             blaze_symbolize_process_abs_addrs(symbolizer, &process_src, addrs.as_ptr(), addrs.len())
+        };
+
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym.name) },
+            CStr::from_bytes_with_nul(b"blaze_symbolizer_new\0").unwrap()
+        );
+
+        let () = unsafe { blaze_syms_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
+    /// Make sure that we can symbolize addresses in a process after
+    /// caching the corresponding metadata.
+    #[test]
+    fn symbolize_in_process_cached() {
+        let symbolizer = blaze_symbolizer_new();
+        let cache = blaze_cache_src_process {
+            pid: 0,
+            cache_vmas: true,
+            ..Default::default()
+        };
+        let () = unsafe { blaze_symbolize_cache_process(symbolizer, &cache) };
+
+        let src = blaze_symbolize_src_process {
+            pid: 0,
+            debug_syms: true,
+            perf_map: true,
+            map_files: false,
+            ..Default::default()
+        };
+        let addrs = [blaze_symbolizer_new as Addr];
+        let result = unsafe {
+            blaze_symbolize_process_abs_addrs(symbolizer, &src, addrs.as_ptr(), addrs.len())
         };
 
         assert!(!result.is_null());
