@@ -1274,7 +1274,7 @@ fn symbolize_kernel_system_vmlinux() {
         let mut file = File::open("/proc/kallsyms").unwrap();
         let mut content = String::new();
         let _cnt = file.read_to_string(&mut content).unwrap();
-        let pairs = content
+        let mut pairs = content
             .lines()
             .filter_map(|line| {
                 let [addr, ty, name] = line
@@ -1290,14 +1290,33 @@ fn symbolize_kernel_system_vmlinux() {
                 Some((addr, name))
             })
             .collect::<Vec<_>>();
+        let () = pairs.sort_by_key(|(addr, _name)| *addr);
 
         let mut rng = rand::rng();
         let pairs = (0..20)
-            .map(|_| {
+            .filter_map(|_| {
                 let idx = rng.random_range(0..pairs.len());
                 let addr = pairs[idx].0;
+                // Make sure that this address is unique by checking that the
+                // previous and following ones are different. We ignore
+                // duplicate addresses (aliases symbols), because
+                // symbolization results won't be unambiguous.
+                if let Some(idx) = idx.checked_sub(1) {
+                    if let Some((addr_, _name)) = pairs.get(idx) {
+                        if *addr_ == addr {
+                            return None
+                        }
+                    }
+                }
+                if let Some(idx) = idx.checked_add(1) {
+                    if let Some((addr_, _name)) = pairs.get(idx) {
+                        if *addr_ == addr {
+                            return None
+                        }
+                    }
+                }
                 let name = pairs[idx].1;
-                (addr, name.to_string())
+                Some((addr, name.to_string()))
             })
             .collect::<Vec<_>>();
 
