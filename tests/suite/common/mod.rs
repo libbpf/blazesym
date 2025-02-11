@@ -74,7 +74,7 @@ pub fn non_root_uid() -> uid_t {
 }
 
 #[cfg(linux)]
-pub fn run_user_symbolization_test<F>(callback_fn: F)
+pub fn run_unprivileged_process_test<F>(callback_fn: F)
 where
     F: FnOnce(Pid, u64, &Path) + UnwindSafe,
 {
@@ -140,7 +140,7 @@ where
 }
 
 #[cfg(not(linux))]
-pub fn run_user_symbolization_test<F>(_callback_fn: F)
+pub fn run_unprivileged_process_test<F>(_callback_fn: F)
 where
     F: FnOnce(Pid, u64, &Path) + UnwindSafe,
 {
