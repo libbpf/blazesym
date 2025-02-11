@@ -25,7 +25,7 @@ use tempfile::tempdir;
 use test_fork::test as forked_test;
 use test_log::test;
 
-use crate::suite::common::run_user_symbolization_test;
+use crate::suite::common::run_unprivileged_process_test;
 
 
 /// Check that we detect unsorted input addresses.
@@ -462,5 +462,5 @@ fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
 #[cfg(linux)]
 #[forked_test]
 fn normalize_process_symbolic_paths() {
-    run_user_symbolization_test(normalize_permissionless_impl)
+    run_unprivileged_process_test(normalize_permissionless_impl)
 }

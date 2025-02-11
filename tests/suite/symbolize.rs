@@ -63,7 +63,7 @@ use test_tag::tag;
 
 use crate::suite::common::as_user;
 use crate::suite::common::non_root_uid;
-use crate::suite::common::run_user_symbolization_test;
+use crate::suite::common::run_unprivileged_process_test;
 
 
 /// Make sure that we fail symbolization when providing a non-existent source.
@@ -1033,7 +1033,7 @@ fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
 #[cfg(linux)]
 #[forked_test]
 fn symbolize_process_symbolic_paths() {
-    run_user_symbolization_test(symbolize_permissionless_impl)
+    run_unprivileged_process_test(symbolize_permissionless_impl)
 }
 
 /// Check that we can symbolize an address residing in a zip archive, using
