@@ -18,13 +18,10 @@ void _start(void) {
   char buf[2];
   int rc;
   void* addr = (void*)&_start;
-  /* Write the address of `_start` to stderr. We use stderr because it's
-     unbuffered, so we spare ourselves from the pains of writing a
-     newline as well... */
   asm volatile (
       "syscall"
       : "=a"(rc)
-      : "a"(SYS_write), "D"(STDERR_FILENO), "S"(&addr), "d"(sizeof(addr))
+      : "a"(SYS_write), "D"(STDOUT_FILENO), "S"(&addr), "d"(sizeof(addr))
       : "rcx", "r11", "memory"
   );
   asm volatile (
