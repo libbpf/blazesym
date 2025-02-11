@@ -69,7 +69,7 @@ pub struct blaze_cache_src_process {
     pub cache_vmas: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 15],
+    pub reserved: [u8; 11],
 }
 
 impl Default for blaze_cache_src_process {
@@ -78,7 +78,7 @@ impl Default for blaze_cache_src_process {
             type_size: mem::size_of::<Self>(),
             pid: 0,
             cache_vmas: false,
-            reserved: [0; 15],
+            reserved: [0; 11],
         }
     }
 }
@@ -1251,7 +1251,7 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
-        assert_eq!(mem::size_of::<blaze_cache_src_process>(), 32);
+        assert_eq!(mem::size_of::<blaze_cache_src_process>(), 24);
         assert_eq!(mem::size_of::<blaze_symbolize_src_elf>(), 24);
         assert_eq!(mem::size_of::<blaze_symbolize_src_kernel>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_src_process>(), 16);
@@ -1435,6 +1435,20 @@ mod tests {
             kernel.vmlinux,
             MaybeDefault::Some(PathBuf::from("/boot/vmlinux"))
         );
+    }
+
+    /// Check that we can convert a [`blaze_cache_src_process`] into a
+    /// [`cache::Process`].
+    #[tag(miri)]
+    #[test]
+    fn cache_process_conversion() {
+        let process = blaze_cache_src_process {
+            pid: 42,
+            cache_vmas: false,
+            ..Default::default()
+        };
+        let process = cache::Process::from(process);
+        assert_eq!(process.pid, Pid::from(42))
     }
 
     /// Test the Rust to C symbol conversion.
@@ -1933,6 +1947,7 @@ mod tests {
             ..Default::default()
         };
         let () = unsafe { blaze_symbolize_cache_process(symbolizer, &cache) };
+        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
 
         let src = blaze_symbolize_src_process {
             pid: 0,

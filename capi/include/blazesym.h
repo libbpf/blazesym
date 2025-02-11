@@ -647,7 +647,7 @@ typedef struct blaze_cache_src_process {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[15];
+  uint8_t reserved[11];
 } blaze_cache_src_process;
 
 /**
