@@ -1,3 +1,4 @@
+#include <unistd.h>
 #include <stdio.h>
 
 #include "test-so.h"
@@ -11,10 +12,18 @@ int the_ignored_answer(void) {
 }
 
 int await_input(void) {
-  fprintf(stdout, "%p\n", &await_input);
-  fflush(stdout);
+  void* addr = (void*)&await_input;
+  int rc = write(STDOUT_FILENO, &addr, sizeof(addr));
+  if (rc < 0) {
+    perror("failed to write address to stdout");
+    return 1;
+  }
 
-  int c;
-  c = getc(stdin);
+  char buf[2];
+  rc = read(STDIN_FILENO, buf, sizeof(buf));
+  if (rc < 0) {
+    perror("failed to read from stdin");
+    return 1;
+  }
   return 0;
 }

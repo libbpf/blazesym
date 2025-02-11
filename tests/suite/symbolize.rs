@@ -14,7 +14,6 @@ use std::path::PathBuf;
 use std::process;
 use std::process::Command;
 use std::process::Stdio;
-use std::str;
 
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
@@ -794,15 +793,15 @@ fn symbolize_process_in_mount_namespace() {
         let _rc = unsafe { kill(pid as _, SIGKILL) };
     });
 
-    let mut buf = [0u8; 64];
+    let mut buf = [0u8; size_of::<Addr>()];
     let count = child
         .stdout
         .as_mut()
         .unwrap()
         .read(&mut buf)
         .expect("failed to read child output");
-    let addr_str = str::from_utf8(&buf[0..count]).unwrap().trim_end();
-    let addr = Addr::from_str_radix(addr_str.trim_start_matches("0x"), 16).unwrap();
+    assert_eq!(count, buf.len());
+    let addr = Addr::from_ne_bytes(buf);
 
     // Make sure to destroy the symbolizer before terminating the child.
     // Otherwise something holds on to a reference and cleanup may fail.
