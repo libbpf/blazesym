@@ -1403,8 +1403,8 @@ fn symbolize_normalized_large_memsize() {
         .join("test-block.bin");
     let mut child = Command::new(&test_block)
         .stdin(Stdio::piped())
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
         .spawn()
         .unwrap();
     let pid = child.id();
@@ -1418,7 +1418,7 @@ fn symbolize_normalized_large_memsize() {
 
     let mut buf = [0u8; size_of::<Addr>()];
     let count = child
-        .stderr
+        .stdout
         .as_mut()
         .unwrap()
         .read(&mut buf)
