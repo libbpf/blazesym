@@ -12,8 +12,6 @@ use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process;
-use std::process::Command;
-use std::process::Stdio;
 
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
@@ -64,6 +62,8 @@ use test_tag::tag;
 use crate::suite::common::as_user;
 use crate::suite::common::non_root_uid;
 use crate::suite::common::run_unprivileged_process_test;
+#[cfg(linux)]
+use crate::suite::common::RemoteProcess;
 
 
 /// Make sure that we fail symbolization when providing a non-existent source.
@@ -767,9 +767,6 @@ fn symbolize_process() {
 #[cfg(linux)]
 #[test]
 fn symbolize_process_in_mount_namespace() {
-    use libc::kill;
-    use libc::SIGKILL;
-
     let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
@@ -777,49 +774,18 @@ fn symbolize_process_in_mount_namespace() {
         .join("data")
         .join("test-mnt-ns.bin");
 
-    let mut child = Command::new(mnt_ns)
-        .arg(test_so)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .unwrap();
-    let pid = child.id();
-    defer!({
-        // Best effort only. The child may end up terminating gracefully
-        // if everything goes as planned.
-        // TODO: Ideally this kill would be pid FD based to eliminate
-        //       any possibility of killing the wrong entity.
-        let _rc = unsafe { kill(pid as _, SIGKILL) };
-    });
-
-    let mut buf = [0u8; size_of::<Addr>()];
-    let count = child
-        .stdout
-        .as_mut()
-        .unwrap()
-        .read(&mut buf)
-        .expect("failed to read child output");
-    assert_eq!(count, buf.len());
-    let addr = Addr::from_ne_bytes(buf);
-
-    // Make sure to destroy the symbolizer before terminating the child.
-    // Otherwise something holds on to a reference and cleanup may fail.
-    // TODO: This needs to be better understood.
-    {
-        let src = Source::Process(Process::new(Pid::from(child.id())));
-        let symbolizer = Symbolizer::new();
-        let result = symbolizer
-            .symbolize_single(&src, Input::AbsAddr(addr))
-            .unwrap()
-            .into_sym()
-            .unwrap();
-        assert_eq!(result.name, "await_input");
-    }
-
-    // "Signal" the child to terminate gracefully.
-    let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
-    let _status = child.wait().unwrap();
+    let () = RemoteProcess::default()
+        .arg(&test_so)
+        .exec(&mnt_ns, |pid, addr| {
+            let src = Source::Process(Process::new(pid));
+            let symbolizer = Symbolizer::new();
+            let result = symbolizer
+                .symbolize_single(&src, Input::AbsAddr(addr))
+                .unwrap()
+                .into_sym()
+                .unwrap();
+            assert_eq!(result.name, "await_input");
+        });
 }
 
 /// Check that we can symbolize an address residing in a zip archive.
@@ -933,16 +899,14 @@ fn symbolize_process_perf_map() {
     use std::io::BufRead as _;
     use std::io::BufReader;
 
-    use libc::kill;
-    use libc::SIGKILL;
-
     let script = r#"
+import ctypes
 import sys
 
 sys.activate_stack_trampoline("perf")
 
 def main():
-  print()
+  open("/proc/self/fd/1", "wb").write(ctypes.c_uint64(0x0))
   input()
   return 0
 
@@ -950,58 +914,38 @@ if __name__ == "__main__":
   main()
 "#;
 
-    let mut child = Command::new(env::var_os("PYTHON").unwrap_or_else(|| OsString::from("python")))
-        .args(["-c", script])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::inherit())
-        .spawn()
-        .unwrap();
-    let pid = child.id();
-    defer!({
-        let _rc = unsafe { kill(pid as _, SIGKILL) };
-    });
+    let python = env::var_os("PYTHON").unwrap_or_else(|| OsString::from("python"));
+    let () = RemoteProcess::default()
+        .arg("-c")
+        .arg(script)
+        .exec(python, |pid, _addr| {
+            let path = Path::new("/tmp").join(format!("perf-{pid}.map"));
+            let file = BufReader::new(File::open(&path).unwrap());
+            let lines = file.lines().collect::<Result<Vec<_>, _>>().unwrap();
+            let line = &lines[lines.len() / 2];
+            let [addr, size, name] = line.split_ascii_whitespace().collect::<Vec<_>>()[..] else {
+                panic!("failed to parse perf map line: `{line}`")
+            };
+            let addr = Addr::from_str_radix(addr, 16).unwrap();
+            let size = usize::from_str_radix(size, 16).unwrap();
 
-    // Wait for the process to have activated its stack trampoline
-    // functionality.
-    let mut buf = [0u8; 8];
-    let _count = child
-        .stdout
-        .as_mut()
-        .unwrap()
-        .read(&mut buf)
-        .expect("failed to read child output");
+            let src = Source::Process(Process::new(pid));
+            let symbolizer = Symbolizer::new();
 
-    let path = Path::new("/tmp").join(format!("perf-{pid}.map"));
-    let file = BufReader::new(File::open(&path).unwrap());
-    let lines = file.lines().collect::<Result<Vec<_>, _>>().unwrap();
-    let line = &lines[lines.len() / 2];
-    let [addr, size, name] = line.split_ascii_whitespace().collect::<Vec<_>>()[..] else {
-        panic!("failed to parse perf map line: `{line}`")
-    };
-    let addr = Addr::from_str_radix(addr, 16).unwrap();
-    let size = usize::from_str_radix(size, 16).unwrap();
-
-    let src = Source::Process(Process::new(Pid::from(child.id())));
-    let symbolizer = Symbolizer::new();
-
-    let addrs = (addr..addr + size as Addr).collect::<Vec<_>>();
-    let results = symbolizer
-        .symbolize(&src, Input::AbsAddr(&addrs))
-        .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    assert_eq!(results.len(), size);
-    let () = results.into_iter().for_each(|symbolized| {
-        let result = symbolized.into_sym().unwrap();
-        assert_eq!(result.name, name);
-        assert_eq!(result.addr, addr);
-        assert_eq!(result.size, Some(size));
-    });
-
-    // "Signal" the child to terminate gracefully.
-    let () = child.stdin.as_ref().unwrap().write_all(b"\n").unwrap();
-    let _status = child.wait().unwrap();
+            let addrs = (addr..addr + size as Addr).collect::<Vec<_>>();
+            let results = symbolizer
+                .symbolize(&src, Input::AbsAddr(&addrs))
+                .unwrap()
+                .into_iter()
+                .collect::<Vec<_>>();
+            assert_eq!(results.len(), size);
+            let () = results.into_iter().for_each(|symbolized| {
+                let result = symbolized.into_sym().unwrap();
+                assert_eq!(result.name, name);
+                assert_eq!(result.addr, addr);
+                assert_eq!(result.size, Some(size));
+            });
+        });
 }
 
 fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
@@ -1400,52 +1344,24 @@ fn symbolize_normalized_large_memsize() {
     let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-block.bin");
-    let mut child = Command::new(&test_block)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null())
-        .spawn()
-        .unwrap();
-    let pid = child.id();
-    defer!({
-        // Best effort only. The child may end up terminating gracefully
-        // if everything goes as planned.
-        // TODO: Ideally this kill would be pid FD based to eliminate
-        //       any possibility of killing the wrong entity.
-        let _rc = unsafe { libc::kill(pid as _, libc::SIGKILL) };
+    let () = RemoteProcess::default().exec(&test_block, |pid, addr| {
+        let normalizer = normalize::Normalizer::new();
+        let normalized = normalizer
+            .normalize_user_addrs(pid, [addr].as_slice())
+            .unwrap();
+
+        assert_eq!(normalized.outputs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
+        let file_offset = normalized.outputs[0].0;
+
+        let elf = Elf::new(&test_block);
+        let src = Source::Elf(elf);
+        let symbolizer = Symbolizer::new();
+        let sym = symbolizer
+            .symbolize_single(&src, Input::FileOffset(file_offset))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+        assert_eq!(sym.name, "_start");
     });
-
-    let mut buf = [0u8; size_of::<Addr>()];
-    let count = child
-        .stdout
-        .as_mut()
-        .unwrap()
-        .read(&mut buf)
-        .expect("failed to read child output");
-    assert_eq!(count, buf.len());
-    let addr = Addr::from_ne_bytes(buf);
-    let pid = Pid::from(child.id());
-
-    let normalizer = normalize::Normalizer::new();
-    let normalized = normalizer
-        .normalize_user_addrs(pid, [addr].as_slice())
-        .unwrap();
-
-    assert_eq!(normalized.outputs.len(), 1);
-    assert_eq!(normalized.meta.len(), 1);
-    let file_offset = normalized.outputs[0].0;
-
-    let elf = Elf::new(test_block);
-    let src = Source::Elf(elf);
-    let symbolizer = Symbolizer::new();
-    let sym = symbolizer
-        .symbolize_single(&src, Input::FileOffset(file_offset))
-        .unwrap()
-        .into_sym()
-        .unwrap();
-    assert_eq!(sym.name, "_start");
-
-    // "Signal" the child to terminate gracefully.
-    let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();
-    let _status = child.wait().unwrap();
 }
