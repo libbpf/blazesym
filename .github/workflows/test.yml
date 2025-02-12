@@ -273,9 +273,10 @@ jobs:
         name: test-stable-addrs
         if-no-files-found: error
         path: |
-          data/test-stable-addrs*
-          data/test-rs.bin
           data/libtest-so*
+          data/test-no-debug.bin
+          data/test-rs.bin
+          data/test-stable-addrs*
   test-partly-supported:
     name: Test on ${{ matrix.runs-on }}
     strategy:
