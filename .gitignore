@@ -9,4 +9,3 @@
 /data/zip-dir
 /target
 /tests/bpf/*.bpf.o
-Cargo.lock
