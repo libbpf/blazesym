@@ -115,6 +115,8 @@ mod tests {
     use std::path::Path;
     use std::slice;
 
+    use test_tag::tag;
+
     use crate::blaze_err;
     use crate::blaze_err_last;
 
@@ -128,6 +130,7 @@ mod tests {
     }
 
     /// Check that we can read a binary's build ID.
+    #[tag(other_os)]
     #[test]
     fn build_id_reading() {
         let mut len = 0;

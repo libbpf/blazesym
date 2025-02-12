@@ -214,7 +214,7 @@ int main() {
         }
     }
 
-    if cfg!(feature = "check-doc-snippets") {
+    if cfg!(feature = "check-doc-snippets") && !cfg!(feature = "dont-check-doc-snippets") {
         let src = crate_dir.join("examples").join("input-struct-init.c");
         cc(
             &src,

@@ -38,6 +38,9 @@ default = [
 ]
 # Check C code documentation snippets.
 check-doc-snippets = []
+# Disable checking of C code documentation. This feature takes
+# preference over `check-doc-snippets`.
+dont-check-doc-snippets = []
 # Enable this feature to enable blazesym's DWARF support.
 dwarf = ["blazesym/dwarf"]
 # Enable this feature to re-generate the library's C header file. An

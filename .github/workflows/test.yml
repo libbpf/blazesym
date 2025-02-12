@@ -292,7 +292,7 @@ jobs:
         name: test-stable-addrs
         path: data/
     - uses: dtolnay/rust-toolchain@stable
-    - run: cargo test --tests --release --features=blazesym-dev/dont-generate-unit-test-files -- ':other_os:'
+    - run: cargo test --tests --workspace --release --features=blazesym-dev/dont-generate-unit-test-files --features=blazesym-c/dont-check-doc-snippets -- ':other_os:'
   test-sanitizers:
     name: Test with ${{ matrix.sanitizer }} sanitizer
     strategy:
