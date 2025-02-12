@@ -195,12 +195,15 @@ mod tests {
     use std::fs::File;
 
     use test_log::test;
+    use test_tag::tag;
 
     use crate::ErrorKind;
+    use crate::Result;
 
 
     /// Check that we can read a binary's build ID based on the ELF section name
     /// as well as ELF section type.
+    #[tag(other_os)]
     #[test]
     fn build_id_reading_from_name_and_notes() {
         fn test(file: &str, f: fn(&ElfParser) -> Result<Option<BuildId>>) {
@@ -219,6 +222,7 @@ mod tests {
     }
 
     /// Check that we can read a binary's build ID.
+    #[tag(other_os)]
     #[test]
     fn build_id_reading() {
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
