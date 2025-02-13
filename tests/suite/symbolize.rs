@@ -80,7 +80,7 @@ fn error_on_non_existent_source() {
 
     for src in srcs {
         let err = symbolizer
-            .symbolize_single(&src, Input::VirtOffset(0x2000100))
+            .symbolize_single(&src, Input::VirtOffset(0x2000200))
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::NotFound);
     }
@@ -93,13 +93,13 @@ fn symbolize_elf_dwarf_gsym() {
     fn test(src: Source, has_code_info: bool) {
         let symbolizer = Symbolizer::new();
         let result = symbolizer
-            .symbolize_single(&src, Input::VirtOffset(0x2000100))
+            .symbolize_single(&src, Input::VirtOffset(0x2000200))
             .unwrap()
             .into_sym()
             .unwrap();
 
         assert_eq!(result.name, "factorial");
-        assert_eq!(result.addr, 0x2000100);
+        assert_eq!(result.addr, 0x2000200);
         assert_eq!(result.offset, 0);
 
         if has_code_info {
@@ -119,7 +119,7 @@ fn symbolize_elf_dwarf_gsym() {
         let offsets = (1..size).collect::<Vec<_>>();
         let addrs = offsets
             .iter()
-            .map(|offset| (0x2000100 + offset) as Addr)
+            .map(|offset| (0x2000200 + offset) as Addr)
             .collect::<Vec<_>>();
         let results = symbolizer
             .symbolize(&src, Input::VirtOffset(&addrs))
@@ -131,7 +131,7 @@ fn symbolize_elf_dwarf_gsym() {
         for (i, symbolized) in results.into_iter().enumerate() {
             let result = symbolized.into_sym().unwrap();
             assert_eq!(result.name, "factorial");
-            assert_eq!(result.addr, 0x2000100);
+            assert_eq!(result.addr, 0x2000200);
             assert_eq!(result.offset, offsets[i]);
 
             if has_code_info {
@@ -187,7 +187,7 @@ fn symbolize_no_permission_impl(path: &Path) {
     let src = Source::Elf(Elf::new(path));
     let symbolizer = Symbolizer::new();
     let err = symbolizer
-        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
         .unwrap_err();
     assert_eq!(err.kind(), ErrorKind::PermissionDenied);
 }
@@ -277,13 +277,13 @@ fn symbolize_breakpad() {
     let src = Source::Breakpad(Breakpad::new(path));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
-        .symbolize_single(&src, Input::FileOffset(0x100))
+        .symbolize_single(&src, Input::FileOffset(0x200))
         .unwrap()
         .into_sym()
         .unwrap();
 
     assert_eq!(result.name, "factorial");
-    assert_eq!(result.addr, 0x100);
+    assert_eq!(result.addr, 0x200);
     assert_eq!(result.offset, 0);
 
     let code_info = result.code_info.as_ref().unwrap();
@@ -297,7 +297,7 @@ fn symbolize_breakpad() {
     let offsets = (1..size).collect::<Vec<_>>();
     let addrs = offsets
         .iter()
-        .map(|offset| (0x100 + offset) as Addr)
+        .map(|offset| (0x200 + offset) as Addr)
         .collect::<Vec<_>>();
     let results = symbolizer
         .symbolize(&src, Input::FileOffset(&addrs))
@@ -309,7 +309,7 @@ fn symbolize_breakpad() {
     for (i, symbolized) in results.into_iter().enumerate() {
         let result = symbolized.into_sym().unwrap();
         assert_eq!(result.name, "factorial");
-        assert_eq!(result.addr, 0x100);
+        assert_eq!(result.addr, 0x200);
         assert_eq!(result.offset, offsets[i]);
 
         let code_info = result.code_info.as_ref().unwrap();
@@ -410,7 +410,7 @@ fn symbolize_elf_stripped() {
     let src = Source::Elf(Elf::new(path));
     let symbolizer = Symbolizer::new();
     let result = symbolizer
-        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
         .unwrap();
 
     assert_eq!(result, Symbolized::Unknown(Reason::MissingSyms));
@@ -426,7 +426,7 @@ fn symbolize_dwarf_gsym_inlined() {
             .enable_inlined_fns(inlined_fns)
             .build();
         let result = symbolizer
-            .symbolize_single(&src, Input::VirtOffset(0x200020a))
+            .symbolize_single(&src, Input::VirtOffset(0x200030a))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -495,7 +495,7 @@ fn symbolize_dwarf_wrong_debug_link_crc() {
     let src = Source::from(Elf::new(path));
     let symbolizer = Symbolizer::new();
     let err = symbolizer
-        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
         .unwrap_err();
     assert!(
         err.to_string()
@@ -514,7 +514,7 @@ fn symbolize_dwarf_non_existent_debug_link() {
     let src = Source::from(Elf::new(path));
     let symbolizer = Symbolizer::builder().enable_auto_reload(false).build();
     let result = symbolizer
-        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
         .unwrap()
         .into_sym();
     // Because the binary is stripped, we don't expect any symbol
@@ -539,7 +539,7 @@ fn symbolize_configurable_debug_dirs() {
         .set_debug_dirs(Option::<[&Path; 0]>::Some([]))
         .build();
     let result = symbolizer
-        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
         .unwrap()
         .into_sym();
     // Shouldn't symbolize to anything because the debug link target cannot be
@@ -559,7 +559,7 @@ fn symbolize_configurable_debug_dirs() {
         .set_debug_dirs(Some([debug_dir1, debug_dir2]))
         .build();
     let sym = symbolizer
-        .symbolize_single(&src, Input::VirtOffset(0x2000100))
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
         .unwrap()
         .into_sym()
         .unwrap();
@@ -576,7 +576,7 @@ fn symbolize_breakpad_inlined() {
             .enable_inlined_fns(inlined_fns)
             .build();
         let result = symbolizer
-            .symbolize_single(&src, Input::FileOffset(0x20a))
+            .symbolize_single(&src, Input::FileOffset(0x30a))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -1216,11 +1216,11 @@ fn symbolize_kernel_vmlinux() {
         let src = Source::Kernel(kernel);
         let symbolizer = Symbolizer::new();
         let symbolized = symbolizer
-            .symbolize_single(&src, Input::AbsAddr(0x2000100))
+            .symbolize_single(&src, Input::AbsAddr(0x2000200))
             .unwrap();
         let sym = symbolized.into_sym().unwrap();
         assert_eq!(sym.name, "factorial");
-        assert_eq!(sym.addr, 0x2000100);
+        assert_eq!(sym.addr, 0x2000200);
 
         if has_code_info {
             let code_info = sym.code_info.as_ref().unwrap();

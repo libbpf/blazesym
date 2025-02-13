@@ -262,11 +262,11 @@ mod tests {
         gsym_fo.read_to_end(&mut data).unwrap();
         let ctx = GsymContext::parse_header(&data).unwrap();
 
-        let idx = ctx.find_addr(0x0000000002000000).unwrap();
+        let idx = ctx.find_addr(0x2000000).unwrap();
         let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "main");
 
-        let idx = ctx.find_addr(0x0000000002000100).unwrap();
+        let idx = ctx.find_addr(0x2000200).unwrap();
         let addrinfo = ctx.addr_info(idx).unwrap();
         assert_eq!(ctx.get_str(addrinfo.name as usize).unwrap(), "factorial");
     }

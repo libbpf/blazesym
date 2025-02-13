@@ -387,10 +387,10 @@ mod tests {
         assert_eq!(info.line, Some(75));
         assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
 
-        // `factorial` resides at address 0x2000100, and it's located at the
+        // `factorial` resides at address 0x2000200, and it's located at the
         // given line.
         let sym = resolver
-            .find_sym(0x2000100, &FindSymOpts::CodeInfoAndInlined)
+            .find_sym(0x2000200, &FindSymOpts::CodeInfoAndInlined)
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial");
@@ -403,7 +403,7 @@ mod tests {
         // Address is hopefully sufficiently far into `factorial_inline_test` to
         // always fall into the inlined region, no matter toolchain. If not, add
         // padding bytes/dummy instructions and adjust some more.
-        let addr = 0x200020a;
+        let addr = 0x200030a;
         let sym = resolver
             .find_sym(addr, &FindSymOpts::CodeInfoAndInlined)
             .unwrap()

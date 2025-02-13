@@ -1636,7 +1636,7 @@ mod tests {
             assert_eq!(syms.len(), 1);
             let sym = &syms[0];
             assert_eq!(sym.name, "factorial");
-            assert_eq!(sym.addr, 0x2000100);
+            assert_eq!(sym.addr, 0x2000200);
 
             let syms = parser.find_addr("factorial_wrapper", &opts).unwrap();
             assert_eq!(syms.len(), 2);

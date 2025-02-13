@@ -521,7 +521,7 @@ mod tests {
         let resolver = DwarfResolver::open(bin_name.as_ref()).unwrap();
 
         let info = resolver
-            .find_sym(0x2000100, &FindSymOpts::CodeInfo)
+            .find_sym(0x2000200, &FindSymOpts::CodeInfo)
             .unwrap()
             .unwrap()
             .code_info
@@ -547,9 +547,9 @@ mod tests {
         let symbols = resolver.find_addr("factorial", &opts).unwrap();
         assert_eq!(symbols.len(), 1);
 
-        // `factorial` resides at address 0x2000100.
+        // `factorial` resides at address 0x2000200.
         let symbol = symbols.first().unwrap();
-        assert_eq!(symbol.addr, 0x2000100);
+        assert_eq!(symbol.addr, 0x2000200);
     }
 
     /// Check that we fail to look up variables.

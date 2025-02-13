@@ -265,7 +265,7 @@ mod tests {
 
         let resolver = helper::GsymResolver::open(test_gsym).unwrap();
         let sym = resolver
-            .find_sym(0x2000100, &FindSymOpts::Basic)
+            .find_sym(0x2000200, &FindSymOpts::Basic)
             .unwrap()
             .unwrap();
         assert_eq!(sym.name, "factorial");

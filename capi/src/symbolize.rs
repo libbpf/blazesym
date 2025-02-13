@@ -1615,7 +1615,7 @@ mod tests {
             F: FnOnce(*mut blaze_symbolizer, *const Addr, usize) -> *const blaze_syms,
         {
             let symbolizer = blaze_symbolizer_new();
-            let addrs = [0x2000100];
+            let addrs = [0x2000200];
             let result = symbolize(symbolizer, addrs.as_ptr(), addrs.len());
 
             assert!(!result.is_null());
@@ -1632,7 +1632,7 @@ mod tests {
                 sym.reason,
                 blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_SUCCESS
             );
-            assert_eq!(sym.addr, 0x2000100);
+            assert_eq!(sym.addr, 0x2000200);
             assert_eq!(sym.offset, 0);
             assert!(sym.size > 0);
 
@@ -2066,7 +2066,7 @@ mod tests {
             debug_syms: true,
             ..Default::default()
         };
-        let addrs = [0x2000100];
+        let addrs = [0x2000200];
         let result = unsafe {
             blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
         };
@@ -2124,7 +2124,7 @@ mod tests {
             debug_syms: true,
             ..Default::default()
         };
-        let addrs = [0x2000100];
+        let addrs = [0x2000200];
         let result = unsafe {
             blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
         };
