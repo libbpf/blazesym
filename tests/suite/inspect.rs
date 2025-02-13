@@ -206,7 +206,8 @@ fn inspect_elf_file_offset() {
 
     for file in [
         "test-stable-addrs-no-dwarf.bin",
-        "test-stable-addrs-stripped-with-link.bin",
+        "test-stable-addrs-32-no-dwarf.bin",
+        "test-stable-addrs-lto.bin",
     ] {
         let () = test(file);
     }

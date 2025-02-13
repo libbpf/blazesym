@@ -61,6 +61,7 @@ use super::types::ELFCOMPRESS_ZSTD;
 use super::types::PN_XNUM;
 use super::types::PT_LOAD;
 use super::types::SHF_COMPRESSED;
+use super::types::SHN_ABS;
 use super::types::SHN_LORESERVE;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
@@ -203,6 +204,10 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
         return Ok(None)
     }
 
+    if sym.st_shndx == SHN_ABS {
+        return Ok(None)
+    }
+
     let shdr = shdrs
         .get(usize::from(sym.st_shndx))
         .ok_or_invalid_input(|| {
@@ -212,11 +217,23 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
             )
         })?;
 
+    // If the section doesn't have in-file data, there can't be a proper
+    // file offset (elf(5) refers to a "conceptual placement in the
+    // file", but that concept has no meaning for us).
+    if shdr.type_() == SHT_NOBITS {
+        return Ok(None)
+    }
+
     let offset = sym
         .st_value
         .wrapping_sub(shdr.addr())
         .wrapping_add(shdr.offset());
-    Ok(Some(offset))
+    let limit = shdr.offset() + shdr.size();
+    if offset < limit || (offset == limit && sym.st_size == 0) {
+        Ok(Some(offset))
+    } else {
+        Ok(None)
+    }
 }
 
 
@@ -1210,13 +1227,14 @@ where
     /// Find the file offset of the symbol at address `addr`.
     // If possible, use the constant-time [`file_offset`] function
     // instead.
-    pub(crate) fn find_file_offset(&self, addr: Addr) -> Result<Option<u64>> {
+    pub(crate) fn find_file_offset(&self, addr: Addr, size: usize) -> Result<Option<u64>> {
         let phdrs = self.program_headers()?;
         let offset = phdrs.iter(0).find_map(|phdr| {
             let phdr = phdr.to_64bit();
 
             if phdr.p_type == PT_LOAD {
-                if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
+                let limit = phdr.p_vaddr + phdr.p_filesz;
+                if (phdr.p_vaddr..limit).contains(&addr) || (addr == limit && size == 0) {
                     return Some(addr - phdr.p_vaddr + phdr.p_offset)
                 }
             }
@@ -1380,7 +1398,6 @@ mod tests {
 
     use super::super::types::SHN_LORESERVE;
 
-    use std::env;
     use std::env::current_exe;
     #[cfg(feature = "nightly")]
     use std::hint::black_box;
@@ -1670,8 +1687,10 @@ mod tests {
             let parser = ElfParser::open(path).unwrap();
             let () = parser
                 .for_each(&opts, &mut |sym| {
-                    let file_offset = parser.find_file_offset(sym.addr).unwrap();
-                    assert_eq!(file_offset, sym.file_offset);
+                    let file_offset = parser
+                        .find_file_offset(sym.addr, sym.size.unwrap())
+                        .unwrap();
+                    assert_eq!(sym.file_offset, file_offset, "{sym:#x?}");
                     ControlFlow::Continue(())
                 })
                 .unwrap();
