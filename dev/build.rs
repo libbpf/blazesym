@@ -705,10 +705,16 @@ fn prepare_bpf_files() {
 /// Download a multi-part file split into `part_count` pieces.
 #[cfg(feature = "reqwest")]
 fn download_multi_part(base_url: &reqwest::Url, part_count: usize, dst: &Path) {
+    use std::time::Duration;
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(Duration::from_secs(360))
+        .build()
+        .unwrap();
     let mut dst = File::create(dst).unwrap();
     for part in 1..=part_count {
         let url = reqwest::Url::parse(&format!("{}.part{part}", base_url.as_str())).unwrap();
-        let response = reqwest::blocking::get(url).unwrap();
+        let response = client.get(url).send().unwrap();
         let _count = dst.write(&response.bytes().unwrap()).unwrap();
     }
 }
