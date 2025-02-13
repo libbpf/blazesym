@@ -2,9 +2,9 @@ SECTIONS {
   .text (0x2000000) : {
     *(.text.main)
     *(.text)
-    . = ABSOLUTE(0x2000100);
-    *(.text.factorial)
     . = ABSOLUTE(0x2000200);
+    *(.text.factorial)
+    . = ABSOLUTE(0x2000300);
     *(.text.inline)
     *(.text.*)
   }

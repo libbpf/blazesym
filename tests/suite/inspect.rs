@@ -29,7 +29,7 @@ fn inspect_elf() {
 
         let result = &results[0];
         assert_eq!(result.len(), 1);
-        assert_eq!(result[0].addr, 0x2000100);
+        assert_eq!(result[0].addr, 0x2000200);
         assert_eq!(result[0].sym_type, SymType::Function);
         assert_ne!(result[0].file_offset, None);
         assert_eq!(
@@ -102,7 +102,7 @@ fn inspect_breakpad() {
 
     let sym = &results[0];
     assert_eq!(sym.name, "factorial");
-    assert_eq!(sym.addr, 0x100);
+    assert_eq!(sym.addr, 0x200);
     assert_eq!(sym.sym_type, SymType::Function);
     assert_eq!(sym.file_offset, None);
     assert_eq!(sym.obj_file_name, None);
