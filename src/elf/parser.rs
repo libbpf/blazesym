@@ -58,6 +58,7 @@ use super::types::ELFCOMPRESS_ZSTD;
 use super::types::PN_XNUM;
 use super::types::PT_LOAD;
 use super::types::SHF_COMPRESSED;
+use super::types::SHN_ABS;
 use super::types::SHN_LORESERVE;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
@@ -148,6 +149,10 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
         return Ok(None)
     }
 
+    if sym.st_shndx == SHN_ABS {
+        return Ok(None)
+    }
+
     let shdr = shdrs
         .get(usize::from(sym.st_shndx))
         .ok_or_invalid_input(|| {
@@ -156,6 +161,10 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
                 sym.st_shndx, sym.st_value
             )
         })?;
+
+    if shdr.type_() == SHT_NOBITS {
+        return Ok(None)
+    }
 
     let offset = sym
         .st_value
@@ -1544,7 +1553,7 @@ mod tests {
             let () = parser
                 .for_each(&opts, &mut |sym| {
                     let file_offset = parser.find_file_offset(sym.addr).unwrap();
-                    assert_eq!(file_offset, sym.file_offset);
+                    assert_eq!(file_offset, sym.file_offset, "{sym:#x?}");
                     ControlFlow::Continue(())
                 })
                 .unwrap();
