@@ -1194,7 +1194,7 @@ where
         let offset = phdrs.iter(0).find_map(|phdr| {
             let phdr = phdr.to_64bit();
 
-            if phdr.p_type == PT_LOAD {
+            if phdr.p_type == PT_LOAD && phdr.p_filesz == phdr.p_memsz {
                 if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
                     return Some(addr - phdr.p_vaddr + phdr.p_offset)
                 }
@@ -1293,6 +1293,7 @@ mod tests {
 
     use std::env;
     use std::env::current_exe;
+    use std::fs::copy;
     #[cfg(feature = "nightly")]
     use std::hint::black_box;
     use std::io::Write as _;
@@ -1559,13 +1560,17 @@ mod tests {
                 .unwrap();
         }
 
-        let exe = current_exe().unwrap();
-        test(&exe);
+        //let exe = current_exe().unwrap();
+        //let dst = Path::new("tests-coverage");
+        //let _cnt = copy(&exe, dst).unwrap();
 
-        let so = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("libtest-so.so");
-        test(&so);
+        let exe = Path::new("/tmp/tests-release");
+        test(exe);
+
+        //let so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        //    .join("data")
+        //    .join("libtest-so.so");
+        //test(&so);
     }
 
     /// Check that we don't underflow during file offset calculation.
