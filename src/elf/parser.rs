@@ -1231,17 +1231,31 @@ where
 
         let mut idx = by_addr_idx.len() / 2;
         let (addr, size) = loop {
-            let sym = cache.syms.get(idx).unwrap();
+            let sym = cache.syms.get(by_addr_idx[idx]).unwrap();
             if sym.matches(SymType::Function) {
+                if let Some(idx_) = idx.checked_sub(1).and_then(|idx| by_addr_idx.get(idx)) {
+                    let sym_ = cache.syms.get(*idx_).unwrap();
+                    if sym_.value() == sym.value() {
+                        idx += 1;
+                        continue
+                    }
+                }
+                if let Some(idx_) = idx.checked_add(1).and_then(|idx| by_addr_idx.get(idx)) {
+                    let sym_ = cache.syms.get(*idx_).unwrap();
+                    if sym_.value() == sym.value() {
+                        idx += 1;
+                        continue
+                    }
+                }
                 if sym.shndx() != SHN_UNDEF {
-                    let sym = cache.syms.get(idx).unwrap();
                     break (sym.value(), sym.size())
                 }
             }
             idx += 1;
         };
 
-        let sym_name = self.get_symbol_name(idx).unwrap();
+        let idx = by_addr_idx.get(idx).unwrap();
+        let sym_name = self.get_symbol_name(*idx).unwrap();
         (
             sym_name,
             addr as Addr,
