@@ -61,6 +61,14 @@ asm(
 
 extern void dummy(void);
 
+asm(
+  ".globl untyped\n"
+  "untyped:\n"
+  "nop\n"
+  "nop\n"
+);
+extern void untyped(void);
+
 // It's possible to control section placement via `.pushsection` command,
 // which would allow for precise address control. However, gsym conversion
 // ignored the symbol in this case. Play it safe and don't specify the section.
@@ -79,6 +87,7 @@ main(int argc, const char *argv[]) {
   dummy();
   i_exist_twice();
   zero_size();
+  untyped();
 
   a_variable[0] = 42;
   return 0;

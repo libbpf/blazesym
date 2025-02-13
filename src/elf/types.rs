@@ -432,19 +432,21 @@ pub(crate) const SHF_COMPRESSED: u64 = 0x800;
 
 pub(crate) const SHN_UNDEF: u16 = 0;
 pub(crate) const SHN_LORESERVE: u16 = 0xff00;
+pub(crate) const SHN_ABS: u16 = 0xfff1;
 pub(crate) const SHN_XINDEX: u16 = 0xffff;
 
 pub(crate) const SHT_NOTE: Elf64_Word = 7;
 pub(crate) const SHT_NOBITS: Elf64_Word = 8;
 
+pub(crate) const STT_NOTYPE: u8 = 0;
 pub(crate) const STT_OBJECT: u8 = 1;
 pub(crate) const STT_FUNC: u8 = 2;
 pub(crate) const STT_GNU_IFUNC: u8 = 10;
 
 
 fn elf_type_matches(elf_ty: u8, type_: SymType) -> bool {
-    let is_func = elf_ty == STT_FUNC || elf_ty == STT_GNU_IFUNC;
-    let is_var = elf_ty == STT_OBJECT;
+    let is_func = elf_ty == STT_FUNC || elf_ty == STT_GNU_IFUNC || elf_ty == STT_NOTYPE;
+    let is_var = elf_ty == STT_OBJECT || elf_ty == STT_NOTYPE;
 
     match type_ {
         SymType::Undefined => is_func || is_var,
@@ -516,6 +518,7 @@ impl Elf64_Sym {
 impl SymType {
     fn try_from_elf_type(elf_type: u8) -> Result<Self, ()> {
         match elf_type {
+            STT_NOTYPE => Ok(SymType::Undefined),
             STT_FUNC | STT_GNU_IFUNC => Ok(SymType::Function),
             STT_OBJECT => Ok(SymType::Variable),
             _ => Err(()),

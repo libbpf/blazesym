@@ -244,7 +244,7 @@ impl DwarfResolver {
             size: Some(size),
             sym_type: SymType::Function,
             file_offset: offset_in_file
-                .then(|| self.parser.find_file_offset(addr))
+                .then(|| self.parser.find_file_offset(addr, size))
                 .transpose()?
                 .flatten(),
             module: self.parser.module().map(Cow::Borrowed),

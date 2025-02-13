@@ -1,6 +1,7 @@
 Unreleased
 ----------
 - Added `Symbolizer::register_elf_resolver` method
+- Adjusted ELF logic to include `STT_NOTYPE` symbols in symbolization
 
 
 0.2.0-rc.4

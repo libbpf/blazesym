@@ -312,7 +312,11 @@ mod tests {
             .join("test-stable-addrs-no-dwarf.bin");
         let parser = ElfParser::open(path.as_path()).unwrap();
 
-        assert_eq!(parser.find_file_offset(0x0).unwrap(), None);
-        assert_eq!(parser.find_file_offset(0xffffffffffffffff).unwrap(), None);
+        let size = 0;
+        assert_eq!(parser.find_file_offset(0x0, size).unwrap(), None);
+        assert_eq!(
+            parser.find_file_offset(0xffffffffffffffff, size).unwrap(),
+            None
+        );
     }
 }

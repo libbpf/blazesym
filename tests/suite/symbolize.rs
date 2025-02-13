@@ -48,6 +48,7 @@ use blazesym::MaybeDefault;
 use blazesym::Mmap;
 use blazesym::Pid;
 use blazesym::Result;
+use blazesym::SymType;
 #[cfg(linux)]
 use blazesym::__private::find_gettimeofday_in_process;
 use blazesym::__private::find_the_answer_fn_in_zip;
@@ -237,6 +238,40 @@ fn symbolize_elf_no_permission() {
     let uid = non_root_uid();
 
     as_user(ruid, uid, || symbolize_no_permission_impl(path))
+}
+
+/// Check that we correctly symbolize untyped symbols.
+#[tag(other_os)]
+#[test]
+fn symbolize_elf_no_type() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.bin");
+    let src = inspect::source::Source::Elf(inspect::source::Elf::new(path));
+    let inspector = inspect::Inspector::new();
+    let results = inspector
+        .lookup(&src, &["untyped"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+    let untyped = &results[0];
+    assert_eq!(untyped.sym_type, SymType::Undefined);
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.bin");
+    let src = Source::from(Elf::new(path));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(untyped.addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "untyped");
+    assert_eq!(result.addr, untyped.addr);
 }
 
 /// Check that we correctly symbolize zero sized symbols.

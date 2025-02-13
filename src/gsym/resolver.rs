@@ -387,7 +387,7 @@ mod tests {
         assert!(sym.inlined.is_empty());
 
         let info = sym.code_info.unwrap();
-        assert_eq!(info.line, Some(75));
+        assert_eq!(info.line, Some(83));
         assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
 
         // `factorial` resides at address 0x2000200, and it's located at the
