@@ -1283,7 +1283,7 @@ fn symbolize_kernel_system_vmlinux() {
                     .get(0..3)?
                     .try_into()
                     .unwrap();
-                if !["T", "t"].contains(&ty) {
+                if !["D", "T", "t", "W"].contains(&ty) {
                     return None
                 }
                 let addr = Addr::from_str_radix(addr, 16).unwrap();
@@ -1343,7 +1343,9 @@ fn symbolize_kernel_system_vmlinux() {
         .unwrap();
     assert_eq!(symbolized.len(), syms.len());
     for (i, sym) in symbolized.iter().enumerate() {
-        let sym = sym.as_sym().unwrap();
+        let sym = sym
+            .as_sym()
+            .unwrap_or_else(|| panic!("failed to symbolize {:x?}", syms[i]));
         assert_eq!(sym.name, syms[i].1, "{sym:?} | {:?}", syms[i]);
     }
 }
