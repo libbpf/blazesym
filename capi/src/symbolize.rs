@@ -767,8 +767,7 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 ///
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
-/// - `src` needs to point to a valid [`blaze_symbolize_src_process`] object
-/// - `abs_addrs` point to an array of `abs_addr_cnt` addresses
+/// - `cache` needs to point to a valid [`blaze_cache_src_process`] object
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_cache_process(
     symbolizer: *mut blaze_symbolizer,
