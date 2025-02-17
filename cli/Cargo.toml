@@ -40,7 +40,7 @@ anyhow = "1.0.68"
 # TODO: Enable `zstd` feature once we enabled it for testing in the main
 #       crate.
 blazesym = {version = "=0.2.0-rc.2", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
-clap = {version = "4.1.7", features = ["derive"]}
+clap = {version = "4.5.30", features = ["derive"]}
 clap_complete = {version = "4.1.1", optional = true}
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["ansi", "env-filter", "fmt"]}
