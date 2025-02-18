@@ -41,7 +41,7 @@ anyhow = "1.0.68"
 #       crate.
 blazesym = {version = "=0.2.0-rc.2", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
 clap = {version = "4.5.30", features = ["derive"]}
-clap_complete = {version = "4.1.1", optional = true}
+clap_complete = {version = "4.5.45", optional = true}
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["ansi", "env-filter", "fmt"]}
 
