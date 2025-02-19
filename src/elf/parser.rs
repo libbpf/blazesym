@@ -136,6 +136,31 @@ fn find_sym<'elf>(
 }
 
 
+/// Calculate the file offset of the given symbol.
+///
+/// # Notes
+/// It is the caller's responsibility to ensure that the symbol's section
+/// index is not `SHN_UNDEF`.
+fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
+    debug_assert_ne!(sym.st_shndx, SHN_UNDEF);
+
+    if sym.st_shndx >= SHN_LORESERVE {
+        return Ok(None)
+    }
+
+    let shdr = shdrs
+        .get(usize::from(sym.st_shndx))
+        .ok_or_invalid_input(|| {
+            format!(
+                "ELF section index ({}) of symbol at {:#x} out of bounds",
+                sym.st_shndx, sym.st_value
+            )
+        })?;
+
+    Ok(Some(sym.st_value - shdr.addr() + shdr.offset()))
+}
+
+
 #[cfg(feature = "zlib")]
 fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
     use miniz_oxide::inflate::decompress_to_vec_zlib;
@@ -1019,30 +1044,6 @@ where
         Ok(Err(reason))
     }
 
-    /// Calculate the file offset of the given symbol.
-    ///
-    /// # Notes
-    /// It is the caller's responsibility to ensure that the symbol's section
-    /// index is not `SHN_UNDEF`.
-    fn file_offset(&self, shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
-        debug_assert_ne!(sym.st_shndx, SHN_UNDEF);
-
-        if sym.st_shndx >= SHN_LORESERVE {
-            return Ok(None)
-        }
-
-        let shdr = shdrs
-            .get(usize::from(sym.st_shndx))
-            .ok_or_invalid_input(|| {
-                format!(
-                    "ELF section index ({}) of symbol at {:#x} out of bounds",
-                    sym.st_shndx, sym.st_value
-                )
-            })?;
-
-        Ok(Some(sym.st_value - shdr.addr() + shdr.offset()))
-    }
-
     fn find_addr_impl<'slf>(
         &'slf self,
         name: &str,
@@ -1077,7 +1078,7 @@ where
                             sym_type: SymType::try_from(&sym).unwrap(),
                             file_offset: opts
                                 .offset_in_file
-                                .then(|| self.file_offset(shdrs, &sym))
+                                .then(|| file_offset(shdrs, &sym))
                                 .transpose()?
                                 .flatten(),
                             obj_file_name: self.path().map(Cow::Borrowed),
@@ -1140,7 +1141,7 @@ where
                     sym_type: SymType::try_from(&sym).unwrap(),
                     file_offset: opts
                         .offset_in_file
-                        .then(|| self.file_offset(shdrs, &sym))
+                        .then(|| file_offset(shdrs, &sym))
                         .transpose()?
                         .flatten(),
                     obj_file_name: None,
@@ -1173,8 +1174,8 @@ where
     }
 
     /// Find the file offset of the symbol at address `addr`.
-    // If possible, use the constant-time [`file_offset`][Self::file_offset]
-    // method instead.
+    // If possible, use the constant-time [`file_offset`] function
+    // instead.
     pub(crate) fn find_file_offset(&self, addr: Addr) -> Result<Option<u64>> {
         let phdrs = self.program_headers()?;
         let offset = phdrs.iter(0).find_map(|phdr| {
