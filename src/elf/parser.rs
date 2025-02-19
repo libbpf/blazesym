@@ -157,7 +157,11 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
             )
         })?;
 
-    Ok(Some(sym.st_value - shdr.addr() + shdr.offset()))
+    let offset = sym
+        .st_value
+        .wrapping_sub(shdr.addr())
+        .wrapping_add(shdr.offset());
+    Ok(Some(offset))
 }
 
 
@@ -1553,6 +1557,50 @@ mod tests {
             .join("data")
             .join("libtest-so.so");
         test(&so);
+    }
+
+    /// Check that we don't underflow during file offset calculation.
+    #[test]
+    fn file_offset_underflow() {
+        let shdrs = [
+            Elf64_Shdr {
+                sh_name: 0,
+                sh_type: 0,
+                sh_flags: 0,
+                sh_addr: 0,
+                sh_offset: 0,
+                sh_size: 0,
+                sh_link: 0,
+                sh_info: 0,
+                sh_addralign: 0,
+                sh_entsize: 0,
+            },
+            Elf64_Shdr {
+                sh_name: 0,
+                sh_type: 0,
+                sh_flags: 0,
+                sh_addr: 0x2e0,
+                sh_offset: 0x2e0,
+                sh_size: 0,
+                sh_link: 0,
+                sh_info: 0,
+                sh_addralign: 0,
+                sh_entsize: 0,
+            },
+        ];
+        let shdrs = ElfN_Shdrs::B64(Cow::Borrowed(shdrs.as_slice()));
+
+        let sym = Elf64_Sym {
+            st_name: 0x0,
+            st_info: 0x0,
+            st_other: 0x0,
+            st_shndx: 1,
+            st_value: 0x0,
+            st_size: 0x0,
+        };
+
+        let offset = file_offset(&shdrs, &sym).unwrap().unwrap();
+        assert_eq!(offset, 0);
     }
 
     /// Check that we can correctly convert a file offset into a virtual
