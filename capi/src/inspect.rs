@@ -457,6 +457,7 @@ mod tests {
             debug_syms: bool,
             reserved: [u8; 7],
             foobar: bool,
+            reserved2: [u8; 7],
         }
 
         assert!(mem::size_of::<blaze_inspect_elf_src>() < mem::size_of::<elf_src_with_ext>());
@@ -478,14 +479,17 @@ mod tests {
         assert!(input_zeroed!(src_ptr, blaze_inspect_elf_src));
 
         src.reserved[0] = 1;
+        let src_ptr = addr_of!(src).cast::<blaze_inspect_elf_src>();
         assert!(!input_zeroed!(src_ptr, blaze_inspect_elf_src));
         src.reserved[0] = 0;
 
         src.type_size = mem::size_of::<usize>() - 1;
+        let src_ptr = addr_of!(src).cast::<blaze_inspect_elf_src>();
         assert!(!input_zeroed!(src_ptr, blaze_inspect_elf_src));
         src.type_size = mem::size_of::<elf_src_with_ext>();
 
         src.foobar = true;
+        let src_ptr = addr_of!(src).cast::<blaze_inspect_elf_src>();
         assert!(!input_zeroed!(src_ptr, blaze_inspect_elf_src));
     }
 
