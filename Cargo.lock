@@ -2537,9 +2537,9 @@ dependencies = [
 
 [[package]]
 name = "test-fork"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61161b94771567e214bee20c12468b3b5ff4d408af0ad9ce0d2659901eb1db3d"
+checksum = "117ebd99401515b84f8e9c12053a37fe70a585519dc517043c28e93875417844"
 dependencies = [
  "test-fork-core",
  "test-fork-macros",
@@ -2547,15 +2547,15 @@ dependencies = [
 
 [[package]]
 name = "test-fork-core"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aecb11eebdcb206deb3705096c26c24bf409d1aee101312eb2d194413592b0c0"
+checksum = "c5ef2a7a1a638b19e0e5470ad9c0e4b11956553ec02cc5856563987fc281e22e"
 
 [[package]]
 name = "test-fork-macros"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2be65741d68b4b96fc645cc724d4e9e0453087afc7e7947a524f1f5a39e19bb"
+checksum = "976e2355db93209e114c38f1520b6293edefcc3563e2a8b7f6ac1c8120fe24b2"
 dependencies = [
  "proc-macro2",
  "quote",
