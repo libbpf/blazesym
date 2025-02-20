@@ -32,11 +32,11 @@ path = "var/shell-complete.rs"
 required-features = ["clap_complete"]
 
 [build-dependencies]
-anyhow = "1.0.68"
+anyhow = "1.0.96"
 grev = "0.1.3"
 
 [dependencies]
-anyhow = "1.0.68"
+anyhow = "1.0.96"
 # TODO: Enable `zstd` feature once we enabled it for testing in the main
 #       crate.
 blazesym = {version = "=0.2.0-rc.2", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
