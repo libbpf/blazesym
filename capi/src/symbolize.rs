@@ -1986,6 +1986,7 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let src = blaze_symbolize_src_kernel {
             kallsyms: path_c.as_ptr(),
+            vmlinux: b"\0" as *const _ as *const c_char,
             ..Default::default()
         };
 
