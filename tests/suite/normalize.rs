@@ -222,7 +222,8 @@ fn normalize_custom_so() {
 /// zip archive.
 #[test]
 fn normalize_custom_so_in_zip() {
-    fn test(so_name: &str) {
+    #[track_caller]
+    fn test(so_name: &str, apk_to_elf: bool, build_ids: bool, cache_build_ids: bool) {
         let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test.zip");
@@ -244,35 +245,56 @@ fn normalize_custom_so_in_zip() {
 
         let opts = NormalizeOpts {
             sorted_addrs: true,
+            apk_to_elf,
             ..Default::default()
         };
-        let normalizer = Normalizer::new();
+        let normalizer = Normalizer::builder()
+            .enable_build_ids(build_ids)
+            .enable_build_id_caching(cache_build_ids)
+            .build();
         let normalized = normalizer
             .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
 
-        let expected_offset = so.data_offset + sym.file_offset.unwrap();
         let output = normalized.outputs[0];
-        assert_eq!(output.0, expected_offset);
         let meta = &normalized.meta[output.1];
-        let expected = normalize::Apk {
-            path: test_zip.clone(),
-            _non_exhaustive: (),
-        };
-        assert_eq!(meta, &normalize::UserMeta::Apk(expected));
+
+        if apk_to_elf {
+            let elf = meta.as_elf().unwrap();
+            assert!(elf.path.ends_with(so_name), "{elf:?}");
+            assert_eq!(elf.build_id.is_some(), build_ids);
+        } else {
+            let expected_offset = so.data_offset + sym.file_offset.unwrap();
+            assert_eq!(output.0, expected_offset);
+            let expected = normalize::Apk {
+                path: test_zip.clone(),
+                _non_exhaustive: (),
+            };
+            assert_eq!(meta, &normalize::UserMeta::Apk(expected));
+        }
 
         // Also symbolize the normalization output.
-        let apk = symbolize::source::Apk::new(test_zip);
-        let src = symbolize::source::Source::Apk(apk);
+        let src = if apk_to_elf {
+            let so_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(so_name);
+            let elf = symbolize::source::Elf::new(so_path);
+            let src = symbolize::source::Source::Elf(elf);
+            src
+        } else {
+            let apk = symbolize::source::Apk::new(test_zip);
+            let src = symbolize::source::Source::Apk(apk);
+            src
+        };
+
         let symbolizer = symbolize::Symbolizer::new();
         let result = symbolizer
             .symbolize_single(&src, symbolize::Input::FileOffset(output.0))
             .unwrap()
             .into_sym()
             .unwrap();
-
         assert_eq!(result.name, "the_answer");
 
         let results = symbolizer
@@ -284,8 +306,20 @@ fn normalize_custom_so_in_zip() {
         assert_eq!(sym.name, "the_answer");
     }
 
-    test("libtest-so.so");
-    test("libtest-so-no-separate-code.so");
+    for (apk_to_elf, build_ids, cache_build_ids) in [
+        (false, false, false),
+        (true, false, false),
+        (true, true, false),
+        (true, true, true),
+    ] {
+        test("libtest-so.so", apk_to_elf, build_ids, cache_build_ids);
+        test(
+            "libtest-so-no-separate-code.so",
+            apk_to_elf,
+            build_ids,
+            cache_build_ids,
+        );
+    }
 }
 
 fn test_normalize_deleted_so(use_procmap_query: bool) {

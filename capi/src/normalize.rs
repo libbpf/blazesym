@@ -148,6 +148,8 @@ impl From<blaze_normalize_opts> for NormalizeOpts {
         Self {
             sorted_addrs,
             map_files,
+            // TODO: Needs to be hooked up properly.
+            apk_to_elf: false,
             _non_exhaustive: (),
         }
     }

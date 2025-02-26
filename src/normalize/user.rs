@@ -175,12 +175,41 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                     .unwrap_or_else(|| OsStr::new(""));
                 match ext.to_str() {
                     #[cfg(feature = "apk")]
-                    Some("apk") | Some("zip") => self.normalized.add_normalized_offset(
-                        file_off,
-                        path,
-                        &mut self.meta_lookup,
-                        || make_apk_meta(path),
-                    ),
+                    Some("apk") | Some("zip") => {
+                        if self.normalize_opts.apk_to_elf {
+                            if let Some((elf_file_off, elf_path, elf_build_id)) =
+                                self.normalizer.translate_apk_to_elf(file_off, path)?
+                            {
+                                self.normalized.add_normalized_offset(
+                                    elf_file_off,
+                                    &elf_path,
+                                    &mut self.meta_lookup,
+                                    || {
+                                        // We should never have build ID
+                                        // on the entry, because that
+                                        // can only happen with the
+                                        // PROCMAP_QUERY ioctl, and it
+                                        // will not report build IDs for
+                                        // APK contents.
+                                        debug_assert_eq!(entry.build_id, None);
+                                        make_elf_meta(&elf_path, elf_build_id)
+                                    },
+                                )
+                            } else {
+                                // TODO: Consider using a different reason
+                                //       here.
+                                let () = self.handle_unknown_addr(addr, Reason::Unmapped);
+                                Ok(())
+                            }
+                        } else {
+                            self.normalized.add_normalized_offset(
+                                file_off,
+                                path,
+                                &mut self.meta_lookup,
+                                || make_apk_meta(path),
+                            )
+                        }
+                    }
                     _ => self.normalized.add_normalized_offset(
                         file_off,
                         path,
@@ -194,8 +223,8 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                             // cheap cache look up if build ID caching
                             // is enabled.
                             let build_id = entry.build_id.clone().or_else(|| {
-                                // We don't fail normalization due
-                                // to build ID read failure.
+                                // We don't fail normalization due to
+                                // build ID read failure.
                                 self.normalizer.read_build_id(path).ok().flatten()
                             });
                             make_elf_meta(path, build_id)
