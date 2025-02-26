@@ -438,12 +438,7 @@ fn normalize_no_self_vma_path_reporting() {
 
 fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
     let normalizer = Normalizer::builder().enable_build_ids(true).build();
-    let opts = NormalizeOpts {
-        sorted_addrs: false,
-        map_files: false,
-        _non_exhaustive: (),
-    };
-
+    let opts = NormalizeOpts::default();
     let normalized = normalizer
         .normalize_user_addrs_opts(pid, &[addr], &opts)
         .unwrap();
