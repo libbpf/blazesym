@@ -781,7 +781,8 @@ impl Symbolizer {
     ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
         // Find the APK entry covering the calculated file offset.
         for apk_entry in apk.entries() {
-            let apk_entry = apk_entry?;
+            let apk_entry = apk_entry
+                .with_context(|| format!("failed to iterate `{}` members", apk_path.display()))?;
             let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
 
             if bounds.contains(&file_off) {
@@ -835,7 +836,11 @@ impl Symbolizer {
     ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
         let (file, cell) = self.apk_cache.entry(path)?;
         let (apk, resolvers) = cell.get_or_try_init(|| {
-            let apk = zip::Archive::with_mmap(Mmap::builder().map(file)?)?;
+            let mmap = Mmap::builder()
+                .map(file)
+                .with_context(|| format!("failed to memory map `{}`", path.display()))?;
+            let apk = zip::Archive::with_mmap(mmap)
+                .with_context(|| format!("failed to open zip file `{}`", path.display()))?;
             let resolvers = InsertMap::new();
             Result::<_, Error>::Ok((apk, resolvers))
         })?;
