@@ -20,6 +20,7 @@ use super::meta::Elf;
 use super::meta::Unknown;
 use super::meta::UserMeta;
 use super::normalizer::Output;
+use super::NormalizeOpts;
 use super::Reason;
 
 
@@ -116,37 +117,37 @@ pub(crate) trait Handler<D = ()> {
 }
 
 
-pub(super) struct NormalizationHandler<'reader, 'src> {
+pub(super) struct NormalizationHandler<'call, 'src> {
     /// The user output we are building up.
     pub normalized: UserOutput<'src>,
+    /// The options used as part of the normalization request.
+    normalize_opts: &'call NormalizeOpts,
     /// The build ID reader to use.
-    build_id_reader: &'reader dyn BuildIdReader<'src>,
+    build_id_reader: &'call dyn BuildIdReader<'src>,
     /// Lookup table from path (as used in each proc maps entry) to index into
     /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
     /// A mapping from [`Reason`] to the index of the `Unknown` entry with this
     /// very reason in `meta_lookup`, if any.
     unknown_cache: HashMap<Reason, usize>,
-    /// Report `map_files` entries instead of symbolic paths.
-    map_files: bool,
 }
 
-impl<'reader, 'src> NormalizationHandler<'reader, 'src> {
+impl<'call, 'src> NormalizationHandler<'call, 'src> {
     /// Instantiate a new `NormalizationHandler` object.
     pub(crate) fn new(
-        reader: &'reader dyn BuildIdReader<'src>,
+        opts: &'call NormalizeOpts,
+        reader: &'call dyn BuildIdReader<'src>,
         addr_cnt: usize,
-        map_files: bool,
     ) -> Self {
         Self {
             normalized: UserOutput {
                 outputs: Vec::with_capacity(addr_cnt),
                 meta: Vec::new(),
             },
+            normalize_opts: opts,
             build_id_reader: reader,
             meta_lookup: HashMap::new(),
             unknown_cache: HashMap::new(),
-            map_files,
         }
     }
 }
@@ -162,7 +163,7 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
     fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
         match &entry.path_name {
             Some(PathName::Path(entry_path)) => {
-                let path = if self.map_files {
+                let path = if self.normalize_opts.map_files {
                     &entry_path.maps_file
                 } else {
                     &entry_path.symbolic_path
@@ -321,14 +322,14 @@ mod tests {
 
             let pid = Pid::Slf;
             let addrs = [unknown_addr as Addr];
-            let map_files = false;
 
             let mut entry_iter = maps::parse_file(maps.as_bytes(), pid)
                 .filter(|result| result.as_ref().map(maps::filter_relevant).unwrap_or(true));
             let entries = |_addr| entry_iter.next();
 
+            let opts = NormalizeOpts::default();
             let reader = NoBuildIdReader;
-            let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
+            let mut handler = NormalizationHandler::new(&opts, &reader, addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
@@ -359,7 +360,6 @@ mod tests {
     #[test]
     fn normalize_various_entries() {
         let addrs = [0x10000, 0x30000];
-        let map_files = false;
 
         let mut entry_iter = [
             Ok(MapsEntry {
@@ -382,8 +382,9 @@ mod tests {
         .into_iter();
         let entries = |_addr| entry_iter.next();
 
+        let opts = NormalizeOpts::default();
         let reader = NoBuildIdReader;
-        let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
+        let mut handler = NormalizationHandler::new(&opts, &reader, addrs.len());
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
             entries,
@@ -414,13 +415,13 @@ mod tests {
     #[test]
     fn build_id_read_failures() {
         let addrs = [build_id_read_failures as Addr];
-        let map_files = false;
 
         let mut entry_iter = maps::parse_filtered(Pid::Slf).unwrap();
         let entries = |_addr| entry_iter.next();
 
+        let opts = NormalizeOpts::default();
         let reader = FailingBuildIdReader;
-        let mut handler = NormalizationHandler::new(&reader, addrs.len(), map_files);
+        let mut handler = NormalizationHandler::new(&opts, &reader, addrs.len());
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
             entries,
