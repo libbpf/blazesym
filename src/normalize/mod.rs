@@ -72,6 +72,8 @@ pub(crate) use user::Handler;
 
 
 /// Options influencing the address normalization process.
+///
+/// By default all options are disabled.
 #[derive(Clone, Debug, Default)]
 pub struct NormalizeOpts {
     /// Whether or not addresses are sorted (in ascending order) already.
