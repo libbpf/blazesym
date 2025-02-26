@@ -201,7 +201,7 @@ fn default_apk_dispatcher(
 ) -> Result<Box<dyn Resolve>> {
     // Create an Android-style binary-in-APK path for
     // reporting purposes.
-    let apk_elf_path = create_apk_elf_path(info.apk_path, info.member_path)?;
+    let apk_elf_path = create_apk_elf_path(info.apk_path, info.member_path);
     let parser = Rc::new(ElfParser::from_mmap(info.member_mmap, Some(apk_elf_path)));
     let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
     let resolver = Box::new(resolver);

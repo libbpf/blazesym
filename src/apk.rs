@@ -1,30 +1,30 @@
-use std::ffi::OsStr;
+use std::path::Component;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::Error;
-use crate::Result;
 
-
-pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
-    let mut extension = apk
-        .extension()
-        .unwrap_or_else(|| OsStr::new("apk"))
-        .to_os_string();
+pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> PathBuf {
+    let mut apk = apk.to_path_buf();
     // Append '!' to indicate separation from archive internal contents
     // that follow. This is an Android convention.
-    let () = extension.push("!");
-
-    let mut apk = apk.to_path_buf();
-    if !apk.set_extension(extension) {
-        return Err(Error::with_invalid_data(format!(
-            "path {} is not valid",
-            apk.display()
-        )))
-    }
-
+    let () = apk.as_mut_os_string().push("!");
+    let elf = {
+        let mut it = elf.components();
+        if let Some(first) = it.next() {
+            match first {
+                Component::Prefix(_) | Component::RootDir => {
+                    // We removed the root directory/prefix.
+                    it.as_path()
+                }
+                _ => elf,
+            }
+        } else {
+            elf
+        }
+    };
     let path = apk.join(elf);
-    Ok(path)
+
+    path
 }
 
 
@@ -32,18 +32,29 @@ pub(crate) fn create_apk_elf_path(apk: &Path, elf: &Path) -> Result<PathBuf> {
 mod tests {
     use super::*;
 
-    use crate::ErrorKind;
-
 
     /// Check that we can create a path to an ELF inside an APK as expected.
     #[test]
     fn elf_apk_path_creation() {
         let apk = Path::new("/root/test.apk");
         let elf = Path::new("subdir/libc.so");
-        let path = create_apk_elf_path(apk, elf).unwrap();
+        let path = create_apk_elf_path(apk, elf);
         assert_eq!(path, Path::new("/root/test.apk!/subdir/libc.so"));
 
-        let err = create_apk_elf_path(Path::new(""), elf).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        let apk = Path::new("/root/test");
+        let elf = Path::new("subdir/libc.so");
+        let path = create_apk_elf_path(apk, elf);
+        assert_eq!(path, Path::new("/root/test!/subdir/libc.so"));
+
+        let apk = Path::new("/root/test");
+        let elf = Path::new("/subdir/libc.so");
+        let path = create_apk_elf_path(apk, elf);
+        assert_eq!(path, Path::new("/root/test!/subdir/libc.so"));
+
+        let path = create_apk_elf_path(Path::new(""), elf);
+        assert_eq!(path, Path::new("!/subdir/libc.so"));
+
+        let path = create_apk_elf_path(apk, Path::new(""));
+        assert_eq!(path, Path::new("/root/test!/"));
     }
 }
