@@ -4,6 +4,7 @@ use super::buildid::BuildId;
 use super::Reason;
 
 
+cfg_apk! {
 /// Meta information about an APK.
 ///
 /// This type is used in the [`UserMeta::Apk`] variant.
@@ -44,6 +45,7 @@ pub struct Apk {
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
+}
 }
 
 
@@ -103,6 +105,8 @@ impl From<Unknown> for UserMeta<'_> {
 #[non_exhaustive]
 pub enum UserMeta<'src> {
     /// The address belongs to an APK file.
+    #[cfg(feature = "apk")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "apk")))]
     Apk(Apk),
     /// The address belongs to an ELF file.
     Elf(Elf<'src>),
@@ -112,6 +116,8 @@ pub enum UserMeta<'src> {
 
 impl<'src> UserMeta<'src> {
     /// Retrieve the [`Apk`] of this enum, if this variant is active.
+    #[cfg(feature = "apk")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "apk")))]
     #[inline]
     pub fn as_apk(&self) -> Option<&Apk> {
         match self {

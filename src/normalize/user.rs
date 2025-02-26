@@ -14,6 +14,7 @@ use crate::Error;
 use crate::Result;
 
 use super::buildid::BuildIdReader;
+#[cfg(feature = "apk")]
 use super::meta::Apk;
 use super::meta::Elf;
 use super::meta::Unknown;
