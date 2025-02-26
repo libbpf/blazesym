@@ -53,7 +53,9 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::str;
 
+cfg_apk! {
 pub use meta::Apk;
+}
 pub use meta::Elf;
 pub use meta::Unknown;
 pub use meta::UserMeta;
