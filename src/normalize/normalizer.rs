@@ -203,12 +203,12 @@ impl Normalizer {
         Builder::default()
     }
 
-    fn normalize_user_addrs_impl<A, E, M>(
-        &self,
+    fn normalize_user_addrs_impl<'slf, A, E, M>(
+        &'slf self,
         addrs: A,
         entries: E,
-        map_files: bool,
-    ) -> Result<UserOutput<'_>>
+        opts: &NormalizeOpts,
+    ) -> Result<UserOutput<'slf>>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
         E: FnMut(Addr) -> Option<Result<M>>,
@@ -230,7 +230,7 @@ impl Normalizer {
             &NoBuildIdReader as &dyn BuildIdReader
         };
 
-        let mut handler = user::NormalizationHandler::new(reader, addrs_cnt, map_files);
+        let mut handler = user::NormalizationHandler::new(opts, reader, addrs_cnt);
         let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
@@ -240,7 +240,7 @@ impl Normalizer {
         &self,
         addrs: A,
         pid: Pid,
-        map_files: bool,
+        opts: &NormalizeOpts,
     ) -> Result<UserOutput>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
@@ -253,7 +253,7 @@ impl Normalizer {
             if !self.cache_vmas {
                 let entries =
                     move |addr| query_procmap(&file, pid, addr, self.build_ids).transpose();
-                self.normalize_user_addrs_impl(addrs, entries, map_files)
+                self.normalize_user_addrs_impl(addrs, entries, opts)
             } else {
                 let entries = self.cached_entries.get_or_try_insert(pid, || {
                     let mut entries = Vec::new();
@@ -269,13 +269,13 @@ impl Normalizer {
 
                 let mut entry_iter = entries.iter().map(Ok);
                 let entries = |_addr| entry_iter.next();
-                self.normalize_user_addrs_impl(addrs, entries, map_files)
+                self.normalize_user_addrs_impl(addrs, entries, opts)
             }
         } else {
             if !self.cache_vmas {
                 let mut entry_iter = maps::parse_filtered(pid)?;
                 let entries = |_addr| entry_iter.next();
-                self.normalize_user_addrs_impl(addrs, entries, map_files)
+                self.normalize_user_addrs_impl(addrs, entries, opts)
             } else {
                 let parsed = self.cached_entries.get_or_try_insert(pid, || {
                     // If we use the cached maps entries but don't have anything
@@ -287,7 +287,7 @@ impl Normalizer {
 
                 let mut entry_iter = parsed.iter().map(Ok);
                 let entries = |_addr| entry_iter.next();
-                self.normalize_user_addrs_impl(addrs, entries, map_files)
+                self.normalize_user_addrs_impl(addrs, entries, opts)
             }
         }
     }
@@ -317,19 +317,13 @@ impl Normalizer {
         addrs: &[Addr],
         opts: &NormalizeOpts,
     ) -> Result<UserOutput> {
-        let NormalizeOpts {
-            sorted_addrs,
-            map_files,
-            _non_exhaustive: (),
-        } = *opts;
-
-        if sorted_addrs {
-            self.normalize_user_addrs_iter(addrs.iter().copied(), pid, map_files)
+        if opts.sorted_addrs {
+            self.normalize_user_addrs_iter(addrs.iter().copied(), pid, opts)
         } else {
             util::with_ordered_elems(
                 addrs,
                 |normalized: &mut UserOutput| normalized.outputs.as_mut_slice(),
-                |sorted_addrs| self.normalize_user_addrs_iter(sorted_addrs, pid, map_files),
+                |sorted_addrs| self.normalize_user_addrs_iter(sorted_addrs, pid, opts),
             )
         }
     }
