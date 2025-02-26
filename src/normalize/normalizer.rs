@@ -1,7 +1,11 @@
 use std::borrow::Cow;
 use std::fs::File;
+use std::ops::Range;
 use std::path::Path;
+use std::path::PathBuf;
 
+#[cfg(feature = "apk")]
+use crate::apk::create_apk_elf_path;
 use crate::elf::ElfParser;
 use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
@@ -9,13 +13,18 @@ use crate::maps;
 use crate::util;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
+#[cfg(feature = "apk")]
+use crate::zip;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
+use crate::IntoError as _;
+use crate::Mmap;
 use crate::Pid;
 use crate::Result;
 
 use super::buildid::read_build_id;
+use super::buildid::read_elf_build_id_from_mmap;
 use super::buildid::BuildId;
 use super::ioctl::query_procmap;
 use super::user;
@@ -138,6 +147,8 @@ impl Builder {
             cache_vmas,
             build_ids,
             cache_build_ids: build_ids && cache_build_ids,
+            #[cfg(feature = "apk")]
+            apk_cache: FileCache::default(),
             entry_cache: InsertMap::new(),
             build_id_cache: FileCache::default(),
         }
@@ -180,6 +191,12 @@ pub struct Normalizer {
     build_ids: bool,
     /// See [`Builder::enable_build_id_caching`].
     cache_build_ids: bool,
+    /// Cache for APKs as well as build IDs of ELF files inside them.
+    #[cfg(feature = "apk")]
+    apk_cache: FileCache<(
+        zip::Archive,
+        InsertMap<Range<u64>, Option<BuildId<'static>>>,
+    )>,
     /// If `cache_vmas` is `true`, the cached parsed
     /// [`MapsEntry`][maps::MapsEntry] objects.
     entry_cache: InsertMap<Pid, Box<[maps::MapsEntry]>>,
@@ -343,9 +360,64 @@ impl Normalizer {
             // Build ID caching always implies reading of build IDs to
             // begin with.
             debug_assert!(!self.cache_build_ids);
-
             None
         };
         Ok(build_id)
+    }
+
+    /// Translate a file offset inside an APK into a file offset inside
+    /// an ELF member inside of it.
+    #[cfg(feature = "apk")]
+    pub(crate) fn translate_apk_to_elf(
+        &self,
+        apk_file_off: u64,
+        apk_path: &Path,
+    ) -> Result<Option<(u64, PathBuf, Option<BuildId<'static>>)>> {
+        let (file, cell) = self.apk_cache.entry(apk_path)?;
+        let (apk, elf_build_ids) = cell.get_or_try_init(|| {
+            let mmap = Mmap::builder()
+                .map(file)
+                .with_context(|| format!("failed to memory map `{}`", apk_path.display()))?;
+            let apk = zip::Archive::with_mmap(mmap)
+                .with_context(|| format!("failed to open zip file `{}`", apk_path.display()))?;
+            let elf_build_ids = InsertMap::new();
+            Result::<_, Error>::Ok((apk, elf_build_ids))
+        })?;
+
+        for apk_entry in apk.entries() {
+            let apk_entry = apk_entry
+                .with_context(|| format!("failed to iterate `{}` members", apk_path.display()))?;
+            let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
+            if bounds.contains(&apk_file_off) {
+                let elf_build_id = if self.build_ids {
+                    let mmap = apk
+                        .mmap()
+                        .constrain(bounds.clone())
+                        .ok_or_invalid_input(|| {
+                            format!(
+                                "invalid APK entry data bounds ({bounds:?}) in {}",
+                                apk_path.display()
+                            )
+                        })?;
+
+                    if self.cache_build_ids {
+                        elf_build_ids
+                            .get_or_try_insert(bounds.clone(), || {
+                                read_elf_build_id_from_mmap(&mmap)
+                            })?
+                            .clone()
+                    } else {
+                        read_elf_build_id_from_mmap(&mmap)?
+                    }
+                } else {
+                    None
+                };
+
+                let elf_off = apk_file_off - apk_entry.data_offset;
+                let elf_path = create_apk_elf_path(apk_path, apk_entry.path);
+                return Ok(Some((elf_off, elf_path, elf_build_id)))
+            }
+        }
+        Ok(None)
     }
 }

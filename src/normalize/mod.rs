@@ -92,6 +92,13 @@ pub struct NormalizeOpts {
     /// using them for file look up) symbolic paths are probably the
     /// better choice.
     pub map_files: bool,
+    /// Normalize addresses inside APKs to the contained ELF file and
+    /// report a regular [`Elf`] meta data entry instead of an [`Apk`]
+    /// one. As a result, the reported file offset will also be relative
+    /// to the contained ELF file and not to the APK itself.
+    #[cfg(feature = "apk")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "apk")))]
+    pub apk_to_elf: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),

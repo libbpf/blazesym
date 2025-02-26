@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
 use super::buildid::BuildId;
+#[cfg(doc)]
+use super::NormalizeOpts;
 use super::Reason;
 
 
@@ -54,7 +56,11 @@ pub struct Apk {
 /// This type is used in the [`UserMeta::Elf`] variant.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Elf<'src> {
-    /// The canonical absolute path to the ELF file, including its name.
+    /// Ordinarily, the canonical absolute path to the ELF file,
+    /// including its name. In case of an ELF file contained inside an
+    /// APK (see [`NormalizeOpts::apk_to_elf`] this will be an Android
+    /// style path of the form `<apk>!<elf-in-apk>`. E.g.,
+    /// `/root/test.apk!/lib/libc.so`.
     pub path: PathBuf,
     /// The ELF file's build ID, if available and readable.
     pub build_id: Option<BuildId<'src>>,

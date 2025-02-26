@@ -3,6 +3,8 @@ Unreleased
 - Added support for 32 bit ELF binaries
 - Added `symbolize::Symbolizer::cache` method for caching process VMA
   metadata
+- Added `normalize::NormalizeOpts::apk_to_elf` attribute for normalizing
+  addresses mapping to APKs to the contained ELF file
 - Renamed `symbolize::Source::kernel_image` to `vmlinux`
 - Adjusted kernel symbolization logic to give preference to `vmlinux`
   file, if present
