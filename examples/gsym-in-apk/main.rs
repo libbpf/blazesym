@@ -60,7 +60,7 @@ impl TranslateFileOffset for CustomApkResolver {
         );
         let addr = phdrs.iter().find_map(|phdr| {
             if phdr.p_type == elf64::program_header::PT_LOAD {
-                if (phdr.p_offset..phdr.p_offset + phdr.p_memsz).contains(&file_offset) {
+                if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&file_offset) {
                     return Some((file_offset - phdr.p_offset + phdr.p_vaddr) as Addr)
                 }
             }
