@@ -66,6 +66,8 @@ extern crate test;
 
 #[macro_use]
 mod cfg;
+#[cfg(feature = "apk")]
+mod apk;
 #[cfg(feature = "breakpad")]
 mod breakpad;
 #[cfg(feature = "dwarf")]
