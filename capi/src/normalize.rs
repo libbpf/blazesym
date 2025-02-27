@@ -324,7 +324,13 @@ impl blaze_user_meta_apk {
 #[repr(C)]
 #[derive(Debug)]
 pub struct blaze_user_meta_elf {
-    /// The path to the ELF file. This member is always present.
+    /// Ordinarily, the canonical absolute path to the ELF file,
+    /// including its name. In case of an ELF file contained inside an
+    /// APK (see [`blaze_normalize_opts::apk_to_elf`] this will be an
+    /// Android style path of the form `<apk>!<elf-in-apk>`. E.g.,
+    /// `/root/test.apk!/lib/libc.so`.
+    ///
+    /// This member is always present.
     pub path: *mut c_char,
     /// The length of the build ID, in bytes.
     pub build_id_len: usize,
