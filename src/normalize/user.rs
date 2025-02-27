@@ -21,6 +21,7 @@ use super::meta::Unknown;
 use super::meta::UserMeta;
 use super::normalizer::Output;
 use super::NormalizeOpts;
+use super::Normalizer;
 use super::Reason;
 
 
@@ -120,6 +121,8 @@ pub(crate) trait Handler<D = ()> {
 pub(super) struct NormalizationHandler<'call, 'src> {
     /// The user output we are building up.
     pub normalized: UserOutput<'src>,
+    /// The `Normalizer` instance we belong to.
+    normalizer: &'call Normalizer,
     /// The options used as part of the normalization request.
     normalize_opts: &'call NormalizeOpts,
     /// The build ID reader to use.
@@ -135,6 +138,7 @@ pub(super) struct NormalizationHandler<'call, 'src> {
 impl<'call, 'src> NormalizationHandler<'call, 'src> {
     /// Instantiate a new `NormalizationHandler` object.
     pub(crate) fn new(
+        normalizer: &'call Normalizer,
         opts: &'call NormalizeOpts,
         reader: &'call dyn BuildIdReader<'src>,
         addr_cnt: usize,
@@ -145,6 +149,7 @@ impl<'call, 'src> NormalizationHandler<'call, 'src> {
                 meta: Vec::new(),
             },
             normalize_opts: opts,
+            normalizer,
             build_id_reader: reader,
             meta_lookup: HashMap::new(),
             unknown_cache: HashMap::new(),
@@ -327,9 +332,10 @@ mod tests {
                 .filter(|result| result.as_ref().map(maps::filter_relevant).unwrap_or(true));
             let entries = |_addr| entry_iter.next();
 
+            let normalizer = Normalizer::new();
             let opts = NormalizeOpts::default();
             let reader = NoBuildIdReader;
-            let mut handler = NormalizationHandler::new(&opts, &reader, addrs.len());
+            let mut handler = NormalizationHandler::new(&normalizer, &opts, &reader, addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
@@ -382,9 +388,10 @@ mod tests {
         .into_iter();
         let entries = |_addr| entry_iter.next();
 
+        let normalizer = Normalizer::new();
         let opts = NormalizeOpts::default();
         let reader = NoBuildIdReader;
-        let mut handler = NormalizationHandler::new(&opts, &reader, addrs.len());
+        let mut handler = NormalizationHandler::new(&normalizer, &opts, &reader, addrs.len());
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
             entries,
@@ -419,9 +426,10 @@ mod tests {
         let mut entry_iter = maps::parse_filtered(Pid::Slf).unwrap();
         let entries = |_addr| entry_iter.next();
 
+        let normalizer = Normalizer::new();
         let opts = NormalizeOpts::default();
         let reader = FailingBuildIdReader;
-        let mut handler = NormalizationHandler::new(&opts, &reader, addrs.len());
+        let mut handler = NormalizationHandler::new(&normalizer, &opts, &reader, addrs.len());
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
             entries,
