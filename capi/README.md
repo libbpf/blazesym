@@ -1,6 +1,6 @@
 [![pipeline](https://github.com/libbpf/blazesym/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/libbpf/blazesym/actions/workflows/test.yml)
 [![crates.io](https://img.shields.io/crates/v/blazesym-c.svg)](https://crates.io/crates/blazesym-c)
-[![rustc](https://img.shields.io/badge/rustc-1.69+-blue.svg)](https://blog.rust-lang.org/2023/04/20/Rust-1.69.0.html)
+[![rustc](https://img.shields.io/badge/rustc-1.70+-blue.svg)](https://blog.rust-lang.org/2023/06/01/Rust-1.70.0.html)
 
 blazesym-c
 ==========
