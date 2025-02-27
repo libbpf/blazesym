@@ -1,21 +1,22 @@
+use std::borrow::Cow;
 use std::fs::File;
+use std::path::Path;
 
+use crate::elf::ElfParser;
 use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
 use crate::maps;
-use crate::normalize::buildid::BuildIdReader;
-use crate::normalize::buildid::CachingBuildIdReader;
 use crate::util;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
 use crate::Addr;
+use crate::Error;
 use crate::ErrorExt as _;
 use crate::Pid;
 use crate::Result;
 
+use super::buildid::read_build_id;
 use super::buildid::BuildId;
-use super::buildid::DefaultBuildIdReader;
-use super::buildid::NoBuildIdReader;
 use super::ioctl::query_procmap;
 use super::user;
 use super::user::normalize_sorted_user_addrs_with_entries;
@@ -214,23 +215,8 @@ impl Normalizer {
         E: FnMut(Addr) -> Option<Result<M>>,
         M: AsRef<maps::MapsEntry>,
     {
-        let caching_reader;
         let addrs_cnt = addrs.len();
-        let reader = if self.build_ids {
-            if self.cache_build_ids {
-                caching_reader = CachingBuildIdReader::new(&self.build_id_cache);
-                &caching_reader as &dyn BuildIdReader
-            } else {
-                &DefaultBuildIdReader as &dyn BuildIdReader
-            }
-        } else {
-            // Build ID caching always implies reading of build IDs to
-            // begin with.
-            debug_assert!(!self.cache_build_ids);
-            &NoBuildIdReader as &dyn BuildIdReader
-        };
-
-        let mut handler = user::NormalizationHandler::new(self, opts, reader, addrs_cnt);
+        let mut handler = user::NormalizationHandler::new(self, opts, addrs_cnt);
         let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
@@ -334,5 +320,32 @@ impl Normalizer {
     /// that uses the default normalization options.
     pub fn normalize_user_addrs(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
         self.normalize_user_addrs_opts(pid, addrs, &NormalizeOpts::default())
+    }
+
+    /// Read the build ID of a file, honoring various settings.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(err, skip_all, fields(path = ?path)))]
+    pub(crate) fn read_build_id(&self, path: &Path) -> Result<Option<BuildId<'static>>> {
+        let build_id = if self.build_ids {
+            if self.cache_build_ids {
+                let (file, cell) = self.build_id_cache.entry(path)?;
+                cell.get_or_try_init(|| {
+                    let parser = ElfParser::open_file(file, path)?;
+                    let build_id =
+                        read_build_id(&parser)?.map(|build_id| Cow::Owned(build_id.to_vec()));
+                    Result::<_, Error>::Ok(build_id)
+                })?
+                .clone()
+            } else {
+                let parser = ElfParser::open(path)?;
+                read_build_id(&parser)?.map(|build_id| Cow::Owned(build_id.to_vec()))
+            }
+        } else {
+            // Build ID caching always implies reading of build IDs to
+            // begin with.
+            debug_assert!(!self.cache_build_ids);
+
+            None
+        };
+        Ok(build_id)
     }
 }
