@@ -230,7 +230,7 @@ impl Normalizer {
             &NoBuildIdReader as &dyn BuildIdReader
         };
 
-        let mut handler = user::NormalizationHandler::new(opts, reader, addrs_cnt);
+        let mut handler = user::NormalizationHandler::new(self, opts, reader, addrs_cnt);
         let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
