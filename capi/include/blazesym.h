@@ -397,7 +397,13 @@ typedef struct blaze_user_meta_apk {
  */
 typedef struct blaze_user_meta_elf {
   /**
-   * The path to the ELF file. This member is always present.
+   * Ordinarily, the canonical absolute path to the ELF file,
+   * including its name. In case of an ELF file contained inside an
+   * APK (see [`blaze_normalize_opts::apk_to_elf`] this will be an
+   * Android style path of the form `<apk>!<elf-in-apk>`. E.g.,
+   * `/root/test.apk!/lib/libc.so`.
+   *
+   * This member is always present.
    */
   char *path;
   /**
