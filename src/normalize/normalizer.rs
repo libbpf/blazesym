@@ -137,8 +137,8 @@ impl Builder {
             cache_vmas,
             build_ids,
             cache_build_ids: build_ids && cache_build_ids,
-            cached_entries: InsertMap::new(),
-            cached_build_ids: FileCache::default(),
+            entry_cache: InsertMap::new(),
+            build_id_cache: FileCache::default(),
         }
     }
 }
@@ -181,9 +181,9 @@ pub struct Normalizer {
     cache_build_ids: bool,
     /// If `cache_vmas` is `true`, the cached parsed
     /// [`MapsEntry`][maps::MapsEntry] objects.
-    cached_entries: InsertMap<Pid, Box<[maps::MapsEntry]>>,
+    entry_cache: InsertMap<Pid, Box<[maps::MapsEntry]>>,
     /// A cache of build IDs.
-    cached_build_ids: FileCache<Option<BuildId<'static>>>,
+    build_id_cache: FileCache<Option<BuildId<'static>>>,
 }
 
 impl Normalizer {
@@ -218,7 +218,7 @@ impl Normalizer {
         let addrs_cnt = addrs.len();
         let reader = if self.build_ids {
             if self.cache_build_ids {
-                caching_reader = CachingBuildIdReader::new(&self.cached_build_ids);
+                caching_reader = CachingBuildIdReader::new(&self.build_id_cache);
                 &caching_reader as &dyn BuildIdReader
             } else {
                 &DefaultBuildIdReader as &dyn BuildIdReader
@@ -255,7 +255,7 @@ impl Normalizer {
                     move |addr| query_procmap(&file, pid, addr, self.build_ids).transpose();
                 self.normalize_user_addrs_impl(addrs, entries, opts)
             } else {
-                let entries = self.cached_entries.get_or_try_insert(pid, || {
+                let entries = self.entry_cache.get_or_try_insert(pid, || {
                     let mut entries = Vec::new();
                     let mut next_addr = 0;
                     while let Some(entry) = query_procmap(&file, pid, next_addr, self.build_ids)? {
@@ -277,7 +277,7 @@ impl Normalizer {
                 let entries = |_addr| entry_iter.next();
                 self.normalize_user_addrs_impl(addrs, entries, opts)
             } else {
-                let parsed = self.cached_entries.get_or_try_insert(pid, || {
+                let parsed = self.entry_cache.get_or_try_insert(pid, || {
                     // If we use the cached maps entries but don't have anything
                     // cached yet, then just parse the file eagerly and take it from
                     // there.
