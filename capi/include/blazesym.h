@@ -539,10 +539,20 @@ typedef struct blaze_normalize_opts {
    */
   bool map_files;
   /**
+   * Normalize addresses inside APKs to the contained ELF file and
+   * report a regular
+   * [`BLAZE_USER_META_ELF`][blaze_user_meta_kind::BLAZE_USER_META_ELF]
+   * meta data entry instead of an
+   * [`BLAZE_USER_META_APK`][blaze_user_meta_kind::BLAZE_USER_META_APK]
+   * one. As a result, the reported file offset will also be relative
+   * to the contained ELF file and not to the APK itself.
+   */
+  bool apk_to_elf;
+  /**
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[6];
+  uint8_t reserved[5];
 } blaze_normalize_opts;
 
 /**
