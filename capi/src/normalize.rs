@@ -121,9 +121,17 @@ pub struct blaze_normalize_opts {
     /// using them for file look up) symbolic paths are probably the
     /// better choice.
     pub map_files: bool,
+    /// Normalize addresses inside APKs to the contained ELF file and
+    /// report a regular
+    /// [`BLAZE_USER_META_ELF`][blaze_user_meta_kind::BLAZE_USER_META_ELF]
+    /// meta data entry instead of an
+    /// [`BLAZE_USER_META_APK`][blaze_user_meta_kind::BLAZE_USER_META_APK]
+    /// one. As a result, the reported file offset will also be relative
+    /// to the contained ELF file and not to the APK itself.
+    pub apk_to_elf: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 6],
+    pub reserved: [u8; 5],
 }
 
 impl Default for blaze_normalize_opts {
@@ -132,7 +140,8 @@ impl Default for blaze_normalize_opts {
             type_size: size_of::<Self>(),
             sorted_addrs: false,
             map_files: false,
-            reserved: [0; 6],
+            apk_to_elf: false,
+            reserved: [0; 5],
         }
     }
 }
@@ -143,13 +152,13 @@ impl From<blaze_normalize_opts> for NormalizeOpts {
             type_size: _,
             sorted_addrs,
             map_files,
+            apk_to_elf,
             reserved: _,
         } = opts;
         Self {
             sorted_addrs,
             map_files,
-            // TODO: Needs to be hooked up properly.
-            apk_to_elf: false,
+            apk_to_elf,
             _non_exhaustive: (),
         }
     }
@@ -741,6 +750,9 @@ mod tests {
     use std::path::Path;
 
     use blazesym::helper::read_elf_build_id;
+    use blazesym::Mmap;
+    use blazesym::__private::find_the_answer_fn;
+    use blazesym::__private::zip;
 
     use test_tag::tag;
 
@@ -1126,5 +1138,65 @@ mod tests {
 
         test(true);
         test(false);
+    }
+
+    /// Check that we can normalize addresses in our own shared object inside a
+    /// zip archive.
+    #[test]
+    fn normalize_custom_so_in_zip() {
+        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test.zip");
+        let so_name = "libtest-so.so";
+
+        let mmap = Mmap::builder().exec().open(&test_zip).unwrap();
+        let archive = zip::Archive::with_mmap(mmap.clone()).unwrap();
+        let so = archive
+            .entries()
+            .find_map(|entry| {
+                let entry = entry.unwrap();
+                (entry.path == Path::new(so_name)).then_some(entry)
+            })
+            .unwrap();
+
+        let elf_mmap = mmap
+            .constrain(so.data_offset..so.data_offset + so.data.len() as u64)
+            .unwrap();
+        let (_sym, the_answer_addr) = find_the_answer_fn(&elf_mmap);
+
+        let normalizer = blaze_normalizer_new();
+        assert!(!normalizer.is_null());
+
+        let addrs = [the_answer_addr as Addr];
+        let opts = blaze_normalize_opts {
+            apk_to_elf: true,
+            ..Default::default()
+        };
+        let result = unsafe {
+            blaze_normalize_user_addrs_opts(
+                normalizer,
+                0,
+                addrs.as_slice().as_ptr(),
+                addrs.len(),
+                &opts,
+            )
+        };
+        assert_ne!(result, ptr::null_mut());
+
+        let normalized = unsafe { &*result };
+        assert_eq!(normalized.meta_cnt, 1);
+        assert_eq!(normalized.output_cnt, 1);
+
+        let output = unsafe { &*normalized.outputs.add(0) };
+        let meta = unsafe { &*normalized.metas.add(output.meta_idx) };
+        assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_ELF);
+
+        let elf = unsafe { &meta.variant.elf };
+        let path = unsafe { CStr::from_ptr(elf.path) };
+        assert!(path.to_str().unwrap().ends_with(so_name), "{path:?}");
+
+        let () = unsafe { blaze_user_output_free(result) };
+        let () = unsafe { blaze_normalizer_free(normalizer) };
     }
 }

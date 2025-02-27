@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Introduced `blaze_trace` function for tapping into the library's
   tracing functionality
+- Added `apk_to_elf` attribute to `blaze_normalize_opts`
 - Added `size` attribute to `blaze_sym` type
 - Changed `size` attribute of `blaze_sym_info` to be signed
 - Renamed `kernel_image` member of `blaze_symbolize_src_kernel` to
