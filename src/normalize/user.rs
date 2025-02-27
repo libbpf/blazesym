@@ -13,7 +13,6 @@ use crate::BuildId;
 use crate::Error;
 use crate::Result;
 
-use super::buildid::BuildIdReader;
 #[cfg(feature = "apk")]
 use super::meta::Apk;
 use super::meta::Elf;
@@ -125,8 +124,6 @@ pub(super) struct NormalizationHandler<'call, 'src> {
     normalizer: &'call Normalizer,
     /// The options used as part of the normalization request.
     normalize_opts: &'call NormalizeOpts,
-    /// The build ID reader to use.
-    build_id_reader: &'call dyn BuildIdReader<'src>,
     /// Lookup table from path (as used in each proc maps entry) to index into
     /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
@@ -135,12 +132,11 @@ pub(super) struct NormalizationHandler<'call, 'src> {
     unknown_cache: HashMap<Reason, usize>,
 }
 
-impl<'call, 'src> NormalizationHandler<'call, 'src> {
+impl<'call> NormalizationHandler<'call, '_> {
     /// Instantiate a new `NormalizationHandler` object.
     pub(crate) fn new(
         normalizer: &'call Normalizer,
         opts: &'call NormalizeOpts,
-        reader: &'call dyn BuildIdReader<'src>,
         addr_cnt: usize,
     ) -> Self {
         Self {
@@ -150,7 +146,6 @@ impl<'call, 'src> NormalizationHandler<'call, 'src> {
             },
             normalize_opts: opts,
             normalizer,
-            build_id_reader: reader,
             meta_lookup: HashMap::new(),
             unknown_cache: HashMap::new(),
         }
@@ -198,10 +193,11 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                             // usage. Note that "reading" here could be a
                             // cheap cache look up if build ID caching
                             // is enabled.
-                            let build_id = entry
-                                .build_id
-                                .clone()
-                                .or_else(|| self.build_id_reader.read_build_id(path));
+                            let build_id = entry.build_id.clone().or_else(|| {
+                                // We don't fail normalization due
+                                // to build ID read failure.
+                                self.normalizer.read_build_id(path).ok().flatten()
+                            });
                             make_elf_meta(path, build_id)
                         },
                     ),
@@ -289,9 +285,6 @@ mod tests {
     use test_log::test;
 
     use crate::maps::Perm;
-    use crate::normalize::buildid::NoBuildIdReader;
-    use crate::BuildId;
-    use crate::Error;
     use crate::Pid;
 
 
@@ -334,8 +327,7 @@ mod tests {
 
             let normalizer = Normalizer::new();
             let opts = NormalizeOpts::default();
-            let reader = NoBuildIdReader;
-            let mut handler = NormalizationHandler::new(&normalizer, &opts, &reader, addrs.len());
+            let mut handler = NormalizationHandler::new(&normalizer, &opts, addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
@@ -390,8 +382,7 @@ mod tests {
 
         let normalizer = Normalizer::new();
         let opts = NormalizeOpts::default();
-        let reader = NoBuildIdReader;
-        let mut handler = NormalizationHandler::new(&normalizer, &opts, &reader, addrs.len());
+        let mut handler = NormalizationHandler::new(&normalizer, &opts, addrs.len());
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
             entries,
@@ -406,44 +397,6 @@ mod tests {
         assert_eq!(
             normalized.meta[1],
             Unknown::new(Reason::MissingComponent).into()
-        );
-    }
-
-    struct FailingBuildIdReader;
-
-    impl BuildIdReader<'_> for FailingBuildIdReader {
-        #[inline]
-        fn read_build_id_fallible(&self, _path: &Path) -> Result<Option<BuildId<'static>>> {
-            Err(Error::with_unsupported("induced failure"))
-        }
-    }
-
-    /// Check that errors when reading build IDs are handled gracefully.
-    #[test]
-    fn build_id_read_failures() {
-        let addrs = [build_id_read_failures as Addr];
-
-        let mut entry_iter = maps::parse_filtered(Pid::Slf).unwrap();
-        let entries = |_addr| entry_iter.next();
-
-        let normalizer = Normalizer::new();
-        let opts = NormalizeOpts::default();
-        let reader = FailingBuildIdReader;
-        let mut handler = NormalizationHandler::new(&normalizer, &opts, &reader, addrs.len());
-        let () = normalize_sorted_user_addrs_with_entries(
-            addrs.as_slice().iter().copied(),
-            entries,
-            &mut handler,
-        )
-        .unwrap();
-
-        let normalized = handler.normalized;
-        assert_eq!(normalized.outputs.len(), 1);
-        assert_eq!(normalized.meta.len(), 1);
-        assert!(
-            normalized.meta[0].as_elf().is_some(),
-            "{:?}",
-            normalized.meta[0]
         );
     }
 }
