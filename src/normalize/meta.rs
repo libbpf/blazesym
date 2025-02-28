@@ -58,7 +58,7 @@ pub struct Apk {
 pub struct Elf<'src> {
     /// Ordinarily, the canonical absolute path to the ELF file,
     /// including its name. In case of an ELF file contained inside an
-    /// APK (see [`NormalizeOpts::apk_to_elf`] this will be an Android
+    /// APK (see [`NormalizeOpts::apk_to_elf`]) this will be an Android
     /// style path of the form `<apk>!<elf-in-apk>`. E.g.,
     /// `/root/test.apk!/lib/libc.so`.
     pub path: PathBuf,
