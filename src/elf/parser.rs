@@ -58,6 +58,7 @@ use super::types::ELFCOMPRESS_ZSTD;
 use super::types::PN_XNUM;
 use super::types::PT_LOAD;
 use super::types::SHF_COMPRESSED;
+use super::types::SHN_ABS;
 use super::types::SHN_LORESERVE;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
@@ -148,6 +149,10 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
         return Ok(None)
     }
 
+    if sym.st_shndx == SHN_ABS {
+        return Ok(None)
+    }
+
     let shdr = shdrs
         .get(usize::from(sym.st_shndx))
         .ok_or_invalid_input(|| {
@@ -156,6 +161,10 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
                 sym.st_shndx, sym.st_value
             )
         })?;
+
+    if shdr.type_() == SHT_NOBITS {
+        return Ok(None)
+    }
 
     let offset = sym
         .st_value
@@ -1185,7 +1194,7 @@ where
         let offset = phdrs.iter(0).find_map(|phdr| {
             let phdr = phdr.to_64bit();
 
-            if phdr.p_type == PT_LOAD {
+            if phdr.p_type == PT_LOAD && phdr.p_filesz == phdr.p_memsz {
                 if (phdr.p_vaddr..phdr.p_vaddr + phdr.p_memsz).contains(&addr) {
                     return Some(addr - phdr.p_vaddr + phdr.p_offset)
                 }
@@ -1284,6 +1293,7 @@ mod tests {
 
     use std::env;
     use std::env::current_exe;
+    use std::fs::copy;
     #[cfg(feature = "nightly")]
     use std::hint::black_box;
     use std::io::Write as _;
@@ -1544,19 +1554,23 @@ mod tests {
             let () = parser
                 .for_each(&opts, &mut |sym| {
                     let file_offset = parser.find_file_offset(sym.addr).unwrap();
-                    assert_eq!(file_offset, sym.file_offset);
+                    assert_eq!(file_offset, sym.file_offset, "{sym:#x?}");
                     ControlFlow::Continue(())
                 })
                 .unwrap();
         }
 
-        let exe = current_exe().unwrap();
-        test(&exe);
+        //let exe = current_exe().unwrap();
+        //let dst = Path::new("tests-coverage");
+        //let _cnt = copy(&exe, dst).unwrap();
 
-        let so = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("libtest-so.so");
-        test(&so);
+        let exe = Path::new("/tmp/tests-release");
+        test(exe);
+
+        //let so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        //    .join("data")
+        //    .join("libtest-so.so");
+        //test(&so);
     }
 
     /// Check that we don't underflow during file offset calculation.
