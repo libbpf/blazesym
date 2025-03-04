@@ -23,6 +23,7 @@
 // > DEALINGS IN THE SOFTWARE.
 
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 use crate::once::OnceCell;
 use crate::util::find_lowest_match_by_key;
@@ -183,6 +184,8 @@ impl Function {
 /// A parsed .sym file containing debug symbols.
 #[derive(Debug)]
 pub(crate) struct SymbolFile {
+    /// The module represented by this symbol file.
+    pub module: Option<PathBuf>,
     /// The set of source files involved in compilation.
     pub files: HashMap<u32, String>,
     /// Functions, sorted by start address.
@@ -265,6 +268,7 @@ mod tests {
     #[test]
     fn debug_repr() {
         let file = SymbolFile {
+            module: None,
             files: HashMap::new(),
             functions: Vec::new(),
             by_name_idx: OnceCell::new(),
