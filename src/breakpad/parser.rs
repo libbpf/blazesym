@@ -32,6 +32,8 @@ use std::fmt::Write as _;
 use std::mem;
 use std::ops::BitOr;
 use std::ops::Shl;
+use std::path::Path;
+use std::path::PathBuf;
 use std::str;
 
 use nom::branch::alt;
@@ -60,6 +62,7 @@ use super::types::*;
 
 use crate::error::IntoCowStr;
 use crate::once::OnceCell;
+use crate::util::bytes_to_path;
 use crate::Error;
 use crate::ErrorExt;
 use crate::Result;
@@ -214,7 +217,7 @@ impl ErrorExt for (&[u8], Err<VerboseError<&[u8]>>) {
 
 #[derive(Debug)]
 enum Line {
-    Module,
+    Module(PathBuf),
     Info(()),
     File(u32, String),
     InlineOrigin(u32, String),
@@ -285,6 +288,11 @@ fn decimal_u32(input: &[u8]) -> IResult<&[u8], u32, VerboseError<&[u8]>> {
     Ok((remaining, res))
 }
 
+/// Take 0 or more non-space bytes.
+fn non_space(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
+    take_while(|c: u8| c != b' ')(input)
+}
+
 /// Accept `\n` with an arbitrary number of preceding `\r` bytes.
 ///
 /// This is different from `line_ending` which doesn't accept `\r` if it isn't
@@ -302,11 +310,16 @@ fn not_my_eol(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
 }
 
 /// Matches a MODULE record.
-fn module_line(input: &[u8]) -> IResult<&[u8], (), VerboseError<&[u8]>> {
+fn module_line(input: &[u8]) -> IResult<&[u8], &Path, VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("MODULE"), space1)(input)?;
-    let (input, _) = cut(terminated(not_my_eol, my_eol))(input)?;
+    let (input, (_, _, _, module)) = cut(tuple((
+        terminated(non_space, space1),                          // os
+        terminated(non_space, space1),                          // cpu
+        terminated(non_space, space1),                          // debug id
+        terminated(map_res(not_my_eol, bytes_to_path), my_eol), // filename
+    )))(input)?;
 
-    Ok((input, ()))
+    Ok((input, module))
 }
 
 /// Matches an INFO URL record.
@@ -474,7 +487,7 @@ fn line(input: &[u8]) -> IResult<&[u8], Line, VerboseError<&[u8]>> {
             map(func_line, Line::Function),
             map(stack_win_line, Line::StackWin),
             map(stack_cfi_init, Line::StackCfi),
-            map(module_line, |_| Line::Module),
+            map(module_line, |module| Line::Module(module.to_path_buf())),
         )),
         multispace0,
     )(input)
@@ -485,6 +498,7 @@ fn line(input: &[u8]) -> IResult<&[u8], Line, VerboseError<&[u8]>> {
 /// This is basically just a [`SymbolFile`] but with some extra state.
 #[derive(Debug, Default)]
 pub struct SymbolParser {
+    module: Option<PathBuf>,
     files: HashMap<u32, String>,
     inline_origins: HashMap<u32, String>,
     publics: Vec<PublicSymbol>,
@@ -584,13 +598,16 @@ impl SymbolParser {
             // Now store the item in our partial SymbolFile (or make it the cur_item
             // if it has potential sublines we need to parse first).
             match line {
-                Line::Module => {
+                Line::Module(module) => {
                     // We don't use this but it MUST be the first line
                     if self.lines != 0 {
                         return Err(Error::with_invalid_input(
                             "MODULE line found after the start of the file",
                         ))
                     }
+
+                    debug_assert_eq!(self.module, None);
+                    self.module = Some(module);
                 }
                 Line::Info(()) => {}
                 Line::File(id, filename) => {
@@ -675,6 +692,7 @@ impl SymbolParser {
             .sort_by(|x, y| x.addr.cmp(&y.addr).then_with(|| x.size.cmp(&y.size)));
 
         SymbolFile {
+            module: self.module,
             files: self.files,
             functions: self.functions,
             by_name_idx: OnceCell::new(),
@@ -746,23 +764,27 @@ foo bar baz
     fn parse_module_line() {
         let line = b"MODULE Linux x86 D3096ED481217FD4C16B29CD9BC208BA0 firefox-bin\n";
         let rest = &b""[..];
-        assert_eq!(module_line(line), Ok((rest, ())));
+        assert_eq!(module_line(line), Ok((rest, Path::new("firefox-bin"))));
     }
 
     #[test]
     fn parse_module_line_filename_spaces() {
         let line = b"MODULE Windows x86_64 D3096ED481217FD4C16B29CD9BC208BA0 firefox x y z\n";
         let rest = &b""[..];
-        assert_eq!(module_line(line), Ok((rest, ())));
+        assert_eq!(module_line(line), Ok((rest, Path::new("firefox x y z"))));
     }
 
     /// Sometimes dump_syms on Windows does weird things and produces multiple
     /// carriage returns before the line feed.
     #[test]
     fn parse_module_line_crcrlf() {
-        let line = b"MODULE Windows x86_64 D3096ED481217FD4C16B29CD9BC208BA0 firefox\r\r\n";
+        let line =
+            b"MODULE Windows x86_64 D3096ED481217FD4C16B29CD9BC208BA0 /a/proper/fire/fox\r\r\n";
         let rest = &b""[..];
-        assert_eq!(module_line(line), Ok((rest, ())));
+        assert_eq!(
+            module_line(line),
+            Ok((rest, Path::new("/a/proper/fire/fox")))
+        );
     }
 
     #[test]
