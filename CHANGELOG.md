@@ -5,6 +5,7 @@ Unreleased
   metadata
 - Added `normalize::NormalizeOpts::apk_to_elf` attribute for normalizing
   addresses mapping to APKs to the contained ELF file
+- Added `symbolize::Sym::module` attribute
 - Renamed `symbolize::Source::kernel_image` to `vmlinux`
 - Adjusted kernel symbolization logic to give preference to `vmlinux`
   file, if present

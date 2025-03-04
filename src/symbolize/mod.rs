@@ -312,6 +312,8 @@ pub enum SrcLang {
 pub struct ResolvedSym<'src> {
     /// The name of the symbol.
     pub name: &'src str,
+    /// The path to or name of the module containing the symbol.
+    pub module: Option<&'src Path>,
     /// The symbol's normalized address.
     pub addr: Addr,
     /// The symbol's size, if available.
@@ -330,6 +332,15 @@ pub struct ResolvedSym<'src> {
 pub struct Sym<'src> {
     /// The symbol name that an address belongs to.
     pub name: Cow<'src, str>,
+    /// The path to or name of the module containing the symbol.
+    ///
+    /// Typically this would be the path to a executable or shared
+    /// object. Depending on the symbol source this member may not be
+    /// present or it could also just be a file name without path. In
+    /// case of an ELF file contained inside an APK, this will be an
+    /// Android style path of the form `<apk>!<elf-in-apk>`. E.g.,
+    /// `/root/test.apk!/lib/libc.so`.
+    pub module: Option<Cow<'src, Path>>,
     /// The address at which the symbol is located (i.e., its "start").
     ///
     /// This is the "normalized" address of the symbol, as present in
@@ -544,6 +555,7 @@ mod tests {
 
         let sym = Sym {
             name: Cow::Borrowed("test"),
+            module: Some(Cow::Borrowed(Path::new("module"))),
             addr: 1337,
             offset: 42,
             size: None,

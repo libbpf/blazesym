@@ -193,6 +193,7 @@ impl Symbolize for BreakpadResolver {
 
         let mut sym = ResolvedSym {
             name: &func.name,
+            module: self.symbol_file.module.as_deref(),
             addr: func.addr,
             size: Some(func.size.try_into().unwrap_or(usize::MAX)),
             lang: SrcLang::Unknown,

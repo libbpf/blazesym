@@ -371,6 +371,7 @@ impl BpfProg {
         } = self;
         let sym = ResolvedSym {
             name,
+            module: None,
             addr: *prog_addr,
             // TODO: May be able to use `bpf_prog_info::func_info` here.
             //       Unsure.

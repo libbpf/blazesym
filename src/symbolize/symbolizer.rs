@@ -654,11 +654,12 @@ impl Symbolizer {
         addr: Addr,
         resolver: &Resolver<'_, 'slf>,
     ) -> Result<Symbolized<'slf>> {
-        let (sym_name, sym_addr, sym_size, code_info, inlined) = match resolver {
+        let (sym_name, sym_module, sym_addr, sym_size, code_info, inlined) = match resolver {
             Resolver::Uncached(resolver) => match resolver.find_sym(addr, &self.find_sym_opts)? {
                 Ok(sym) => {
                     let ResolvedSym {
                         name,
+                        module,
                         addr,
                         size,
                         lang,
@@ -668,6 +669,7 @@ impl Symbolizer {
 
                     let name =
                         Cow::Owned(self.maybe_demangle(Cow::Borrowed(name), lang).into_owned());
+                    let module = module.map(|module| Cow::Owned(module.to_path_buf()));
                     let code_info = code_info.map(|info| info.to_owned());
                     let inlined = Vec::from(inlined)
                         .into_iter()
@@ -686,7 +688,7 @@ impl Symbolizer {
                         .collect::<Vec<_>>()
                         .into_boxed_slice();
 
-                    (name, addr, size, code_info, inlined)
+                    (name, module, addr, size, code_info, inlined)
                 }
                 Err(reason) => return Ok(Symbolized::Unknown(reason)),
             },
@@ -694,6 +696,7 @@ impl Symbolizer {
                 Ok(sym) => {
                     let ResolvedSym {
                         name,
+                        module,
                         addr,
                         size,
                         lang,
@@ -702,11 +705,12 @@ impl Symbolizer {
                     } = sym;
 
                     let name = self.maybe_demangle(Cow::Borrowed(name), lang);
+                    let module = module.map(Cow::Borrowed);
                     let () = inlined.iter_mut().for_each(|inlined_fn| {
                         let name = take(&mut inlined_fn.name);
                         inlined_fn.name = self.maybe_demangle(name, lang);
                     });
-                    (name, addr, size, code_info, inlined)
+                    (name, module, addr, size, code_info, inlined)
                 }
                 Err(reason) => return Ok(Symbolized::Unknown(reason)),
             },
@@ -714,6 +718,7 @@ impl Symbolizer {
 
         let sym = Sym {
             name: sym_name,
+            module: sym_module,
             addr: sym_addr,
             offset: (addr - sym_addr) as usize,
             size: sym_size,

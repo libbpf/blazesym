@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::env;
 use std::ffi::OsStr;
 use std::fs::copy;
@@ -283,6 +284,10 @@ fn symbolize_breakpad() {
         .unwrap();
 
     assert_eq!(result.name, "factorial");
+    assert_eq!(
+        result.module,
+        Some(Cow::Borrowed(Path::new("test-stable-addrs.bin")))
+    );
     assert_eq!(result.addr, 0x200);
     assert_eq!(result.offset, 0);
 
@@ -353,7 +358,7 @@ fn symbolize_elf_variable() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs.bin");
-        let mut elf = Elf::new(path);
+        let mut elf = Elf::new(&path);
         elf.debug_syms = debug_syms;
         let src = Source::Elf(elf);
         let symbolizer = Symbolizer::new();
@@ -364,6 +369,7 @@ fn symbolize_elf_variable() {
             .unwrap();
 
         assert_eq!(result.name, "a_variable");
+        assert_eq!(result.module, Some(Cow::Borrowed(path.as_path())));
         assert_eq!(result.addr, 0x4001100);
         assert_eq!(result.offset, 0);
         // Even when using DWARF we don't currently support variable lookup,
@@ -554,7 +560,7 @@ fn symbolize_configurable_debug_dirs() {
     let dst = debug_dir2.path().join("test-stable-addrs-dwarf-only.dbg");
     let _count = copy(src, dst).unwrap();
 
-    let src = Source::from(Elf::new(path));
+    let src = Source::from(Elf::new(&path));
     let symbolizer = Symbolizer::builder()
         .set_debug_dirs(Some([debug_dir1, debug_dir2]))
         .build();
@@ -564,6 +570,9 @@ fn symbolize_configurable_debug_dirs() {
         .into_sym()
         .unwrap();
     assert_eq!(sym.name, "factorial");
+    // The module reported should be the original file and not the
+    // linked one.
+    assert_eq!(sym.module, Some(Cow::Owned(path)));
 }
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined
@@ -696,6 +705,7 @@ fn symbolize_dwarf_demangle() {
             .unwrap();
 
         assert_eq!(result.name, "test::test_function");
+        assert_eq!(result.module, Some(Cow::Borrowed(test_dwarf)));
         assert_eq!(result.inlined.len(), 1, "{:#?}", result.inlined);
         assert_eq!(result.inlined[0].name, "test::inlined_call");
         Ok(())
@@ -849,6 +859,18 @@ fn symbolize_process_zip() {
         .unwrap();
 
     assert_eq!(result.name, "the_answer");
+    assert!(
+        result
+            .module
+            .as_deref()
+            .map(|path| path
+                .as_os_str()
+                .to_string_lossy()
+                .ends_with("!/libtest-so.so"))
+            .unwrap_or(false),
+        "{:?}",
+        result.module
+    );
     assert_eq!(result.addr, sym.addr);
 }
 

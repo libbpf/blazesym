@@ -265,6 +265,7 @@ impl Symbolize for DwarfResolver {
                 .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
             ResolvedSym {
                 name,
+                module: self.parser.path(),
                 addr: fn_addr,
                 size,
                 lang: unit.language().into(),
