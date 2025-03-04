@@ -528,6 +528,15 @@ pub struct blaze_sym {
     /// Check the `reason` member for additional information pertaining
     /// the failure.
     pub name: *const c_char,
+    /// The path to or name of the module containing the symbol.
+    ///
+    /// Typically this would be the path to a executable or shared
+    /// object. Depending on the symbol source this member may not be
+    /// present or it could also just be a file name without path. In
+    /// case of an ELF file contained inside an APK, this will be an
+    /// Android style path of the form `<apk>!<elf-in-apk>`. E.g.,
+    /// `/root/test.apk!/lib/libc.so`.
+    pub module: *const c_char,
     /// The address at which the symbol is located (i.e., its "start").
     ///
     /// This is the "normalized" address of the symbol, as present in
@@ -807,6 +816,11 @@ fn inlined_fn_strtab_size(inlined_fn: &InlinedFn) -> usize {
 fn sym_strtab_size(sym: &Sym) -> usize {
     sym.name.len()
         + 1
+        + sym
+            .module
+            .as_deref()
+            .map(|path| path.as_os_str().len() + 1)
+            .unwrap_or(0)
         + code_info_strtab_size(&sym.code_info)
         + sym
             .inlined
@@ -895,8 +909,14 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
             Symbolized::Sym(sym) => {
                 let sym_ref = unsafe { &mut *syms_last };
                 let name_ptr = make_cstr(OsStr::new(sym.name.as_ref()));
+                let module_ptr = sym
+                    .module
+                    .as_deref()
+                    .map(|path| make_cstr(path.as_os_str()))
+                    .unwrap_or(ptr::null_mut());
 
                 sym_ref.name = name_ptr;
+                sym_ref.module = module_ptr;
                 sym_ref.addr = sym.addr;
                 sym_ref.offset = sym.offset;
                 sym_ref.size = sym
@@ -1225,6 +1245,7 @@ pub unsafe extern "C" fn blaze_syms_free(syms: *const blaze_syms) {
 mod tests {
     use super::*;
 
+    use std::borrow::Cow;
     use std::ffi::CString;
     use std::fs::copy;
     use std::fs::read as read_file;
@@ -1259,7 +1280,7 @@ mod tests {
         assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_code_info>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_inlined_fn>(), 48);
-        assert_eq!(mem::size_of::<blaze_sym>(), 88);
+        assert_eq!(mem::size_of::<blaze_sym>(), 96);
     }
 
     /// Exercise the `Debug` representation of various types.
@@ -1319,6 +1340,7 @@ mod tests {
 
         let sym = blaze_sym {
             name: ptr::null(),
+            module: ptr::null(),
             addr: 0x1337,
             offset: 24,
             size: 16,
@@ -1336,7 +1358,7 @@ mod tests {
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, addr: 4919, offset: 24, size: 16, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym { name: 0x0, module: 0x0, addr: 4919, offset: 24, size: 16, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let inlined = blaze_symbolize_inlined_fn {
@@ -1488,6 +1510,7 @@ mod tests {
                 let sym = unsafe { &*syms.syms.as_slice().as_ptr().add(i) };
                 let blaze_sym {
                     name,
+                    module,
                     addr,
                     offset,
                     size,
@@ -1499,6 +1522,7 @@ mod tests {
                 } = sym;
 
                 let () = touch_cstr(*name);
+                let () = touch_cstr(*module);
                 let _x = touch(addr);
                 let _x = touch(offset);
                 let _x = touch(size);
@@ -1529,6 +1553,7 @@ mod tests {
         // A single symbol with inlined function information.
         let results = vec![Symbolized::Sym(Sym {
             name: "test".into(),
+            module: Some(Cow::from(Path::new("module"))),
             addr: 0x1337,
             offset: 0x1338,
             size: Some(42),
@@ -1563,6 +1588,7 @@ mod tests {
             Symbolized::Unknown(Reason::UnknownAddr),
             Symbolized::Sym(Sym {
                 name: "test".into(),
+                module: Some(Cow::from(Path::new("module"))),
                 addr: 0x1337,
                 offset: 0x1338,
                 size: None,
@@ -1770,6 +1796,7 @@ mod tests {
         let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
         let sym = &syms[0];
         assert!(!sym.name.is_null());
+        assert!(!sym.module.is_null());
         assert!(sym.size > 0);
         assert_eq!(
             unsafe { CStr::from_ptr(sym.name) },
@@ -1856,6 +1883,7 @@ mod tests {
                 unsafe { CStr::from_ptr(sym.name) },
                 CStr::from_bytes_with_nul(b"test::test_function\0").unwrap()
             );
+            assert_eq!(unsafe { CStr::from_ptr(sym.module) }, &*path_c);
 
             assert_eq!(sym.inlined_cnt, 1);
             assert_eq!(
@@ -2006,6 +2034,7 @@ mod tests {
             unsafe { CStr::from_ptr(sym.name) },
             CStr::from_bytes_with_nul(b"init_task\0").unwrap()
         );
+        assert_eq!(sym.module, ptr::null_mut());
 
         let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
@@ -2079,6 +2108,7 @@ mod tests {
         // Shouldn't have symbolized because the debug link target cannot be
         // found.
         assert_eq!(sym.name, ptr::null());
+        assert_eq!(sym.module, ptr::null());
         assert_eq!(
             sym.reason,
             blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_MISSING_SYMS
@@ -2136,6 +2166,14 @@ mod tests {
         let sym = &syms[0];
         let name = unsafe { CStr::from_ptr(sym.name) };
         assert_eq!(name.to_str().unwrap(), "factorial");
+        let module = unsafe { CStr::from_ptr(sym.module) };
+        assert!(
+            module
+                .to_str()
+                .unwrap()
+                .ends_with("test-stable-addrs-stripped-with-link.bin"),
+            "{module:?}"
+        );
 
         let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
