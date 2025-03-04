@@ -198,6 +198,9 @@ impl Symbolize for GsymResolver<'_> {
             let lang = SrcLang::Unknown;
             let mut sym = ResolvedSym {
                 name,
+                // TODO: Double check if there is module information in
+                //       a Gsym file.
+                module: None,
                 addr: sym_addr,
                 size: Some(usize::try_from(info.size).unwrap_or(usize::MAX)),
                 lang,

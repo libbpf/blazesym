@@ -79,6 +79,7 @@ fn symbol_name<'elf>(strtab: &'elf [u8], sym: &Elf64_Sym) -> Result<&'elf str> {
 
 fn find_sym<'elf>(
     syms: &ElfN_Syms<'_>,
+    file: Option<&'elf Path>,
     by_addr_idx: &[usize],
     strtab: &'elf [u8],
     addr: Addr,
@@ -113,6 +114,7 @@ fn find_sym<'elf>(
                 {
                     let sym = ResolvedSym {
                         name: symbol_name(strtab, &sym)?,
+                        module: file,
                         addr: sym.st_value as Addr,
                         size: if sym.st_size == 0 {
                             None
@@ -783,8 +785,13 @@ where
         let str2sym = dynsym.ensure_str2sym(|sym| {
             // We filter out all the symbols that already exist in symtab,
             // to prevent any duplicates from showing up.
+
+            // The actual module path doesn't matter for the filtering
+            // to be correct, so just fake it.
+            let module = None;
             let result = find_sym(
                 &symtab.syms,
+                module,
                 symtab_by_addr_idx,
                 &symtab.strs,
                 sym.value(),
@@ -1016,6 +1023,7 @@ where
 
         if let Some(sym) = find_sym(
             &symtab_cache.syms,
+            self.path.as_deref(),
             symtab_by_addr_idx,
             &symtab_cache.strs,
             addr,
@@ -1028,6 +1036,7 @@ where
         let dynsym_by_addr_idx = dynsym_cache.ensure_by_addr_idx();
         if let Some(sym) = find_sym(
             &dynsym_cache.syms,
+            self.path.as_deref(),
             dynsym_by_addr_idx,
             &dynsym_cache.strs,
             addr,
@@ -1753,7 +1762,7 @@ mod tests {
         ]));
         let by_addr_idx = [2, 1, 0];
 
-        let result = find_sym(&syms, &by_addr_idx, strs, 0x10d20, SymType::Function).unwrap();
+        let result = find_sym(&syms, None, &by_addr_idx, strs, 0x10d20, SymType::Function).unwrap();
         assert_eq!(result, None);
     }
 
@@ -1763,7 +1772,7 @@ mod tests {
     fn lookup_symbol_with_unknown_size() {
         fn test(syms: &ElfN_Syms<'_>, by_addr_idx: &[usize]) {
             let strs = b"\x00__libc_init_first\x00versionsort64\x00";
-            let sym = find_sym(syms, by_addr_idx, strs, 0x29d00, SymType::Function)
+            let sym = find_sym(syms, None, by_addr_idx, strs, 0x29d00, SymType::Function)
                 .unwrap()
                 .unwrap();
             assert_eq!(sym.name, "__libc_init_first");
@@ -1773,7 +1782,7 @@ mod tests {
             // Because the symbol has a size of 0 and is the only conceivable
             // match, we report it on the basis that ELF reserves these for "no
             // size or an unknown size" cases.
-            let sym = find_sym(syms, by_addr_idx, strs, 0x29d90, SymType::Function)
+            let sym = find_sym(syms, None, by_addr_idx, strs, 0x29d90, SymType::Function)
                 .unwrap()
                 .unwrap();
             assert_eq!(sym.name, "__libc_init_first");
@@ -1783,7 +1792,7 @@ mod tests {
             // Note that despite of the first symbol (the invalid one; present
             // by default and reserved by ELF), is not being reported here
             // because it has an `st_shndx` value of `SHN_UNDEF`.
-            let result = find_sym(syms, by_addr_idx, strs, 0x1, SymType::Function).unwrap();
+            let result = find_sym(syms, None, by_addr_idx, strs, 0x1, SymType::Function).unwrap();
             assert_eq!(result, None);
         }
 

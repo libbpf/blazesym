@@ -170,6 +170,7 @@ impl Symbolize for PerfMap {
                         let Function { name, addr, size } = function;
                         let sym = ResolvedSym {
                             name,
+                            module: None,
                             addr: *addr,
                             size: Some(*size),
                             lang: SrcLang::Unknown,

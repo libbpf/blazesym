@@ -133,6 +133,9 @@ impl Kfunc {
         let Kfunc { name, addr } = self;
         let sym = ResolvedSym {
             name,
+            // TODO: Report kernel path somehow? Also, should include
+            //       kernel module information here.
+            module: None,
             addr: *addr,
             // There is no size information in kallsyms.
             size: None,
