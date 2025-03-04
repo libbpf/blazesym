@@ -737,6 +737,17 @@ typedef struct blaze_sym {
    */
   const char *name;
   /**
+   * The path to or name of the module containing the symbol.
+   *
+   * Typically this would be the path to a executable or shared
+   * object. Depending on the symbol source this member may not be
+   * present or it could also just be a file name without path. In
+   * case of an ELF file contained inside an APK, this will be an
+   * Android style path of the form `<apk>!<elf-in-apk>`. E.g.,
+   * `/root/test.apk!/lib/libc.so`.
+   */
+  const char *module;
+  /**
    * The address at which the symbol is located (i.e., its "start").
    *
    * This is the "normalized" address of the symbol, as present in
