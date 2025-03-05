@@ -1,7 +1,9 @@
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::hash_map;
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::ops::Deref as _;
 
 use crate::Result;
 
@@ -29,6 +31,19 @@ impl<K, V> InsertMap<K, V> {
             refcell: RefCell::new(()),
             map: RefCell::new(HashMap::new()),
         }
+    }
+
+    /// Retrieve a value mapping to a key.
+    pub(crate) fn get<Q>(&self, key: &Q) -> Option<&V>
+    where
+        K: Eq + Hash + Borrow<Q>,
+        Q: Eq + Hash + ?Sized,
+    {
+        let _borrow = self.refcell.borrow();
+        // SAFETY: We are sure to not violate mutability rules because
+        //         the `_borrow` guard protects us.
+        let map = unsafe { self.map.as_ptr().as_ref() }.unwrap();
+        map.get::<Q>(key).map(Box::deref)
     }
 
     /// Retrieve a value mapping to a key, if already present, or insert
@@ -82,13 +97,16 @@ mod tests {
     /// Check that value insertion works as it should.
     #[tag(miri)]
     #[test]
-    fn insertion() {
+    fn insertion_retrieval() {
         let map = InsertMap::<usize, &'static str>::new();
+
+        assert_eq!(map.get(&42), None);
 
         let s = map
             .get_or_try_insert(42, || Ok("you win the price"))
             .unwrap();
         assert_eq!(s, &"you win the price");
+        assert_eq!(map.get(&42).unwrap(), &"you win the price");
 
         let s = map.get_or_try_insert(42, || panic!()).unwrap();
         assert_eq!(s, &"you win the price");
@@ -97,9 +115,11 @@ mod tests {
             .get_or_try_insert(31, || Err(Error::with_unsupported("unsupported")))
             .unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Unsupported);
+        assert_eq!(map.get(&31), None);
 
         let s = map.get_or_try_insert(31, || Ok("31 wins")).unwrap();
         assert_eq!(s, &"31 wins");
+        assert_eq!(map.get(&31).unwrap(), &"31 wins");
     }
 
     /// Check that value insertion does not invalidate existing value
