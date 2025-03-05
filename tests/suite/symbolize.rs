@@ -71,11 +71,12 @@ use crate::suite::common::RemoteProcess;
 /// Make sure that we fail symbolization when providing a non-existent source.
 #[tag(other_os)]
 #[test]
-fn error_on_non_existent_source() {
-    let non_existent = Path::new("/does-not-exists");
+fn symbolize_error_on_non_existent_source() {
+    let dir = tempdir().unwrap();
+    let non_existent = dir.path().join("does-not-exist");
     let srcs = vec![
-        Source::from(GsymFile::new(non_existent)),
-        Source::Elf(Elf::new(non_existent)),
+        Source::from(GsymFile::new(&non_existent)),
+        Source::Elf(Elf::new(&non_existent)),
     ];
     let symbolizer = Symbolizer::default();
 
