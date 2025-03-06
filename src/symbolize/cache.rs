@@ -64,7 +64,7 @@ impl Debug for Process {
     }
 }
 
-impl From<Process> for Cache<'static> {
+impl From<Process> for Cache {
     #[inline]
     fn from(process: Process) -> Self {
         Self::Process(process)
@@ -76,18 +76,15 @@ impl From<Process> for Cache<'static> {
 /// subsequent symbolization requests can be satisfied quicker.
 #[derive(Clone)]
 #[non_exhaustive]
-pub enum Cache<'dat> {
+pub enum Cache {
     /// Information about a process.
     Process(Process),
-    #[doc(hidden)]
-    Phantom(&'dat ()),
 }
 
-impl Debug for Cache<'_> {
+impl Debug for Cache {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
             Self::Process(process) => Debug::fmt(process, f),
-            Self::Phantom(()) => unreachable!(),
         }
     }
 }

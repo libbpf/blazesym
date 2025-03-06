@@ -1059,7 +1059,6 @@ impl Symbolizer {
                     let _prev = self.process_vma_cache.borrow_mut().insert(*pid, parsed);
                 }
             }
-            Cache::Phantom(()) => unreachable!(),
         }
         Ok(())
     }
