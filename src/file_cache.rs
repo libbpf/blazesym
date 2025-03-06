@@ -56,20 +56,26 @@ impl<T> Entry<T> {
 }
 
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum CacheState {
+    Cached,
+    Uncached,
+}
+
 #[derive(Debug)]
 struct PathEntry<T> {
     /// Meta data corresponding to the most recently inserted entry.
-    current: Cell<Option<FileMeta>>,
+    current: Cell<Option<(CacheState, FileMeta)>>,
     /// The map of entries.
     entries: InsertMap<FileMeta, Entry<T>>,
 }
 
 impl<T> PathEntry<T> {
-    fn get_or_try_insert<F>(&self, meta: FileMeta, init: F) -> Result<&Entry<T>>
+    fn get_or_try_insert<F>(&self, meta: (CacheState, FileMeta), init: F) -> Result<&Entry<T>>
     where
         F: FnOnce() -> Result<Entry<T>>,
     {
-        let entry = self.entries.get_or_try_insert(meta, init)?;
+        let entry = self.entries.get_or_try_insert(meta.1, init)?;
         let () = self.current.set(Some(meta));
         Ok(entry)
     }
@@ -153,12 +159,12 @@ impl<T> FileCache<T> {
         Builder::<T>::default()
     }
 
-    fn entry_impl(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
+    fn entry_impl(&self, path: &Path, cache_state: CacheState) -> Result<(&File, &OnceCell<T>)> {
         let path_entry = self
             .cache
             .get_or_insert(path.to_path_buf(), PathEntry::default);
-        if let Some(current_meta) = path_entry.current.get() {
-            if !self.auto_reload {
+        if let Some((cached, current_meta)) = path_entry.current.get() {
+            if !self.auto_reload || cached == CacheState::Cached {
                 // SANITY: Our invariant states that if there is a
                 //         `PathEntry::current` a corresponding entry
                 //         must be in `PathEntry::entries`.
@@ -168,7 +174,7 @@ impl<T> FileCache<T> {
         }
 
         let stat = stat(path).with_context(|| format!("failed to stat {}", path.display()))?;
-        let meta = FileMeta::from(&stat);
+        let meta = (cache_state, FileMeta::from(&stat));
         let entry = path_entry.get_or_try_insert(meta, || {
             // We may end up associating this file with a potentially
             // outdated `stat` (which could have changed), but the only
@@ -186,7 +192,18 @@ impl<T> FileCache<T> {
 
     /// Retrieve an entry for the file at the given `path`.
     pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
-        self.entry_impl(path)
+        self.entry_impl(path, CacheState::Uncached)
+    }
+
+    /// Retrieve an entry for the file at the given `path`.
+    ///
+    /// The entry is marked as "cached", meaning that no auto reloading
+    /// will take place and it will supersede any "uncached" entries
+    /// already available (i.e., it acts as the most recent entry moving
+    /// forward).
+    #[cfg(test)]
+    pub(crate) fn entry_cached(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
+        self.entry_impl(path, CacheState::Cached)
     }
 }
 
@@ -209,6 +226,8 @@ mod tests {
     use tempfile::tempdir;
     use tempfile::tempfile;
     use tempfile::NamedTempFile;
+
+    use crate::ErrorKind;
 
 
     /// Exercise the `Debug` representation of various types.
@@ -267,13 +286,17 @@ mod tests {
     /// Make sure that a changed file updates the cache entry.
     #[test]
     fn outdated() {
-        fn test(auto_reload: bool) {
+        fn test(auto_reload: bool, cached: bool) {
             let cache = FileCache::<usize>::builder()
                 .enable_auto_reload(auto_reload)
                 .build();
             let tmpfile = NamedTempFile::new().unwrap();
             let modified = {
-                let (file, cell) = cache.entry(tmpfile.path()).unwrap();
+                let (file, cell) = if cached {
+                    cache.entry_cached(tmpfile.path()).unwrap()
+                } else {
+                    cache.entry(tmpfile.path()).unwrap()
+                };
                 assert_eq!(cell.get(), None);
 
                 let () = cell.set(42).unwrap();
@@ -295,7 +318,7 @@ mod tests {
             {
                 let (mut file, entry) = cache.entry(&path).unwrap();
 
-                if auto_reload {
+                if auto_reload && !cached {
                     assert_eq!(entry.get(), None);
                     assert_ne!(file.metadata().unwrap().modified().unwrap(), modified);
 
@@ -310,7 +333,42 @@ mod tests {
         }
 
         for auto_reload in [false, true] {
-            let () = test(auto_reload);
+            for cached in [false, true] {
+                let () = test(auto_reload, cached);
+            }
+        }
+    }
+
+    /// Check that a removed file poses no problem if associated data
+    /// had been cached.
+    #[test]
+    fn removed() {
+        #[track_caller]
+        fn test(cached: bool) {
+            let tmpfile = NamedTempFile::new().unwrap();
+            let cache = FileCache::<usize>::builder().build();
+            let (_file, cell) = if cached {
+                cache.entry_cached(tmpfile.path()).unwrap()
+            } else {
+                cache.entry(tmpfile.path()).unwrap()
+            };
+            let () = cell.set(42).unwrap();
+
+            let path = tmpfile.path().to_path_buf();
+            let () = drop(tmpfile);
+
+            let result = cache.entry(&path);
+            if cached {
+                let (_file, cell) = result.unwrap();
+                assert_eq!(cell.get(), Some(&42));
+            } else {
+                let err = result.unwrap_err();
+                assert_eq!(err.kind(), ErrorKind::NotFound);
+            }
+        }
+
+        for cached in [false, true] {
+            let () = test(cached);
         }
     }
 }
