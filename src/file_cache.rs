@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::fs::File;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -10,7 +11,7 @@ use crate::ErrorExt as _;
 use crate::Result;
 
 
-#[derive(Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 // `libc` has deprecated `time_t` usage on `musl`. See
 // https://github.com/rust-lang/libc/issues/1848
 #[cfg_attr(target_env = "musl", allow(deprecated))]
@@ -39,24 +40,6 @@ impl From<&libc::stat> for FileMeta {
 }
 
 
-#[derive(Debug, Eq, Hash, PartialEq)]
-struct EntryMeta {
-    path: PathBuf,
-    meta: Option<FileMeta>,
-}
-
-impl EntryMeta {
-    /// Create a new [`EntryMeta`] object. If `stat` is [`None`] file
-    /// modification times and other meta data are effectively ignored.
-    fn new(path: PathBuf, stat: Option<&libc::stat>) -> Self {
-        Self {
-            path,
-            meta: stat.map(FileMeta::from),
-        }
-    }
-}
-
-
 #[derive(Debug)]
 struct Entry<T> {
     file: File,
@@ -68,6 +51,35 @@ impl<T> Entry<T> {
         Self {
             file,
             value: OnceCell::new(),
+        }
+    }
+}
+
+
+#[derive(Debug)]
+struct PathEntry<T> {
+    /// Meta data corresponding to the most recently inserted entry.
+    current: Cell<Option<FileMeta>>,
+    /// The map of entries.
+    entries: InsertMap<FileMeta, Entry<T>>,
+}
+
+impl<T> PathEntry<T> {
+    fn get_or_try_insert<F>(&self, meta: FileMeta, init: F) -> Result<&Entry<T>>
+    where
+        F: FnOnce() -> Result<Entry<T>>,
+    {
+        let entry = self.entries.get_or_try_insert(meta, init)?;
+        let () = self.current.set(Some(meta));
+        Ok(entry)
+    }
+}
+
+impl<T> Default for PathEntry<T> {
+    fn default() -> Self {
+        Self {
+            current: Cell::new(None),
+            entries: InsertMap::new(),
         }
     }
 }
@@ -128,7 +140,7 @@ impl<T> Default for Builder<T> {
 pub(crate) struct FileCache<T> {
     /// The map we use for associating file meta data with user-defined
     /// data.
-    cache: InsertMap<EntryMeta, Entry<T>>,
+    cache: InsertMap<PathBuf, PathEntry<T>>,
     /// Whether or not to automatically reload files that were updated
     /// since the last open.
     auto_reload: bool,
@@ -141,17 +153,23 @@ impl<T> FileCache<T> {
         Builder::<T>::default()
     }
 
-    /// Retrieve an entry for the file at the given `path`.
-    pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
-        let stat = if self.auto_reload {
-            let stat = stat(path).with_context(|| format!("failed to stat {}", path.display()))?;
-            Some(stat)
-        } else {
-            None
-        };
+    fn entry_impl(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
+        let path_entry = self
+            .cache
+            .get_or_insert(path.to_path_buf(), PathEntry::default);
+        if let Some(current_meta) = path_entry.current.get() {
+            if !self.auto_reload {
+                // SANITY: Our invariant states that if there is a
+                //         `PathEntry::current` a corresponding entry
+                //         must be in `PathEntry::entries`.
+                let current = path_entry.entries.get(&current_meta).unwrap();
+                return Ok((&current.file, &current.value))
+            }
+        }
 
-        let meta = EntryMeta::new(path.to_path_buf(), stat.as_ref());
-        let entry = self.cache.get_or_try_insert(meta, || {
+        let stat = stat(path).with_context(|| format!("failed to stat {}", path.display()))?;
+        let meta = FileMeta::from(&stat);
+        let entry = path_entry.get_or_try_insert(meta, || {
             // We may end up associating this file with a potentially
             // outdated `stat` (which could have changed), but the only
             // consequence is that we'd create a new entry again in the
@@ -163,6 +181,12 @@ impl<T> FileCache<T> {
         })?;
 
         Ok((&entry.file, &entry.value))
+    }
+
+
+    /// Retrieve an entry for the file at the given `path`.
+    pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
+        self.entry_impl(path)
     }
 }
 
@@ -240,7 +264,7 @@ mod tests {
         assert_ne!(file1.as_raw_fd(), file2.as_raw_fd());
     }
 
-    /// Make sure that a changed file purges the cache entry .
+    /// Make sure that a changed file updates the cache entry.
     #[test]
     fn outdated() {
         fn test(auto_reload: bool) {
