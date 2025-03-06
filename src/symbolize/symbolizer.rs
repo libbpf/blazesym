@@ -1044,11 +1044,33 @@ impl Symbolizer {
     /// early, for example to make subsequent symbolization requests as
     /// fast running as possible. In rare instances it can also be a
     /// matter of correctness. Process metadata such as VMAs and their
-    /// offsets can be cached so that even after the processes exited it
+    /// offsets can be cached so that even after the processes exited
     /// symbolization requests can still be satisfied.
+    ///
+    /// If this method fails, any previously cached data is left
+    /// untouched and will be used subsequently as if no failure
+    /// occurred. Put differently, this method is only effectful on the
+    /// happy path.
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(cache = ?cache), err))]
     pub fn cache(&self, cache: &Cache) -> Result<()> {
         match cache {
+            Cache::Elf(cache::Elf {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let _unpinned = self.elf_cache.unpin(path);
+                let result = self
+                    .elf_cache
+                    .elf_resolver(path, self.maybe_debug_dirs(false));
+                // Make sure to always pin the entry, even if bailing
+                // due to a retrieval error. Basically, the semantics we
+                // want to have is that if caching new data fails the
+                // previously cached data is still present.
+                let _pinned = self.elf_cache.pin(path);
+                let resolver = result?;
+
+                let () = resolver.cache()?;
+            }
             Cache::Process(cache::Process {
                 pid,
                 cache_vmas,
