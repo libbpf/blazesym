@@ -53,6 +53,28 @@ impl<K, V> InsertMap<K, V> {
     /// The `init` function should not use functionality provided by the
     /// object this method operates on, recursively, or a runtime panic
     /// may be the result.
+    pub(crate) fn get_or_insert<F>(&self, key: K, init: F) -> &V
+    where
+        K: Eq + Hash,
+        F: FnOnce() -> V,
+    {
+        let _borrow = self.map.borrow_mut();
+        // SAFETY: We are sure to not borrow mutably twice because the `_borrow`
+        //         guard protects us.
+        let map = unsafe { self.map.as_ptr().as_mut() }.unwrap();
+        match map.entry(key) {
+            hash_map::Entry::Occupied(occupied) => occupied.into_mut(),
+            hash_map::Entry::Vacant(vacancy) => vacancy.insert(Box::new(init())),
+        }
+    }
+
+    /// Retrieve a value mapping to a key, if already present, or insert
+    /// it and return it then.
+    ///
+    /// # Panics
+    /// The `init` function should not use functionality provided by the
+    /// object this method operates on, recursively, or a runtime panic
+    /// may be the result.
     pub(crate) fn get_or_try_insert<F>(&self, key: K, init: F) -> Result<&V>
     where
         K: Eq + Hash,
