@@ -16,7 +16,10 @@ pub(crate) struct InsertMap<K, V> {
     /// multiple times.
     refcell: RefCell<()>,
     /// The actual map containing key-value pairs.
-    map: RefCell<HashMap<K, V>>,
+    ///
+    /// We need to heap allocate here to make sure that entries don't
+    /// get invalidated if the hash map reallocates.
+    map: RefCell<HashMap<K, Box<V>>>,
 }
 
 impl<K, V> InsertMap<K, V> {
@@ -51,7 +54,7 @@ impl<K, V> InsertMap<K, V> {
             }
             hash_map::Entry::Vacant(vacancy) => {
                 let value = init()?;
-                let entry = vacancy.insert(value);
+                let entry = vacancy.insert(Box::new(value));
                 Ok(entry)
             }
         }
@@ -99,6 +102,26 @@ mod tests {
         assert_eq!(s, &"31 wins");
     }
 
+    /// Check that value insertion does not invalidate existing value
+    /// references, even in the presence of hash map reallocations.
+    #[tag(miri)]
+    #[test]
+    fn extensive_inserts() {
+        let map = InsertMap::<usize, usize>::new();
+
+        // Keep a reference to a value around while we insert more
+        // values. Later access it again to make sure nothing fishy is
+        // going on and it hasn't changed.
+        let v = map.get_or_try_insert(42, || Ok(42)).unwrap();
+        assert_eq!(v, &42);
+
+        for i in 0..1024 {
+            let x = map.get_or_try_insert(i, || Ok(i)).unwrap();
+            assert_eq!(x, &i);
+        }
+
+        assert_eq!(v, &42);
+    }
 
     /// Make sure that `InsertMap` does not allow for recursive
     /// access as part of initialization.
