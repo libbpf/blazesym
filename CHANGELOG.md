@@ -17,6 +17,7 @@ Unreleased
 - Moved symbolization and inspection sources into `source` sub-module
 - Moved `normalize::Apk` behind existing `apk` feature
 - Changed `inspect::SymInfo::size` to be an `Option`
+- Fixed unsoundness in internally used `InsertMap` type
 - Bumped minimum supported Rust version to `1.70`
 
 
