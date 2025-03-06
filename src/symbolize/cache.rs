@@ -3,8 +3,50 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::path::PathBuf;
 
 use crate::Pid;
+
+
+/// Configuration for caching of ELF related data.
+// TODO: Add `debug_syms` flag for caching DWARF data.
+#[derive(Clone)]
+pub struct Elf {
+    /// The path to an ELF file.
+    pub path: PathBuf,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
+}
+
+impl Elf {
+    /// Create a new [`Elf`] object, referencing the provided path.
+    #[inline]
+    pub fn new(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            _non_exhaustive: (),
+        }
+    }
+}
+
+impl From<Elf> for Cache {
+    #[inline]
+    fn from(elf: Elf) -> Self {
+        Self::Elf(elf)
+    }
+}
+
+impl Debug for Elf {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let Self {
+            path,
+            _non_exhaustive: (),
+        } = self;
+
+        f.debug_tuple(stringify!(Elf)).field(path).finish()
+    }
+}
 
 
 /// Configuration for caching of process-level data.
@@ -77,6 +119,8 @@ impl From<Process> for Cache {
 #[derive(Clone)]
 #[non_exhaustive]
 pub enum Cache {
+    /// Information about an ELF file.
+    Elf(Elf),
     /// Information about a process.
     Process(Process),
 }
@@ -84,6 +128,7 @@ pub enum Cache {
 impl Debug for Cache {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         match self {
+            Self::Elf(elf) => Debug::fmt(elf, f),
             Self::Process(process) => Debug::fmt(process, f),
         }
     }
@@ -98,6 +143,11 @@ mod tests {
     /// Exercise the `Debug` representation of various types.
     #[test]
     fn debug_repr() {
+        let elf = Elf::new("/foobar/baz");
+        assert_eq!(format!("{elf:?}"), "Elf(\"/foobar/baz\")");
+        let cache = Cache::from(elf);
+        assert_eq!(format!("{cache:?}"), "Elf(\"/foobar/baz\")");
+
         let process = Process::new(Pid::Slf);
         assert_eq!(format!("{process:?}"), "Process(self)");
         let process = Process::new(Pid::from(1234));

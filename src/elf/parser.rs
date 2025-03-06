@@ -1277,6 +1277,14 @@ where
         )
     }
 
+    pub(crate) fn cache(&self) -> Result<()> {
+        let _cache = self.cache.ensure_symtab_cache()?;
+        let _str2symtab = self.cache.ensure_str2symtab()?;
+        let _cache = self.cache.ensure_dynsym_cache()?;
+        let _str2dynsym = self.cache.ensure_str2dynsym()?;
+        Ok(())
+    }
+
     /// Retrieve the path to the file this object operates on.
     #[inline]
     pub(crate) fn path(&self) -> Option<&Path> {

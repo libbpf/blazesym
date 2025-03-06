@@ -423,6 +423,52 @@ fn symbolize_elf_stripped() {
     assert_eq!(result, Symbolized::Unknown(Reason::MissingSyms));
 }
 
+/// Check that we can symbolize data in a non-existent ELF binary after
+/// caching it.
+#[tag(other_os)]
+#[test]
+fn symbolize_elf_cached() {
+    let dir = tempdir().unwrap();
+    let path__ = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.bin");
+    let path = dir.path().join("test-stable-addrs-temporary.bin");
+    let _count = copy(&path__, &path).unwrap();
+
+    let symbolizer = Symbolizer::new();
+
+    let test_symbolize = || {
+        let src = Source::Elf(Elf::new(&path));
+        let result = symbolizer
+            .symbolize_single(&src, Input::VirtOffset(0x2000200))
+            .unwrap_or_else(|err| panic!("{err:?}"))
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(result.name, "factorial");
+        assert_eq!(result.addr, 0x2000200);
+    };
+
+    let () = symbolizer
+        .cache(&cache::Cache::from(cache::Elf::new(&path)))
+        .unwrap();
+
+    // Remove the symbolization source and make sure that we can still
+    // symbolize.
+    let () = remove_file(&path).unwrap();
+    let () = test_symbolize();
+
+    // Attempting to cache the entry again should fail, because the file
+    // no longer exists.
+    let err = symbolizer
+        .cache(&cache::Cache::from(cache::Elf::new(&path)))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    // And yet, we should still be able to symbolize.
+    let () = test_symbolize();
+}
+
 /// Make sure that we report (enabled) or don't report (disabled) inlined
 /// functions with DWARF and Gsym sources.
 #[tag(other_os)]
@@ -830,13 +876,27 @@ fn symbolize_process_exited_cached_vmas() {
     // longer be present with the process having exited.
     process.map_files = false;
 
-    let src = Source::Process(process);
-    let result = symbolizer
-        .symbolize_single(&src, Input::AbsAddr(addr))
-        .unwrap()
-        .into_sym()
-        .unwrap();
-    assert_eq!(result.name, "await_input");
+    let test_symbolize = || {
+        let src = Source::Process(process.clone());
+        let result = symbolizer
+            .symbolize_single(&src, Input::AbsAddr(addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+        assert_eq!(result.name, "await_input");
+    };
+
+    let () = test_symbolize();
+
+    // Attempting to cache the entry again should fail, because the
+    // process no longer exists.
+    let err = symbolizer
+        .cache(&cache::Cache::from(cache::Process::new(pid)))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+
+    // And yet, we should still be able to symbolize.
+    let () = test_symbolize();
 }
 
 /// Check that we can symbolize an address residing in a zip archive.

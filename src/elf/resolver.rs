@@ -168,6 +168,12 @@ impl ElfResolver {
         }
     }
 
+    pub(crate) fn cache(&self) -> Result<()> {
+        // TODO: Does not yet work for debug symbols.
+        let () = self.parser().cache()?;
+        Ok(())
+    }
+
     /// Retrieve the path to the ELF file represented by this resolver.
     pub(crate) fn path(&self) -> Option<&Path> {
         self.parser().path()

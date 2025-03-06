@@ -2,7 +2,7 @@ Unreleased
 ----------
 - Added support for 32 bit ELF binaries
 - Added `symbolize::Symbolizer::cache` method for caching process VMA
-  metadata
+  as well as ELF metadata
 - Added `normalize::NormalizeOpts::apk_to_elf` attribute for normalizing
   addresses mapping to APKs to the contained ELF file
 - Added `symbolize::Sym::module` attribute
