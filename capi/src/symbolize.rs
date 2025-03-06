@@ -763,16 +763,20 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 }
 
 
-/// Symbolize a list of process absolute addresses.
+/// Cache VMA meta data associated with a process.
 ///
-/// On success, the function returns a [`blaze_syms`] containing an
-/// array of `abs_addr_cnt` [`blaze_sym`] objects. The returned object
-/// should be released using [`blaze_syms_free`] once it is no longer
-/// needed.
+/// Cache VMA meta data associated with a process. This will speed up
+/// subsequent symbolization requests while also enabling symbolization
+/// of addresses belonging to processes that exited after being cache
+/// this way.
 ///
-/// On error, the function returns `NULL` and sets the thread's last error to
-/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
-/// error.
+/// If this method fails, any previously cached data is left untouched
+/// and will be used subsequently as if no failure occurred. Put
+/// differently, this method is only effectful on the happy path.
+///
+/// The function sets the thread's last error to either `BLAZE_ERR_OK`
+/// to indicate success or different error code associated with the
+/// problem encountered. Use [`blaze_err_last`] to retrieve this error.
 ///
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
