@@ -57,21 +57,21 @@ impl<T> Entry<T> {
 
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-enum CacheState {
-    Cached,
-    Uncached,
+enum PinState {
+    Pinned,
+    Unpinned,
 }
 
 #[derive(Debug)]
 struct PathEntry<T> {
     /// Meta data corresponding to the most recently inserted entry.
-    current: Cell<Option<(CacheState, FileMeta)>>,
+    current: Cell<Option<(PinState, FileMeta)>>,
     /// The map of entries.
     entries: InsertMap<FileMeta, Entry<T>>,
 }
 
 impl<T> PathEntry<T> {
-    fn get_or_try_insert<F>(&self, meta: (CacheState, FileMeta), init: F) -> Result<&Entry<T>>
+    fn get_or_try_insert<F>(&self, meta: (PinState, FileMeta), init: F) -> Result<&Entry<T>>
     where
         F: FnOnce() -> Result<Entry<T>>,
     {
@@ -164,8 +164,8 @@ impl<T> FileCache<T> {
         let path_entry = self
             .cache
             .get_or_insert(path.to_path_buf(), PathEntry::default);
-        if let Some((cached, current_meta)) = path_entry.current.get() {
-            if !self.auto_reload || cached == CacheState::Cached {
+        if let Some((pin_state, current_meta)) = path_entry.current.get() {
+            if !self.auto_reload || pin_state == PinState::Pinned {
                 // SANITY: Our invariant states that if there is a
                 //         `PathEntry::current` a corresponding entry
                 //         must be in `PathEntry::entries`.
@@ -175,7 +175,7 @@ impl<T> FileCache<T> {
         }
 
         let stat = stat(path).with_context(|| format!("failed to stat {}", path.display()))?;
-        let meta = (CacheState::Uncached, FileMeta::from(&stat));
+        let meta = (PinState::Unpinned, FileMeta::from(&stat));
         let entry = path_entry.get_or_try_insert(meta, || {
             // We may end up associating this file with a potentially
             // outdated `stat` (which could have changed), but the only
@@ -190,25 +190,25 @@ impl<T> FileCache<T> {
         Ok((&entry.file, &entry.value))
     }
 
-    fn set_cache_state(&self, path: &Path, cache_state: CacheState) -> Option<()> {
+    fn set_pin_state(&self, path: &Path, pin_state: PinState) -> Option<()> {
         let path_entry = self.cache.get(path)?;
         let current = path_entry.current.get()?;
-        let () = path_entry.current.set(Some((cache_state, current.1)));
+        let () = path_entry.current.set(Some((pin_state, current.1)));
         Some(())
     }
 
-    /// Mark the entry for the file at the given `path` as "cached".
+    /// Pin the entry for the file at the given `path`.
     ///
-    /// A "cached" entry is one on which no auto reloading will take
-    /// place and it will supersede any "uncached" entries already
-    /// available (i.e., it acts as the most recent entry moving
-    /// forward).
-    pub(crate) fn cache(&self, path: &Path) -> Option<()> {
-        self.set_cache_state(path, CacheState::Cached)
+    /// A pinned entry is one on which no auto reloading will take place
+    /// and it will supersede any unpinned entries already available
+    /// (i.e., it acts as the most recent entry moving forward until
+    /// unpinned).
+    pub(crate) fn pin(&self, path: &Path) -> Option<()> {
+        self.set_pin_state(path, PinState::Pinned)
     }
 
-    pub(crate) fn uncache(&self, path: &Path) -> Option<()> {
-        self.set_cache_state(path, CacheState::Uncached)
+    pub(crate) fn unpin(&self, path: &Path) -> Option<()> {
+        self.set_pin_state(path, PinState::Unpinned)
     }
 }
 
@@ -299,7 +299,7 @@ mod tests {
             let modified = {
                 let (file, cell) = cache.entry(tmpfile.path()).unwrap();
                 if cached {
-                    let () = cache.cache(tmpfile.path()).unwrap();
+                    let () = cache.pin(tmpfile.path()).unwrap();
                 }
                 assert_eq!(cell.get(), None);
 
@@ -353,7 +353,7 @@ mod tests {
             let cache = FileCache::<usize>::builder().build();
             let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
             if cached {
-                let () = cache.cache(tmpfile.path()).unwrap();
+                let () = cache.pin(tmpfile.path()).unwrap();
             }
             let () = cell.set(42).unwrap();
 
