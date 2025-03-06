@@ -37,6 +37,47 @@ use crate::util::slice_from_aligned_user_array;
 use crate::util::slice_from_user_array;
 
 
+/// Configuration for caching of ELF symbolization data.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_cache_src_elf {
+    /// The size of this object's type.
+    ///
+    /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
+    /// ensure compatibility in the presence of member additions.
+    pub type_size: usize,
+    /// The path to the ELF file.
+    pub path: *const c_char,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 8],
+}
+
+impl Default for blaze_cache_src_elf {
+    fn default() -> Self {
+        Self {
+            type_size: mem::size_of::<Self>(),
+            path: ptr::null(),
+            reserved: [0; 8],
+        }
+    }
+}
+
+impl From<blaze_cache_src_elf> for cache::Elf {
+    fn from(elf: blaze_cache_src_elf) -> Self {
+        let blaze_cache_src_elf {
+            type_size: _,
+            path,
+            reserved: _,
+        } = elf;
+        Self {
+            path: unsafe { from_cstr(path) },
+            _non_exhaustive: (),
+        }
+    }
+}
+
+
 /// Configuration for caching of process-level data.
 #[repr(C)]
 #[derive(Debug)]
@@ -763,6 +804,39 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 }
 
 
+/// Cache an ELF symbolization source.
+///
+/// Cache symbolization data of an ELF file.
+///
+/// The function sets the thread's last error to either `BLAZE_ERR_OK`
+/// to indicate success or a different error code associated with the
+/// problem encountered. Use [`blaze_err_last`] to retrieve this error.
+///
+/// # Safety
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `cache` needs to point to a valid [`blaze_cache_src_process`] object
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_cache_elf(
+    symbolizer: *mut blaze_symbolizer,
+    cache: *const blaze_cache_src_elf,
+) {
+    if !input_zeroed!(cache, blaze_cache_src_elf) {
+        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        return
+    }
+    let cache = input_sanitize!(cache, blaze_cache_src_elf);
+    let cache = cache::Cache::from(cache::Elf::from(cache));
+
+    // SAFETY: The caller ensures that the pointer is valid.
+    let symbolizer = unsafe { &*symbolizer };
+    let result = symbolizer.cache(&cache);
+    let err = result
+        .map(|()| blaze_err::BLAZE_ERR_OK)
+        .unwrap_or_else(|err| err.kind().into());
+    let () = set_last_err(err);
+}
+
+
 /// Cache VMA meta data associated with a process.
 ///
 /// Cache VMA meta data associated with a process. This will speed up
@@ -775,7 +849,7 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 /// differently, this method is only effectful on the happy path.
 ///
 /// The function sets the thread's last error to either `BLAZE_ERR_OK`
-/// to indicate success or different error code associated with the
+/// to indicate success or a different error code associated with the
 /// problem encountered. Use [`blaze_err_last`] to retrieve this error.
 ///
 /// # Safety
@@ -1253,6 +1327,7 @@ mod tests {
     use std::ffi::CString;
     use std::fs::copy;
     use std::fs::read as read_file;
+    use std::fs::remove_file;
     use std::hint::black_box;
     use std::io::Error;
     use std::os::unix::ffi::OsStringExt as _;
@@ -1275,6 +1350,7 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
+        assert_eq!(mem::size_of::<blaze_cache_src_elf>(), 24);
         assert_eq!(mem::size_of::<blaze_cache_src_process>(), 24);
         assert_eq!(mem::size_of::<blaze_symbolize_src_elf>(), 24);
         assert_eq!(mem::size_of::<blaze_symbolize_src_kernel>(), 32);
@@ -1806,6 +1882,61 @@ mod tests {
             unsafe { CStr::from_ptr(sym.name) },
             CStr::from_bytes_with_nul(b"the_answer\0").unwrap()
         );
+
+        let () = unsafe { blaze_syms_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
+    /// Check that we can symbolize data in a non-existent ELF binary after
+    /// caching it.
+    #[tag(other_os)]
+    #[test]
+    fn symbolize_elf_cached() {
+        let dir = tempdir().unwrap();
+        let path__ = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addrs.bin");
+        let path = dir.path().join("test-stable-addrs-temporary.bin");
+        let _count = copy(&path__, &path).unwrap();
+
+        let symbolizer = blaze_symbolizer_new();
+
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let cache = blaze_cache_src_elf {
+            path: path_c.as_ptr(),
+            ..Default::default()
+        };
+        let () = unsafe { blaze_symbolize_cache_elf(symbolizer, &cache) };
+        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+
+        let () = remove_file(&path).unwrap();
+
+        let src = blaze_symbolize_src_elf {
+            path: path_c.as_ptr(),
+            debug_syms: false,
+            ..Default::default()
+        };
+        let addrs = [0x2000200];
+        let result = unsafe {
+            blaze_symbolize_elf_virt_offsets(symbolizer, &src, addrs.as_ptr(), addrs.len())
+        };
+        assert!(!result.is_null());
+
+        let result = unsafe { &*result };
+        assert_eq!(result.cnt, 1);
+        let syms = unsafe { slice::from_raw_parts(result.syms.as_ptr(), result.cnt) };
+        let sym = &syms[0];
+
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym.name) },
+            CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+        );
+        assert_eq!(
+            sym.reason,
+            blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_SUCCESS
+        );
+        assert_eq!(sym.addr, 0x2000200);
 
         let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };

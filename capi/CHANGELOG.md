@@ -9,7 +9,9 @@ Unreleased
   `vmlinux`
 - Added support for disabling `kallsyms` and `vmlinux` to
   `blaze_symbolize_src_kernel`
-- Added `blaze_symbolize_cache_process` for caching process VMA metadata
+- Added `blaze_symbolize_cache_elf` for caching of ELF data
+- Added `blaze_symbolize_cache_process` for caching of process VMA
+  metadata
 
 
 0.1.0-rc.2
