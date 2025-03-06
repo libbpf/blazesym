@@ -159,7 +159,8 @@ impl<T> FileCache<T> {
         Builder::<T>::default()
     }
 
-    fn entry_impl(&self, path: &Path, cache_state: CacheState) -> Result<(&File, &OnceCell<T>)> {
+    /// Retrieve an entry for the file at the given `path`.
+    pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
         let path_entry = self
             .cache
             .get_or_insert(path.to_path_buf(), PathEntry::default);
@@ -174,7 +175,7 @@ impl<T> FileCache<T> {
         }
 
         let stat = stat(path).with_context(|| format!("failed to stat {}", path.display()))?;
-        let meta = (cache_state, FileMeta::from(&stat));
+        let meta = (CacheState::Uncached, FileMeta::from(&stat));
         let entry = path_entry.get_or_try_insert(meta, || {
             // We may end up associating this file with a potentially
             // outdated `stat` (which could have changed), but the only
@@ -189,21 +190,25 @@ impl<T> FileCache<T> {
         Ok((&entry.file, &entry.value))
     }
 
-
-    /// Retrieve an entry for the file at the given `path`.
-    pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
-        self.entry_impl(path, CacheState::Uncached)
+    fn set_cache_state(&self, path: &Path, cache_state: CacheState) -> Option<()> {
+        let path_entry = self.cache.get(path)?;
+        let current = path_entry.current.get()?;
+        let () = path_entry.current.set(Some((cache_state, current.1)));
+        Some(())
     }
 
-    /// Retrieve an entry for the file at the given `path`.
+    /// Mark the entry for the file at the given `path` as "cached".
     ///
-    /// The entry is marked as "cached", meaning that no auto reloading
-    /// will take place and it will supersede any "uncached" entries
-    /// already available (i.e., it acts as the most recent entry moving
+    /// A "cached" entry is one on which no auto reloading will take
+    /// place and it will supersede any "uncached" entries already
+    /// available (i.e., it acts as the most recent entry moving
     /// forward).
-    #[cfg(test)]
-    pub(crate) fn entry_cached(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
-        self.entry_impl(path, CacheState::Cached)
+    pub(crate) fn cache(&self, path: &Path) -> Option<()> {
+        self.set_cache_state(path, CacheState::Cached)
+    }
+
+    pub(crate) fn uncache(&self, path: &Path) -> Option<()> {
+        self.set_cache_state(path, CacheState::Uncached)
     }
 }
 
@@ -292,11 +297,10 @@ mod tests {
                 .build();
             let tmpfile = NamedTempFile::new().unwrap();
             let modified = {
-                let (file, cell) = if cached {
-                    cache.entry_cached(tmpfile.path()).unwrap()
-                } else {
-                    cache.entry(tmpfile.path()).unwrap()
-                };
+                let (file, cell) = cache.entry(tmpfile.path()).unwrap();
+                if cached {
+                    let () = cache.cache(tmpfile.path()).unwrap();
+                }
                 assert_eq!(cell.get(), None);
 
                 let () = cell.set(42).unwrap();
@@ -347,11 +351,10 @@ mod tests {
         fn test(cached: bool) {
             let tmpfile = NamedTempFile::new().unwrap();
             let cache = FileCache::<usize>::builder().build();
-            let (_file, cell) = if cached {
-                cache.entry_cached(tmpfile.path()).unwrap()
-            } else {
-                cache.entry(tmpfile.path()).unwrap()
-            };
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            if cached {
+                let () = cache.cache(tmpfile.path()).unwrap();
+            }
             let () = cell.set(42).unwrap();
 
             let path = tmpfile.path().to_path_buf();
