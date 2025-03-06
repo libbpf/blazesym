@@ -629,6 +629,28 @@ typedef struct blaze_symbolizer_opts {
 } blaze_symbolizer_opts;
 
 /**
+ * Configuration for caching of ELF symbolization data.
+ */
+typedef struct blaze_cache_src_elf {
+  /**
+   * The size of this object's type.
+   *
+   * Make sure to initialize it to `sizeof(<type>)`. This member is used to
+   * ensure compatibility in the presence of member additions.
+   */
+  size_t type_size;
+  /**
+   * The path to the ELF file.
+   */
+  const char *path;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[8];
+} blaze_cache_src_elf;
+
+/**
  * Configuration for caching of process-level data.
  */
 typedef struct blaze_cache_src_process {
@@ -1269,6 +1291,22 @@ blaze_symbolizer *blaze_symbolizer_new_opts(const struct blaze_symbolizer_opts *
 void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
 
 /**
+ * Cache an ELF symbolization source.
+ *
+ * Cache symbolization data of an ELF file.
+ *
+ * The function sets the thread's last error to either `BLAZE_ERR_OK`
+ * to indicate success or a different error code associated with the
+ * problem encountered. Use [`blaze_err_last`] to retrieve this error.
+ *
+ * # Safety
+ * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+ * - `cache` needs to point to a valid [`blaze_cache_src_process`] object
+ */
+void blaze_symbolize_cache_elf(blaze_symbolizer *symbolizer,
+                               const struct blaze_cache_src_elf *cache);
+
+/**
  * Cache VMA meta data associated with a process.
  *
  * Cache VMA meta data associated with a process. This will speed up
@@ -1281,7 +1319,7 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  * differently, this method is only effectful on the happy path.
  *
  * The function sets the thread's last error to either `BLAZE_ERR_OK`
- * to indicate success or different error code associated with the
+ * to indicate success or a different error code associated with the
  * problem encountered. Use [`blaze_err_last`] to retrieve this error.
  *
  * # Safety
