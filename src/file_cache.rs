@@ -223,6 +223,8 @@ impl<T> Default for FileCache<T> {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "nightly")]
+    use std::hint::black_box;
     use std::io::Read as _;
     use std::io::Write as _;
     use std::thread::sleep;
@@ -231,6 +233,9 @@ mod tests {
     use tempfile::tempdir;
     use tempfile::tempfile;
     use tempfile::NamedTempFile;
+
+    #[cfg(feature = "nightly")]
+    use test::Bencher;
 
     use crate::ErrorKind;
 
@@ -373,5 +378,40 @@ mod tests {
         for pin in [false, true] {
             let () = test(pin);
         }
+    }
+
+    #[cfg(feature = "nightly")]
+    fn bench_entry_retrieval_no_change_impl(b: &mut Bencher, pin: bool) {
+        let tmpfile = NamedTempFile::new().unwrap();
+        let path = tmpfile.path();
+        let cache = FileCache::<usize>::builder().build();
+        let (_file, cell) = cache.entry(path).unwrap();
+        if pin {
+            let () = cache.pin(path).unwrap();
+        }
+        let () = cell.set(42).unwrap();
+
+        let () = b.iter(|| {
+            let entry = cache.entry(&path).unwrap();
+            let _entry = black_box(entry);
+        });
+    }
+
+    /// Benchmark the (best case) retrieval of a `FileCache` entry with
+    /// only a single entry in it.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_entry_retrieval_no_change(b: &mut Bencher) {
+        let pin = false;
+        bench_entry_retrieval_no_change_impl(b, pin)
+    }
+
+    /// Benchmark the (best case) retrieval of a `FileCache` entry with
+    /// only a single pinned entry in it.
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_entry_retrieval_no_change_pinned(b: &mut Bencher) {
+        let pin = true;
+        bench_entry_retrieval_no_change_impl(b, pin)
     }
 }
