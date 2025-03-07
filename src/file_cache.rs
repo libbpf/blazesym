@@ -291,14 +291,14 @@ mod tests {
     /// Make sure that a changed file updates the cache entry.
     #[test]
     fn outdated() {
-        fn test(auto_reload: bool, cached: bool) {
+        fn test(auto_reload: bool, pin: bool) {
             let cache = FileCache::<usize>::builder()
                 .enable_auto_reload(auto_reload)
                 .build();
             let tmpfile = NamedTempFile::new().unwrap();
             let modified = {
                 let (file, cell) = cache.entry(tmpfile.path()).unwrap();
-                if cached {
+                if pin {
                     let () = cache.pin(tmpfile.path()).unwrap();
                 }
                 assert_eq!(cell.get(), None);
@@ -322,7 +322,7 @@ mod tests {
             {
                 let (mut file, entry) = cache.entry(&path).unwrap();
 
-                if auto_reload && !cached {
+                if auto_reload && !pin {
                     assert_eq!(entry.get(), None);
                     assert_ne!(file.metadata().unwrap().modified().unwrap(), modified);
 
@@ -337,22 +337,22 @@ mod tests {
         }
 
         for auto_reload in [false, true] {
-            for cached in [false, true] {
-                let () = test(auto_reload, cached);
+            for pin in [false, true] {
+                let () = test(auto_reload, pin);
             }
         }
     }
 
     /// Check that a removed file poses no problem if associated data
-    /// had been cached.
+    /// had been pinned.
     #[test]
     fn removed() {
         #[track_caller]
-        fn test(cached: bool) {
+        fn test(pin: bool) {
             let tmpfile = NamedTempFile::new().unwrap();
             let cache = FileCache::<usize>::builder().build();
             let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
-            if cached {
+            if pin {
                 let () = cache.pin(tmpfile.path()).unwrap();
             }
             let () = cell.set(42).unwrap();
@@ -361,7 +361,7 @@ mod tests {
             let () = drop(tmpfile);
 
             let result = cache.entry(&path);
-            if cached {
+            if pin {
                 let (_file, cell) = result.unwrap();
                 assert_eq!(cell.get(), Some(&42));
             } else {
@@ -370,8 +370,8 @@ mod tests {
             }
         }
 
-        for cached in [false, true] {
-            let () = test(cached);
+        for pin in [false, true] {
+            let () = test(pin);
         }
     }
 }
