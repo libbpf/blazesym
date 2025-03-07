@@ -425,7 +425,6 @@ fn symbolize_elf_stripped() {
 
 /// Check that we can symbolize data in a non-existent ELF binary after
 /// caching it.
-#[tag(other_os)]
 #[test]
 fn symbolize_elf_cached() {
     let dir = tempdir().unwrap();
