@@ -14,6 +14,7 @@ Unreleased
 - Adjusted `vmlinux` based kernel address symbolization logic to take
   into account system KASLR state
   - Added `kaslr_offset` member to `symbolize::Kernel`
+- Adjusted ELF logic to include `STT_NOTYPE` symbols in symbolization
 - Moved symbolization and inspection sources into `source` sub-module
 - Moved `normalize::Apk` behind existing `apk` feature
 - Changed `inspect::SymInfo::size` to be an `Option`
