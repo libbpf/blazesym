@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Added `--debug-dirs` and `--no-debug-syms` options to `symbolize
+  process` sub-command
 - Added `--no-debug-syms` option to `inspect dump elf` sub-command
 - Added `--kallsyms` and `--vmlinux` options to `symbolize-kernel
   sub-command

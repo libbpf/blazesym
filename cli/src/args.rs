@@ -246,6 +246,8 @@ pub mod symbolize {
         /// The PID of the process the provided addresses belong to.
         #[arg(short, long, value_parser = parse_pid)]
         pub pid: Pid,
+        #[command(flatten)]
+        pub debug_args: DebugArgs,
         /// The addresses to symbolize.
         #[arg(value_parser = parse_addr)]
         pub addrs: Vec<Addr>,
