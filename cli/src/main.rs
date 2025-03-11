@@ -262,10 +262,18 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
         }
         args::symbolize::Symbolize::Process(args::symbolize::Process {
             pid,
+            debug_args:
+                args::symbolize::DebugArgs {
+                    debug_dirs,
+                    no_debug_syms,
+                },
             ref addrs,
             no_map_files,
         }) => {
+            builder = builder.set_debug_dirs(debug_dirs);
+
             let mut process = symbolize::source::Process::new(pid);
+            process.debug_syms = !no_debug_syms;
             process.map_files = !no_map_files;
             let src = symbolize::source::Source::from(process);
             let addrs = addrs.as_slice();
