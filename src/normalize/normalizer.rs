@@ -346,7 +346,7 @@ impl Normalizer {
             if self.cache_build_ids {
                 let (file, cell) = self.build_id_cache.entry(path)?;
                 cell.get_or_try_init(|| {
-                    let parser = ElfParser::from_file(file, path)?;
+                    let parser = ElfParser::from_file(file, path.to_path_buf().into_os_string())?;
                     let build_id =
                         read_build_id(&parser)?.map(|build_id| Cow::Owned(build_id.to_vec()));
                     Result::<_, Error>::Ok(build_id)

@@ -136,7 +136,8 @@ fn try_deref_debug_link(
                     )))
                 }
 
-                let dst_parser = Rc::new(ElfParser::from_mmap(mmap, Some(path)));
+                let module = path.into_os_string();
+                let dst_parser = Rc::new(ElfParser::from_mmap(mmap, Some(module)));
                 Ok(Some(dst_parser))
             }
             None => Ok(None),
