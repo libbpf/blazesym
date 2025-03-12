@@ -32,10 +32,7 @@ fn inspect_elf() {
         assert_eq!(result[0].addr, 0x2000200);
         assert_eq!(result[0].sym_type, SymType::Function);
         assert_ne!(result[0].file_offset, None);
-        assert_eq!(
-            result[0].obj_file_name.as_deref().unwrap(),
-            src.path().unwrap()
-        );
+        assert_eq!(result[0].module.as_deref().unwrap(), src.path().unwrap());
 
         let result = &results[1];
         if no_vars {
@@ -45,10 +42,7 @@ fn inspect_elf() {
             assert_eq!(result[0].addr, 0x4001100);
             assert_eq!(result[0].sym_type, SymType::Variable);
             assert_ne!(result[0].file_offset, None);
-            assert_eq!(
-                result[0].obj_file_name.as_deref().unwrap(),
-                src.path().unwrap()
-            );
+            assert_eq!(result[0].module.as_deref().unwrap(), src.path().unwrap());
         }
     }
 
@@ -105,7 +99,7 @@ fn inspect_breakpad() {
     assert_eq!(sym.addr, 0x200);
     assert_eq!(sym.sym_type, SymType::Function);
     assert_eq!(sym.file_offset, None);
-    assert_eq!(sym.obj_file_name, None);
+    assert_eq!(sym.module, None);
 }
 
 

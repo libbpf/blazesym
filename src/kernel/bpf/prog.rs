@@ -410,7 +410,7 @@ impl<'prog> TryFrom<&'prog BpfProg> for SymInfo<'prog> {
             size: None,
             sym_type: SymType::Function,
             file_offset: None,
-            obj_file_name: None,
+            module: None,
         };
         Ok(sym)
     }
