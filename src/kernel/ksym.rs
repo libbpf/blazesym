@@ -277,11 +277,6 @@ impl KsymResolver {
 
         by_name_idx
     }
-
-    /// Retrieve the path to the kallsyms file used by this resolver.
-    pub(crate) fn file_name(&self) -> &Path {
-        &self.file_name
-    }
 }
 
 impl Symbolize for KsymResolver {
@@ -336,7 +331,7 @@ impl Inspect for KsymResolver {
 
 impl Debug for KsymResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        write!(f, "KsymResolver")
+        write!(f, "KsymResolver(\"{}\")", self.file_name.display())
     }
 }
 

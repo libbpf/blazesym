@@ -906,7 +906,6 @@ impl<'elf> BackendImpl<'elf> for &File {
 
 
 /// A parser for ELF64 files.
-#[derive(Debug)]
 pub(crate) struct ElfParser<B = Mmap>
 where
     B: Backend,
@@ -1094,7 +1093,7 @@ where
                                 .then(|| file_offset(shdrs, &sym))
                                 .transpose()?
                                 .flatten(),
-                            module: self.path().map(Cow::Borrowed),
+                            module: self.path.as_deref().map(Cow::Borrowed),
                         });
                     }
                 }
@@ -1289,6 +1288,16 @@ where
     #[inline]
     pub(crate) fn path(&self) -> Option<&Path> {
         self.path.as_deref()
+    }
+}
+
+impl Debug for ElfParser {
+    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        let path = self
+            .path
+            .as_deref()
+            .unwrap_or_else(|| Path::new("<unknown-path>"));
+        write!(f, "ElfParser(\"{}\")", path.display())
     }
 }
 

@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::path::Path;
 use std::rc::Rc;
 
 use crate::elf::ElfResolver;
@@ -91,17 +90,8 @@ impl Debug for KernelResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(
             f,
-            "KernelResolver {} {}",
-            self.ksym_resolver
-                .as_ref()
-                .map(|resolver| resolver.file_name())
-                .unwrap_or_else(|| Path::new(""))
-                .display(),
-            self.elf_resolver
-                .as_ref()
-                .and_then(|resolver| resolver.path())
-                .unwrap_or_else(|| Path::new(""))
-                .display(),
+            "KernelResolver({:?} {:?})",
+            self.ksym_resolver, self.elf_resolver,
         )
     }
 }
@@ -110,6 +100,8 @@ impl Debug for KernelResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use std::path::Path;
 
     use crate::kernel::KALLSYMS;
 
