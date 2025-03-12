@@ -195,13 +195,10 @@ impl DwarfResolver {
         Ok(slf)
     }
 
-    /// Open a binary to load and parse .debug_line for later uses.
-    ///
-    /// `filename` is the name of an ELF binary/or shared object that
-    /// has .debug_line section.
+    /// Open a file to load DWARF debug information.
     #[cfg(test)]
-    pub(crate) fn open(filename: &Path) -> Result<Self> {
-        let parser = ElfParser::open(filename)?;
+    fn open(path: &Path) -> Result<Self> {
+        let parser = ElfParser::open(path)?;
         let debug_dirs = DEFAULT_DEBUG_DIRS
             .iter()
             .map(PathBuf::from)
