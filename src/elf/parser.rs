@@ -929,16 +929,13 @@ where
 impl ElfParser<File> {
     /// Create an `ElfParser` that uses regular file I/O on the provided
     /// file.
-    fn from_file_io<P>(file: File, path: P) -> Self
-    where
-        P: Into<PathBuf>,
-    {
+    fn from_file_io(file: File, module: OsString) -> Self {
         let _backend = Box::new(file);
         let file_ref = unsafe { mem::transmute::<&File, &'static File>(_backend.deref()) };
 
         let parser = Self {
             cache: Cache::new(file_ref),
-            module: Some(path.into().into_os_string()),
+            module: Some(module),
             _backend,
         };
         parser
@@ -953,7 +950,7 @@ impl ElfParser<File> {
         let path = path.into();
         let file =
             File::open(&path).with_context(|| format!("failed to open `{}`", path.display()))?;
-        let slf = Self::from_file_io(file, path);
+        let slf = Self::from_file_io(file, path.into_os_string());
         Ok(slf)
     }
 
@@ -965,16 +962,13 @@ impl ElfParser<File> {
 
 impl ElfParser<Mmap> {
     /// Create an `ElfParser` from an open file.
-    pub(crate) fn from_file<P>(file: &File, path: P) -> Result<Self>
-    where
-        P: Into<PathBuf>,
-    {
+    pub(crate) fn from_file(file: &File, module: OsString) -> Result<Self> {
         let mmap = Mmap::map(file).context("failed to memory map file")?;
-        Ok(Self::from_mmap(mmap, Some(path.into())))
+        Ok(Self::from_mmap(mmap, Some(module)))
     }
 
     /// Create an `ElfParser` from mmap'ed data.
-    pub(crate) fn from_mmap(mmap: Mmap, path: Option<PathBuf>) -> Self {
+    pub(crate) fn from_mmap(mmap: Mmap, module: Option<OsString>) -> Self {
         // We transmute the mmap's lifetime to static here as that is a
         // necessity for self-referentiality.
         // SAFETY: We never hand out any 'static references to cache
@@ -984,7 +978,7 @@ impl ElfParser<Mmap> {
 
         let parser = ElfParser {
             cache: Cache::new(data),
-            module: path.map(PathBuf::into_os_string),
+            module,
             _backend,
         };
         parser
@@ -994,7 +988,7 @@ impl ElfParser<Mmap> {
     pub(crate) fn open(path: &Path) -> Result<ElfParser> {
         let file =
             File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
-        Self::from_file(&file, path)
+        Self::from_file(&file, path.as_os_str().to_os_string())
     }
 }
 
@@ -1440,11 +1434,11 @@ mod tests {
             assert_eq!(ehdr.phnum, usize::try_from(PHNUM).unwrap());
         }
 
-        let path = file.path().to_path_buf();
-        let parser_mmap = ElfParser::from_file(file.as_file(), &path).unwrap();
+        let module = file.path().as_os_str().to_os_string();
+        let parser_mmap = ElfParser::from_file(file.as_file(), module.clone()).unwrap();
         let () = test(parser_mmap);
 
-        let parser_io = ElfParser::from_file_io(file.into_file(), &path);
+        let parser_io = ElfParser::from_file_io(file.into_file(), module);
         let () = test(parser_io);
     }
 
@@ -1508,11 +1502,11 @@ mod tests {
             assert_eq!(shstrndx, usize::from(SHSTRNDX));
         }
 
-        let path = file.path().to_path_buf();
-        let parser_mmap = ElfParser::from_file(file.as_file(), &path).unwrap();
+        let module = file.path().as_os_str().to_os_string();
+        let parser_mmap = ElfParser::from_file(file.as_file(), module.clone()).unwrap();
         let () = test(parser_mmap);
 
-        let parser_io = ElfParser::from_file_io(file.into_file(), &path);
+        let parser_io = ElfParser::from_file_io(file.into_file(), module);
         let () = test(parser_io);
     }
 
@@ -1714,11 +1708,11 @@ mod tests {
             assert_eq!(virt_offset, 0x1c23b4d0);
         }
 
-        let path = file.path().to_path_buf();
-        let parser_mmap = ElfParser::from_file(file.as_file(), &path).unwrap();
+        let module = file.path().as_os_str().to_os_string();
+        let parser_mmap = ElfParser::from_file(file.as_file(), module.clone()).unwrap();
         let () = test(parser_mmap);
 
-        let parser_io = ElfParser::from_file_io(file.into_file(), &path);
+        let parser_io = ElfParser::from_file_io(file.into_file(), module);
         let () = test(parser_io);
     }
 
