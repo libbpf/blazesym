@@ -923,7 +923,9 @@ where
 }
 
 impl ElfParser<File> {
-    fn open_file_io<P>(file: File, path: P) -> Self
+    /// Create an `ElfParser` that uses regular file I/O on the provided
+    /// file.
+    fn from_file_io<P>(file: File, path: P) -> Self
     where
         P: Into<PathBuf>,
     {
@@ -938,15 +940,16 @@ impl ElfParser<File> {
         parser
     }
 
-    /// Create an `ElfParser` from an open file.
-    pub(crate) fn open_non_mmap<P>(path: P) -> Result<Self>
+    /// Create an `ElfParser` employing regular file I/O, opening the
+    /// file at `path`.
+    pub(crate) fn open_file_io<P>(path: P) -> Result<Self>
     where
         P: Into<PathBuf>,
     {
         let path = path.into();
         let file =
             File::open(&path).with_context(|| format!("failed to open `{}`", path.display()))?;
-        let slf = Self::open_file_io(file, path);
+        let slf = Self::from_file_io(file, path);
         Ok(slf)
     }
 
@@ -958,7 +961,7 @@ impl ElfParser<File> {
 
 impl ElfParser<Mmap> {
     /// Create an `ElfParser` from an open file.
-    pub(crate) fn open_file<P>(file: &File, path: P) -> Result<Self>
+    pub(crate) fn from_file<P>(file: &File, path: P) -> Result<Self>
     where
         P: Into<PathBuf>,
     {
@@ -987,7 +990,7 @@ impl ElfParser<Mmap> {
     pub(crate) fn open(path: &Path) -> Result<ElfParser> {
         let file =
             File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
-        Self::open_file(&file, path)
+        Self::from_file(&file, path)
     }
 }
 
@@ -1434,10 +1437,10 @@ mod tests {
         }
 
         let path = file.path().to_path_buf();
-        let parser_mmap = ElfParser::open_file(file.as_file(), &path).unwrap();
+        let parser_mmap = ElfParser::from_file(file.as_file(), &path).unwrap();
         let () = test(parser_mmap);
 
-        let parser_io = ElfParser::open_file_io(file.into_file(), &path);
+        let parser_io = ElfParser::from_file_io(file.into_file(), &path);
         let () = test(parser_io);
     }
 
@@ -1502,10 +1505,10 @@ mod tests {
         }
 
         let path = file.path().to_path_buf();
-        let parser_mmap = ElfParser::open_file(file.as_file(), &path).unwrap();
+        let parser_mmap = ElfParser::from_file(file.as_file(), &path).unwrap();
         let () = test(parser_mmap);
 
-        let parser_io = ElfParser::open_file_io(file.into_file(), &path);
+        let parser_io = ElfParser::from_file_io(file.into_file(), &path);
         let () = test(parser_io);
     }
 
@@ -1708,10 +1711,10 @@ mod tests {
         }
 
         let path = file.path().to_path_buf();
-        let parser_mmap = ElfParser::open_file(file.as_file(), &path).unwrap();
+        let parser_mmap = ElfParser::from_file(file.as_file(), &path).unwrap();
         let () = test(parser_mmap);
 
-        let parser_io = ElfParser::open_file_io(file.into_file(), &path);
+        let parser_io = ElfParser::from_file_io(file.into_file(), &path);
         let () = test(parser_io);
     }
 

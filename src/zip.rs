@@ -472,7 +472,7 @@ mod tests {
         let mut file = NamedTempFile::new().unwrap();
         let () = file.write_all(entry.data).unwrap();
 
-        let elf = ElfParser::open_file(file.as_file(), file.path()).unwrap();
+        let elf = ElfParser::from_file(file.as_file(), file.path()).unwrap();
         assert!(elf.find_section(".text").is_ok());
     }
 

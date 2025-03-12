@@ -82,7 +82,7 @@ impl FileCache<ElfResolverData> {
             };
             Rc::clone(resolver)
         } else {
-            let parser = Rc::new(ElfParser::open_file(file, path)?);
+            let parser = Rc::new(ElfParser::from_file(file, path)?);
             let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
             Rc::new(resolver)
         };
