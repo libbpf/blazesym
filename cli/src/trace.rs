@@ -1,4 +1,3 @@
-use std::cmp::min;
 use std::error::Error;
 use std::fmt;
 use std::fmt::Debug;
@@ -8,6 +7,8 @@ use std::fmt::Result as FmtResult;
 use std::io;
 use std::io::Write;
 use std::mem::MaybeUninit;
+
+use bufio::Writer as StackWriter;
 
 use tracing::field::Field;
 use tracing::field::Visit;
@@ -50,54 +51,6 @@ where
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let () = self.0.write_all(s.as_bytes()).map_err(|_err| fmt::Error)?;
-        Ok(())
-    }
-}
-
-
-/// A type implementing `io::Write` for a fixed stack-allocated slice of
-/// memory.
-struct StackWriter<'buf, const N: usize> {
-    /// The underlying stack allocated buffer.
-    buffer: &'buf mut [MaybeUninit<u8>; N],
-    /// The total number of bytes written to `buffer`.
-    written: usize,
-}
-
-impl<'buf, const N: usize> StackWriter<'buf, N> {
-    #[inline]
-    fn new(buffer: &'buf mut [MaybeUninit<u8>; N]) -> Self {
-        Self { buffer, written: 0 }
-    }
-
-    #[inline]
-    fn written(&self) -> &[u8] {
-        let slice = &self.buffer[0..self.written];
-        // TODO: Use `MaybeUninit::slice_assume_init_ref` once stable.
-        // SAFETY: This type guarantees that `written` bytes have been
-        //         initialized in the buffer.
-        unsafe { &*(slice as *const [MaybeUninit<u8>] as *const [u8]) }
-    }
-}
-
-impl<const N: usize> Write for StackWriter<'_, N> {
-    #[inline]
-    fn write(&mut self, data: &[u8]) -> io::Result<usize> {
-        let len = min(data.len(), self.buffer.len() - self.written);
-        // TODO: Use `MaybeUninit::slice_as_mut_ptr` once stable.
-        let ptr = self.buffer[self.written..].as_mut_ptr().cast::<u8>();
-        // SAFETY: Both source and destination are valid for reads and are
-        //         properly aligned as they originate from references. They
-        //         cannot overlap because this method has exclusive access
-        //         to the buffer we write to.
-        let () = unsafe { ptr.copy_from_nonoverlapping(data.as_ptr(), len) };
-
-        self.written += len;
-        Ok(len)
-    }
-
-    #[inline]
-    fn flush(&mut self) -> io::Result<()> {
         Ok(())
     }
 }
