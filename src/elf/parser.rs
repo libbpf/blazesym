@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -917,8 +918,10 @@ where
     //         Furthermore, this member has to be listed before `_mmap`
     //         to make sure we never end up with a dangling reference.
     cache: Cache<'static, B::ImplTy<'static>>,
-    /// The path to the ELF file being worked on, if available.
-    path: Option<PathBuf>,
+    /// The "module" that this parser represents.
+    ///
+    /// This can be an actual path or a more or less symbolic name.
+    module: Option<OsString>,
     /// The backend used.
     _backend: B::ObjTy,
 }
@@ -935,7 +938,7 @@ impl ElfParser<File> {
 
         let parser = Self {
             cache: Cache::new(file_ref),
-            path: Some(path.into()),
+            module: Some(path.into().into_os_string()),
             _backend,
         };
         parser
@@ -981,7 +984,7 @@ impl ElfParser<Mmap> {
 
         let parser = ElfParser {
             cache: Cache::new(data),
-            path,
+            module: path.map(PathBuf::into_os_string),
             _backend,
         };
         parser
@@ -1026,7 +1029,7 @@ where
 
         if let Some(sym) = find_sym(
             &symtab_cache.syms,
-            self.path.as_deref().map(Path::as_os_str),
+            self.module.as_deref(),
             symtab_by_addr_idx,
             &symtab_cache.strs,
             addr,
@@ -1039,7 +1042,7 @@ where
         let dynsym_by_addr_idx = dynsym_cache.ensure_by_addr_idx();
         if let Some(sym) = find_sym(
             &dynsym_cache.syms,
-            self.path.as_deref().map(Path::as_os_str),
+            self.module.as_deref(),
             dynsym_by_addr_idx,
             &dynsym_cache.strs,
             addr,
@@ -1097,7 +1100,7 @@ where
                                 .then(|| file_offset(shdrs, &sym))
                                 .transpose()?
                                 .flatten(),
-                            module: self.path.as_deref().map(Path::as_os_str).map(Cow::Borrowed),
+                            module: self.module.as_deref().map(Cow::Borrowed),
                         });
                     }
                 }
@@ -1290,18 +1293,18 @@ where
 
     /// Retrieve the path to the file this object operates on.
     #[inline]
-    pub(crate) fn path(&self) -> Option<&Path> {
-        self.path.as_deref()
+    pub(crate) fn module(&self) -> Option<&OsStr> {
+        self.module.as_deref()
     }
 }
 
 impl Debug for ElfParser {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let path = self
-            .path
+        let module = self
+            .module
             .as_deref()
-            .unwrap_or_else(|| Path::new("<unknown-path>"));
-        write!(f, "ElfParser(\"{}\")", path.display())
+            .unwrap_or_else(|| OsStr::new("<unknown>"));
+        write!(f, "ElfParser({module:?})")
     }
 }
 
