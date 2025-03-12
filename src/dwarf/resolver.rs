@@ -117,7 +117,12 @@ fn try_deref_debug_link(
     debug_dirs: &[PathBuf],
 ) -> Result<Option<Rc<ElfParser>>> {
     if let Some((file, checksum)) = read_debug_link(parser)? {
-        match find_debug_file(file, parser.path(), debug_dirs) {
+        // TODO: Usage of the module here is fishy, as it may not
+        //       represent an actual path. However, even using the
+        //       actual path is not necessarily correct. Consider if the
+        //       `ElfParser` references a map_files file.
+        let linker = parser.module().map(OsStr::as_ref);
+        match find_debug_file(file, linker, debug_dirs) {
             Some(path) => {
                 let mmap = Mmap::builder().open(&path).with_context(|| {
                     format!("failed to open debug link destination `{}`", path.display())
@@ -241,7 +246,7 @@ impl DwarfResolver {
                 .then(|| self.parser.find_file_offset(addr))
                 .transpose()?
                 .flatten(),
-            module: self.parser.path().map(Path::as_os_str).map(Cow::Borrowed),
+            module: self.parser.module().map(Cow::Borrowed),
         };
         Ok(Some(info))
     }
@@ -262,7 +267,7 @@ impl Symbolize for DwarfResolver {
                 .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
             ResolvedSym {
                 name,
-                module: self.parser.path().map(Path::as_os_str),
+                module: self.parser.module(),
                 addr: fn_addr,
                 size,
                 lang: unit.language().into(),
@@ -351,11 +356,11 @@ impl Inspect for DwarfResolver {
 
 impl Debug for DwarfResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let path = self
+        let module = self
             .parser()
-            .path()
-            .unwrap_or_else(|| Path::new("<unknown-path>"));
-        write!(f, "DwarfResolver(\"{}\")", path.display())
+            .module()
+            .unwrap_or_else(|| OsStr::new("<unknown>"));
+        write!(f, "DwarfResolver({module:?})")
     }
 }
 
@@ -509,8 +514,8 @@ mod tests {
             .join("data")
             .join("test-stable-addrs-dwarf-only.dbg");
         assert_eq!(
-            resolver.linkee_parser.as_ref().unwrap().path(),
-            Some(linkee_path.as_path())
+            resolver.linkee_parser.as_ref().unwrap().module(),
+            Some(linkee_path.as_os_str())
         );
     }
 
