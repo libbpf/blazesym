@@ -57,7 +57,7 @@ impl FileCache<ElfResolverData> {
     ) -> Result<&'slf Rc<ElfResolver>> {
         let (file, cell) = self.entry(path)?;
         let resolver = if let Some(data) = cell.get() {
-            if debug_dirs.is_some() {
+            let resolver = if debug_dirs.is_some() {
                 data.dwarf.get_or_try_init(|| {
                     // SANITY: We *know* a `ElfResolverData` object is
                     //         present and given that we are
@@ -79,8 +79,8 @@ impl FileCache<ElfResolverData> {
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
-            }
-            .clone()
+            };
+            Rc::clone(resolver)
         } else {
             let parser = Rc::new(ElfParser::open_file(file, path)?);
             let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
