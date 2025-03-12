@@ -173,11 +173,6 @@ impl ElfResolver {
         let () = self.parser().cache()?;
         Ok(())
     }
-
-    /// Retrieve the path to the ELF file represented by this resolver.
-    pub(crate) fn path(&self) -> Option<&Path> {
-        self.parser().path()
-    }
 }
 
 impl Symbolize for ElfResolver {
@@ -217,13 +212,11 @@ impl Inspect for ElfResolver {
 
 impl Debug for ElfResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let path = self.path().unwrap_or_else(|| Path::new("<unknown-path>"));
-        let name = match &self.backend {
+        match &self.backend {
             #[cfg(feature = "dwarf")]
-            ElfBackend::Dwarf(_) => "Dwarf",
-            ElfBackend::Elf(_) => "Elf",
-        };
-        f.debug_tuple(name).field(&path.display()).finish()
+            ElfBackend::Dwarf(dwarf) => Debug::fmt(dwarf, f),
+            ElfBackend::Elf(elf) => Debug::fmt(elf, f),
+        }
     }
 }
 
@@ -243,12 +236,12 @@ mod tests {
         let parser = Rc::new(ElfParser::open(&path).unwrap());
         let resolver = ElfResolver::from_parser(parser.clone(), None).unwrap();
         let dbg = format!("{resolver:?}");
-        assert!(dbg.starts_with("Elf("), "{dbg}");
+        assert!(dbg.starts_with("ElfParser("), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");
 
         let resolver = ElfResolver::from_parser(parser, Some(&[])).unwrap();
         let dbg = format!("{resolver:?}");
-        assert!(dbg.starts_with("Dwarf("), "{dbg}");
+        assert!(dbg.starts_with("DwarfResolver("), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");
     }
 

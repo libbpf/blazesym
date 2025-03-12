@@ -354,7 +354,11 @@ impl Inspect for DwarfResolver {
 
 impl Debug for DwarfResolver {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        f.write_str(stringify!(DwarfResolver))
+        let path = self
+            .parser()
+            .path()
+            .unwrap_or_else(|| Path::new("<unknown-path>"));
+        write!(f, "DwarfResolver(\"{}\")", path.display())
     }
 }
 
