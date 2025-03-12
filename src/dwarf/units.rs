@@ -519,7 +519,7 @@ mod tests {
                 .join("data")
                 .join(binary);
 
-            let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+            let parser = ElfParser::open(bin_name.as_path()).unwrap();
             let mut load_section = |section| reader::load_section(&parser, section);
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
             let units = Units::parse(dwarf).unwrap();
@@ -560,7 +560,7 @@ mod tests {
                 .join("data")
                 .join(binary);
 
-            let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+            let parser = ElfParser::open(bin_name.as_path()).unwrap();
             let mut load_section = |section| reader::load_section(&parser, section);
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
             let units = Units::parse(dwarf).unwrap();
@@ -582,7 +582,7 @@ mod tests {
     #[bench]
     fn bench_function_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
         let () = b.iter(|| {
@@ -598,7 +598,7 @@ mod tests {
     #[bench]
     fn bench_function_parsing_addr2line(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
         let () = b.iter(|| {
@@ -613,7 +613,7 @@ mod tests {
     #[bench]
     fn bench_inlined_function_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
         let () = b.iter(|| {
@@ -629,7 +629,7 @@ mod tests {
     #[bench]
     fn bench_inlined_function_parsing_addr2line(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
         let () = b.iter(|| {
@@ -644,7 +644,7 @@ mod tests {
     #[bench]
     fn bench_line_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
         let () = b.iter(|| {
@@ -660,7 +660,7 @@ mod tests {
     #[bench]
     fn bench_line_parsing_addr2line(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         let mut load_section = |section| reader::load_section(&parser, section);
 
         let () = b.iter(|| {

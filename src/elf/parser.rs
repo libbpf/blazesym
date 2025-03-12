@@ -1355,7 +1355,7 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         assert_ne!(format!("{parser:?}"), "");
     }
 
@@ -1517,7 +1517,7 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
     }
 
@@ -1527,7 +1527,7 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
         let (name, addr, size) = parser.pick_symtab_addr();
@@ -1544,7 +1544,7 @@ mod tests {
             .join("data")
             .join("test-no-debug.bin");
 
-        let parser = ElfParser::open(bin_name.as_ref()).unwrap();
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
         assert!(parser.find_section(".shstrtab").is_ok());
 
         let (name, addr, size) = parser.pick_symtab_addr();
@@ -1945,7 +1945,7 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("vmlinux-5.17.12-100.fc34.x86_64.elf");
-        let parser = ElfParser::open(&path).unwrap();
+        let parser = ElfParser::open(path.as_path()).unwrap();
         let mmap = &parser._backend;
 
         // Our memory mapping is created only once and criterion does a
