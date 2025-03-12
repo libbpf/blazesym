@@ -1523,7 +1523,7 @@ mod tests {
         let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs.bin");
-        let parser = Rc::new(ElfParser::open(&test_elf).unwrap());
+        let parser = Rc::new(ElfParser::open(test_elf.as_path()).unwrap());
         let resolver = ElfResolver::from_parser(parser, None).unwrap();
         let resolver = Resolver::Cached(&resolver);
         assert_ne!(format!("{resolver:?}"), "");

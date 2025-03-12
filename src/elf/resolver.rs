@@ -233,7 +233,7 @@ mod tests {
             .join("data")
             .join("test-stable-addrs.bin");
 
-        let parser = Rc::new(ElfParser::open(&path).unwrap());
+        let parser = Rc::new(ElfParser::open(path.as_path()).unwrap());
         let resolver = ElfResolver::from_parser(parser.clone(), None).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("ElfParser("), "{dbg}");
@@ -252,7 +252,7 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs-no-dwarf.bin");
-        let parser = ElfParser::open(&path).unwrap();
+        let parser = ElfParser::open(path.as_path()).unwrap();
 
         assert_eq!(parser.find_file_offset(0x0).unwrap(), None);
         assert_eq!(parser.find_file_offset(0xffffffffffffffff).unwrap(), None);

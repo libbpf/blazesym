@@ -277,7 +277,7 @@ mod tests {
             .join("data")
             .join("test-stable-addrs-stripped-with-link.bin");
 
-        let parser = ElfParser::open(&elf).unwrap();
+        let parser = ElfParser::open(elf.as_path()).unwrap();
         let (file, crc) = read_debug_link(&parser).unwrap().unwrap();
         assert_eq!(file, OsStr::new("test-stable-addrs-dwarf-only.dbg"));
 
