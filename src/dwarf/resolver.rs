@@ -244,7 +244,7 @@ impl DwarfResolver {
                 .then(|| self.parser.find_file_offset(addr))
                 .transpose()?
                 .flatten(),
-            obj_file_name: self.parser.path().map(Cow::Borrowed),
+            module: self.parser.path().map(Cow::Borrowed),
         };
         Ok(Some(info))
     }

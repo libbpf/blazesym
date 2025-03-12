@@ -52,8 +52,8 @@ pub struct SymInfo<'src> {
     pub sym_type: SymType,
     /// The offset in the object file.
     pub file_offset: Option<u64>,
-    /// The file name of the shared object.
-    pub obj_file_name: Option<Cow<'src, Path>>,
+    /// The path to or name of the module containing the symbol.
+    pub module: Option<Cow<'src, Path>>,
 }
 
 impl SymInfo<'_> {
@@ -67,8 +67,8 @@ impl SymInfo<'_> {
             size: self.size,
             sym_type: self.sym_type,
             file_offset: self.file_offset,
-            obj_file_name: self
-                .obj_file_name
+            module: self
+                .module
                 .as_deref()
                 .map(|path| Cow::Owned(path.to_path_buf())),
         }

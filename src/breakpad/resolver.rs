@@ -41,7 +41,7 @@ impl<'func> From<&'func Function> for SymInfo<'func> {
             size: Some(func.size as _),
             sym_type: SymType::Function,
             file_offset: None,
-            obj_file_name: None,
+            module: None,
         }
     }
 }

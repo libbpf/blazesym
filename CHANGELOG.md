@@ -7,6 +7,7 @@ Unreleased
   addresses mapping to APKs to the contained ELF file
 - Added `symbolize::Sym::module` attribute
 - Renamed `symbolize::Source::kernel_image` to `vmlinux`
+- Renamed `inspect::SymInfo::obj_file_name` to `module`
 - Adjusted kernel symbolization logic to give preference to `vmlinux`
   file, if present
 - Changed `symbolize::Kernel::{kallsyms,kernel_image}` to support

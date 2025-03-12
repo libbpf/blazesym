@@ -1094,7 +1094,7 @@ where
                                 .then(|| file_offset(shdrs, &sym))
                                 .transpose()?
                                 .flatten(),
-                            obj_file_name: self.path().map(Cow::Borrowed),
+                            module: self.path().map(Cow::Borrowed),
                         });
                     }
                 }
@@ -1157,7 +1157,7 @@ where
                         .then(|| file_offset(shdrs, &sym))
                         .transpose()?
                         .flatten(),
-                    obj_file_name: None,
+                    module: None,
                 };
                 if let ControlFlow::Break(()) = f(&sym_info) {
                     return Ok(())

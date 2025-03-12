@@ -7,6 +7,7 @@ Unreleased
 - Changed `size` attribute of `blaze_sym_info` to be signed
 - Renamed `kernel_image` member of `blaze_symbolize_src_kernel` to
   `vmlinux`
+- Renamed `obj_file_name` member of `blaze_sym_info` to `module`
 - Added support for disabling `kallsyms` and `vmlinux` to
   `blaze_symbolize_src_kernel`
 - Added `blaze_symbolize_cache_elf` for caching of ELF data

@@ -264,9 +264,9 @@ typedef struct blaze_sym_info {
    */
   uint64_t file_offset;
   /**
-   * See [`inspect::SymInfo::obj_file_name`].
+   * See [`inspect::SymInfo::module`].
    */
-  const char *obj_file_name;
+  const char *module;
   /**
    * See [`inspect::SymInfo::sym_type`].
    */

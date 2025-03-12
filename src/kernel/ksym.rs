@@ -161,7 +161,7 @@ impl<'kfunc> TryFrom<&'kfunc Kfunc> for SymInfo<'kfunc> {
             size: None,
             sym_type: SymType::Function,
             file_offset: None,
-            obj_file_name: None,
+            module: None,
         };
         Ok(sym)
     }

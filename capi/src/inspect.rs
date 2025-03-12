@@ -168,8 +168,8 @@ pub struct blaze_sym_info {
     pub size: isize,
     /// See [`inspect::SymInfo::file_offset`].
     pub file_offset: u64,
-    /// See [`inspect::SymInfo::obj_file_name`].
-    pub obj_file_name: *const c_char,
+    /// See [`inspect::SymInfo::module`].
+    pub module: *const c_char,
     /// See [`inspect::SymInfo::sym_type`].
     pub sym_type: blaze_sym_type,
     /// Unused member available for future expansion.
@@ -187,7 +187,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
         sym_cnt += syms.len() + 1;
         for sym in syms {
             str_buf_sz += sym.name.len() + 1;
-            if let Some(fname) = sym.obj_file_name.as_ref() {
+            if let Some(fname) = sym.module.as_ref() {
                 str_buf_sz += AsRef::<OsStr>::as_ref(fname.deref()).as_bytes().len() + 1;
             }
         }
@@ -218,7 +218,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
             size,
             sym_type,
             file_offset,
-            obj_file_name,
+            module,
         } in syms
         {
             let name_ptr = str_ptr.cast();
@@ -226,7 +226,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
             str_ptr = unsafe { str_ptr.add(name.len()) };
             unsafe { *str_ptr = 0 };
             str_ptr = unsafe { str_ptr.add(1) };
-            let obj_file_name = if let Some(fname) = obj_file_name.as_ref() {
+            let module = if let Some(fname) = module.as_ref() {
                 let fname = AsRef::<OsStr>::as_ref(fname.deref()).as_bytes();
                 let obj_fname_ptr = str_ptr;
                 unsafe { ptr::copy_nonoverlapping(fname.as_ptr().cast(), str_ptr, fname.len()) };
@@ -247,7 +247,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                         .unwrap_or(-1),
                     sym_type: sym_type.into(),
                     file_offset: file_offset.unwrap_or(0),
-                    obj_file_name,
+                    module,
                     reserved: [0u8; 15],
                 }
             };
@@ -260,7 +260,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 size: 0,
                 sym_type: blaze_sym_type::BLAZE_SYM_UNDEF,
                 file_offset: 0,
-                obj_file_name: ptr::null(),
+                module: ptr::null(),
                 reserved: [0u8; 15],
             }
         };
@@ -435,13 +435,13 @@ mod tests {
             addr: 42,
             size: 1337,
             file_offset: 31,
-            obj_file_name: ptr::null(),
+            module: ptr::null(),
             sym_type: blaze_sym_type::BLAZE_SYM_VAR,
             reserved: [0u8; 15],
         };
         assert_eq!(
             format!("{info:?}"),
-            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, obj_file_name: 0x0, sym_type: BLAZE_SYM_VAR, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, module: 0x0, sym_type: BLAZE_SYM_VAR, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
     }
 
@@ -520,9 +520,9 @@ mod tests {
                     assert_eq!(c_sym.sym_type, blaze_sym_type::from(sym.sym_type));
                     assert_eq!(Some(c_sym.file_offset), sym.file_offset);
                     assert_eq!(
-                        unsafe { CStr::from_ptr(c_sym.obj_file_name) }.to_bytes(),
+                        unsafe { CStr::from_ptr(c_sym.module) }.to_bytes(),
                         CString::new(
-                            sym.obj_file_name
+                            sym.module
                                 .as_deref()
                                 .unwrap()
                                 .as_os_str()
@@ -549,7 +549,7 @@ mod tests {
             size: Some(42),
             sym_type: SymType::Function,
             file_offset: Some(1337),
-            obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
+            module: Some(Path::new("/tmp/foobar.so").into()),
         }]];
         test(syms);
 
@@ -561,7 +561,7 @@ mod tests {
                 size: Some(42),
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
-                obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
+                module: Some(Path::new("/tmp/foobar.so").into()),
             },
             SymInfo {
                 name: "sym2".into(),
@@ -569,7 +569,7 @@ mod tests {
                 size: Some(45),
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
-                obj_file_name: Some(Path::new("other.so").into()),
+                module: Some(Path::new("other.so").into()),
             },
         ]];
         test(syms);
@@ -582,7 +582,7 @@ mod tests {
                 size: Some(42),
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
-                obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
+                module: Some(Path::new("/tmp/foobar.so").into()),
             }],
             vec![SymInfo {
                 name: "sym2".into(),
@@ -590,7 +590,7 @@ mod tests {
                 size: Some(45),
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
-                obj_file_name: Some(Path::new("other.so").into()),
+                module: Some(Path::new("other.so").into()),
             }],
         ];
         test(syms);
@@ -602,7 +602,7 @@ mod tests {
             size: Some(42),
             sym_type: SymType::Function,
             file_offset: Some(1337),
-            obj_file_name: Some(Path::new("/tmp/foobar.so").into()),
+            module: Some(Path::new("/tmp/foobar.so").into()),
         };
         let syms = vec![(0..200).map(|_| sym.clone()).collect()];
         test(syms);
