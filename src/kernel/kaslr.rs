@@ -98,7 +98,7 @@ fn find_kcore_kaslr_offset() -> Result<Option<u64>> {
     // Note that we cannot use the regular mmap based ELF parser
     // backend for this file, as it cannot be mmap'ed. We have to
     // fall back to using regular I/O instead.
-    let parser = match ElfParser::open_non_mmap(PROC_KCORE) {
+    let parser = match ElfParser::open_file_io(PROC_KCORE) {
         Ok(parser) => parser,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(err),
