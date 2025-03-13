@@ -22,9 +22,9 @@ mod inspector;
 pub mod source;
 
 use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::ops::ControlFlow;
-use std::path::Path;
 
 use crate::Addr;
 use crate::Result;
@@ -53,7 +53,7 @@ pub struct SymInfo<'src> {
     /// The offset in the object file.
     pub file_offset: Option<u64>,
     /// The path to or name of the module containing the symbol.
-    pub module: Option<Cow<'src, Path>>,
+    pub module: Option<Cow<'src, OsStr>>,
 }
 
 impl SymInfo<'_> {
@@ -70,7 +70,7 @@ impl SymInfo<'_> {
             module: self
                 .module
                 .as_deref()
-                .map(|path| Cow::Owned(path.to_path_buf())),
+                .map(|path| Cow::Owned(path.to_os_string())),
         }
     }
 }

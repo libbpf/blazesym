@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -79,7 +80,7 @@ fn symbol_name<'elf>(strtab: &'elf [u8], sym: &Elf64_Sym) -> Result<&'elf str> {
 
 fn find_sym<'elf>(
     syms: &ElfN_Syms<'_>,
-    file: Option<&'elf Path>,
+    module: Option<&'elf OsStr>,
     by_addr_idx: &[usize],
     strtab: &'elf [u8],
     addr: Addr,
@@ -114,7 +115,7 @@ fn find_sym<'elf>(
                 {
                     let sym = ResolvedSym {
                         name: symbol_name(strtab, &sym)?,
-                        module: file,
+                        module,
                         addr: sym.st_value as Addr,
                         size: if sym.st_size == 0 {
                             None
@@ -1025,7 +1026,7 @@ where
 
         if let Some(sym) = find_sym(
             &symtab_cache.syms,
-            self.path.as_deref(),
+            self.path.as_deref().map(Path::as_os_str),
             symtab_by_addr_idx,
             &symtab_cache.strs,
             addr,
@@ -1038,7 +1039,7 @@ where
         let dynsym_by_addr_idx = dynsym_cache.ensure_by_addr_idx();
         if let Some(sym) = find_sym(
             &dynsym_cache.syms,
-            self.path.as_deref(),
+            self.path.as_deref().map(Path::as_os_str),
             dynsym_by_addr_idx,
             &dynsym_cache.strs,
             addr,
@@ -1096,7 +1097,7 @@ where
                                 .then(|| file_offset(shdrs, &sym))
                                 .transpose()?
                                 .flatten(),
-                            module: self.path.as_deref().map(Cow::Borrowed),
+                            module: self.path.as_deref().map(Path::as_os_str).map(Cow::Borrowed),
                         });
                     }
                 }

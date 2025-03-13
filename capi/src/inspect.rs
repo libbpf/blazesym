@@ -521,16 +521,9 @@ mod tests {
                     assert_eq!(Some(c_sym.file_offset), sym.file_offset);
                     assert_eq!(
                         unsafe { CStr::from_ptr(c_sym.module) }.to_bytes(),
-                        CString::new(
-                            sym.module
-                                .as_deref()
-                                .unwrap()
-                                .as_os_str()
-                                .to_os_string()
-                                .into_vec()
-                        )
-                        .unwrap()
-                        .to_bytes()
+                        CString::new(sym.module.as_deref().unwrap().to_os_string().into_vec())
+                            .unwrap()
+                            .to_bytes()
                     );
                 }
             }
@@ -549,7 +542,7 @@ mod tests {
             size: Some(42),
             sym_type: SymType::Function,
             file_offset: Some(1337),
-            module: Some(Path::new("/tmp/foobar.so").into()),
+            module: Some(OsStr::new("/tmp/foobar.so").into()),
         }]];
         test(syms);
 
@@ -561,7 +554,7 @@ mod tests {
                 size: Some(42),
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
-                module: Some(Path::new("/tmp/foobar.so").into()),
+                module: Some(OsStr::new("/tmp/foobar.so").into()),
             },
             SymInfo {
                 name: "sym2".into(),
@@ -569,7 +562,7 @@ mod tests {
                 size: Some(45),
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
-                module: Some(Path::new("other.so").into()),
+                module: Some(OsStr::new("other.so").into()),
             },
         ]];
         test(syms);
@@ -582,7 +575,7 @@ mod tests {
                 size: Some(42),
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
-                module: Some(Path::new("/tmp/foobar.so").into()),
+                module: Some(OsStr::new("/tmp/foobar.so").into()),
             }],
             vec![SymInfo {
                 name: "sym2".into(),
@@ -590,7 +583,7 @@ mod tests {
                 size: Some(45),
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
-                module: Some(Path::new("other.so").into()),
+                module: Some(OsStr::new("other.so").into()),
             }],
         ];
         test(syms);
@@ -602,7 +595,7 @@ mod tests {
             size: Some(42),
             sym_type: SymType::Function,
             file_offset: Some(1337),
-            module: Some(Path::new("/tmp/foobar.so").into()),
+            module: Some(OsStr::new("/tmp/foobar.so").into()),
         };
         let syms = vec![(0..200).map(|_| sym.clone()).collect()];
         test(syms);

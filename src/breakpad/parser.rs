@@ -27,13 +27,13 @@
 //! See <https://github.com/google/breakpad/blob/main/docs/symbol_files.md>
 
 use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fmt::Write as _;
 use std::mem;
 use std::ops::BitOr;
 use std::ops::Shl;
-use std::path::Path;
-use std::path::PathBuf;
 use std::str;
 
 use nom::branch::alt;
@@ -62,7 +62,7 @@ use super::types::*;
 
 use crate::error::IntoCowStr;
 use crate::once::OnceCell;
-use crate::util::bytes_to_path;
+use crate::util::bytes_to_os_str;
 use crate::Error;
 use crate::ErrorExt;
 use crate::Result;
@@ -217,7 +217,7 @@ impl ErrorExt for (&[u8], Err<VerboseError<&[u8]>>) {
 
 #[derive(Debug)]
 enum Line {
-    Module(PathBuf),
+    Module(OsString),
     Info(()),
     File(u32, String),
     InlineOrigin(u32, String),
@@ -310,13 +310,13 @@ fn not_my_eol(input: &[u8]) -> IResult<&[u8], &[u8], VerboseError<&[u8]>> {
 }
 
 /// Matches a MODULE record.
-fn module_line(input: &[u8]) -> IResult<&[u8], &Path, VerboseError<&[u8]>> {
+fn module_line(input: &[u8]) -> IResult<&[u8], &OsStr, VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("MODULE"), space1)(input)?;
     let (input, (_, _, _, module)) = cut(tuple((
-        terminated(non_space, space1),                          // os
-        terminated(non_space, space1),                          // cpu
-        terminated(non_space, space1),                          // debug id
-        terminated(map_res(not_my_eol, bytes_to_path), my_eol), // filename
+        terminated(non_space, space1),                            // os
+        terminated(non_space, space1),                            // cpu
+        terminated(non_space, space1),                            // debug id
+        terminated(map_res(not_my_eol, bytes_to_os_str), my_eol), // filename
     )))(input)?;
 
     Ok((input, module))
@@ -487,7 +487,7 @@ fn line(input: &[u8]) -> IResult<&[u8], Line, VerboseError<&[u8]>> {
             map(func_line, Line::Function),
             map(stack_win_line, Line::StackWin),
             map(stack_cfi_init, Line::StackCfi),
-            map(module_line, |module| Line::Module(module.to_path_buf())),
+            map(module_line, |module| Line::Module(module.to_os_string())),
         )),
         multispace0,
     )(input)
@@ -498,7 +498,7 @@ fn line(input: &[u8]) -> IResult<&[u8], Line, VerboseError<&[u8]>> {
 /// This is basically just a [`SymbolFile`] but with some extra state.
 #[derive(Debug, Default)]
 pub struct SymbolParser {
-    module: Option<PathBuf>,
+    module: Option<OsString>,
     files: HashMap<u32, String>,
     inline_origins: HashMap<u32, String>,
     publics: Vec<PublicSymbol>,
@@ -764,14 +764,14 @@ foo bar baz
     fn parse_module_line() {
         let line = b"MODULE Linux x86 D3096ED481217FD4C16B29CD9BC208BA0 firefox-bin\n";
         let rest = &b""[..];
-        assert_eq!(module_line(line), Ok((rest, Path::new("firefox-bin"))));
+        assert_eq!(module_line(line), Ok((rest, OsStr::new("firefox-bin"))));
     }
 
     #[test]
     fn parse_module_line_filename_spaces() {
         let line = b"MODULE Windows x86_64 D3096ED481217FD4C16B29CD9BC208BA0 firefox x y z\n";
         let rest = &b""[..];
-        assert_eq!(module_line(line), Ok((rest, Path::new("firefox x y z"))));
+        assert_eq!(module_line(line), Ok((rest, OsStr::new("firefox x y z"))));
     }
 
     /// Sometimes dump_syms on Windows does weird things and produces multiple
@@ -783,7 +783,7 @@ foo bar baz
         let rest = &b""[..];
         assert_eq!(
             module_line(line),
-            Ok((rest, Path::new("/a/proper/fire/fox")))
+            Ok((rest, OsStr::new("/a/proper/fire/fox")))
         );
     }
 
