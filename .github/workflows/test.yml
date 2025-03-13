@@ -198,6 +198,7 @@ jobs:
         ARTIFACT_URL: ${{ needs.build-linux-kernel.outputs.kernel-artifact-url }}
         PYTHON: ${{ steps.py312.outputs.python-path }}
         RUSTFLAGS: '--cfg has_large_test_files'
+      shell: bash
       run: |
         # cargo-llvm-cov ultimately is just a thin wrapper around cargo
         # commands with certain environment variables set. Because it

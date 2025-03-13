@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
@@ -14,6 +15,7 @@ use crate::inspect::ForEachFn;
 use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
 use crate::once::OnceCell;
+use crate::pathlike::PathLike;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::Reason;
 use crate::symbolize::ResolvedSym;
@@ -50,64 +52,78 @@ impl FileCache<ElfResolverData> {
     /// and the provided list of debug directories consulted when
     /// following debug links.
     /// If `debug_dirs` is `None` only ELF symbols will be consulted.
-    pub(crate) fn elf_resolver<'slf>(
+    pub(crate) fn elf_resolver<'slf, P>(
         &'slf self,
-        path: &Path,
+        path: &P,
         debug_dirs: Option<&[PathBuf]>,
-    ) -> Result<&'slf Rc<ElfResolver>> {
-        let (file, cell) = self.entry(path)?;
-        let resolver = if let Some(data) = cell.get() {
-            let resolver = if debug_dirs.is_some() {
-                data.dwarf.get_or_try_init(|| {
-                    // SANITY: We *know* a `ElfResolverData` object is
-                    //         present and given that we are
-                    //         initializing the `dwarf` part of it, the
-                    //         `elf` part *must* be present.
-                    let parser = data.elf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
-                    let resolver = Rc::new(resolver);
-                    Result::<_, Error>::Ok(resolver)
-                })?
+    ) -> Result<&'slf Rc<ElfResolver>>
+    where
+        P: ?Sized + PathLike,
+    {
+        fn elf_resolver_impl<'slf>(
+            slf: &'slf FileCache<ElfResolverData>,
+            path: &Path,
+            module: OsString,
+            debug_dirs: Option<&[PathBuf]>,
+        ) -> Result<&'slf Rc<ElfResolver>> {
+            let (file, cell) = slf.entry(path)?;
+            let resolver = if let Some(data) = cell.get() {
+                let resolver = if debug_dirs.is_some() {
+                    data.dwarf.get_or_try_init(|| {
+                        // SANITY: We *know* a `ElfResolverData` object is
+                        //         present and given that we are
+                        //         initializing the `dwarf` part of it, the
+                        //         `elf` part *must* be present.
+                        let parser = data.elf.get().unwrap().parser().clone();
+                        let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
+                        let resolver = Rc::new(resolver);
+                        Result::<_, Error>::Ok(resolver)
+                    })?
+                } else {
+                    data.elf.get_or_try_init(|| {
+                        // SANITY: We *know* a `ElfResolverData` object is
+                        //         present and given that we are
+                        //         initializing the `elf` part of it, the
+                        //         `dwarf` part *must* be present.
+                        let parser = data.dwarf.get().unwrap().parser().clone();
+                        let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
+                        let resolver = Rc::new(resolver);
+                        Result::<_, Error>::Ok(resolver)
+                    })?
+                };
+                Rc::clone(resolver)
             } else {
-                data.elf.get_or_try_init(|| {
-                    // SANITY: We *know* a `ElfResolverData` object is
-                    //         present and given that we are
-                    //         initializing the `elf` part of it, the
-                    //         `dwarf` part *must* be present.
-                    let parser = data.dwarf.get().unwrap().parser().clone();
-                    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
-                    let resolver = Rc::new(resolver);
-                    Result::<_, Error>::Ok(resolver)
-                })?
+                let parser = Rc::new(ElfParser::from_file(file, module)?);
+                let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
+                Rc::new(resolver)
             };
-            Rc::clone(resolver)
-        } else {
-            let parser = Rc::new(ElfParser::from_file(file, path.as_os_str().to_os_string())?);
-            let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
-            Rc::new(resolver)
-        };
 
-        let data = cell.get_or_init(|| {
-            if debug_dirs.is_some() {
-                ElfResolverData {
-                    dwarf: OnceCell::from(resolver),
-                    elf: OnceCell::new(),
+            let data = cell.get_or_init(|| {
+                if debug_dirs.is_some() {
+                    ElfResolverData {
+                        dwarf: OnceCell::from(resolver),
+                        elf: OnceCell::new(),
+                    }
+                } else {
+                    ElfResolverData {
+                        dwarf: OnceCell::new(),
+                        elf: OnceCell::from(resolver),
+                    }
                 }
+            });
+
+            let resolver = if debug_dirs.is_some() {
+                data.dwarf.get()
             } else {
-                ElfResolverData {
-                    dwarf: OnceCell::new(),
-                    elf: OnceCell::from(resolver),
-                }
-            }
-        });
+                data.elf.get()
+            };
+            // SANITY: We made sure to create the desired resolver above.
+            Ok(resolver.unwrap())
+        }
 
-        let resolver = if debug_dirs.is_some() {
-            data.dwarf.get()
-        } else {
-            data.elf.get()
-        };
-        // SANITY: We made sure to create the desired resolver above.
-        Ok(resolver.unwrap())
+        let module = path.represented_path().as_os_str().to_os_string();
+        let path = path.actual_path();
+        elf_resolver_impl(self, path, module, debug_dirs)
     }
 }
 
