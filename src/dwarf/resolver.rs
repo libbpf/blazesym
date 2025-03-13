@@ -241,7 +241,7 @@ impl DwarfResolver {
                 .then(|| self.parser.find_file_offset(addr))
                 .transpose()?
                 .flatten(),
-            module: self.parser.path().map(Cow::Borrowed),
+            module: self.parser.path().map(Path::as_os_str).map(Cow::Borrowed),
         };
         Ok(Some(info))
     }
@@ -262,7 +262,7 @@ impl Symbolize for DwarfResolver {
                 .map(|range| usize::try_from(range.end - range.begin).unwrap_or(usize::MAX));
             ResolvedSym {
                 name,
-                module: self.parser.path(),
+                module: self.parser.path().map(Path::as_os_str),
                 addr: fn_addr,
                 size,
                 lang: unit.language().into(),

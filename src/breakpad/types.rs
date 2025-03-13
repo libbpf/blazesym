@@ -23,7 +23,7 @@
 // > DEALINGS IN THE SOFTWARE.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::ffi::OsString;
 
 use crate::once::OnceCell;
 use crate::util::find_lowest_match_by_key;
@@ -185,7 +185,7 @@ impl Function {
 #[derive(Debug)]
 pub(crate) struct SymbolFile {
     /// The module represented by this symbol file.
-    pub module: Option<PathBuf>,
+    pub module: Option<OsString>,
     /// The set of source files involved in compilation.
     pub files: HashMap<u32, String>,
     /// Functions, sorted by start address.

@@ -897,7 +897,7 @@ fn sym_strtab_size(sym: &Sym) -> usize {
         + sym
             .module
             .as_deref()
-            .map(|path| path.as_os_str().len() + 1)
+            .map(|module| module.len() + 1)
             .unwrap_or(0)
         + code_info_strtab_size(&sym.code_info)
         + sym
@@ -990,7 +990,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
                 let module_ptr = sym
                     .module
                     .as_deref()
-                    .map(|path| make_cstr(path.as_os_str()))
+                    .map(&mut make_cstr)
                     .unwrap_or(ptr::null_mut());
 
                 sym_ref.name = name_ptr;
@@ -1633,7 +1633,7 @@ mod tests {
         // A single symbol with inlined function information.
         let results = vec![Symbolized::Sym(Sym {
             name: "test".into(),
-            module: Some(Cow::from(Path::new("module"))),
+            module: Some(Cow::from(OsStr::new("module"))),
             addr: 0x1337,
             offset: 0x1338,
             size: Some(42),
@@ -1668,7 +1668,7 @@ mod tests {
             Symbolized::Unknown(Reason::UnknownAddr),
             Symbolized::Sym(Sym {
                 name: "test".into(),
-                module: Some(Cow::from(Path::new("module"))),
+                module: Some(Cow::from(OsStr::new("module"))),
                 addr: 0x1337,
                 offset: 0x1338,
                 size: None,

@@ -669,7 +669,7 @@ impl Symbolizer {
 
                     let name =
                         Cow::Owned(self.maybe_demangle(Cow::Borrowed(name), lang).into_owned());
-                    let module = module.map(|module| Cow::Owned(module.to_path_buf()));
+                    let module = module.map(|module| Cow::Owned(module.to_os_string()));
                     let code_info = code_info.map(|info| info.to_owned());
                     let inlined = Vec::from(inlined)
                         .into_iter()

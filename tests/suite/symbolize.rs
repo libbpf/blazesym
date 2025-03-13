@@ -287,7 +287,7 @@ fn symbolize_breakpad() {
     assert_eq!(result.name, "factorial");
     assert_eq!(
         result.module,
-        Some(Cow::Borrowed(Path::new("test-stable-addrs.bin")))
+        Some(Cow::Borrowed(OsStr::new("test-stable-addrs.bin")))
     );
     assert_eq!(result.addr, 0x200);
     assert_eq!(result.offset, 0);
@@ -370,7 +370,7 @@ fn symbolize_elf_variable() {
             .unwrap();
 
         assert_eq!(result.name, "a_variable");
-        assert_eq!(result.module, Some(Cow::Borrowed(path.as_path())));
+        assert_eq!(result.module, Some(Cow::Borrowed(path.as_os_str())));
         assert_eq!(result.addr, 0x4001100);
         assert_eq!(result.offset, 0);
         // Even when using DWARF we don't currently support variable lookup,
@@ -618,7 +618,7 @@ fn symbolize_configurable_debug_dirs() {
     assert_eq!(sym.name, "factorial");
     // The module reported should be the original file and not the
     // linked one.
-    assert_eq!(sym.module, Some(Cow::Owned(path)));
+    assert_eq!(sym.module, Some(Cow::Owned(path.into_os_string())));
 }
 
 /// Make sure that we report (enabled) or don't report (disabled) inlined
@@ -751,7 +751,7 @@ fn symbolize_dwarf_demangle() {
             .unwrap();
 
         assert_eq!(result.name, "test::test_function");
-        assert_eq!(result.module, Some(Cow::Borrowed(test_dwarf)));
+        assert_eq!(result.module, Some(Cow::Borrowed(test_dwarf.as_os_str())));
         assert_eq!(result.inlined.len(), 1, "{:#?}", result.inlined);
         assert_eq!(result.inlined[0].name, "test::inlined_call");
         Ok(())
@@ -923,10 +923,7 @@ fn symbolize_process_zip() {
         result
             .module
             .as_deref()
-            .map(|path| path
-                .as_os_str()
-                .to_string_lossy()
-                .ends_with("!/libtest-so.so"))
+            .map(|module| module.to_string_lossy().ends_with("!/libtest-so.so"))
             .unwrap_or(false),
         "{:?}",
         result.module
