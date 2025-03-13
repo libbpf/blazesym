@@ -459,16 +459,18 @@ impl SymbolizeHandler<'_> {
     }
 
     fn handle_elf_addr(&mut self, addr: Addr, file_off: u64, entry_path: &EntryPath) -> Result<()> {
-        let path = if self.map_files {
-            &entry_path.maps_file
+        let resolver = if self.map_files {
+            self.symbolizer.elf_cache.elf_resolver(
+                entry_path,
+                self.symbolizer.maybe_debug_dirs(self.debug_syms),
+            )
         } else {
-            &entry_path.symbolic_path
-        };
+            let path = entry_path.symbolic_path.as_path();
+            self.symbolizer
+                .elf_cache
+                .elf_resolver(path, self.symbolizer.maybe_debug_dirs(self.debug_syms))
+        }?;
 
-        let resolver = self
-            .symbolizer
-            .elf_cache
-            .elf_resolver(path, self.symbolizer.maybe_debug_dirs(self.debug_syms))?;
 
         match resolver.file_offset_to_virt_offset(file_off)? {
             Some(addr) => {
@@ -814,6 +816,8 @@ impl Symbolizer {
         Ok(None)
     }
 
+    // TODO: Should likely require a `PathLike` as input, similar to
+    //       `FileCache<ElfResolverData>::elf_resolver`.
     #[cfg(feature = "apk")]
     fn apk_resolver<'slf>(
         &'slf self,
@@ -990,7 +994,7 @@ impl Symbolizer {
             MaybeDefault::Some(vmlinux) => {
                 let resolver = self
                     .elf_cache
-                    .elf_resolver(vmlinux, self.maybe_debug_dirs(*debug_syms))?;
+                    .elf_resolver(vmlinux.as_path(), self.maybe_debug_dirs(*debug_syms))?;
                 Some(resolver)
             }
             MaybeDefault::Default => {
@@ -1008,7 +1012,7 @@ impl Symbolizer {
                 if let Some(vmlinux) = vmlinux {
                     let result = self
                         .elf_cache
-                        .elf_resolver(&vmlinux, self.maybe_debug_dirs(*debug_syms));
+                        .elf_resolver(vmlinux.as_path(), self.maybe_debug_dirs(*debug_syms));
                     match result {
                         Ok(resolver) => {
                             log::debug!("found suitable vmlinux file `{}`", vmlinux.display());
@@ -1064,7 +1068,7 @@ impl Symbolizer {
                 let _unpinned = self.elf_cache.unpin(path);
                 let result = self
                     .elf_cache
-                    .elf_resolver(path, self.maybe_debug_dirs(false));
+                    .elf_resolver(path.as_path(), self.maybe_debug_dirs(false));
                 // Make sure to always pin the entry, even if bailing
                 // due to a retrieval error. Basically, the semantics we
                 // want to have is that if caching new data fails the
@@ -1187,7 +1191,7 @@ impl Symbolizer {
             }) => {
                 let resolver = self
                     .elf_cache
-                    .elf_resolver(path, self.maybe_debug_dirs(*debug_syms))?;
+                    .elf_resolver(path.as_path(), self.maybe_debug_dirs(*debug_syms))?;
                 match input {
                     Input::VirtOffset(addrs) => addrs
                         .iter()
@@ -1371,7 +1375,7 @@ impl Symbolizer {
             }) => {
                 let resolver = self
                     .elf_cache
-                    .elf_resolver(path, self.maybe_debug_dirs(*debug_syms))?;
+                    .elf_resolver(path.as_path(), self.maybe_debug_dirs(*debug_syms))?;
                 let addr = match input {
                     Input::VirtOffset(addr) => addr,
                     Input::AbsAddr(..) => {

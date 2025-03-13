@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::env;
+use std::env::current_exe;
 use std::ffi::OsStr;
 use std::fs::copy;
 use std::fs::metadata;
@@ -807,6 +808,10 @@ fn symbolize_process() {
 
     let result = results[0].as_sym().unwrap();
     assert!(result.name.contains("symbolize_process"), "{result:x?}");
+    assert_eq!(
+        result.module.as_deref(),
+        Some(current_exe().unwrap().as_os_str())
+    );
 
     let result = results[1].as_sym().unwrap();
     // It's not entirely clear why we have seen two different demangled
@@ -816,6 +821,10 @@ fn symbolize_process() {
             || result.name == "<blazesym::symbolize::symbolizer::Symbolizer>::symbolize",
         "{}",
         result.name
+    );
+    assert_eq!(
+        result.module.as_deref(),
+        Some(current_exe().unwrap().as_os_str())
     );
 }
 

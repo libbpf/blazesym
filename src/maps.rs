@@ -13,8 +13,10 @@ use std::ops::BitAndAssign;
 use std::ops::BitOr;
 use std::ops::BitOrAssign;
 use std::ops::Range;
+use std::path::Path;
 use std::path::PathBuf;
 
+use crate::pathlike::PathLike;
 use crate::util;
 use crate::util::bytes_to_path;
 use crate::util::from_radix_16;
@@ -47,6 +49,16 @@ pub struct EntryPath {
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
+}
+
+impl PathLike for EntryPath {
+    fn actual_path(&self) -> &Path {
+        self.maps_file.as_path()
+    }
+
+    fn represented_path(&self) -> &Path {
+        self.symbolic_path.as_path()
+    }
 }
 
 

@@ -13,7 +13,6 @@ use std::mem::MaybeUninit;
 use std::ops::ControlFlow;
 use std::ops::Deref as _;
 use std::path::Path;
-use std::path::PathBuf;
 use std::slice;
 use std::str;
 
@@ -22,6 +21,7 @@ use crate::inspect::ForEachFn;
 use crate::inspect::SymInfo;
 use crate::mmap::Mmap;
 use crate::once::OnceCell;
+use crate::pathlike::PathLike;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::Reason;
 use crate::symbolize::ResolvedSym;
@@ -943,15 +943,20 @@ impl ElfParser<File> {
 
     /// Create an `ElfParser` employing regular file I/O, opening the
     /// file at `path`.
-    pub(crate) fn open_file_io<P>(path: P) -> Result<Self>
+    pub(crate) fn open_file_io<P>(path: &P) -> Result<Self>
     where
-        P: Into<PathBuf>,
+        P: ?Sized + PathLike,
     {
-        let path = path.into();
-        let file =
-            File::open(&path).with_context(|| format!("failed to open `{}`", path.display()))?;
-        let slf = Self::from_file_io(file, path.into_os_string());
-        Ok(slf)
+        fn open_impl(path: &Path, module: OsString) -> Result<ElfParser<File>> {
+            let file =
+                File::open(path).with_context(|| format!("failed to open `{}`", path.display()))?;
+            let slf = ElfParser::from_file_io(file, module);
+            Ok(slf)
+        }
+
+        let module = path.represented_path().as_os_str().to_os_string();
+        let path = path.actual_path();
+        open_impl(path, module)
     }
 
     /// Retrieve a reference to the backend in use.
@@ -985,10 +990,19 @@ impl ElfParser<Mmap> {
     }
 
     /// Create an `ElfParser` for a path.
-    pub(crate) fn open(path: &Path) -> Result<ElfParser> {
-        let file =
-            File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
-        Self::from_file(&file, path.as_os_str().to_os_string())
+    pub(crate) fn open<P>(path: &P) -> Result<ElfParser>
+    where
+        P: ?Sized + PathLike,
+    {
+        fn open_impl(path: &Path, module: OsString) -> Result<ElfParser> {
+            let file =
+                File::open(path).with_context(|| format!("failed to open {}", path.display()))?;
+            ElfParser::from_file(&file, module)
+        }
+
+        let module = path.represented_path().as_os_str().to_os_string();
+        let path = path.actual_path();
+        open_impl(path, module)
     }
 }
 
@@ -1315,6 +1329,7 @@ mod tests {
     use std::hint::black_box;
     use std::io::Write as _;
     use std::mem::size_of;
+    use std::path::Path;
     use std::slice;
 
     use tempfile::NamedTempFile;
