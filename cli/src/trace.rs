@@ -42,6 +42,18 @@ const BOLD_S: &str = "\x1b[1m";
 const BOLD_E: &str = RESET;
 
 
+// A replacement of the standard write!() macro that silently ignores
+// short writes and automatically converts errors to `std::fmt::Error`.
+macro_rules! write {
+    ($($arg:tt)*) => {
+        match std::write!($($arg)*) {
+            Err(err) if err.kind() == io::ErrorKind::WriteZero => Ok(()),
+            result => result,
+        }.map_err(|_err| fmt::Error)
+    };
+}
+
+
 /// An adapter implementing `fmt::Write` for `io::Write` types.
 struct Writer<'w, W>(&'w mut W);
 
@@ -50,7 +62,7 @@ where
     W: io::Write,
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let () = self.0.write_all(s.as_bytes()).map_err(|_err| fmt::Error)?;
+        let () = write!(self.0, "{s}")?;
         Ok(())
     }
 }
@@ -73,16 +85,18 @@ enum Value<'v> {
 
 impl Display for Value<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
+        use std::write as writefmt;
+
         match self {
-            Self::F64(val) => write!(f, "{val}"),
-            Self::I64(val) => write!(f, "{val}"),
-            Self::U64(val) => write!(f, "{val}"),
-            Self::I128(val) => write!(f, "{val}"),
-            Self::U128(val) => write!(f, "{val}"),
-            Self::Bool(val) => write!(f, "{val}"),
-            Self::Str(val) => write!(f, "{val}"),
-            Self::Dbg(val) => write!(f, "{val:?}"),
-            Self::Err(val) => write!(f, "{val}"),
+            Self::F64(val) => writefmt!(f, "{val}"),
+            Self::I64(val) => writefmt!(f, "{val}"),
+            Self::U64(val) => writefmt!(f, "{val}"),
+            Self::I128(val) => writefmt!(f, "{val}"),
+            Self::U128(val) => writefmt!(f, "{val}"),
+            Self::Bool(val) => writefmt!(f, "{val}"),
+            Self::Str(val) => writefmt!(f, "{val}"),
+            Self::Dbg(val) => writefmt!(f, "{val:?}"),
+            Self::Err(val) => writefmt!(f, "{val}"),
         }
     }
 }
@@ -232,7 +246,7 @@ where
         };
 
         let name = span.name();
-        let () = write!(writer, "{prefix}{name}").map_err(|_err| fmt::Error)?;
+        let () = write!(writer, "{prefix}{name}")?;
         Ok(())
     }
 
@@ -246,7 +260,7 @@ where
     where
         V: io::Write,
         S: for<'lookup> LookupSpan<'lookup>,
-        F: FnOnce(&mut dyn io::Write) -> io::Result<()>,
+        F: FnOnce(&mut dyn io::Write) -> fmt::Result,
     {
         if let Some(time) = time {
             let () = time.format_time(&mut format::Writer::new(&mut Writer(writer)))?;
@@ -256,31 +270,26 @@ where
             span.map(|span| *span.metadata().level())
                 .unwrap_or(Level::INFO)
         }) {
-            Level::TRACE => {
-                write!(writer, " {MAGENTA_S}TRACE{MAGENTA_E}").map_err(|_err| fmt::Error)?
-            }
-            Level::DEBUG => write!(writer, "  {BLUE_S}INFO{BLUE_E}").map_err(|_err| fmt::Error)?,
-            Level::INFO => write!(writer, "  {GREEN_S}INFO{GREEN_E}").map_err(|_err| fmt::Error)?,
-            Level::WARN => {
-                write!(writer, "  {YELLOW_S}WARN{YELLOW_E}").map_err(|_err| fmt::Error)?
-            }
-            Level::ERROR => write!(writer, " {RED_S}ERROR{RED_E}").map_err(|_err| fmt::Error)?,
+            Level::TRACE => write!(writer, " {MAGENTA_S}TRACE{MAGENTA_E}")?,
+            Level::DEBUG => write!(writer, "  {BLUE_S}INFO{BLUE_E}")?,
+            Level::INFO => write!(writer, "  {GREEN_S}INFO{GREEN_E}")?,
+            Level::WARN => write!(writer, "  {YELLOW_S}WARN{YELLOW_E}")?,
+            Level::ERROR => write!(writer, " {RED_S}ERROR{RED_E}")?,
         }
 
         if let Some(span) = span {
-            let () = write!(writer, " {BOLD_S}").map_err(|_err| fmt::Error)?;
+            let () = write!(writer, " {BOLD_S}")?;
             let () = Self::write_names(writer, span)?;
-            let () = write!(writer, "{BOLD_E}:").map_err(|_err| fmt::Error)?;
+            let () = write!(writer, "{BOLD_E}:")?;
         }
-        let () = f(writer).map_err(|_err| fmt::Error)?;
-        let () = writer.write_all(b"\n").map_err(|_err| fmt::Error)?;
+        let () = f(writer)?;
         Ok(())
     }
 
     fn write_args<S, F>(&self, span: Option<SpanRef<'_, S>>, level: Option<Level>, f: F)
     where
         S: Subscriber + for<'lookup> LookupSpan<'lookup>,
-        F: FnOnce(&mut dyn io::Write) -> io::Result<()>,
+        F: FnOnce(&mut dyn io::Write) -> fmt::Result,
     {
         // We effectively buffer every trace line here while capping
         // line length at a fixed upper limit. In many ways that just
@@ -293,6 +302,10 @@ where
 
         if let Ok(()) = Self::write_impl(&mut writer, &self.time, level, span.as_ref(), f) {
             let _result = (&self.writer).write_all(writer.written());
+            // Always make sure (well, at least attempt) to terminate
+            // the line. This is important because we may have truncated
+            // the line.
+            let _result = (&self.writer).write_all(b"\n");
         }
     }
 }
@@ -353,5 +366,23 @@ where
     /// Callback for the exiting ("deactivation"?) of a span.
     fn on_exit(&self, id: &span::Id, ctx: Context<'_, S>) {
         self.write_args(ctx.span(id), None, |w| write!(w, " exit"));
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Make sure that we don't error out writing data to an
+    /// insufficiently sized buffer.
+    #[test]
+    fn value_writing() {
+        let val = Value::Str("foobarbaz");
+        let mut buffer = [0u8; 4];
+        let mut slice = &mut buffer[0..3];
+        let () = write!(slice, "{}", val).unwrap();
+        assert_eq!(&buffer, b"foo\0");
     }
 }
