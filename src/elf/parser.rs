@@ -1104,7 +1104,7 @@ where
                             //         succeed.
                             sym_type: SymType::try_from(&sym).unwrap(),
                             file_offset: opts
-                                .offset_in_file
+                                .file_offset
                                 .then(|| file_offset(shdrs, &sym))
                                 .transpose()?
                                 .flatten(),
@@ -1167,7 +1167,7 @@ where
                     //         succeed.
                     sym_type: SymType::try_from(&sym).unwrap(),
                     file_offset: opts
-                        .offset_in_file
+                        .file_offset
                         .then(|| file_offset(shdrs, &sym))
                         .transpose()?
                         .flatten(),
@@ -1579,7 +1579,7 @@ mod tests {
     fn file_offset_calculation() {
         fn test(path: &Path) {
             let opts = FindAddrOpts {
-                offset_in_file: true,
+                file_offset: true,
                 sym_type: SymType::Function,
             };
             let parser = ElfParser::open(path).unwrap();

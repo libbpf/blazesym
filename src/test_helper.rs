@@ -21,7 +21,7 @@ pub fn find_the_answer_fn(mmap: &Mmap) -> (inspect::SymInfo<'static>, Addr) {
     // object.
     let elf_parser = ElfParser::from_mmap(mmap.clone(), Some(OsString::from("libtest-so.so")));
     let opts = inspect::FindAddrOpts {
-        offset_in_file: true,
+        file_offset: true,
         sym_type: SymType::Function,
     };
     let syms = elf_parser.find_addr("the_answer", &opts).unwrap();
