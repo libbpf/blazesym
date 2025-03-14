@@ -317,7 +317,7 @@ impl Inspect for DwarfResolver {
                         //         name attribute set. `function_to_sym_info`
                         //         only returns `None` if no name is present.
                         let info = self
-                            .function_to_sym_info(function, opts.offset_in_file)?
+                            .function_to_sym_info(function, opts.file_offset)?
                             .unwrap();
                         Ok(info)
                     }
@@ -341,7 +341,7 @@ impl Inspect for DwarfResolver {
 
         let mut overall_result = Ok(());
         let () = self.units.for_each_function(|func| {
-            let result = self.function_to_sym_info(func, opts.offset_in_file);
+            let result = self.function_to_sym_info(func, opts.file_offset);
             match result {
                 Ok(Some(sym_info)) => f(&sym_info),
                 Ok(None) => ControlFlow::Continue(()),
@@ -547,7 +547,7 @@ mod tests {
             .join("data")
             .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
         let opts = FindAddrOpts {
-            offset_in_file: false,
+            file_offset: false,
             sym_type: SymType::Function,
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref()).unwrap();
@@ -567,7 +567,7 @@ mod tests {
             .join("data")
             .join("test-stable-addrs-stripped-elf-with-dwarf.bin");
         let opts = FindAddrOpts {
-            offset_in_file: false,
+            file_offset: false,
             sym_type: SymType::Variable,
         };
         let resolver = DwarfResolver::open(test_dwarf.as_ref()).unwrap();

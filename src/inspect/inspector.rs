@@ -94,7 +94,7 @@ impl Inspector {
         names: &[&str],
     ) -> Result<Vec<Vec<SymInfo<'slf>>>> {
         let opts = FindAddrOpts {
-            offset_in_file: true,
+            file_offset: true,
             sym_type: SymType::Undefined,
         };
 
@@ -179,7 +179,7 @@ impl Inspector {
                 }) => {
                     let opts = FindAddrOpts {
                         // Breakpad logic doesn't support file offsets.
-                        offset_in_file: false,
+                        file_offset: false,
                         sym_type: SymType::Undefined,
                     };
                     let resolver = slf.breakpad_resolver(path)?;
@@ -191,7 +191,7 @@ impl Inspector {
                     _non_exhaustive: (),
                 }) => {
                     let opts = FindAddrOpts {
-                        offset_in_file: true,
+                        file_offset: true,
                         sym_type: SymType::Undefined,
                     };
                     let debug_dirs;

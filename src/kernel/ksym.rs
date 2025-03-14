@@ -433,7 +433,7 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
 
         let ensure_addr_for_name = |name, addr| {
             let opts = FindAddrOpts {
-                offset_in_file: false,
+                file_offset: false,
                 sym_type: SymType::Function,
             };
             let found = resolver.find_addr(name, &opts).unwrap();
