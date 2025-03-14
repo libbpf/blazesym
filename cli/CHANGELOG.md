@@ -5,6 +5,7 @@ Unreleased
 - Added `--no-debug-syms` option to `inspect dump elf` sub-command
 - Added `--kallsyms` and `--vmlinux` options to `symbolize-kernel
   sub-command
+- Fixed truncation of overly long tracing lines
 
 
 0.1.8
