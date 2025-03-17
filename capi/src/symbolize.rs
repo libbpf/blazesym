@@ -50,7 +50,7 @@ pub struct blaze_cache_src_elf {
     pub path: *const c_char,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 8],
+    pub reserved: [u8; 16],
 }
 
 impl Default for blaze_cache_src_elf {
@@ -58,7 +58,7 @@ impl Default for blaze_cache_src_elf {
         Self {
             type_size: mem::size_of::<Self>(),
             path: ptr::null(),
-            reserved: [0; 8],
+            reserved: [0; 16],
         }
     }
 }
@@ -110,7 +110,7 @@ pub struct blaze_cache_src_process {
     pub cache_vmas: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 11],
+    pub reserved: [u8; 19],
 }
 
 impl Default for blaze_cache_src_process {
@@ -119,7 +119,7 @@ impl Default for blaze_cache_src_process {
             type_size: mem::size_of::<Self>(),
             pid: 0,
             cache_vmas: false,
-            reserved: [0; 11],
+            reserved: [0; 19],
         }
     }
 }
@@ -165,7 +165,7 @@ pub struct blaze_symbolize_src_elf {
     pub debug_syms: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 7],
+    pub reserved: [u8; 23],
 }
 
 impl Default for blaze_symbolize_src_elf {
@@ -174,7 +174,7 @@ impl Default for blaze_symbolize_src_elf {
             type_size: mem::size_of::<Self>(),
             path: ptr::null(),
             debug_syms: false,
-            reserved: [0; 7],
+            reserved: [0; 23],
         }
     }
 }
@@ -236,7 +236,7 @@ pub struct blaze_symbolize_src_kernel {
     pub debug_syms: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 7],
+    pub reserved: [u8; 23],
 }
 
 impl Default for blaze_symbolize_src_kernel {
@@ -246,7 +246,7 @@ impl Default for blaze_symbolize_src_kernel {
             kallsyms: ptr::null(),
             vmlinux: ptr::null(),
             debug_syms: false,
-            reserved: [0; 7],
+            reserved: [0; 23],
         }
     }
 }
@@ -315,7 +315,7 @@ pub struct blaze_symbolize_src_process {
     pub no_map_files: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 1],
+    pub reserved: [u8; 17],
 }
 
 impl Default for blaze_symbolize_src_process {
@@ -326,7 +326,7 @@ impl Default for blaze_symbolize_src_process {
             debug_syms: false,
             perf_map: false,
             no_map_files: false,
-            reserved: [0; 1],
+            reserved: [0; 17],
         }
     }
 }
@@ -365,8 +365,9 @@ pub struct blaze_symbolize_src_gsym_data {
     pub data: *const u8,
     /// The size of the Gsym data.
     pub data_len: usize,
-    /// Unused member indicating the last field.
-    pub reserved: (),
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 16],
 }
 
 impl Default for blaze_symbolize_src_gsym_data {
@@ -375,7 +376,7 @@ impl Default for blaze_symbolize_src_gsym_data {
             type_size: mem::size_of::<Self>(),
             data: ptr::null(),
             data_len: 0,
-            reserved: (),
+            reserved: [0; 16],
         }
     }
 }
@@ -386,7 +387,7 @@ impl From<blaze_symbolize_src_gsym_data> for GsymData<'_> {
             type_size: _,
             data,
             data_len,
-            reserved: (),
+            reserved: _,
         } = gsym;
         Self {
             data: unsafe { slice_from_aligned_user_array(data, data_len) },
@@ -407,8 +408,9 @@ pub struct blaze_symbolize_src_gsym_file {
     pub type_size: usize,
     /// The path to a gsym file.
     pub path: *const c_char,
-    /// Unused member indicating the last field.
-    pub reserved: (),
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 16],
 }
 
 impl Default for blaze_symbolize_src_gsym_file {
@@ -416,7 +418,7 @@ impl Default for blaze_symbolize_src_gsym_file {
         Self {
             type_size: mem::size_of::<Self>(),
             path: ptr::null(),
-            reserved: (),
+            reserved: [0; 16],
         }
     }
 }
@@ -426,7 +428,7 @@ impl From<blaze_symbolize_src_gsym_file> for GsymFile {
         let blaze_symbolize_src_gsym_file {
             type_size: _,
             path,
-            reserved: (),
+            reserved: _,
         } = gsym;
         Self {
             path: unsafe { from_cstr(path) },
@@ -609,7 +611,7 @@ pub struct blaze_sym {
     /// why symbolization failed.
     pub reason: blaze_symbolize_reason,
     /// Unused member available for future expansion.
-    pub reserved: [u8; 7],
+    pub reserved: [u8; 15],
 }
 
 /// `blaze_syms` is the result of symbolization of a list of addresses.
@@ -680,7 +682,7 @@ pub struct blaze_symbolizer_opts {
     pub demangle: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 4],
+    pub reserved: [u8; 20],
 }
 
 impl Default for blaze_symbolizer_opts {
@@ -693,7 +695,7 @@ impl Default for blaze_symbolizer_opts {
             code_info: false,
             inlined_fns: false,
             demangle: false,
-            reserved: [0; 4],
+            reserved: [0; 20],
         }
     }
 }
@@ -1348,17 +1350,17 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
-        assert_eq!(mem::size_of::<blaze_cache_src_elf>(), 24);
-        assert_eq!(mem::size_of::<blaze_cache_src_process>(), 24);
-        assert_eq!(mem::size_of::<blaze_symbolize_src_elf>(), 24);
-        assert_eq!(mem::size_of::<blaze_symbolize_src_kernel>(), 32);
-        assert_eq!(mem::size_of::<blaze_symbolize_src_process>(), 16);
-        assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_data>(), 24);
-        assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_file>(), 16);
-        assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 32);
+        assert_eq!(mem::size_of::<blaze_cache_src_elf>(), 32);
+        assert_eq!(mem::size_of::<blaze_cache_src_process>(), 32);
+        assert_eq!(mem::size_of::<blaze_symbolize_src_elf>(), 40);
+        assert_eq!(mem::size_of::<blaze_symbolize_src_kernel>(), 48);
+        assert_eq!(mem::size_of::<blaze_symbolize_src_process>(), 32);
+        assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_data>(), 40);
+        assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_file>(), 32);
+        assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 48);
         assert_eq!(mem::size_of::<blaze_symbolize_code_info>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_inlined_fn>(), 48);
-        assert_eq!(mem::size_of::<blaze_sym>(), 96);
+        assert_eq!(mem::size_of::<blaze_sym>(), 104);
     }
 
     /// Exercise the `Debug` representation of various types.
@@ -1371,7 +1373,7 @@ mod tests {
         };
         assert_eq!(
             format!("{elf:?}"),
-            "blaze_symbolize_src_elf { type_size: 24, path: 0x0, debug_syms: false, reserved: [0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_symbolize_src_elf { type_size: 24, path: 0x0, debug_syms: false, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let kernel = blaze_symbolize_src_kernel {
@@ -1381,7 +1383,7 @@ mod tests {
         };
         assert_eq!(
             format!("{kernel:?}"),
-            "blaze_symbolize_src_kernel { type_size: 32, kallsyms: 0x0, vmlinux: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_symbolize_src_kernel { type_size: 32, kallsyms: 0x0, vmlinux: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let process = blaze_symbolize_src_process {
@@ -1392,28 +1394,28 @@ mod tests {
         };
         assert_eq!(
             format!("{process:?}"),
-            "blaze_symbolize_src_process { type_size: 16, pid: 1337, debug_syms: true, perf_map: false, no_map_files: false, reserved: [0] }"
+            "blaze_symbolize_src_process { type_size: 16, pid: 1337, debug_syms: true, perf_map: false, no_map_files: false, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let gsym_data = blaze_symbolize_src_gsym_data {
             type_size: 24,
             data: ptr::null(),
             data_len: 0,
-            reserved: (),
+            reserved: [0; 16],
         };
         assert_eq!(
             format!("{gsym_data:?}"),
-            "blaze_symbolize_src_gsym_data { type_size: 24, data: 0x0, data_len: 0, reserved: () }"
+            "blaze_symbolize_src_gsym_data { type_size: 24, data: 0x0, data_len: 0, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let gsym_file = blaze_symbolize_src_gsym_file {
             type_size: 16,
             path: ptr::null(),
-            reserved: (),
+            reserved: [0; 16],
         };
         assert_eq!(
             format!("{gsym_file:?}"),
-            "blaze_symbolize_src_gsym_file { type_size: 16, path: 0x0, reserved: () }"
+            "blaze_symbolize_src_gsym_file { type_size: 16, path: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let sym = blaze_sym {
@@ -1427,16 +1429,16 @@ mod tests {
                 file: ptr::null(),
                 line: 42,
                 column: 1,
-                reserved: [0u8; 10],
+                reserved: [0; 10],
             },
             inlined_cnt: 0,
             inlined: ptr::null(),
             reason: blaze_symbolize_reason::BLAZE_SYMBOLIZE_REASON_UNSUPPORTED,
-            reserved: [0u8; 7],
+            reserved: [0; 15],
         };
         assert_eq!(
             format!("{sym:?}"),
-            "blaze_sym { name: 0x0, module: 0x0, addr: 4919, offset: 24, size: 16, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym { name: 0x0, module: 0x0, addr: 4919, offset: 24, size: 16, code_info: blaze_symbolize_code_info { dir: 0x0, file: 0x0, line: 42, column: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }, inlined_cnt: 0, inlined: 0x0, reason: BLAZE_SYMBOLIZE_REASON_UNSUPPORTED, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let inlined = blaze_symbolize_inlined_fn {
@@ -1446,9 +1448,9 @@ mod tests {
                 file: ptr::null(),
                 line: 42,
                 column: 1,
-                reserved: [0u8; 10],
+                reserved: [0; 10],
             },
-            reserved: [0u8; 8],
+            reserved: [0; 8],
         };
         assert_eq!(
             format!("{inlined:?}"),
@@ -1465,7 +1467,7 @@ mod tests {
         };
         assert_eq!(
             format!("{opts:?}"),
-            "blaze_symbolizer_opts { type_size: 16, debug_dirs: 0x0, debug_dirs_len: 0, auto_reload: false, code_info: false, inlined_fns: false, demangle: true, reserved: [0, 0, 0, 0] }"
+            "blaze_symbolizer_opts { type_size: 16, debug_dirs: 0x0, debug_dirs_len: 0, auto_reload: false, code_info: false, inlined_fns: false, demangle: true, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
     }
 
