@@ -296,10 +296,7 @@ pub struct blaze_symbolize_src_process {
     /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
     /// ensure compatibility in the presence of member additions.
     pub type_size: usize,
-    /// It is the PID of a process to symbolize.
-    ///
-    /// blazesym will parse `/proc/<pid>/maps` and load all the object
-    /// files.
+    /// The referenced process' ID.
     pub pid: u32,
     /// Whether or not to consult debug symbols to satisfy the request
     /// (if present).

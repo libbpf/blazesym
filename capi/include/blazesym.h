@@ -856,10 +856,7 @@ typedef struct blaze_symbolize_src_process {
    */
   size_t type_size;
   /**
-   * It is the PID of a process to symbolize.
-   *
-   * blazesym will parse `/proc/<pid>/maps` and load all the object
-   * files.
+   * The referenced process' ID.
    */
   uint32_t pid;
   /**
