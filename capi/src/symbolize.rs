@@ -1824,6 +1824,10 @@ mod tests {
 
     /// Check that we can symbolize a file offset in an ELF file.
     #[test]
+    #[cfg_attr(
+        not(target_pointer_width = "64"),
+        ignore = "loads 64 bit shared object"
+    )]
     fn symbolize_elf_file_offset() {
         let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
