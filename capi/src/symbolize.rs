@@ -106,7 +106,7 @@ pub struct blaze_cache_src_process {
     /// addresses after the original process has already exited, you
     /// will have to opt-out of usage of `/proc/<pid>/map_files/` as
     /// part of the symbolization request. Refer to
-    /// [`blaze_symbolize_src_process::map_files`].
+    /// [`blaze_symbolize_src_process::no_map_files`].
     pub cache_vmas: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
@@ -309,12 +309,13 @@ pub struct blaze_symbolize_src_process {
     pub perf_map: bool,
     /// Whether to work with `/proc/<pid>/map_files/` entries or with
     /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
-    /// `map_files` usage is generally strongly encouraged, as symbolic
-    /// path usage is unlikely to work reliably in mount namespace
-    /// contexts or when files have been deleted from the file system.
-    /// However, by using symbolic paths the need for requiring the
-    /// `SYS_ADMIN` capability is eliminated.
-    pub map_files: bool,
+    ///
+    /// `no_map_files` usage is generally discouraged, as symbolic paths
+    /// are unlikely to work reliably in mount namespace contexts or
+    /// when files have been deleted from the file system. However, by
+    /// using symbolic paths (i.e., with `no_map_files` being `true`)
+    /// the need for requiring the `SYS_ADMIN` capability is eliminated.
+    pub no_map_files: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
     pub reserved: [u8; 1],
@@ -327,7 +328,7 @@ impl Default for blaze_symbolize_src_process {
             pid: 0,
             debug_syms: false,
             perf_map: false,
-            map_files: false,
+            no_map_files: false,
             reserved: [0; 1],
         }
     }
@@ -340,14 +341,14 @@ impl From<blaze_symbolize_src_process> for Process {
             pid,
             debug_syms,
             perf_map,
-            map_files,
+            no_map_files,
             reserved: _,
         } = process;
         Self {
             pid: pid.into(),
             debug_syms,
             perf_map,
-            map_files,
+            map_files: !no_map_files,
             _non_exhaustive: (),
         }
     }
@@ -1394,7 +1395,7 @@ mod tests {
         };
         assert_eq!(
             format!("{process:?}"),
-            "blaze_symbolize_src_process { type_size: 16, pid: 1337, debug_syms: true, perf_map: false, map_files: false, reserved: [0] }"
+            "blaze_symbolize_src_process { type_size: 16, pid: 1337, debug_syms: true, perf_map: false, no_map_files: false, reserved: [0] }"
         );
 
         let gsym_data = blaze_symbolize_src_gsym_data {
@@ -2115,7 +2116,6 @@ mod tests {
             pid: 0,
             debug_syms: true,
             perf_map: true,
-            map_files: false,
             ..Default::default()
         };
         let addrs = [blaze_symbolizer_new as Addr];

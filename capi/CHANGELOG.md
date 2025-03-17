@@ -8,6 +8,8 @@ Unreleased
 - Renamed `kernel_image` member of `blaze_symbolize_src_kernel` to
   `vmlinux`
 - Renamed `obj_file_name` member of `blaze_sym_info` to `module`
+- Renamed `map_files` member of `blaze_symbolize_src_process` to
+  `no_map_files` and inverted its meaning
 - Added support for disabling `kallsyms` and `vmlinux` to
   `blaze_symbolize_src_kernel`
 - Added `blaze_symbolize_cache_elf` for caching of ELF data

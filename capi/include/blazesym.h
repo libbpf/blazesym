@@ -683,7 +683,7 @@ typedef struct blaze_cache_src_process {
    * addresses after the original process has already exited, you
    * will have to opt-out of usage of `/proc/<pid>/map_files/` as
    * part of the symbolization request. Refer to
-   * [`blaze_symbolize_src_process::map_files`].
+   * [`blaze_symbolize_src_process::no_map_files`].
    */
   bool cache_vmas;
   /**
@@ -875,13 +875,14 @@ typedef struct blaze_symbolize_src_process {
   /**
    * Whether to work with `/proc/<pid>/map_files/` entries or with
    * symbolic paths mentioned in `/proc/<pid>/maps` instead.
-   * `map_files` usage is generally strongly encouraged, as symbolic
-   * path usage is unlikely to work reliably in mount namespace
-   * contexts or when files have been deleted from the file system.
-   * However, by using symbolic paths the need for requiring the
-   * `SYS_ADMIN` capability is eliminated.
+   *
+   * `no_map_files` usage is generally discouraged, as symbolic paths
+   * are unlikely to work reliably in mount namespace contexts or
+   * when files have been deleted from the file system. However, by
+   * using symbolic paths (i.e., with `no_map_files` being `true`)
+   * the need for requiring the `SYS_ADMIN` capability is eliminated.
    */
-  bool map_files;
+  bool no_map_files;
   /**
    * Unused member available for future expansion. Must be initialized
    * to zero.
