@@ -492,6 +492,11 @@ typedef struct blaze_user_meta {
    * The actual variant with its data.
    */
   union blaze_user_meta_variant variant;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[16];
 } blaze_user_meta;
 
 /**
@@ -508,6 +513,11 @@ typedef struct blaze_normalized_output {
    * The index into the associated [`blaze_user_meta`] array.
    */
   size_t meta_idx;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[16];
 } blaze_normalized_output;
 
 /**
