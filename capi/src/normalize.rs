@@ -1074,6 +1074,10 @@ mod tests {
 
     /// Check that we can enable/disable the reading of build IDs.
     #[test]
+    #[cfg_attr(
+        not(target_pointer_width = "64"),
+        ignore = "loads 64 bit shared object"
+    )]
     fn normalize_build_id_reading() {
         fn test(read_build_ids: bool) {
             let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))

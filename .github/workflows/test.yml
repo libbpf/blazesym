@@ -363,6 +363,22 @@ jobs:
       run: rm .cargo/config.toml
     - name: Run tests
       run: cargo miri test --workspace --features=blazesym-dev/dont-generate-unit-test-files -- ":miri:"
+  test-32bit:
+    name: Test 32bit
+    runs-on: ubuntu-latest
+    env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
+    steps:
+    - name: Install development dependencies
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        targets: "i686-unknown-linux-gnu"
+    - run: cargo test --package=blazesym-c --target i686-unknown-linux-gnu
   test-examples:
     name: Test examples
     runs-on: ubuntu-24.04
