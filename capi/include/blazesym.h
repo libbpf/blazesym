@@ -19,7 +19,11 @@
  *
  * C ABI compatible version of [`blazesym::ErrorKind`].
  */
-typedef enum blaze_err {
+enum blaze_err
+#ifdef __cplusplus
+  : int16_t
+#endif // __cplusplus
+ {
   /**
    * The operation was successful.
    */
@@ -81,7 +85,10 @@ typedef enum blaze_err {
    * kind.
    */
   BLAZE_ERR_OTHER = -260,
-} blaze_err;
+};
+#ifndef __cplusplus
+typedef int16_t blaze_err;
+#endif // __cplusplus
 
 /**
  * The reason why normalization failed.
@@ -194,7 +201,11 @@ typedef uint8_t blaze_symbolize_reason;
 /**
  * The level at which to emit traces.
  */
-typedef enum blaze_trace_lvl {
+enum blaze_trace_lvl
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
   /**
    * Emit all trace events.
    *
@@ -218,7 +229,10 @@ typedef enum blaze_trace_lvl {
    * Only emit warnings.
    */
   BLAZE_LVL_WARN,
-} blaze_trace_lvl;
+};
+#ifndef __cplusplus
+typedef uint8_t blaze_trace_lvl;
+#endif // __cplusplus
 
 /**
  * The valid variant kind in [`blaze_user_meta`].
@@ -1046,12 +1060,12 @@ extern "C" {
 /**
  * Retrieve the error reported by the last fallible API function invoked.
  */
-enum blaze_err blaze_err_last(void);
+blaze_err blaze_err_last(void);
 
 /**
  * Retrieve a textual representation of the error code.
  */
-const char *blaze_err_str(enum blaze_err err);
+const char *blaze_err_str(blaze_err err);
 
 /**
  * Check whether the `PROCMAP_QUERY` ioctl is supported by the system.
@@ -1506,7 +1520,7 @@ void blaze_syms_free(const struct blaze_syms *syms);
  * - the format of emitted lines is unspecified and subject to change; it is
  *   meant for human consumption and not programmatic evaluation
  */
-void blaze_trace(enum blaze_trace_lvl lvl,
+void blaze_trace(blaze_trace_lvl lvl,
                  blaze_trace_cb cb);
 
 #ifdef __cplusplus

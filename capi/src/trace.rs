@@ -18,7 +18,7 @@ use crate::set_last_err;
 
 
 /// The level at which to emit traces.
-#[repr(C)]
+#[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum blaze_trace_lvl {
     /// Emit all trace events.
