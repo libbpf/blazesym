@@ -223,7 +223,11 @@ typedef enum blaze_trace_lvl {
 /**
  * The valid variant kind in [`blaze_user_meta`].
  */
-typedef enum blaze_user_meta_kind {
+enum blaze_user_meta_kind
+#ifdef __cplusplus
+  : uint8_t
+#endif // __cplusplus
+ {
   /**
    * [`blaze_user_meta_variant::unknown`] is valid.
    */
@@ -236,7 +240,10 @@ typedef enum blaze_user_meta_kind {
    * [`blaze_user_meta_variant::elf`] is valid.
    */
   BLAZE_USER_META_ELF,
-} blaze_user_meta_kind;
+};
+#ifndef __cplusplus
+typedef uint8_t blaze_user_meta_kind;
+#endif // __cplusplus
 
 /**
  * Information about a looked up symbol.
@@ -462,7 +469,7 @@ typedef struct blaze_user_meta {
   /**
    * The variant kind that is present.
    */
-  enum blaze_user_meta_kind kind;
+  blaze_user_meta_kind kind;
   /**
    * The actual variant with its data.
    */
