@@ -258,11 +258,18 @@ pub struct blaze_normalized_output {
     pub output: u64,
     /// The index into the associated [`blaze_user_meta`] array.
     pub meta_idx: usize,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 16],
 }
 
 impl From<(u64, usize)> for blaze_normalized_output {
     fn from((output, meta_idx): (u64, usize)) -> Self {
-        Self { output, meta_idx }
+        Self {
+            output,
+            meta_idx,
+            reserved: [0; 16],
+        }
     }
 }
 
@@ -513,6 +520,9 @@ pub struct blaze_user_meta {
     pub unused: [u8; 7],
     /// The actual variant with its data.
     pub variant: blaze_user_meta_variant,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 16],
 }
 
 impl blaze_user_meta {
@@ -524,6 +534,7 @@ impl blaze_user_meta {
                 variant: blaze_user_meta_variant {
                     apk: blaze_user_meta_apk::from(apk),
                 },
+                reserved: [0; 16],
             },
             UserMeta::Elf(elf) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_ELF,
@@ -531,6 +542,7 @@ impl blaze_user_meta {
                 variant: blaze_user_meta_variant {
                     elf: blaze_user_meta_elf::from(elf),
                 },
+                reserved: [0; 16],
             },
             UserMeta::Unknown(unknown) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
@@ -538,6 +550,7 @@ impl blaze_user_meta {
                 variant: blaze_user_meta_variant {
                     unknown: blaze_user_meta_unknown::from(unknown),
                 },
+                reserved: [0; 16],
             },
             _ => unreachable!(),
         };
@@ -789,10 +802,11 @@ mod tests {
         let output = blaze_normalized_output {
             output: 0x1337,
             meta_idx: 1,
+            reserved: [0; 16],
         };
         assert_eq!(
             format!("{output:?}"),
-            "blaze_normalized_output { output: 4919, meta_idx: 1 }"
+            "blaze_normalized_output { output: 4919, meta_idx: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let meta_kind = blaze_user_meta_kind::BLAZE_USER_META_APK;
@@ -836,10 +850,11 @@ mod tests {
                     reserved: [0; 15],
                 }),
             },
+            reserved: [0; 16],
         };
         assert_eq!(
             format!("{meta:?}"),
-            "blaze_user_meta { kind: BLAZE_USER_META_UNKNOWN, unused: [0, 0, 0, 0, 0, 0, 0], variant: blaze_user_meta_variant }",
+            "blaze_user_meta { kind: BLAZE_USER_META_UNKNOWN, unused: [0, 0, 0, 0, 0, 0, 0], variant: blaze_user_meta_variant, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }",
         );
 
         let user_addrs = blaze_normalized_user_output {
