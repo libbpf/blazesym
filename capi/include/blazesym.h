@@ -281,7 +281,7 @@ typedef struct blaze_sym_info {
   /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[15];
+  uint8_t reserved[23];
 } blaze_sym_info;
 
 /**
@@ -315,7 +315,7 @@ typedef struct blaze_inspect_elf_src {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[7];
+  uint8_t reserved[23];
 } blaze_inspect_elf_src;
 
 /**
@@ -381,7 +381,7 @@ typedef struct blaze_normalizer_opts {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[4];
+  uint8_t reserved[20];
 } blaze_normalizer_opts;
 
 /**
@@ -396,7 +396,7 @@ typedef struct blaze_user_meta_apk {
   /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[8];
+  uint8_t reserved[16];
 } blaze_user_meta_apk;
 
 /**
@@ -424,7 +424,7 @@ typedef struct blaze_user_meta_elf {
   /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[8];
+  uint8_t reserved[16];
 } blaze_user_meta_elf;
 
 /**
@@ -441,7 +441,7 @@ typedef struct blaze_user_meta_unknown {
   /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[7];
+  uint8_t reserved[15];
 } blaze_user_meta_unknown;
 
 /**
@@ -521,7 +521,7 @@ typedef struct blaze_normalized_user_output {
   /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[8];
+  uint8_t reserved[16];
 } blaze_normalized_user_output;
 
 /**
@@ -569,7 +569,7 @@ typedef struct blaze_normalize_opts {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[5];
+  uint8_t reserved[21];
 } blaze_normalize_opts;
 
 /**
@@ -636,7 +636,7 @@ typedef struct blaze_symbolizer_opts {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[4];
+  uint8_t reserved[20];
 } blaze_symbolizer_opts;
 
 /**
@@ -658,7 +658,7 @@ typedef struct blaze_cache_src_elf {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[8];
+  uint8_t reserved[16];
 } blaze_cache_src_elf;
 
 /**
@@ -701,7 +701,7 @@ typedef struct blaze_cache_src_process {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[11];
+  uint8_t reserved[19];
 } blaze_cache_src_process;
 
 /**
@@ -829,7 +829,7 @@ typedef struct blaze_sym {
   /**
    * Unused member available for future expansion.
    */
-  uint8_t reserved[7];
+  uint8_t reserved[15];
 } blaze_sym;
 
 /**
@@ -895,7 +895,7 @@ typedef struct blaze_symbolize_src_process {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[1];
+  uint8_t reserved[17];
 } blaze_symbolize_src_process;
 
 /**
@@ -948,7 +948,7 @@ typedef struct blaze_symbolize_src_kernel {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[7];
+  uint8_t reserved[23];
 } blaze_symbolize_src_kernel;
 
 /**
@@ -983,7 +983,7 @@ typedef struct blaze_symbolize_src_elf {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[7];
+  uint8_t reserved[23];
 } blaze_symbolize_src_elf;
 
 /**
@@ -1005,6 +1005,11 @@ typedef struct blaze_symbolize_src_gsym_data {
    * The size of the Gsym data.
    */
   size_t data_len;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[16];
 } blaze_symbolize_src_gsym_data;
 
 /**
@@ -1022,6 +1027,11 @@ typedef struct blaze_symbolize_src_gsym_file {
    * The path to a gsym file.
    */
   const char *path;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[16];
 } blaze_symbolize_src_gsym_file;
 
 /**

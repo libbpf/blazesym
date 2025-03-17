@@ -54,7 +54,7 @@ pub struct blaze_inspect_elf_src {
     pub debug_syms: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 7],
+    pub reserved: [u8; 23],
 }
 
 impl Default for blaze_inspect_elf_src {
@@ -63,7 +63,7 @@ impl Default for blaze_inspect_elf_src {
             type_size: mem::size_of::<Self>(),
             path: ptr::null(),
             debug_syms: false,
-            reserved: [0; 7],
+            reserved: [0; 23],
         }
     }
 }
@@ -173,7 +173,7 @@ pub struct blaze_sym_info {
     /// See [`inspect::SymInfo::sym_type`].
     pub sym_type: blaze_sym_type,
     /// Unused member available for future expansion.
-    pub reserved: [u8; 15],
+    pub reserved: [u8; 23],
 }
 
 
@@ -248,7 +248,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                     sym_type: sym_type.into(),
                     file_offset: file_offset.unwrap_or(0),
                     module,
-                    reserved: [0u8; 15],
+                    reserved: [0; 23],
                 }
             };
             sym_ptr = unsafe { sym_ptr.add(1) };
@@ -261,7 +261,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 sym_type: blaze_sym_type::BLAZE_SYM_UNDEF,
                 file_offset: 0,
                 module: ptr::null(),
-                reserved: [0u8; 15],
+                reserved: [0; 23],
             }
         };
         sym_ptr = unsafe { sym_ptr.add(1) };
@@ -411,8 +411,8 @@ mod tests {
     #[test]
     #[cfg(target_pointer_width = "64")]
     fn type_sizes() {
-        assert_eq!(mem::size_of::<blaze_inspect_elf_src>(), 24);
-        assert_eq!(mem::size_of::<blaze_sym_info>(), 56);
+        assert_eq!(mem::size_of::<blaze_inspect_elf_src>(), 40);
+        assert_eq!(mem::size_of::<blaze_sym_info>(), 64);
     }
 
     /// Exercise the `Debug` representation of various types.
@@ -423,11 +423,11 @@ mod tests {
             type_size: 24,
             path: ptr::null(),
             debug_syms: true,
-            reserved: [0; 7],
+            reserved: [0; 23],
         };
         assert_eq!(
             format!("{elf:?}"),
-            "blaze_inspect_elf_src { type_size: 24, path: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_inspect_elf_src { type_size: 24, path: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let info = blaze_sym_info {
@@ -437,11 +437,11 @@ mod tests {
             file_offset: 31,
             module: ptr::null(),
             sym_type: blaze_sym_type::BLAZE_SYM_VAR,
-            reserved: [0u8; 15],
+            reserved: [0; 23],
         };
         assert_eq!(
             format!("{info:?}"),
-            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, module: 0x0, sym_type: BLAZE_SYM_VAR, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, module: 0x0, sym_type: BLAZE_SYM_VAR, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
     }
 
@@ -455,7 +455,7 @@ mod tests {
             type_size: usize,
             _path: *const c_char,
             debug_syms: bool,
-            reserved: [u8; 7],
+            reserved: [u8; 23],
             foobar: bool,
             reserved2: [u8; 7],
         }
