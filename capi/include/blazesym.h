@@ -471,6 +471,10 @@ typedef struct blaze_user_meta {
    */
   blaze_user_meta_kind kind;
   /**
+   * Currently unused bytes.
+   */
+  uint8_t unused[7];
+  /**
    * The actual variant with its data.
    */
   union blaze_user_meta_variant variant;
