@@ -371,13 +371,19 @@ jobs:
     steps:
     - name: Install development dependencies
       run: |
-        sudo dpkg --add-architecture i386
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: "i686-unknown-linux-gnu"
+    - run: cargo check --target x86_64-unknown-linux-gnu --package=blazesym-dev --features=generate-unit-test-files
+    - name: Install development dependencies
+      run: |
+        sudo dpkg --add-architecture i386
+        sudo apt-get update
+        sudo apt-get remove libllvm18
+        sudo apt-get install --yes --no-install-recommends libclang-dev:i386
     - run: cargo test --package=blazesym-c --target i686-unknown-linux-gnu
   test-examples:
     name: Test examples

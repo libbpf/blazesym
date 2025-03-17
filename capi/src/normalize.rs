@@ -509,6 +509,8 @@ impl Debug for blaze_user_meta_variant {
 pub struct blaze_user_meta {
     /// The variant kind that is present.
     pub kind: blaze_user_meta_kind,
+    /// Currently unused bytes.
+    pub unused: [u8; 7],
     /// The actual variant with its data.
     pub variant: blaze_user_meta_variant,
 }
@@ -518,18 +520,21 @@ impl blaze_user_meta {
         let slf = match other {
             UserMeta::Apk(apk) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_APK,
+                unused: [0u8; 7],
                 variant: blaze_user_meta_variant {
                     apk: blaze_user_meta_apk::from(apk),
                 },
             },
             UserMeta::Elf(elf) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_ELF,
+                unused: [0u8; 7],
                 variant: blaze_user_meta_variant {
                     elf: blaze_user_meta_elf::from(elf),
                 },
             },
             UserMeta::Unknown(unknown) => Self {
                 kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
+                unused: [0u8; 7],
                 variant: blaze_user_meta_variant {
                     unknown: blaze_user_meta_unknown::from(unknown),
                 },
@@ -824,6 +829,7 @@ mod tests {
 
         let meta = blaze_user_meta {
             kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
+            unused: [0u8; 7],
             variant: blaze_user_meta_variant {
                 unknown: ManuallyDrop::new(blaze_user_meta_unknown {
                     reason: blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
@@ -833,7 +839,7 @@ mod tests {
         };
         assert_eq!(
             format!("{meta:?}"),
-            "blaze_user_meta { kind: BLAZE_USER_META_UNKNOWN, variant: blaze_user_meta_variant }",
+            "blaze_user_meta { kind: BLAZE_USER_META_UNKNOWN, unused: [0, 0, 0, 0, 0, 0, 0], variant: blaze_user_meta_variant }",
         );
 
         let user_addrs = blaze_normalized_user_output {

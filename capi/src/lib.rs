@@ -98,3 +98,32 @@ pub use inspect::*;
 pub use normalize::*;
 pub use symbolize::*;
 pub use trace::*;
+
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use std::path::Path;
+
+
+    /// Check that our C types don't have any padding bytes.
+    #[test]
+    fn no_padding_bytes() {
+        let header = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("include")
+            .join("blazesym.h");
+        let mut data = Vec::new();
+        let bindings = Box::new(&mut data);
+        let () = bindgen::builder()
+            .allowlist_type("blaze.+")
+            .explicit_padding(true)
+            .header(header.to_string_lossy())
+            .generate()
+            .unwrap()
+            .write(bindings as Box<dyn io::Write>)
+            .unwrap();
+
+        let contents = String::from_utf8(data).unwrap();
+        assert!(!contents.contains("padding"), "{contents}");
+    }
+}
