@@ -268,7 +268,7 @@ impl From<(u64, usize)> for blaze_normalized_output {
 
 
 /// The valid variant kind in [`blaze_user_meta`].
-#[repr(C)]
+#[repr(u8)]
 #[derive(Debug, PartialEq)]
 pub enum blaze_user_meta_kind {
     /// [`blaze_user_meta_variant::unknown`] is valid.
