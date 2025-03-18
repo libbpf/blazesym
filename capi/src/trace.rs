@@ -18,34 +18,37 @@ use crate::set_last_err;
 
 
 /// The level at which to emit traces.
-#[repr(u8)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum blaze_trace_lvl {
+pub struct blaze_trace_lvl(u8);
+
+impl blaze_trace_lvl {
     /// Emit all trace events.
     ///
     /// This is the most verbose level and includes all others.
-    BLAZE_LVL_TRACE,
+    pub const TRACE: blaze_trace_lvl = blaze_trace_lvl(0);
     /// Emit debug traces and above.
     ///
     /// This level excludes traces emitted with "TRACE" verbosity.
-    BLAZE_LVL_DEBUG,
+    pub const DEBUG: blaze_trace_lvl = blaze_trace_lvl(1);
     /// Emit info level traces and above.
     ///
     /// This level excludes traces emitted with "TRACE" or "DEBUG"
     /// verbosity.
-    BLAZE_LVL_INFO,
+    pub const INFO: blaze_trace_lvl = blaze_trace_lvl(2);
     /// Only emit warnings.
-    BLAZE_LVL_WARN,
+    pub const WARN: blaze_trace_lvl = blaze_trace_lvl(3);
 }
 
 
 impl From<blaze_trace_lvl> for LevelFilter {
     fn from(other: blaze_trace_lvl) -> Self {
         match other {
-            blaze_trace_lvl::BLAZE_LVL_WARN => LevelFilter::WARN,
-            blaze_trace_lvl::BLAZE_LVL_INFO => LevelFilter::INFO,
-            blaze_trace_lvl::BLAZE_LVL_DEBUG => LevelFilter::DEBUG,
-            blaze_trace_lvl::BLAZE_LVL_TRACE => LevelFilter::TRACE,
+            blaze_trace_lvl::WARN => LevelFilter::WARN,
+            blaze_trace_lvl::INFO => LevelFilter::INFO,
+            blaze_trace_lvl::DEBUG => LevelFilter::DEBUG,
+            blaze_trace_lvl::TRACE => LevelFilter::TRACE,
+            _ => LevelFilter::TRACE,
         }
     }
 }
@@ -157,12 +160,16 @@ mod tests {
     /// `LevelFilter` counter parts.
     #[test]
     fn lvl_conversions() {
-        use super::blaze_trace_lvl::*;
-
-        assert_eq!(LevelFilter::from(BLAZE_LVL_DEBUG), LevelFilter::DEBUG);
-        assert_eq!(LevelFilter::from(BLAZE_LVL_INFO), LevelFilter::INFO);
-        assert_eq!(LevelFilter::from(BLAZE_LVL_TRACE), LevelFilter::TRACE);
-        assert_eq!(LevelFilter::from(BLAZE_LVL_WARN), LevelFilter::WARN);
+        assert_eq!(
+            LevelFilter::from(blaze_trace_lvl::DEBUG),
+            LevelFilter::DEBUG
+        );
+        assert_eq!(LevelFilter::from(blaze_trace_lvl::INFO), LevelFilter::INFO);
+        assert_eq!(
+            LevelFilter::from(blaze_trace_lvl::TRACE),
+            LevelFilter::TRACE
+        );
+        assert_eq!(LevelFilter::from(blaze_trace_lvl::WARN), LevelFilter::WARN);
     }
 
     /// Check that our `CbWriter` works as expected.

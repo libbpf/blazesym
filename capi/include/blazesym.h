@@ -46,42 +46,6 @@ typedef uint8_t blaze_normalize_reason;
 #endif // __cplusplus
 
 /**
- * The level at which to emit traces.
- */
-enum blaze_trace_lvl
-#ifdef __cplusplus
-  : uint8_t
-#endif // __cplusplus
- {
-  /**
-   * Emit all trace events.
-   *
-   * This is the most verbose level and includes all others.
-   */
-  BLAZE_LVL_TRACE,
-  /**
-   * Emit debug traces and above.
-   *
-   * This level excludes traces emitted with "TRACE" verbosity.
-   */
-  BLAZE_LVL_DEBUG,
-  /**
-   * Emit info level traces and above.
-   *
-   * This level excludes traces emitted with "TRACE" or "DEBUG"
-   * verbosity.
-   */
-  BLAZE_LVL_INFO,
-  /**
-   * Only emit warnings.
-   */
-  BLAZE_LVL_WARN,
-};
-#ifndef __cplusplus
-typedef uint8_t blaze_trace_lvl;
-#endif // __cplusplus
-
-/**
  * The valid variant kind in [`blaze_user_meta`].
  */
 enum blaze_user_meta_kind
@@ -1033,6 +997,34 @@ typedef struct blaze_symbolize_src_gsym_file {
    */
   uint8_t reserved[16];
 } blaze_symbolize_src_gsym_file;
+
+/**
+ * The level at which to emit traces.
+ */
+typedef uint8_t blaze_trace_lvl;
+/**
+ * Emit all trace events.
+ *
+ * This is the most verbose level and includes all others.
+ */
+#define BLAZE_TRACE_LVL_TRACE 0
+/**
+ * Emit debug traces and above.
+ *
+ * This level excludes traces emitted with "TRACE" verbosity.
+ */
+#define BLAZE_TRACE_LVL_DEBUG 1
+/**
+ * Emit info level traces and above.
+ *
+ * This level excludes traces emitted with "TRACE" or "DEBUG"
+ * verbosity.
+ */
+#define BLAZE_TRACE_LVL_INFO 2
+/**
+ * Only emit warnings.
+ */
+#define BLAZE_TRACE_LVL_WARN 3
 
 /**
  * The signature of a callback function as passed to [`blaze_trace`].
