@@ -378,6 +378,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: "i686-unknown-linux-gnu"
+    - uses: Swatinem/rust-cache@v2
     - run: cargo check --target x86_64-unknown-linux-gnu --package=blazesym-dev --features=generate-unit-test-files
     - name: Install development dependencies
       run: |
