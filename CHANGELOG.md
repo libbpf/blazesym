@@ -1,4 +1,4 @@
-Unreleased
+0.2.0-rc.3
 ----------
 - Added support for 32 bit ELF binaries
 - Added `symbolize::Symbolizer::cache` method for caching process VMA

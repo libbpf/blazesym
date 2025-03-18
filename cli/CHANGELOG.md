@@ -6,6 +6,7 @@ Unreleased
 - Added `--kallsyms` and `--vmlinux` options to `symbolize-kernel
   sub-command
 - Fixed truncation of overly long tracing lines
+- Bumped `blazesym` dependency to `0.2.0-rc.3`
 
 
 0.1.8

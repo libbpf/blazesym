@@ -40,11 +40,11 @@ anyhow = "1.0.97"
 bufio = "0.1"
 # TODO: Enable `zstd` feature once we enabled it for testing in the main
 #       crate.
-blazesym = {version = "=0.2.0-rc.2", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
+blazesym = {version = "=0.2.0-rc.3", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
 clap = {version = "4.5", features = ["derive"]}
 clap_complete = {version = "4.5", optional = true}
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["ansi", "env-filter", "fmt"]}
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-blazesym = {version = "=0.2.0-rc.2", path = "../", features = ["bpf"]}
+blazesym = {version = "=0.2.0-rc.3", path = "../", features = ["bpf"]}
