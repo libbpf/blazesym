@@ -5,6 +5,7 @@ Unreleased
 - Added `apk_to_elf` attribute to `blaze_normalize_opts`
 - Added `size` and `module` attributes to `blaze_sym` type
 - Added additional reserved bytes to various types
+- Adjusted various enum types to be mere typedefs
 - Changed `size` attribute of `blaze_sym_info` to be signed
 - Changed `blaze_user_meta_kind` to be represented as `uint8_t`
 - Renamed `kernel_image` member of `blaze_symbolize_src_kernel` to
