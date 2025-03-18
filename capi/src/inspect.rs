@@ -124,27 +124,29 @@ impl From<blaze_inspect_elf_src> for Elf {
 
 
 /// The type of a symbol.
-#[repr(u8)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum blaze_sym_type {
+pub struct blaze_sym_type(u8);
+
+impl blaze_sym_type {
     /// The symbol type is unspecified or unknown.
     ///
     /// In input contexts this variant can be used to encompass all
     /// other variants (functions and variables), whereas in output
     /// contexts it means that the type is not known.
-    BLAZE_SYM_UNDEF,
+    pub const UNDEF: blaze_sym_type = blaze_sym_type(0);
     /// The symbol is a function.
-    BLAZE_SYM_FUNC,
+    pub const FUNC: blaze_sym_type = blaze_sym_type(1);
     /// The symbol is a variable.
-    BLAZE_SYM_VAR,
+    pub const VAR: blaze_sym_type = blaze_sym_type(2);
 }
 
 impl From<SymType> for blaze_sym_type {
     fn from(other: SymType) -> Self {
         match other {
-            SymType::Undefined => blaze_sym_type::BLAZE_SYM_UNDEF,
-            SymType::Function => blaze_sym_type::BLAZE_SYM_FUNC,
-            SymType::Variable => blaze_sym_type::BLAZE_SYM_VAR,
+            SymType::Undefined => blaze_sym_type::UNDEF,
+            SymType::Function => blaze_sym_type::FUNC,
+            SymType::Variable => blaze_sym_type::VAR,
             _ => unreachable!(),
         }
     }
@@ -258,7 +260,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
                 name: ptr::null(),
                 addr: 0,
                 size: 0,
-                sym_type: blaze_sym_type::BLAZE_SYM_UNDEF,
+                sym_type: blaze_sym_type::UNDEF,
                 file_offset: 0,
                 module: ptr::null(),
                 reserved: [0; 23],
@@ -436,12 +438,12 @@ mod tests {
             size: 1337,
             file_offset: 31,
             module: ptr::null(),
-            sym_type: blaze_sym_type::BLAZE_SYM_VAR,
+            sym_type: blaze_sym_type::VAR,
             reserved: [0; 23],
         };
         assert_eq!(
             format!("{info:?}"),
-            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, module: 0x0, sym_type: BLAZE_SYM_VAR, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_sym_info { name: 0x0, addr: 42, size: 1337, file_offset: 31, module: 0x0, sym_type: blaze_sym_type(2), reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
     }
 
