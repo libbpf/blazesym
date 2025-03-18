@@ -275,15 +275,17 @@ impl From<(u64, usize)> for blaze_normalized_output {
 
 
 /// The valid variant kind in [`blaze_user_meta`].
-#[repr(u8)]
+#[repr(transparent)]
 #[derive(Debug, PartialEq)]
-pub enum blaze_user_meta_kind {
+pub struct blaze_user_meta_kind(u8);
+
+impl blaze_user_meta_kind {
     /// [`blaze_user_meta_variant::unknown`] is valid.
-    BLAZE_USER_META_UNKNOWN,
+    pub const BLAZE_USER_META_UNKNOWN: blaze_user_meta_kind = blaze_user_meta_kind(0);
     /// [`blaze_user_meta_variant::apk`] is valid.
-    BLAZE_USER_META_APK,
+    pub const BLAZE_USER_META_APK: blaze_user_meta_kind = blaze_user_meta_kind(1);
     /// [`blaze_user_meta_variant::elf`] is valid.
-    BLAZE_USER_META_ELF,
+    pub const BLAZE_USER_META_ELF: blaze_user_meta_kind = blaze_user_meta_kind(2);
 }
 
 
@@ -562,6 +564,9 @@ impl blaze_user_meta {
             blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN => {
                 ManuallyDrop::into_inner(unsafe { self.variant.unknown }).free()
             }
+            _ => {
+                debug_assert!(false)
+            }
         }
     }
 }
@@ -804,7 +809,7 @@ mod tests {
         );
 
         let meta_kind = blaze_user_meta_kind::BLAZE_USER_META_APK;
-        assert_eq!(format!("{meta_kind:?}"), "BLAZE_USER_META_APK");
+        assert_eq!(format!("{meta_kind:?}"), "blaze_user_meta_kind(1)");
 
         let apk = blaze_user_meta_apk {
             path: ptr::null_mut(),
@@ -848,7 +853,7 @@ mod tests {
         };
         assert_eq!(
             format!("{meta:?}"),
-            "blaze_user_meta { kind: BLAZE_USER_META_UNKNOWN, unused: [0, 0, 0, 0, 0, 0, 0], variant: blaze_user_meta_variant, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }",
+            "blaze_user_meta { kind: blaze_user_meta_kind(0), unused: [0, 0, 0, 0, 0, 0, 0], variant: blaze_user_meta_variant, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }",
         );
 
         let user_addrs = blaze_normalized_user_output {

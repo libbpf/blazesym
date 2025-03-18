@@ -15,31 +15,6 @@
 #include <stdlib.h>
 
 /**
- * The valid variant kind in [`blaze_user_meta`].
- */
-enum blaze_user_meta_kind
-#ifdef __cplusplus
-  : uint8_t
-#endif // __cplusplus
- {
-  /**
-   * [`blaze_user_meta_variant::unknown`] is valid.
-   */
-  BLAZE_USER_META_UNKNOWN,
-  /**
-   * [`blaze_user_meta_variant::apk`] is valid.
-   */
-  BLAZE_USER_META_APK,
-  /**
-   * [`blaze_user_meta_variant::elf`] is valid.
-   */
-  BLAZE_USER_META_ELF,
-};
-#ifndef __cplusplus
-typedef uint8_t blaze_user_meta_kind;
-#endif // __cplusplus
-
-/**
  * An enum providing a rough classification of errors.
  *
  * C ABI compatible version of [`blazesym::ErrorKind`].
@@ -289,6 +264,23 @@ typedef uint8_t blaze_normalize_reason;
  * The address belonged to an entity that is currently unsupported.
  */
 #define BLAZE_NORMALIZE_REASON_UNSUPPORTED 2
+
+/**
+ * The valid variant kind in [`blaze_user_meta`].
+ */
+typedef uint8_t blaze_user_meta_kind;
+/**
+ * [`blaze_user_meta_variant::unknown`] is valid.
+ */
+#define BLAZE_USER_META_KIND_BLAZE_USER_META_UNKNOWN 0
+/**
+ * [`blaze_user_meta_variant::apk`] is valid.
+ */
+#define BLAZE_USER_META_KIND_BLAZE_USER_META_APK 1
+/**
+ * [`blaze_user_meta_variant::elf`] is valid.
+ */
+#define BLAZE_USER_META_KIND_BLAZE_USER_META_ELF 2
 
 /**
  * C compatible version of [`Apk`].
