@@ -18,6 +18,7 @@ Unreleased
 - Added `blaze_symbolize_cache_elf` for caching of ELF data
 - Added `blaze_symbolize_cache_process` for caching of process VMA
   metadata
+- Bumped `blazesym` dependency to `0.2.0-rc.3`
 
 
 0.1.0-rc.2
