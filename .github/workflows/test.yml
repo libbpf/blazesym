@@ -143,6 +143,7 @@ jobs:
           toolchain: 1.70.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --features="apk,backtrace,bpf,demangle,dwarf,gsym,tracing"
+      - run: cargo build --package=blazesym-c
   nop-rebuilds:
     name: No-op rebuilds
     runs-on: ubuntu-24.04

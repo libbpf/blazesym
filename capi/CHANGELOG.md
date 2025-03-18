@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Lowered minimum supported Rust version to `1.70`
+
+
 0.1.0
 -----
 - Introduced `blaze_trace` function for tapping into the library's

@@ -276,7 +276,7 @@ impl From<(u64, usize)> for blaze_normalized_output {
 
 /// The valid variant kind in [`blaze_user_meta`].
 #[repr(transparent)]
-#[derive(Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct blaze_user_meta_kind(u8);
 
 impl blaze_user_meta_kind {
@@ -412,7 +412,7 @@ impl blaze_user_meta_elf {
 /// over time and, hence, should not be relied upon for the correctness of the
 /// application.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct blaze_normalize_reason(u8);
 
 impl blaze_normalize_reason {
