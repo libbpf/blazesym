@@ -15,82 +15,6 @@
 #include <stdlib.h>
 
 /**
- * An enum providing a rough classification of errors.
- *
- * C ABI compatible version of [`blazesym::ErrorKind`].
- */
-enum blaze_err
-#ifdef __cplusplus
-  : int16_t
-#endif // __cplusplus
- {
-  /**
-   * The operation was successful.
-   */
-  BLAZE_ERR_OK = 0,
-  /**
-   * An entity was not found, often a file.
-   */
-  BLAZE_ERR_NOT_FOUND = -2,
-  /**
-   * The operation lacked the necessary privileges to complete.
-   */
-  BLAZE_ERR_PERMISSION_DENIED = -1,
-  /**
-   * An entity already exists, often a file.
-   */
-  BLAZE_ERR_ALREADY_EXISTS = -17,
-  /**
-   * The operation needs to block to complete, but the blocking
-   * operation was requested to not occur.
-   */
-  BLAZE_ERR_WOULD_BLOCK = -11,
-  /**
-   * Data not valid for the operation were encountered.
-   */
-  BLAZE_ERR_INVALID_DATA = -22,
-  /**
-   * The I/O operation's timeout expired, causing it to be canceled.
-   */
-  BLAZE_ERR_TIMED_OUT = -110,
-  /**
-   * This operation is unsupported on this platform.
-   */
-  BLAZE_ERR_UNSUPPORTED = -95,
-  /**
-   * An operation could not be completed, because it failed
-   * to allocate enough memory.
-   */
-  BLAZE_ERR_OUT_OF_MEMORY = -12,
-  /**
-   * A parameter was incorrect.
-   */
-  BLAZE_ERR_INVALID_INPUT = -256,
-  /**
-   * An error returned when an operation could not be completed
-   * because a call to [`write`] returned [`Ok(0)`].
-   */
-  BLAZE_ERR_WRITE_ZERO = -257,
-  /**
-   * An error returned when an operation could not be completed
-   * because an "end of file" was reached prematurely.
-   */
-  BLAZE_ERR_UNEXPECTED_EOF = -258,
-  /**
-   * DWARF input data was invalid.
-   */
-  BLAZE_ERR_INVALID_DWARF = -259,
-  /**
-   * A custom error that does not fall under any other I/O error
-   * kind.
-   */
-  BLAZE_ERR_OTHER = -260,
-};
-#ifndef __cplusplus
-typedef int16_t blaze_err;
-#endif // __cplusplus
-
-/**
  * The reason why normalization failed.
  *
  * The reason is generally only meant as a hint. Reasons reported may change
@@ -210,6 +134,74 @@ enum blaze_user_meta_kind
 #ifndef __cplusplus
 typedef uint8_t blaze_user_meta_kind;
 #endif // __cplusplus
+
+/**
+ * An enum providing a rough classification of errors.
+ *
+ * C ABI compatible version of [`blazesym::ErrorKind`].
+ */
+typedef int16_t blaze_err;
+/**
+ * The operation was successful.
+ */
+#define BLAZE_ERR_OK 0
+/**
+ * An entity was not found, often a file.
+ */
+#define BLAZE_ERR_NOT_FOUND -2
+/**
+ * The operation lacked the necessary privileges to complete.
+ */
+#define BLAZE_ERR_PERMISSION_DENIED -1
+/**
+ * An entity already exists, often a file.
+ */
+#define BLAZE_ERR_ALREADY_EXISTS -17
+/**
+ * The operation needs to block to complete, but the blocking
+ * operation was requested to not occur.
+ */
+#define BLAZE_ERR_WOULD_BLOCK -11
+/**
+ * Data not valid for the operation were encountered.
+ */
+#define BLAZE_ERR_INVALID_DATA -22
+/**
+ * The I/O operation's timeout expired, causing it to be canceled.
+ */
+#define BLAZE_ERR_TIMED_OUT -110
+/**
+ * This operation is unsupported on this platform.
+ */
+#define BLAZE_ERR_UNSUPPORTED -95
+/**
+ * An operation could not be completed, because it failed
+ * to allocate enough memory.
+ */
+#define BLAZE_ERR_OUT_OF_MEMORY -12
+/**
+ * A parameter was incorrect.
+ */
+#define BLAZE_ERR_INVALID_INPUT -256
+/**
+ * An error returned when an operation could not be completed
+ * because a call to [`write`] returned [`Ok(0)`].
+ */
+#define BLAZE_ERR_WRITE_ZERO -257
+/**
+ * An error returned when an operation ould not be completed
+ * because an "end of file" was reached prematurely.
+ */
+#define BLAZE_ERR_UNEXPECTED_EOF -258
+/**
+ * DWARF input data was invalid.
+ */
+#define BLAZE_ERR_INVALID_DWARF -259
+/**
+ * A custom error that does not fall under any other I/O error
+ * kind.
+ */
+#define BLAZE_ERR_OTHER -260
 
 /**
  * Information about a looked up symbol.
@@ -1098,7 +1090,7 @@ bool blaze_supports_procmap_query(void);
  * retrieve this error.
  *
  * Similarly, if no build ID is present `NULL` is returned and the last
- * error will be set to [`BLAZE_ERR_OK`][blaze_err::BLAZE_ERR_OK].
+ * error will be set to [`blaze_err::OK`].
  *
  * # Safety
  * - `path` needs to be a valid pointer to a NUL terminated string
@@ -1330,9 +1322,10 @@ void blaze_symbolizer_free(blaze_symbolizer *symbolizer);
  *
  * Cache symbolization data of an ELF file.
  *
- * The function sets the thread's last error to either `BLAZE_ERR_OK`
- * to indicate success or a different error code associated with the
- * problem encountered. Use [`blaze_err_last`] to retrieve this error.
+ * The function sets the thread's last error to either
+ * [`blaze_err::OK`] to indicate success or a different error code
+ * associated with the problem encountered. Use [`blaze_err_last`] to
+ * retrieve this error.
  *
  * # Safety
  * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
@@ -1353,9 +1346,10 @@ void blaze_symbolize_cache_elf(blaze_symbolizer *symbolizer,
  * and will be used subsequently as if no failure occurred. Put
  * differently, this method is only effectful on the happy path.
  *
- * The function sets the thread's last error to either `BLAZE_ERR_OK`
- * to indicate success or a different error code associated with the
- * problem encountered. Use [`blaze_err_last`] to retrieve this error.
+ * The function sets the thread's last error to either
+ * [`blaze_err::OK`] to indicate success or a different error code
+ * associated with the problem encountered. Use [`blaze_err_last`] to
+ * retrieve this error.
  *
  * # Safety
  * - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object

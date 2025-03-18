@@ -296,7 +296,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
     name_cnt: usize,
 ) -> *const *const blaze_sym_info {
     if !input_zeroed!(src, blaze_inspect_elf_src) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_inspect_elf_src);
@@ -320,9 +320,9 @@ pub unsafe extern "C" fn blaze_inspect_syms_elf(
         Ok(syms) => {
             let result = convert_syms_list_to_c(syms);
             if result.is_null() {
-                let () = set_last_err(blaze_err::BLAZE_ERR_OUT_OF_MEMORY);
+                let () = set_last_err(blaze_err::OUT_OF_MEMORY);
             } else {
-                let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+                let () = set_last_err(blaze_err::OK);
             }
             result
         }
@@ -368,7 +368,7 @@ pub unsafe extern "C" fn blaze_inspect_syms_free(syms: *const *const blaze_sym_i
 pub extern "C" fn blaze_inspector_new() -> *mut blaze_inspector {
     let inspector = Inspector::new();
     let inspector_box = Box::new(inspector);
-    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+    let () = set_last_err(blaze_err::OK);
     Box::into_raw(inspector_box)
 }
 
@@ -633,7 +633,7 @@ mod tests {
             unsafe { blaze_inspect_syms_elf(inspector, &*src, names.as_ptr(), names.len()) };
         let () = unsafe { ManuallyDrop::into_inner(src).free() };
         assert_eq!(result, ptr::null());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_INVALID_INPUT);
+        assert_eq!(blaze_err_last(), blaze_err::INVALID_INPUT);
 
         let () = unsafe { blaze_inspector_free(inspector) };
     }
@@ -656,7 +656,7 @@ mod tests {
             unsafe { blaze_inspect_syms_elf(inspector, &*src, names.as_ptr(), names.len()) };
         let () = unsafe { ManuallyDrop::into_inner(src).free() };
         assert_eq!(result, ptr::null());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_NOT_FOUND);
+        assert_eq!(blaze_err_last(), blaze_err::NOT_FOUND);
 
         let () = unsafe { blaze_inspector_free(inspector) };
     }

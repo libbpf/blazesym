@@ -31,7 +31,7 @@ fn trace_callbacks() {
     }
 
     let () = blaze_trace(BLAZE_LVL_TRACE, trace_cb);
-    assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+    assert_eq!(blaze_err_last(), blaze_err::OK);
 
     // Symbolize something, which should emit traces.
     {
@@ -52,5 +52,5 @@ fn trace_callbacks() {
     assert!(traces.len() > 0, "{traces:?}");
 
     let () = blaze_trace(BLAZE_LVL_TRACE, trace_cb);
-    assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_ALREADY_EXISTS);
+    assert_eq!(blaze_err_last(), blaze_err::ALREADY_EXISTS);
 }

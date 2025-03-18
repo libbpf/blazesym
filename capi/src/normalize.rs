@@ -182,7 +182,7 @@ impl From<blaze_normalize_opts> for NormalizeOpts {
 pub extern "C" fn blaze_normalizer_new() -> *mut blaze_normalizer {
     let normalizer = Normalizer::new();
     let normalizer_box = Box::new(normalizer);
-    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+    let () = set_last_err(blaze_err::OK);
     Box::into_raw(normalizer_box)
 }
 
@@ -204,7 +204,7 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
     opts: *const blaze_normalizer_opts,
 ) -> *mut blaze_normalizer {
     if !input_zeroed!(opts, blaze_normalizer_opts) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null_mut()
     }
     let opts = input_sanitize!(opts, blaze_normalizer_opts);
@@ -225,7 +225,7 @@ pub unsafe extern "C" fn blaze_normalizer_new_opts(
         .enable_build_id_caching(cache_build_ids)
         .build();
     let normalizer_box = Box::new(normalizer);
-    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+    let () = set_last_err(blaze_err::OK);
     Box::into_raw(normalizer_box)
 }
 
@@ -649,7 +649,7 @@ unsafe fn blaze_normalize_user_addrs_impl(
             let output_box = Box::new(ManuallyDrop::into_inner(
                 blaze_normalized_user_output::from(output),
             ));
-            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            let () = set_last_err(blaze_err::OK);
             Box::into_raw(output_box)
         }
         Err(err) => {
@@ -718,7 +718,7 @@ pub unsafe extern "C" fn blaze_normalize_user_addrs_opts(
     opts: *const blaze_normalize_opts,
 ) -> *mut blaze_normalized_user_output {
     if !input_zeroed!(opts, blaze_normalize_opts) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null_mut()
     }
     let opts = input_sanitize!(opts, blaze_normalize_opts);
@@ -1088,7 +1088,7 @@ mod tests {
             )
         };
         assert_eq!(result, ptr::null_mut());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_INVALID_INPUT);
+        assert_eq!(blaze_err_last(), blaze_err::INVALID_INPUT);
 
         let () = unsafe { blaze_normalizer_free(normalizer) };
     }

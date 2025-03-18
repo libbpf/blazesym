@@ -25,7 +25,7 @@ pub extern "C" fn blaze_supports_procmap_query() -> bool {
     let result = is_procmap_query_supported();
     let err = result
         .as_ref()
-        .map(|_| blaze_err::BLAZE_ERR_OK)
+        .map(|_| blaze_err::OK)
         .unwrap_or_else(|err| err.kind().into());
     let () = set_last_err(err);
     result.unwrap_or(false)
@@ -49,7 +49,7 @@ pub extern "C" fn blaze_supports_procmap_query() -> bool {
 /// retrieve this error.
 ///
 /// Similarly, if no build ID is present `NULL` is returned and the last
-/// error will be set to [`BLAZE_ERR_OK`][blaze_err::BLAZE_ERR_OK].
+/// error will be set to [`blaze_err::OK`].
 ///
 /// # Safety
 /// - `path` needs to be a valid pointer to a NUL terminated string
@@ -79,7 +79,7 @@ pub unsafe extern "C" fn blaze_read_elf_build_id(path: *const c_char, len: *mut 
     let result = inner(path, len);
     let err = result
         .as_ref()
-        .map(|_| blaze_err::BLAZE_ERR_OK)
+        .map(|_| blaze_err::OK)
         .unwrap_or_else(|err| err.kind().into());
     let () = set_last_err(err);
 
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn blaze_read_elf_build_id(path: *const c_char, len: *mut 
             // SAFETY: `malloc` is always safe to call.
             let dst = unsafe { libc::malloc(len) }.cast::<u8>();
             if dst.is_null() {
-                let () = set_last_err(blaze_err::BLAZE_ERR_OUT_OF_MEMORY);
+                let () = set_last_err(blaze_err::OUT_OF_MEMORY);
             } else {
                 // SAFETY: `build_id` is trivially valid and `dst` is
                 //         coming from a `malloc` already checked for
@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn procmap_query_supported() {
         let _supported = blaze_supports_procmap_query();
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+        assert_eq!(blaze_err_last(), blaze_err::OK);
     }
 
     /// Check that we can read a binary's build ID.
@@ -138,7 +138,7 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let build_id = unsafe { blaze_read_elf_build_id(path_c.as_ptr(), &mut len) };
         assert!(!build_id.is_null());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+        assert_eq!(blaze_err_last(), blaze_err::OK);
         // The file contains a sha1 build ID, which is always 20 bytes in length.
         assert_eq!(len, 20);
 
@@ -158,7 +158,7 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let build_id = unsafe { blaze_read_elf_build_id(path_c.as_ptr(), &mut len) };
         assert!(!build_id.is_null());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+        assert_eq!(blaze_err_last(), blaze_err::OK);
         // The file contains an md5 build ID, which is always 16 bytes long.
         assert_eq!(len, 16);
         let () = unsafe { libc::free(build_id.cast()) };
@@ -171,7 +171,7 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let build_id = unsafe { blaze_read_elf_build_id(path_c.as_ptr(), &mut len) };
         assert!(build_id.is_null());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+        assert_eq!(blaze_err_last(), blaze_err::OK);
 
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("..")
@@ -180,6 +180,6 @@ mod tests {
         let path_c = CString::new(path.to_str().unwrap()).unwrap();
         let build_id = unsafe { blaze_read_elf_build_id(path_c.as_ptr(), &mut len) };
         assert!(build_id.is_null());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_NOT_FOUND);
+        assert_eq!(blaze_err_last(), blaze_err::NOT_FOUND);
     }
 }
