@@ -15,7 +15,7 @@ use blazesym_c::blaze_symbolizer_free;
 use blazesym_c::blaze_symbolizer_new;
 use blazesym_c::blaze_syms_free;
 use blazesym_c::blaze_trace;
-use blazesym_c::blaze_trace_lvl::*;
+use blazesym_c::blaze_trace_lvl;
 
 
 /// Check that we retrieve callbacks for traces being emitted.
@@ -30,7 +30,7 @@ fn trace_callbacks() {
         let () = traces.push(msg);
     }
 
-    let () = blaze_trace(BLAZE_LVL_TRACE, trace_cb);
+    let () = blaze_trace(blaze_trace_lvl::TRACE, trace_cb);
     assert_eq!(blaze_err_last(), blaze_err::OK);
 
     // Symbolize something, which should emit traces.
@@ -51,6 +51,6 @@ fn trace_callbacks() {
     let traces = TRACES.lock().unwrap();
     assert!(traces.len() > 0, "{traces:?}");
 
-    let () = blaze_trace(BLAZE_LVL_TRACE, trace_cb);
+    let () = blaze_trace(blaze_trace_lvl::TRACE, trace_cb);
     assert_eq!(blaze_err_last(), blaze_err::ALREADY_EXISTS);
 }
