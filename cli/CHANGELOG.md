@@ -1,9 +1,9 @@
-Unreleased
-----------
+0.1.9
+-----
 - Added `--debug-dirs` and `--no-debug-syms` options to `symbolize
   process` sub-command
 - Added `--no-debug-syms` option to `inspect dump elf` sub-command
-- Added `--kallsyms` and `--vmlinux` options to `symbolize-kernel
+- Added `--kallsyms` and `--vmlinux` options to `symbolize kernel`
   sub-command
 - Fixed truncation of overly long tracing lines
 - Bumped `blazesym` dependency to `0.2.0-rc.3`
