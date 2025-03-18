@@ -10,6 +10,10 @@ blazesym-c
 **blazesym-c** provides C language bindings for the [**blazesym**][blazesym]
 library.
 
+Please note that this library adheres to Cargo's [semantic versioning
+rules][cargo-semver]. While it is likely that the ABI is sufficiently
+flexible to cover incompatible versions, you do so at your own risk.
+
 ## Build & Use
 **blazesym-c** requires a standard Rust toolchain and can be built using
 the Cargo project manager (e.g., `cargo build`).
@@ -36,3 +40,4 @@ is available as part of the Rust documentation or can be generated locally from
 the current repository snapshot using `cargo doc`.
 
 [blazesym]: https://crates.io/crates/blazesym
+[cargo-semver]: https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility
