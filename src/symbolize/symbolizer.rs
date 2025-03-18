@@ -38,6 +38,8 @@ use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
+#[cfg(feature = "apk")]
+use crate::pathlike::PathLike;
 use crate::perf_map::PerfMap;
 use crate::symbolize::InlinedFn;
 use crate::symbolize::Resolve;
@@ -196,12 +198,13 @@ impl<F> ProcessDispatch for F where F: Fn(ProcessMemberInfo<'_>) -> Result<Optio
 
 #[cfg(feature = "apk")]
 fn default_apk_dispatcher(
+    apk_path: &dyn PathLike,
     info: ApkMemberInfo<'_>,
     debug_dirs: Option<&[PathBuf]>,
 ) -> Result<Box<dyn Resolve>> {
     // Create an Android-style binary-in-APK path for
     // reporting purposes.
-    let apk_elf_path = create_apk_elf_path(info.apk_path, info.member_path);
+    let apk_elf_path = create_apk_elf_path(apk_path.represented_path(), info.member_path);
     let parser = Rc::new(ElfParser::from_mmap(
         info.member_mmap,
         Some(apk_elf_path.into_os_string()),
@@ -436,16 +439,16 @@ struct SymbolizeHandler<'sym> {
 impl SymbolizeHandler<'_> {
     #[cfg(feature = "apk")]
     fn handle_apk_addr(&mut self, addr: Addr, file_off: u64, entry_path: &EntryPath) -> Result<()> {
-        let apk_path = if self.map_files {
-            &entry_path.maps_file
+        let result = if self.map_files {
+            self.symbolizer
+                .apk_resolver(entry_path, file_off, self.debug_syms)?
         } else {
-            &entry_path.symbolic_path
+            let path = &entry_path.symbolic_path;
+            self.symbolizer
+                .apk_resolver(path, file_off, self.debug_syms)?
         };
 
-        match self
-            .symbolizer
-            .apk_resolver(apk_path, file_off, self.debug_syms)?
-        {
+        match result {
             Some((elf_resolver, elf_addr)) => {
                 let symbol = self.symbolizer.symbolize_with_resolver(
                     elf_addr,
@@ -763,15 +766,17 @@ impl Symbolizer {
     fn create_apk_resolver<'slf>(
         &'slf self,
         apk: &zip::Archive,
-        apk_path: &Path,
+        apk_path: &dyn PathLike,
         file_off: u64,
         debug_dirs: Option<&[PathBuf]>,
         resolver_map: &'slf InsertMap<Range<u64>, Box<dyn Resolve>>,
     ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
+        let actual_path = apk_path.actual_path();
         // Find the APK entry covering the calculated file offset.
         for apk_entry in apk.entries() {
-            let apk_entry = apk_entry
-                .with_context(|| format!("failed to iterate `{}` members", apk_path.display()))?;
+            let apk_entry = apk_entry.with_context(|| {
+                format!("failed to iterate `{}` members", actual_path.display())
+            })?;
             let bounds = apk_entry.data_offset..apk_entry.data_offset + apk_entry.data.len() as u64;
 
             if bounds.contains(&file_off) {
@@ -782,11 +787,11 @@ impl Symbolizer {
                         .ok_or_invalid_input(|| {
                             format!(
                                 "invalid APK entry data bounds ({bounds:?}) in {}",
-                                apk_path.display()
+                                actual_path.display()
                             )
                         })?;
                     let info = ApkMemberInfo {
-                        apk_path,
+                        apk_path: actual_path,
                         member_path: apk_entry.path,
                         member_mmap: mmap,
                         _non_exhaustive: (),
@@ -796,10 +801,10 @@ impl Symbolizer {
                         if let Some(resolver) = (apk_dispatch)(info.clone())? {
                             resolver
                         } else {
-                            default_apk_dispatcher(info, debug_dirs)?
+                            default_apk_dispatcher(apk_path, info, debug_dirs)?
                         }
                     } else {
-                        default_apk_dispatcher(info, debug_dirs)?
+                        default_apk_dispatcher(apk_path, info, debug_dirs)?
                     };
 
                     Ok(resolver)
@@ -816,22 +821,21 @@ impl Symbolizer {
         Ok(None)
     }
 
-    // TODO: Should likely require a `PathLike` as input, similar to
-    //       `FileCache<ElfResolverData>::elf_resolver`.
     #[cfg(feature = "apk")]
     fn apk_resolver<'slf>(
         &'slf self,
-        path: &Path,
+        path: &dyn PathLike,
         file_off: u64,
         debug_syms: bool,
     ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
-        let (file, cell) = self.apk_cache.entry(path)?;
+        let actual_path = path.actual_path();
+        let (file, cell) = self.apk_cache.entry(actual_path)?;
         let (apk, resolvers) = cell.get_or_try_init(|| {
             let mmap = Mmap::builder()
                 .map(file)
-                .with_context(|| format!("failed to memory map `{}`", path.display()))?;
+                .with_context(|| format!("failed to memory map `{}`", actual_path.display()))?;
             let apk = zip::Archive::with_mmap(mmap)
-                .with_context(|| format!("failed to open zip file `{}`", path.display()))?;
+                .with_context(|| format!("failed to open zip file `{}`", actual_path.display()))?;
             let resolvers = InsertMap::new();
             Result::<_, Error>::Ok((apk, resolvers))
         })?;
