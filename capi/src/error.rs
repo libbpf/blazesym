@@ -8,7 +8,7 @@ use blazesym::ErrorKind;
 ///
 /// C ABI compatible version of [`blazesym::ErrorKind`].
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct blaze_err(i16);
 
 impl blaze_err {

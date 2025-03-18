@@ -451,7 +451,7 @@ pub type blaze_symbolizer = Symbolizer;
 /// change over time and, hence, should not be relied upon for the
 /// correctness of the application.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct blaze_symbolize_reason(u8);
 
 impl blaze_symbolize_reason {

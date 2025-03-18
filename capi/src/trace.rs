@@ -19,7 +19,7 @@ use crate::set_last_err;
 
 /// The level at which to emit traces.
 #[repr(transparent)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct blaze_trace_lvl(u8);
 
 impl blaze_trace_lvl {
