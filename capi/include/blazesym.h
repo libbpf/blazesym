@@ -46,35 +46,6 @@ typedef uint8_t blaze_normalize_reason;
 #endif // __cplusplus
 
 /**
- * The type of a symbol.
- */
-enum blaze_sym_type
-#ifdef __cplusplus
-  : uint8_t
-#endif // __cplusplus
- {
-  /**
-   * The symbol type is unspecified or unknown.
-   *
-   * In input contexts this variant can be used to encompass all
-   * other variants (functions and variables), whereas in output
-   * contexts it means that the type is not known.
-   */
-  BLAZE_SYM_UNDEF,
-  /**
-   * The symbol is a function.
-   */
-  BLAZE_SYM_FUNC,
-  /**
-   * The symbol is a variable.
-   */
-  BLAZE_SYM_VAR,
-};
-#ifndef __cplusplus
-typedef uint8_t blaze_sym_type;
-#endif // __cplusplus
-
-/**
  * The level at which to emit traces.
  */
 enum blaze_trace_lvl
@@ -202,6 +173,27 @@ typedef int16_t blaze_err;
  * kind.
  */
 #define BLAZE_ERR_OTHER -260
+
+/**
+ * The type of a symbol.
+ */
+typedef uint8_t blaze_sym_type;
+/**
+ * The symbol type is unspecified or unknown.
+ *
+ * In input contexts this variant can be used to encompass all
+ * other variants (functions and variables), whereas in output
+ * contexts it means that the type is not known.
+ */
+#define BLAZE_SYM_TYPE_UNDEF 0
+/**
+ * The symbol is a function.
+ */
+#define BLAZE_SYM_TYPE_FUNC 1
+/**
+ * The symbol is a variable.
+ */
+#define BLAZE_SYM_TYPE_VAR 2
 
 /**
  * Information about a looked up symbol.
