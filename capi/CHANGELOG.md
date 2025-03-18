@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.1
+-----
 - Lowered minimum supported Rust version to `1.70`
 
 
