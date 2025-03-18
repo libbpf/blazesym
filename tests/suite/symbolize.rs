@@ -929,34 +929,37 @@ fn symbolize_process_exited_cached_vmas() {
 /// Check that we can symbolize an address residing in a zip archive.
 #[test]
 fn symbolize_process_zip() {
-    let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test.zip");
+    fn test(map_files: bool) {
+        let test_zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
 
-    let mmap = Mmap::builder().exec().open(test_zip).unwrap();
-    let (sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
+        let mmap = Mmap::builder().exec().open(&test_zip).unwrap();
+        let (sym, the_answer_addr) = find_the_answer_fn_in_zip(&mmap);
 
-    // Symbolize the address we just looked up. It should be correctly
-    // mapped to the `the_answer` function within our process.
-    let src = Source::Process(Process::new(Pid::Slf));
-    let symbolizer = Symbolizer::new();
-    let result = symbolizer
-        .symbolize_single(&src, Input::AbsAddr(the_answer_addr))
-        .unwrap()
-        .into_sym()
-        .unwrap();
+        // Symbolize the address we just looked up. It should be correctly
+        // mapped to the `the_answer` function within our process.
+        let mut process = Process::new(Pid::Slf);
+        process.map_files = map_files;
+        let src = Source::Process(process);
+        let symbolizer = Symbolizer::new();
+        let result = symbolizer
+            .symbolize_single(&src, Input::AbsAddr(the_answer_addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
 
-    assert_eq!(result.name, "the_answer");
-    assert!(
-        result
-            .module
-            .as_deref()
-            .map(|module| module.to_string_lossy().ends_with("!/libtest-so.so"))
-            .unwrap_or(false),
-        "{:?}",
-        result.module
-    );
-    assert_eq!(result.addr, sym.addr);
+        let mut module = test_zip.as_os_str().to_os_string();
+        let () = module.push("!/libtest-so.so");
+
+        assert_eq!(result.name, "the_answer");
+        assert_eq!(result.module.as_deref(), Some(module.as_os_str()));
+        assert_eq!(result.addr, sym.addr);
+    }
+
+    for map_files in [false, true] {
+        let () = test(map_files);
+    }
 }
 
 /// Test that we can use a custom dispatch function when symbolizing addresses
