@@ -7,60 +7,62 @@ use blazesym::ErrorKind;
 /// An enum providing a rough classification of errors.
 ///
 /// C ABI compatible version of [`blazesym::ErrorKind`].
-#[repr(i16)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum blaze_err {
+pub struct blaze_err(i16);
+
+impl blaze_err {
     /// The operation was successful.
-    BLAZE_ERR_OK = 0,
+    pub const OK: blaze_err = blaze_err(0);
     /// An entity was not found, often a file.
-    BLAZE_ERR_NOT_FOUND = -2,
+    pub const NOT_FOUND: blaze_err = blaze_err(-2);
     /// The operation lacked the necessary privileges to complete.
-    BLAZE_ERR_PERMISSION_DENIED = -1,
+    pub const PERMISSION_DENIED: blaze_err = blaze_err(-1);
     /// An entity already exists, often a file.
-    BLAZE_ERR_ALREADY_EXISTS = -17,
+    pub const ALREADY_EXISTS: blaze_err = blaze_err(-17);
     /// The operation needs to block to complete, but the blocking
     /// operation was requested to not occur.
-    BLAZE_ERR_WOULD_BLOCK = -11,
+    pub const WOULD_BLOCK: blaze_err = blaze_err(-11);
     /// Data not valid for the operation were encountered.
-    BLAZE_ERR_INVALID_DATA = -22,
+    pub const INVALID_DATA: blaze_err = blaze_err(-22);
     /// The I/O operation's timeout expired, causing it to be canceled.
-    BLAZE_ERR_TIMED_OUT = -110,
+    pub const TIMED_OUT: blaze_err = blaze_err(-110);
     /// This operation is unsupported on this platform.
-    BLAZE_ERR_UNSUPPORTED = -95,
+    pub const UNSUPPORTED: blaze_err = blaze_err(-95);
     /// An operation could not be completed, because it failed
     /// to allocate enough memory.
-    BLAZE_ERR_OUT_OF_MEMORY = -12,
+    pub const OUT_OF_MEMORY: blaze_err = blaze_err(-12);
     /// A parameter was incorrect.
-    BLAZE_ERR_INVALID_INPUT = -256,
+    pub const INVALID_INPUT: blaze_err = blaze_err(-256);
     /// An error returned when an operation could not be completed
     /// because a call to [`write`] returned [`Ok(0)`].
-    BLAZE_ERR_WRITE_ZERO = -257,
-    /// An error returned when an operation could not be completed
+    pub const WRITE_ZERO: blaze_err = blaze_err(-257);
+    /// An error returned when an operation ould not be completed
     /// because an "end of file" was reached prematurely.
-    BLAZE_ERR_UNEXPECTED_EOF = -258,
+    pub const UNEXPECTED_EOF: blaze_err = blaze_err(-258);
     /// DWARF input data was invalid.
-    BLAZE_ERR_INVALID_DWARF = -259,
+    pub const INVALID_DWARF: blaze_err = blaze_err(-259);
     /// A custom error that does not fall under any other I/O error
     /// kind.
-    BLAZE_ERR_OTHER = -260,
+    pub const OTHER: blaze_err = blaze_err(-260);
 }
 
 impl From<ErrorKind> for blaze_err {
     fn from(other: ErrorKind) -> Self {
         match other {
-            ErrorKind::NotFound => blaze_err::BLAZE_ERR_NOT_FOUND,
-            ErrorKind::PermissionDenied => blaze_err::BLAZE_ERR_PERMISSION_DENIED,
-            ErrorKind::AlreadyExists => blaze_err::BLAZE_ERR_ALREADY_EXISTS,
-            ErrorKind::WouldBlock => blaze_err::BLAZE_ERR_WOULD_BLOCK,
-            ErrorKind::InvalidInput => blaze_err::BLAZE_ERR_INVALID_INPUT,
-            ErrorKind::InvalidData => blaze_err::BLAZE_ERR_INVALID_DATA,
-            ErrorKind::InvalidDwarf => blaze_err::BLAZE_ERR_INVALID_DWARF,
-            ErrorKind::TimedOut => blaze_err::BLAZE_ERR_TIMED_OUT,
-            ErrorKind::WriteZero => blaze_err::BLAZE_ERR_WRITE_ZERO,
-            ErrorKind::Unsupported => blaze_err::BLAZE_ERR_UNSUPPORTED,
-            ErrorKind::UnexpectedEof => blaze_err::BLAZE_ERR_UNEXPECTED_EOF,
-            ErrorKind::OutOfMemory => blaze_err::BLAZE_ERR_OUT_OF_MEMORY,
-            ErrorKind::Other => blaze_err::BLAZE_ERR_OTHER,
+            ErrorKind::NotFound => blaze_err::NOT_FOUND,
+            ErrorKind::PermissionDenied => blaze_err::PERMISSION_DENIED,
+            ErrorKind::AlreadyExists => blaze_err::ALREADY_EXISTS,
+            ErrorKind::WouldBlock => blaze_err::WOULD_BLOCK,
+            ErrorKind::InvalidInput => blaze_err::INVALID_INPUT,
+            ErrorKind::InvalidData => blaze_err::INVALID_DATA,
+            ErrorKind::InvalidDwarf => blaze_err::INVALID_DWARF,
+            ErrorKind::TimedOut => blaze_err::TIMED_OUT,
+            ErrorKind::WriteZero => blaze_err::WRITE_ZERO,
+            ErrorKind::Unsupported => blaze_err::UNSUPPORTED,
+            ErrorKind::UnexpectedEof => blaze_err::UNEXPECTED_EOF,
+            ErrorKind::OutOfMemory => blaze_err::OUT_OF_MEMORY,
+            ErrorKind::Other => blaze_err::OTHER,
             _ => unreachable!(),
         }
     }
@@ -69,7 +71,7 @@ impl From<ErrorKind> for blaze_err {
 
 thread_local! {
     /// The error reported by the last fallible API function invoked.
-    static LAST_ERR: Cell<blaze_err> = const { Cell::new(blaze_err::BLAZE_ERR_OK) };
+    static LAST_ERR: Cell<blaze_err> = const { Cell::new(blaze_err::OK) };
 }
 
 /// Retrieve the error reported by the last fallible API function invoked.
@@ -87,44 +89,20 @@ pub(crate) fn set_last_err(err: blaze_err) {
 /// Retrieve a textual representation of the error code.
 #[no_mangle]
 pub extern "C" fn blaze_err_str(err: blaze_err) -> *const c_char {
-    match err as i32 {
-        e if e == blaze_err::BLAZE_ERR_OK as i32 => b"success\0".as_ptr().cast(),
-        e if e == blaze_err::BLAZE_ERR_NOT_FOUND as i32 => {
-            ErrorKind::NotFound.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_PERMISSION_DENIED as i32 => {
-            ErrorKind::PermissionDenied.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_ALREADY_EXISTS as i32 => {
-            ErrorKind::AlreadyExists.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_WOULD_BLOCK as i32 => {
-            ErrorKind::WouldBlock.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_INVALID_INPUT as i32 => {
-            ErrorKind::InvalidInput.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_INVALID_DATA as i32 => {
-            ErrorKind::InvalidData.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_INVALID_DWARF as i32 => {
-            ErrorKind::InvalidDwarf.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_TIMED_OUT as i32 => {
-            ErrorKind::TimedOut.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_WRITE_ZERO as i32 => {
-            ErrorKind::WriteZero.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_UNSUPPORTED as i32 => {
-            ErrorKind::Unsupported.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_UNEXPECTED_EOF as i32 => {
-            ErrorKind::UnexpectedEof.as_bytes().as_ptr().cast()
-        }
-        e if e == blaze_err::BLAZE_ERR_OUT_OF_MEMORY as i32 => {
-            ErrorKind::OutOfMemory.as_bytes().as_ptr().cast()
-        }
+    match err {
+        blaze_err::OK => b"success\0".as_ptr().cast(),
+        blaze_err::NOT_FOUND => ErrorKind::NotFound.as_bytes().as_ptr().cast(),
+        blaze_err::PERMISSION_DENIED => ErrorKind::PermissionDenied.as_bytes().as_ptr().cast(),
+        blaze_err::ALREADY_EXISTS => ErrorKind::AlreadyExists.as_bytes().as_ptr().cast(),
+        blaze_err::WOULD_BLOCK => ErrorKind::WouldBlock.as_bytes().as_ptr().cast(),
+        blaze_err::INVALID_INPUT => ErrorKind::InvalidInput.as_bytes().as_ptr().cast(),
+        blaze_err::INVALID_DATA => ErrorKind::InvalidData.as_bytes().as_ptr().cast(),
+        blaze_err::INVALID_DWARF => ErrorKind::InvalidDwarf.as_bytes().as_ptr().cast(),
+        blaze_err::TIMED_OUT => ErrorKind::TimedOut.as_bytes().as_ptr().cast(),
+        blaze_err::WRITE_ZERO => ErrorKind::WriteZero.as_bytes().as_ptr().cast(),
+        blaze_err::UNSUPPORTED => ErrorKind::Unsupported.as_bytes().as_ptr().cast(),
+        blaze_err::UNEXPECTED_EOF => ErrorKind::UnexpectedEof.as_bytes().as_ptr().cast(),
+        blaze_err::OUT_OF_MEMORY => ErrorKind::OutOfMemory.as_bytes().as_ptr().cast(),
         _ => ErrorKind::Other.as_bytes().as_ptr().cast(),
     }
 }
@@ -141,28 +119,19 @@ mod tests {
     #[test]
     fn error_conversion() {
         let data = [
-            (ErrorKind::NotFound, blaze_err::BLAZE_ERR_NOT_FOUND),
-            (
-                ErrorKind::PermissionDenied,
-                blaze_err::BLAZE_ERR_PERMISSION_DENIED,
-            ),
-            (
-                ErrorKind::AlreadyExists,
-                blaze_err::BLAZE_ERR_ALREADY_EXISTS,
-            ),
-            (ErrorKind::WouldBlock, blaze_err::BLAZE_ERR_WOULD_BLOCK),
-            (ErrorKind::InvalidInput, blaze_err::BLAZE_ERR_INVALID_INPUT),
-            (ErrorKind::InvalidData, blaze_err::BLAZE_ERR_INVALID_DATA),
-            (ErrorKind::InvalidDwarf, blaze_err::BLAZE_ERR_INVALID_DWARF),
-            (ErrorKind::TimedOut, blaze_err::BLAZE_ERR_TIMED_OUT),
-            (ErrorKind::WriteZero, blaze_err::BLAZE_ERR_WRITE_ZERO),
-            (ErrorKind::Unsupported, blaze_err::BLAZE_ERR_UNSUPPORTED),
-            (
-                ErrorKind::UnexpectedEof,
-                blaze_err::BLAZE_ERR_UNEXPECTED_EOF,
-            ),
-            (ErrorKind::OutOfMemory, blaze_err::BLAZE_ERR_OUT_OF_MEMORY),
-            (ErrorKind::Other, blaze_err::BLAZE_ERR_OTHER),
+            (ErrorKind::NotFound, blaze_err::NOT_FOUND),
+            (ErrorKind::PermissionDenied, blaze_err::PERMISSION_DENIED),
+            (ErrorKind::AlreadyExists, blaze_err::ALREADY_EXISTS),
+            (ErrorKind::WouldBlock, blaze_err::WOULD_BLOCK),
+            (ErrorKind::InvalidInput, blaze_err::INVALID_INPUT),
+            (ErrorKind::InvalidData, blaze_err::INVALID_DATA),
+            (ErrorKind::InvalidDwarf, blaze_err::INVALID_DWARF),
+            (ErrorKind::TimedOut, blaze_err::TIMED_OUT),
+            (ErrorKind::WriteZero, blaze_err::WRITE_ZERO),
+            (ErrorKind::Unsupported, blaze_err::UNSUPPORTED),
+            (ErrorKind::UnexpectedEof, blaze_err::UNEXPECTED_EOF),
+            (ErrorKind::OutOfMemory, blaze_err::OUT_OF_MEMORY),
+            (ErrorKind::Other, blaze_err::OTHER),
         ];
 
         for (kind, expected) in data {

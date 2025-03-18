@@ -134,8 +134,8 @@ pub extern "C" fn blaze_trace(lvl: blaze_trace_lvl, cb: blaze_trace_cb) {
         .finish();
 
     let err = set_global_subscriber(subscriber)
-        .map(|()| blaze_err::BLAZE_ERR_OK)
-        .unwrap_or(blaze_err::BLAZE_ERR_ALREADY_EXISTS);
+        .map(|()| blaze_err::OK)
+        .unwrap_or(blaze_err::ALREADY_EXISTS);
     let () = set_last_err(err);
 }
 

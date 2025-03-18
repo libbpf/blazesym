@@ -708,7 +708,7 @@ impl Default for blaze_symbolizer_opts {
 pub extern "C" fn blaze_symbolizer_new() -> *mut blaze_symbolizer {
     let symbolizer = Symbolizer::new();
     let symbolizer_box = Box::new(symbolizer);
-    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+    let () = set_last_err(blaze_err::OK);
     Box::into_raw(symbolizer_box)
 }
 
@@ -729,7 +729,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     opts: *const blaze_symbolizer_opts,
 ) -> *mut blaze_symbolizer {
     if !input_zeroed!(opts, blaze_symbolizer_opts) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null_mut()
     }
     let opts = input_sanitize!(opts, blaze_symbolizer_opts);
@@ -778,7 +778,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
 
     let symbolizer = builder.build();
     let symbolizer_box = Box::new(symbolizer);
-    let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+    let () = set_last_err(blaze_err::OK);
     Box::into_raw(symbolizer_box)
 }
 
@@ -799,9 +799,10 @@ pub unsafe extern "C" fn blaze_symbolizer_free(symbolizer: *mut blaze_symbolizer
 ///
 /// Cache symbolization data of an ELF file.
 ///
-/// The function sets the thread's last error to either `BLAZE_ERR_OK`
-/// to indicate success or a different error code associated with the
-/// problem encountered. Use [`blaze_err_last`] to retrieve this error.
+/// The function sets the thread's last error to either
+/// [`blaze_err::OK`] to indicate success or a different error code
+/// associated with the problem encountered. Use [`blaze_err_last`] to
+/// retrieve this error.
 ///
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
@@ -812,7 +813,7 @@ pub unsafe extern "C" fn blaze_symbolize_cache_elf(
     cache: *const blaze_cache_src_elf,
 ) {
     if !input_zeroed!(cache, blaze_cache_src_elf) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return
     }
     let cache = input_sanitize!(cache, blaze_cache_src_elf);
@@ -822,7 +823,7 @@ pub unsafe extern "C" fn blaze_symbolize_cache_elf(
     let symbolizer = unsafe { &*symbolizer };
     let result = symbolizer.cache(&cache);
     let err = result
-        .map(|()| blaze_err::BLAZE_ERR_OK)
+        .map(|()| blaze_err::OK)
         .unwrap_or_else(|err| err.kind().into());
     let () = set_last_err(err);
 }
@@ -839,9 +840,10 @@ pub unsafe extern "C" fn blaze_symbolize_cache_elf(
 /// and will be used subsequently as if no failure occurred. Put
 /// differently, this method is only effectful on the happy path.
 ///
-/// The function sets the thread's last error to either `BLAZE_ERR_OK`
-/// to indicate success or a different error code associated with the
-/// problem encountered. Use [`blaze_err_last`] to retrieve this error.
+/// The function sets the thread's last error to either
+/// [`blaze_err::OK`] to indicate success or a different error code
+/// associated with the problem encountered. Use [`blaze_err_last`] to
+/// retrieve this error.
 ///
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
@@ -852,7 +854,7 @@ pub unsafe extern "C" fn blaze_symbolize_cache_process(
     cache: *const blaze_cache_src_process,
 ) {
     if !input_zeroed!(cache, blaze_cache_src_process) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return
     }
     let cache = input_sanitize!(cache, blaze_cache_src_process);
@@ -862,7 +864,7 @@ pub unsafe extern "C" fn blaze_symbolize_cache_process(
     let symbolizer = unsafe { &*symbolizer };
     let result = symbolizer.cache(&cache);
     let err = result
-        .map(|()| blaze_err::BLAZE_ERR_OK)
+        .map(|()| blaze_err::OK)
         .unwrap_or_else(|err| err.kind().into());
     let () = set_last_err(err);
 }
@@ -1049,15 +1051,15 @@ unsafe fn blaze_symbolize_impl(
     let result = symbolizer.symbolize(&src, input);
     match result {
         Ok(results) if results.is_empty() => {
-            let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+            let () = set_last_err(blaze_err::OK);
             ptr::null()
         }
         Ok(results) => {
             let result = convert_symbolizedresults_to_c(results);
             if result.is_null() {
-                let () = set_last_err(blaze_err::BLAZE_ERR_OUT_OF_MEMORY);
+                let () = set_last_err(blaze_err::OUT_OF_MEMORY);
             } else {
-                let () = set_last_err(blaze_err::BLAZE_ERR_OK);
+                let () = set_last_err(blaze_err::OK);
             }
             result
         }
@@ -1092,7 +1094,7 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
     abs_addr_cnt: usize,
 ) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_process) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_process);
@@ -1125,7 +1127,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
     abs_addr_cnt: usize,
 ) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_kernel) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_kernel);
@@ -1158,7 +1160,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
     virt_offset_cnt: usize,
 ) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_elf) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_elf);
@@ -1197,7 +1199,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
     file_offset_cnt: usize,
 ) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_elf) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_elf);
@@ -1237,7 +1239,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
     virt_offset_cnt: usize,
 ) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_gsym_data) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_gsym_data);
@@ -1276,7 +1278,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
     virt_offset_cnt: usize,
 ) -> *const blaze_syms {
     if !input_zeroed!(src, blaze_symbolize_src_gsym_file) {
-        let () = set_last_err(blaze_err::BLAZE_ERR_INVALID_INPUT);
+        let () = set_last_err(blaze_err::INVALID_INPUT);
         return ptr::null()
     }
     let src = input_sanitize!(src, blaze_symbolize_src_gsym_file);
@@ -1898,7 +1900,7 @@ mod tests {
             ..Default::default()
         };
         let () = unsafe { blaze_symbolize_cache_elf(symbolizer, &cache) };
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+        assert_eq!(blaze_err_last(), blaze_err::OK);
 
         let () = remove_file(&path).unwrap();
 
@@ -2096,7 +2098,7 @@ mod tests {
             ..Default::default()
         };
         let () = unsafe { blaze_symbolize_cache_process(symbolizer, &cache) };
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_OK);
+        assert_eq!(blaze_err_last(), blaze_err::OK);
 
         let src = blaze_symbolize_src_process {
             pid: 0,
@@ -2182,7 +2184,7 @@ mod tests {
             blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
         };
         assert!(result.is_null());
-        assert_eq!(blaze_err_last(), blaze_err::BLAZE_ERR_NOT_FOUND);
+        assert_eq!(blaze_err_last(), blaze_err::NOT_FOUND);
 
         let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
