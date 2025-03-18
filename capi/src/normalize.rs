@@ -409,27 +409,27 @@ impl blaze_user_meta_elf {
 /// The reason is generally only meant as a hint. Reasons reported may change
 /// over time and, hence, should not be relied upon for the correctness of the
 /// application.
-#[repr(u8)]
+#[repr(transparent)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum blaze_normalize_reason {
+pub struct blaze_normalize_reason(u8);
+
+impl blaze_normalize_reason {
     /// The absolute address was not found in the corresponding process' virtual
     /// memory map.
-    BLAZE_NORMALIZE_REASON_UNMAPPED,
+    pub const UNMAPPED: blaze_normalize_reason = blaze_normalize_reason(0);
     /// The `/proc/<pid>/maps` entry corresponding to the address does not have
     /// a component (file system path, object, ...) associated with it.
-    BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
+    pub const MISSING_COMPONENT: blaze_normalize_reason = blaze_normalize_reason(1);
     /// The address belonged to an entity that is currently unsupported.
-    BLAZE_NORMALIZE_REASON_UNSUPPORTED,
+    pub const UNSUPPORTED: blaze_normalize_reason = blaze_normalize_reason(2);
 }
 
 impl From<Reason> for blaze_normalize_reason {
     fn from(reason: Reason) -> Self {
-        use blaze_normalize_reason::*;
-
         match reason {
-            Reason::Unmapped => BLAZE_NORMALIZE_REASON_UNMAPPED,
-            Reason::MissingComponent => BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
-            Reason::Unsupported => BLAZE_NORMALIZE_REASON_UNSUPPORTED,
+            Reason::Unmapped => blaze_normalize_reason::UNMAPPED,
+            Reason::MissingComponent => blaze_normalize_reason::MISSING_COMPONENT,
+            Reason::Unsupported => blaze_normalize_reason::UNSUPPORTED,
             _ => unreachable!(),
         }
     }
@@ -439,18 +439,12 @@ impl From<Reason> for blaze_normalize_reason {
 /// Retrieve a textual representation of the reason of a normalization failure.
 #[no_mangle]
 pub extern "C" fn blaze_normalize_reason_str(err: blaze_normalize_reason) -> *const c_char {
-    use blaze_normalize_reason::*;
-
-    match err as i32 {
-        e if e == BLAZE_NORMALIZE_REASON_UNMAPPED as i32 => {
-            Reason::Unmapped.as_bytes().as_ptr().cast()
-        }
-        e if e == BLAZE_NORMALIZE_REASON_MISSING_COMPONENT as i32 => {
+    match err {
+        blaze_normalize_reason::UNMAPPED => Reason::Unmapped.as_bytes().as_ptr().cast(),
+        blaze_normalize_reason::MISSING_COMPONENT => {
             Reason::MissingComponent.as_bytes().as_ptr().cast()
         }
-        e if e == BLAZE_NORMALIZE_REASON_UNSUPPORTED as i32 => {
-            Reason::Unsupported.as_bytes().as_ptr().cast()
-        }
+        blaze_normalize_reason::UNSUPPORTED => Reason::Unsupported.as_bytes().as_ptr().cast(),
         _ => b"unknown reason\0".as_ptr().cast(),
     }
 }
@@ -833,12 +827,12 @@ mod tests {
         );
 
         let unknown = blaze_user_meta_unknown {
-            reason: blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
+            reason: blaze_normalize_reason::UNMAPPED,
             reserved: [0; 15],
         };
         assert_eq!(
             format!("{unknown:?}"),
-            "blaze_user_meta_unknown { reason: BLAZE_NORMALIZE_REASON_UNMAPPED, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }",
+            "blaze_user_meta_unknown { reason: blaze_normalize_reason(0), reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }",
         );
 
         let meta = blaze_user_meta {
@@ -846,7 +840,7 @@ mod tests {
             unused: [0; 7],
             variant: blaze_user_meta_variant {
                 unknown: ManuallyDrop::new(blaze_user_meta_unknown {
-                    reason: blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED,
+                    reason: blaze_normalize_reason::UNMAPPED,
                     reserved: [0; 15],
                 }),
             },
@@ -874,15 +868,13 @@ mod tests {
     #[tag(miri)]
     #[test]
     fn reason_stringification() {
-        use blaze_normalize_reason::*;
-
         let data = [
-            (Reason::Unmapped, BLAZE_NORMALIZE_REASON_UNMAPPED),
+            (Reason::Unmapped, blaze_normalize_reason::UNMAPPED),
             (
                 Reason::MissingComponent,
-                BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
+                blaze_normalize_reason::MISSING_COMPONENT,
             ),
-            (Reason::Unsupported, BLAZE_NORMALIZE_REASON_UNSUPPORTED),
+            (Reason::Unsupported, blaze_normalize_reason::UNSUPPORTED),
         ];
 
         for (reason, expected) in data {
@@ -982,7 +974,7 @@ mod tests {
             assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN);
             assert_eq!(
                 unsafe { meta.variant.unknown.reason },
-                blaze_normalize_reason::BLAZE_NORMALIZE_REASON_UNMAPPED
+                blaze_normalize_reason::UNMAPPED
             );
 
             let () = unsafe { blaze_user_output_free(result) };

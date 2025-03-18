@@ -15,37 +15,6 @@
 #include <stdlib.h>
 
 /**
- * The reason why normalization failed.
- *
- * The reason is generally only meant as a hint. Reasons reported may change
- * over time and, hence, should not be relied upon for the correctness of the
- * application.
- */
-enum blaze_normalize_reason
-#ifdef __cplusplus
-  : uint8_t
-#endif // __cplusplus
- {
-  /**
-   * The absolute address was not found in the corresponding process' virtual
-   * memory map.
-   */
-  BLAZE_NORMALIZE_REASON_UNMAPPED,
-  /**
-   * The `/proc/<pid>/maps` entry corresponding to the address does not have
-   * a component (file system path, object, ...) associated with it.
-   */
-  BLAZE_NORMALIZE_REASON_MISSING_COMPONENT,
-  /**
-   * The address belonged to an entity that is currently unsupported.
-   */
-  BLAZE_NORMALIZE_REASON_UNSUPPORTED,
-};
-#ifndef __cplusplus
-typedef uint8_t blaze_normalize_reason;
-#endif // __cplusplus
-
-/**
  * The valid variant kind in [`blaze_user_meta`].
  */
 enum blaze_user_meta_kind
@@ -297,6 +266,29 @@ typedef struct blaze_normalizer_opts {
    */
   uint8_t reserved[20];
 } blaze_normalizer_opts;
+
+/**
+ * The reason why normalization failed.
+ *
+ * The reason is generally only meant as a hint. Reasons reported may change
+ * over time and, hence, should not be relied upon for the correctness of the
+ * application.
+ */
+typedef uint8_t blaze_normalize_reason;
+/**
+ * The absolute address was not found in the corresponding process' virtual
+ * memory map.
+ */
+#define BLAZE_NORMALIZE_REASON_UNMAPPED 0
+/**
+ * The `/proc/<pid>/maps` entry corresponding to the address does not have
+ * a component (file system path, object, ...) associated with it.
+ */
+#define BLAZE_NORMALIZE_REASON_MISSING_COMPONENT 1
+/**
+ * The address belonged to an entity that is currently unsupported.
+ */
+#define BLAZE_NORMALIZE_REASON_UNSUPPORTED 2
 
 /**
  * C compatible version of [`Apk`].
