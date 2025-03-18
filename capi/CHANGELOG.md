@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.0
+-----
 - Introduced `blaze_trace` function for tapping into the library's
   tracing functionality
 - Added `apk_to_elf` attribute to `blaze_normalize_opts`
