@@ -122,12 +122,10 @@ pub struct blaze_normalize_opts {
     /// better choice.
     pub map_files: bool,
     /// Normalize addresses inside APKs to the contained ELF file and
-    /// report a regular
-    /// [`BLAZE_USER_META_ELF`][blaze_user_meta_kind::BLAZE_USER_META_ELF]
-    /// meta data entry instead of an
-    /// [`BLAZE_USER_META_APK`][blaze_user_meta_kind::BLAZE_USER_META_APK]
-    /// one. As a result, the reported file offset will also be relative
-    /// to the contained ELF file and not to the APK itself.
+    /// report a regular [`blaze_user_meta_kind::ELF`] meta data entry
+    /// instead of an [`blaze_user_meta_kind::APK`] one. As a result,
+    /// the reported file offset will also be relative to the contained
+    /// ELF file and not to the APK itself.
     pub apk_to_elf: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
@@ -281,10 +279,21 @@ pub struct blaze_user_meta_kind(u8);
 
 impl blaze_user_meta_kind {
     /// [`blaze_user_meta_variant::unknown`] is valid.
-    pub const BLAZE_USER_META_UNKNOWN: blaze_user_meta_kind = blaze_user_meta_kind(0);
+    pub const UNKNOWN: blaze_user_meta_kind = blaze_user_meta_kind(0);
     /// [`blaze_user_meta_variant::apk`] is valid.
-    pub const BLAZE_USER_META_APK: blaze_user_meta_kind = blaze_user_meta_kind(1);
+    pub const APK: blaze_user_meta_kind = blaze_user_meta_kind(1);
     /// [`blaze_user_meta_variant::elf`] is valid.
+    pub const ELF: blaze_user_meta_kind = blaze_user_meta_kind(2);
+
+    // TODO: Remove the following constants with the 0.2 release
+    /// Deprecated; use `BLAZE_USER_META_KIND_UNKNOWN`.
+    #[deprecated]
+    pub const BLAZE_USER_META_UNKNOWN: blaze_user_meta_kind = blaze_user_meta_kind(0);
+    /// Deprecated; use `BLAZE_USER_META_KIND_APK`.
+    #[deprecated]
+    pub const BLAZE_USER_META_APK: blaze_user_meta_kind = blaze_user_meta_kind(1);
+    /// Deprecated; use `BLAZE_USER_META_KIND_ELF`.
+    #[deprecated]
     pub const BLAZE_USER_META_ELF: blaze_user_meta_kind = blaze_user_meta_kind(2);
 }
 
@@ -491,11 +500,11 @@ impl blaze_user_meta_unknown {
 /// The actual variant data in [`blaze_user_meta`].
 #[repr(C)]
 pub union blaze_user_meta_variant {
-    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK`].
+    /// Valid on [`blaze_user_meta_kind::APK`].
     pub apk: ManuallyDrop<blaze_user_meta_apk>,
-    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_ELF`].
+    /// Valid on [`blaze_user_meta_kind::ELF`].
     pub elf: ManuallyDrop<blaze_user_meta_elf>,
-    /// Valid on [`blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN`].
+    /// Valid on [`blaze_user_meta_kind::UNKNOWN`].
     pub unknown: ManuallyDrop<blaze_user_meta_unknown>,
 }
 
@@ -525,7 +534,7 @@ impl blaze_user_meta {
     fn from(other: UserMeta) -> ManuallyDrop<Self> {
         let slf = match other {
             UserMeta::Apk(apk) => Self {
-                kind: blaze_user_meta_kind::BLAZE_USER_META_APK,
+                kind: blaze_user_meta_kind::APK,
                 unused: [0; 7],
                 variant: blaze_user_meta_variant {
                     apk: blaze_user_meta_apk::from(apk),
@@ -533,7 +542,7 @@ impl blaze_user_meta {
                 reserved: [0; 16],
             },
             UserMeta::Elf(elf) => Self {
-                kind: blaze_user_meta_kind::BLAZE_USER_META_ELF,
+                kind: blaze_user_meta_kind::ELF,
                 unused: [0; 7],
                 variant: blaze_user_meta_variant {
                     elf: blaze_user_meta_elf::from(elf),
@@ -541,7 +550,7 @@ impl blaze_user_meta {
                 reserved: [0; 16],
             },
             UserMeta::Unknown(unknown) => Self {
-                kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
+                kind: blaze_user_meta_kind::UNKNOWN,
                 unused: [0; 7],
                 variant: blaze_user_meta_variant {
                     unknown: blaze_user_meta_unknown::from(unknown),
@@ -555,13 +564,13 @@ impl blaze_user_meta {
 
     unsafe fn free(self) {
         match self.kind {
-            blaze_user_meta_kind::BLAZE_USER_META_APK => unsafe {
+            blaze_user_meta_kind::APK => unsafe {
                 ManuallyDrop::into_inner(self.variant.apk).free()
             },
-            blaze_user_meta_kind::BLAZE_USER_META_ELF => unsafe {
+            blaze_user_meta_kind::ELF => unsafe {
                 ManuallyDrop::into_inner(self.variant.elf).free()
             },
-            blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN => {
+            blaze_user_meta_kind::UNKNOWN => {
                 ManuallyDrop::into_inner(unsafe { self.variant.unknown }).free()
             }
             _ => {
@@ -808,7 +817,7 @@ mod tests {
             "blaze_normalized_output { output: 4919, meta_idx: 1, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
-        let meta_kind = blaze_user_meta_kind::BLAZE_USER_META_APK;
+        let meta_kind = blaze_user_meta_kind::APK;
         assert_eq!(format!("{meta_kind:?}"), "blaze_user_meta_kind(1)");
 
         let apk = blaze_user_meta_apk {
@@ -841,7 +850,7 @@ mod tests {
         );
 
         let meta = blaze_user_meta {
-            kind: blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN,
+            kind: blaze_user_meta_kind::UNKNOWN,
             unused: [0; 7],
             variant: blaze_user_meta_variant {
                 unknown: ManuallyDrop::new(blaze_user_meta_unknown {
@@ -976,7 +985,7 @@ mod tests {
             assert_eq!(user_addrs.output_cnt, 6);
 
             let meta = unsafe { user_addrs.metas.read() };
-            assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN);
+            assert_eq!(meta.kind, blaze_user_meta_kind::UNKNOWN);
             assert_eq!(
                 unsafe { meta.variant.unknown.reason },
                 blaze_normalize_reason::UNMAPPED
@@ -1144,7 +1153,7 @@ mod tests {
 
             let output = unsafe { &*normalized.outputs.add(0) };
             let meta = unsafe { &*normalized.metas.add(output.meta_idx) };
-            assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_ELF);
+            assert_eq!(meta.kind, blaze_user_meta_kind::ELF);
 
             let elf = unsafe { &meta.variant.elf };
 
@@ -1218,7 +1227,7 @@ mod tests {
 
         let output = unsafe { &*normalized.outputs.add(0) };
         let meta = unsafe { &*normalized.metas.add(output.meta_idx) };
-        assert_eq!(meta.kind, blaze_user_meta_kind::BLAZE_USER_META_ELF);
+        assert_eq!(meta.kind, blaze_user_meta_kind::ELF);
 
         let elf = unsafe { &meta.variant.elf };
         let path = unsafe { CStr::from_ptr(elf.path) };

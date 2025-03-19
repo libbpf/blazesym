@@ -272,13 +272,25 @@ typedef uint8_t blaze_user_meta_kind;
 /**
  * [`blaze_user_meta_variant::unknown`] is valid.
  */
-#define BLAZE_USER_META_KIND_BLAZE_USER_META_UNKNOWN 0
+#define BLAZE_USER_META_KIND_UNKNOWN 0
 /**
  * [`blaze_user_meta_variant::apk`] is valid.
  */
-#define BLAZE_USER_META_KIND_BLAZE_USER_META_APK 1
+#define BLAZE_USER_META_KIND_APK 1
 /**
  * [`blaze_user_meta_variant::elf`] is valid.
+ */
+#define BLAZE_USER_META_KIND_ELF 2
+/**
+ * Deprecated; use `BLAZE_USER_META_KIND_UNKNOWN`.
+ */
+#define BLAZE_USER_META_KIND_BLAZE_USER_META_UNKNOWN 0
+/**
+ * Deprecated; use `BLAZE_USER_META_KIND_APK`.
+ */
+#define BLAZE_USER_META_KIND_BLAZE_USER_META_APK 1
+/**
+ * Deprecated; use `BLAZE_USER_META_KIND_ELF`.
  */
 #define BLAZE_USER_META_KIND_BLAZE_USER_META_ELF 2
 
@@ -347,15 +359,15 @@ typedef struct blaze_user_meta_unknown {
  */
 typedef union blaze_user_meta_variant {
   /**
-   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_APK`].
+   * Valid on [`blaze_user_meta_kind::APK`].
    */
   struct blaze_user_meta_apk apk;
   /**
-   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_ELF`].
+   * Valid on [`blaze_user_meta_kind::ELF`].
    */
   struct blaze_user_meta_elf elf;
   /**
-   * Valid on [`blaze_user_meta_kind::BLAZE_USER_META_UNKNOWN`].
+   * Valid on [`blaze_user_meta_kind::UNKNOWN`].
    */
   struct blaze_user_meta_unknown unknown;
 } blaze_user_meta_variant;
@@ -465,12 +477,10 @@ typedef struct blaze_normalize_opts {
   bool map_files;
   /**
    * Normalize addresses inside APKs to the contained ELF file and
-   * report a regular
-   * [`BLAZE_USER_META_ELF`][blaze_user_meta_kind::BLAZE_USER_META_ELF]
-   * meta data entry instead of an
-   * [`BLAZE_USER_META_APK`][blaze_user_meta_kind::BLAZE_USER_META_APK]
-   * one. As a result, the reported file offset will also be relative
-   * to the contained ELF file and not to the APK itself.
+   * report a regular [`blaze_user_meta_kind::ELF`] meta data entry
+   * instead of an [`blaze_user_meta_kind::APK`] one. As a result,
+   * the reported file offset will also be relative to the contained
+   * ELF file and not to the APK itself.
    */
   bool apk_to_elf;
   /**
