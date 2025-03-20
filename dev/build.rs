@@ -580,6 +580,14 @@ fn prepare_test_files() {
     );
     let () = remove_file(&dbg).unwrap();
 
+    let name = "test-stable-addrs-with-link-to-self.bin";
+    let link = data_dir.join(name);
+    objcopy(
+        &src,
+        name,
+        &[&format!("--add-gnu-debuglink={}", link.display())],
+    );
+
     let src = data_dir.join("kallsyms.xz");
     unpack_xz(&src, &change_ext(&src, ""));
 
