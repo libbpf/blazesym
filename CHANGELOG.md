@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Adjusted debug link resolution to handle self-referential debug links
+  more gracefully
+
+
 0.2.0-rc.3
 ----------
 - Added support for 32 bit ELF binaries

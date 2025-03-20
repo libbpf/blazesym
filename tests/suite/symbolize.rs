@@ -575,6 +575,25 @@ fn symbolize_dwarf_non_existent_debug_link() {
     assert_eq!(result, None);
 }
 
+/// Check that we don't error out due to checksum mismatch on
+/// self-referential debug link.
+#[tag(other_os)]
+#[test]
+fn symbolize_dwarf_self_referential_debug_link() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-with-link-to-self.bin");
+    let src = Source::from(Elf::new(path));
+    let symbolizer = Symbolizer::builder().enable_auto_reload(false).build();
+    let result = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(result.name, "factorial");
+    assert_eq!(result.addr, 0x2000200);
+}
+
 /// Check that we honor configured debug directories as one would expect.
 #[tag(other_os)]
 #[test]

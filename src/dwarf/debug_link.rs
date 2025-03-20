@@ -64,6 +64,19 @@ impl<'path> DebugFileIter<'path> {
             state: State::FixedDir { idx: 0 },
         }
     }
+
+    fn report_or_next(&mut self, path: PathBuf) -> Option<PathBuf> {
+        // If the linkee name equals the linker name we may end
+        // up reporting the linker itself. Don't do that.
+        // Arguably it's questionable whether the debug
+        // information is kosher, but just ignoring a
+        // self-referential link seems appropriate here.
+        if Some(path.as_path()) != self.canonical_linker {
+            Some(path)
+        } else {
+            self.next()
+        }
+    }
 }
 
 impl Iterator for DebugFileIter<'_> {
@@ -74,7 +87,8 @@ impl Iterator for DebugFileIter<'_> {
             State::FixedDir { idx } => {
                 if let Some(dir) = self.fixed_dirs.get(*idx) {
                     *idx += 1;
-                    Some(dir.join(self.linkee))
+
+                    self.report_or_next(dir.join(self.linkee))
                 } else {
                     // We covered all the "fixed" directories. Move on to the
                     // dynamic stuff, if possible.
@@ -85,9 +99,10 @@ impl Iterator for DebugFileIter<'_> {
                         self.state = State::CanonicalTarget {
                             canonical_linkee: path,
                         };
-                        return self.next()
+                        self.next()
+                    } else {
+                        None
                     }
-                    None
                 }
             }
             State::CanonicalTarget { canonical_linkee } => {
@@ -106,7 +121,8 @@ impl Iterator for DebugFileIter<'_> {
                     canonical_rel_linkee: path.to_path_buf(),
                     linkee_dir: path.to_path_buf(),
                 };
-                Some(result)
+
+                self.report_or_next(result)
             }
             State::DynamicDirs {
                 fixed_dir_idx,
@@ -124,7 +140,7 @@ impl Iterator for DebugFileIter<'_> {
                             *fixed_dir_idx += 1;
                         }
                     }
-                    Some(fixed_dir.join(dir).join(self.linkee))
+                    self.report_or_next(fixed_dir.join(dir).join(self.linkee))
                 } else {
                     None
                 }
@@ -347,5 +363,16 @@ mod tests {
             PathBuf::from("/lib/debug/usr/libc.so.debug"),
         ];
         assert_eq!(files, expected);
+
+        // Make sure that we don't report the "linker" itself as a
+        // potential linkee.
+        let fixed_dirs = [];
+        let files = DebugFileIter::new(
+            fixed_dirs.as_slice(),
+            Some(Path::new("/usr/lib64/libc.so")),
+            OsStr::new("libc.so"),
+        )
+        .collect::<Vec<_>>();
+        assert_eq!(files, Vec::<PathBuf>::new());
     }
 }
