@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Added shorter `blaze_user_meta_kind` constants
+  - Deprecated `BLAZE_USER_META_KIND_BLAZE_USER_META_*` constants
+
+
 0.1.1
 -----
 - Lowered minimum supported Rust version to `1.70`
