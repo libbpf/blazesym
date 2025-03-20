@@ -577,7 +577,6 @@ fn symbolize_dwarf_non_existent_debug_link() {
 
 /// Check that we don't error out due to checksum mismatch on
 /// self-referential debug link.
-#[tag(other_os)]
 #[test]
 fn symbolize_dwarf_self_referential_debug_link() {
     let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
