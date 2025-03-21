@@ -38,8 +38,6 @@ use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
-#[cfg(feature = "apk")]
-use crate::pathlike::PathLike;
 use crate::perf_map::PerfMap;
 use crate::symbolize::InlinedFn;
 use crate::symbolize::Resolve;
@@ -438,16 +436,16 @@ struct SymbolizeHandler<'sym> {
 impl SymbolizeHandler<'_> {
     #[cfg(feature = "apk")]
     fn handle_apk_addr(&mut self, addr: Addr, file_off: u64, entry_path: &EntryPath) -> Result<()> {
-        let result = if self.map_files {
-            self.symbolizer
-                .apk_resolver(entry_path, file_off, self.debug_syms)?
+        let apk_path = if self.map_files {
+            &entry_path.maps_file
         } else {
-            let path = entry_path.symbolic_path.as_path();
-            self.symbolizer
-                .apk_resolver(path, file_off, self.debug_syms)?
+            &entry_path.symbolic_path
         };
 
-        match result {
+        match self
+            .symbolizer
+            .apk_resolver(apk_path, file_off, self.debug_syms)?
+        {
             Some((elf_resolver, elf_addr)) => {
                 let symbol = self.symbolizer.symbolize_with_resolver(
                     elf_addr,
@@ -818,19 +816,15 @@ impl Symbolizer {
         Ok(None)
     }
 
+    // TODO: Should likely require a `PathLike` as input, similar to
+    //       `FileCache<ElfResolverData>::elf_resolver`.
     #[cfg(feature = "apk")]
-    fn apk_resolver<'slf, P>(
+    fn apk_resolver<'slf>(
         &'slf self,
-        path: &P,
+        path: &Path,
         file_off: u64,
         debug_syms: bool,
-    ) -> Result<Option<(&'slf dyn Resolve, Addr)>>
-    where
-        P: ?Sized + PathLike,
-    {
-        let path = path.represented_path();
-        dbg!(path);
-
+    ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
         let (file, cell) = self.apk_cache.entry(path)?;
         let (apk, resolvers) = cell.get_or_try_init(|| {
             let mmap = Mmap::builder()
@@ -1156,15 +1150,15 @@ impl Symbolizer {
                 }
                 Input::FileOffset(offsets) => offsets
                     .iter()
-                    .map(|offset| {
-                        match self.apk_resolver(path.as_path(), *offset, *debug_syms)? {
+                    .map(
+                        |offset| match self.apk_resolver(path, *offset, *debug_syms)? {
                             Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
                                 elf_addr,
                                 &Resolver::Cached(elf_resolver.as_symbolize()),
                             ),
                             None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
-                        }
-                    })
+                        },
+                    )
                     .collect(),
             },
             #[cfg(feature = "breakpad")]
@@ -1344,15 +1338,13 @@ impl Symbolizer {
                         "APK symbolization does not support absolute address inputs",
                     ))
                 }
-                Input::FileOffset(offset) => {
-                    match self.apk_resolver(path.as_path(), offset, *debug_syms)? {
-                        Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
-                            elf_addr,
-                            &Resolver::Cached(elf_resolver.as_symbolize()),
-                        ),
-                        None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
-                    }
-                }
+                Input::FileOffset(offset) => match self.apk_resolver(path, offset, *debug_syms)? {
+                    Some((elf_resolver, elf_addr)) => self.symbolize_with_resolver(
+                        elf_addr,
+                        &Resolver::Cached(elf_resolver.as_symbolize()),
+                    ),
+                    None => return Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
+                },
             },
             #[cfg(feature = "breakpad")]
             Source::Breakpad(Breakpad {
