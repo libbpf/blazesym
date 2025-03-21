@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::path::PathBuf;
 
 
 pub(crate) trait PathLike {
@@ -24,5 +25,15 @@ impl PathLike for Path {
 
     fn represented_path(&self) -> &Path {
         self
+    }
+}
+
+impl PathLike for PathBuf {
+    fn actual_path(&self) -> &Path {
+        self.as_path()
+    }
+
+    fn represented_path(&self) -> &Path {
+        self.as_path()
     }
 }

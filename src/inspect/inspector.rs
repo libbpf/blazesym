@@ -114,7 +114,7 @@ impl Inspector {
             }) => {
                 let debug_dirs;
                 let resolver = self.elf_cache.elf_resolver(
-                    path.as_path(),
+                    path,
                     if *debug_syms {
                         debug_dirs = DEFAULT_DEBUG_DIRS
                             .iter()
@@ -196,7 +196,7 @@ impl Inspector {
                     };
                     let debug_dirs;
                     let resolver = slf.elf_cache.elf_resolver(
-                        path.as_path(),
+                        path,
                         if *debug_syms {
                             debug_dirs = DEFAULT_DEBUG_DIRS
                                 .iter()
