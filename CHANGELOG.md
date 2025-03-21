@@ -2,8 +2,6 @@ Unreleased
 ----------
 - Adjusted debug link resolution to handle self-referential debug links
   more gracefully
-- Report "symbolic" path in `symbolize::Sym::module` when using process
-  symbolization on APKs with `map_files` set to `true`
 
 
 0.2.0-rc.3
