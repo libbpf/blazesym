@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
-use std::io::Read as _;
+use std::io;
 use std::io::Seek as _;
 use std::io::SeekFrom;
 use std::mem;
@@ -64,6 +64,53 @@ use super::types::SHN_LORESERVE;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
 use super::types::SHT_NOBITS;
+
+
+fn read_pod<T, R>(reader: &mut R) -> Result<T, io::Error>
+where
+    T: Pod,
+    R: io::Read,
+{
+    let mut value = MaybeUninit::<T>::uninit();
+    let ptr = value.as_mut_ptr().cast::<u8>();
+    let len = mem::size_of::<T>();
+    // Make sure to zero out everything, including potential padding
+    // bytes. `std::io::Read` requires fully initialized memory, for
+    // better or worse.
+    // SAFETY: `T` is a `Pod` and hence valid for any bit pattern,
+    //         including all zeroes.
+    let () = unsafe { ptr.write_bytes(0, len) };
+    // SAFETY: `value` is a buffer of `len` bytes.
+    let slice = unsafe { slice::from_raw_parts_mut(ptr, len) };
+    let () = reader.read_exact(slice)?;
+    // SAFETY: `T` is a `Pod` and hence valid for any bit pattern,
+    //         including all zeroes.
+    Ok(unsafe { value.assume_init() })
+}
+
+
+fn read_pod_vec<T, R>(reader: &mut R, count: usize) -> Result<Vec<T>, io::Error>
+where
+    T: Pod,
+    R: io::Read,
+{
+    let mut vec = Vec::<T>::with_capacity(count);
+    let ptr = vec.as_mut_ptr().cast::<u8>();
+    let len = count * mem::size_of::<T>();
+    // Make sure to zero out everything, including potential padding
+    // bytes. `std::io::Read` requires fully initialized memory, for
+    // better or worse.
+    // SAFETY: `T` is a `Pod` and hence valid for any bit pattern,
+    //         including all zeroes.
+    let () = unsafe { ptr.write_bytes(0, len) };
+    // SAFETY: `vec` is a buffer of `len` bytes.
+    let slice = unsafe { slice::from_raw_parts_mut(ptr, len) };
+    let () = reader.read_exact(slice)?;
+    // SAFETY: The `Vec` is guaranteed to have capacity for `count`
+    //         objects and we made sure to initialize all of them.
+    let () = unsafe { vec.set_len(count) };
+    Ok(vec)
+}
 
 
 fn symbol_name<'elf>(strtab: &'elf [u8], sym: &Elf64_Sym) -> Result<&'elf str> {
@@ -873,17 +920,8 @@ impl<'elf> BackendImpl<'elf> for &File {
     {
         let mut slf = *self;
         let _pos = slf.seek(SeekFrom::Start(offset))?;
-
-        let mut value = MaybeUninit::<T>::zeroed();
-        // SAFETY: `value` is a buffer of `size_of::<T>` bytes.
-        // TODO: Are we UB here because we create a mut reference?
-        let slice = unsafe {
-            slice::from_raw_parts_mut(value.as_mut_ptr().cast::<u8>(), mem::size_of::<T>())
-        };
-        let () = slf.read_exact(slice)?;
-        // SAFETY: `T` is a `Pod` and hence valid for any bit pattern,
-        //         including all zeroes.
-        Ok(Cow::Owned(unsafe { value.assume_init() }))
+        let obj = read_pod::<T, _>(&mut slf).map(Cow::Owned)?;
+        Ok(obj)
     }
 
     fn read_pod_slice<T>(&self, offset: u64, count: usize) -> Result<Cow<'elf, [T]>, Error>
@@ -892,17 +930,8 @@ impl<'elf> BackendImpl<'elf> for &File {
     {
         let mut slf = *self;
         let _pos = slf.seek(SeekFrom::Start(offset))?;
-        let mut vec = Vec::<T>::new();
-        // SAFETY: `T` is a `Pod` and hence valid for any bit pattern,
-        //         including all zeroes.
-        let () = vec.resize(count, unsafe { mem::zeroed() });
-
-        // TODO: Are we UB here because we create a mut reference?
-        let slice = unsafe {
-            slice::from_raw_parts_mut(vec.as_mut_ptr().cast::<u8>(), count * mem::size_of::<T>())
-        };
-        let () = slf.read_exact(slice)?;
-        Ok(Cow::Owned(vec))
+        let vec = read_pod_vec::<T, _>(&mut slf, count).map(Cow::Owned)?;
+        Ok(vec)
     }
 }
 
@@ -1335,6 +1364,7 @@ mod tests {
     use tempfile::NamedTempFile;
 
     use test_log::test;
+    use test_tag::tag;
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
@@ -1372,6 +1402,31 @@ mod tests {
 
         let parser = ElfParser::open(bin_name.as_path()).unwrap();
         assert_ne!(format!("{parser:?}"), "");
+    }
+
+    /// Check that we can read Pod style objects from a reader without
+    /// triggering undefined behavior.
+    #[tag(miri)]
+    #[test]
+    fn pod_obj_reading() {
+        #[repr(C)]
+        #[derive(Clone, Debug)]
+        struct Foo {
+            x: u32,
+            y: u8,
+            z: u64,
+        }
+
+        unsafe impl Pod for Foo {}
+
+        let buf = [42u8; mem::size_of::<Foo>()];
+        let foo = read_pod::<Foo, _>(&mut buf.as_slice()).unwrap();
+        assert_eq!(foo.y, 42);
+
+        let buf = [42u8; 2 * mem::size_of::<Foo>()];
+        let vec = read_pod_vec::<Foo, _>(&mut buf.as_slice(), 2).unwrap();
+        assert_eq!(vec[0].y, 42);
+        assert_eq!(vec[1].y, 42);
     }
 
     /// Check that our `ElfParser` can handle more than 0xff00 section
