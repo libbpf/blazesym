@@ -36,6 +36,8 @@ crate-type = ["cdylib", "staticlib", "lib"]
 default = [
   "dwarf",
 ]
+# Required by cargo-c
+capi = []
 # Check C code documentation snippets.
 check-doc-snippets = []
 # Enable this feature to enable blazesym's DWARF support.
@@ -45,6 +47,15 @@ dwarf = ["blazesym/dwarf"]
 # include/ directory, so this feature is only necessary when APIs are
 # changed.
 generate-c-header = ["dep:cbindgen", "dep:which"]
+
+# cargo-c configuration:
+# skip header generation
+[package.metadata.capi.header]
+generation = false
+subdirectory = false
+# use the existing header for installation
+[package.metadata.capi.install.include]
+asset = [{ from="include/blazesym.h" }]
 
 [[bench]]
 name = "capi"
