@@ -1837,7 +1837,7 @@ dependencies = [
  "maybe-owned",
  "pdb",
  "range-collections",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -1997,7 +1997,7 @@ checksum = "ba009ff324d1fc1b900bd1fdb31564febe58a8ccc8a6fdbb93b543d33b13ca43"
 dependencies = [
  "getrandom 0.2.15",
  "libredox",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -2480,7 +2480,7 @@ checksum = "a1f8fa0b531aea19fd3716995184ea2b84df6ab588867992cb14e7d44213335b"
 dependencies = [
  "symbolic-common",
  "symbolic-debuginfo",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -2521,7 +2521,7 @@ dependencies = [
  "smallvec",
  "symbolic-common",
  "symbolic-ppdb",
- "thiserror 1.0.69",
+ "thiserror",
  "wasmparser",
  "zip",
  "zstd",
@@ -2551,7 +2551,7 @@ dependencies = [
  "serde",
  "serde_json",
  "symbolic-common",
- "thiserror 1.0.69",
+ "thiserror",
  "uuid",
  "watto",
 ]
@@ -2686,16 +2686,7 @@ version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
 dependencies = [
- "thiserror-impl 1.0.69",
-]
-
-[[package]]
-name = "thiserror"
-version = "2.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d452f284b73e6d76dd36758a0c8684b1d5be31f92b89d07fd5822175732206fc"
-dependencies = [
- "thiserror-impl 2.0.11",
+ "thiserror-impl",
 ]
 
 [[package]]
@@ -2703,17 +2694,6 @@ name = "thiserror-impl"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
-name = "thiserror-impl"
-version = "2.0.11"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26afc1baea8a989337eeb52b6e72a039780ce45c3edfcc9c5b9d112feeb173c2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3173,7 +3153,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6746b5315e417144282a047ebb82260d45c92d09bf653fa9ec975e3809be942b"
 dependencies = [
  "leb128",
- "thiserror 1.0.69",
+ "thiserror",
 ]
 
 [[package]]
@@ -3637,18 +3617,16 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "2.4.2"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fabe6324e908f85a1c52063ce7aa26b68dcb7eb6dbc83a2d148403c9bc3eba50"
+checksum = "27c03817464f64e23f6f37574b4fdc8cf65925b5bfd2b0f2aedf959791941f88"
 dependencies = [
  "arbitrary",
  "crc32fast",
  "crossbeam-utils",
- "displaydoc",
  "flate2",
  "indexmap",
  "memchr",
- "thiserror 2.0.11",
  "zopfli",
 ]
 
