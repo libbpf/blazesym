@@ -488,7 +488,7 @@ impl SymbolizeHandler<'_> {
     }
 
     fn handle_perf_map_addr(&mut self, addr: Addr) -> Result<()> {
-        if let Some(perf_map) = self.symbolizer.perf_map(self.pid)? {
+        if let Some(perf_map) = self.symbolizer.perf_map_resolver(self.pid)? {
             let symbolized = self
                 .symbolizer
                 .symbolize_with_resolver(addr, &Resolver::Cached(perf_map))?;
@@ -858,21 +858,24 @@ impl Symbolizer {
         Ok(resolver)
     }
 
-    fn create_perf_map(&self, path: &Path, file: &File) -> Result<PerfMap> {
+    fn create_perf_map_resolver(&self, path: &Path, file: &File) -> Result<PerfMap> {
         let perf_map = PerfMap::from_file(path, file)?;
         Ok(perf_map)
     }
 
-    fn perf_map(&self, pid: Pid) -> Result<Option<&PerfMap>> {
+    fn perf_map_resolver(&self, pid: Pid) -> Result<Option<&PerfMap>> {
         let path = PerfMap::path(pid);
 
         match self.perf_map_cache.entry(&path) {
             Ok((file, cell)) => {
-                let perf_map = cell.get_or_try_init(|| self.create_perf_map(&path, file))?;
+                let perf_map =
+                    cell.get_or_try_init(|| self.create_perf_map_resolver(&path, file))?;
                 Ok(Some(perf_map))
             }
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
-            Err(err) => Err(err).with_context(|| format!("failed to open perf map `{path:?}`")),
+            Err(err) => {
+                Err(err).with_context(|| format!("failed to open perf map `{}`", path.display()))
+            }
         }
     }
 
