@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added support for symbolizing addresses in a vDSO
 - Adjusted debug link resolution to handle self-referential debug links
   more gracefully
 - Report "symbolic" path in `symbolize::Sym::module` when using process

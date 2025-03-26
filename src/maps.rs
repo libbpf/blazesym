@@ -397,15 +397,7 @@ pub(crate) fn filter_relevant(entry: &MapsEntry) -> bool {
     // Only readable (r---) or executable (--x-) entries are of relevance.
     // NB: Please keep this logic in sync with flags being used by
     //     `procmap_query`.
-    if (entry.perm & (Perm::R | Perm::X)) == Perm::default() {
-        return false
-    }
-
-    match entry.path_name {
-        Some(PathName::Path(..)) => true,
-        Some(PathName::Component(..)) => false,
-        None => true,
-    }
+    (entry.perm & (Perm::R | Perm::X)) != Perm::default()
 }
 
 /// Parse the maps file for the process with the given PID and make sure
