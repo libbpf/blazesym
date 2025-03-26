@@ -26,6 +26,7 @@ use crate::symbolize::FindSymOpts;
 use crate::symbolize::Reason;
 use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
+use crate::symbolize::Symbolize;
 use crate::util::find_match_or_lower_bound_by_key;
 use crate::util::Pod;
 use crate::util::ReadRaw as _;
@@ -1075,53 +1076,6 @@ where
         Ok(index)
     }
 
-    pub(crate) fn find_sym(
-        &self,
-        addr: Addr,
-        opts: &FindSymOpts,
-    ) -> Result<Result<ResolvedSym<'_>, Reason>> {
-        // ELF doesn't carry any source code or inlining information.
-        let _opts = opts;
-
-        let symtab_cache = self.cache.ensure_symtab_cache()?;
-        let symtab_by_addr_idx = symtab_cache.ensure_by_addr_idx();
-
-        if let Some(sym) = find_sym(
-            &symtab_cache.syms,
-            self.module.as_deref(),
-            symtab_by_addr_idx,
-            &symtab_cache.strs,
-            addr,
-            SymType::Undefined,
-        )? {
-            return Ok(Ok(sym))
-        }
-
-        let dynsym_cache = self.cache.ensure_dynsym_cache()?;
-        let dynsym_by_addr_idx = dynsym_cache.ensure_by_addr_idx();
-        if let Some(sym) = find_sym(
-            &dynsym_cache.syms,
-            self.module.as_deref(),
-            dynsym_by_addr_idx,
-            &dynsym_cache.strs,
-            addr,
-            SymType::Undefined,
-        )? {
-            return Ok(Ok(sym))
-        }
-
-        // At this point we haven't found a symbol for the given
-        // address. The emptiness of `dynsym` has no bearing on the
-        // reason we report -- for all intents and purposes it is either
-        // required or not at all necessary.
-        let reason = if symtab_cache.syms.is_empty() {
-            Reason::MissingSyms
-        } else {
-            Reason::UnknownAddr
-        };
-        Ok(Err(reason))
-    }
-
     fn find_addr_impl<'slf>(
         &'slf self,
         name: &str,
@@ -1350,6 +1304,57 @@ where
     #[inline]
     pub(crate) fn module(&self) -> Option<&OsStr> {
         self.module.as_deref()
+    }
+}
+
+// TODO: Ideally we wouldn't have to implement this trait for this type,
+//       but right now we need it because `ElfResolver` is not generic
+//       over the backend in use.
+impl<B> Symbolize for ElfParser<B>
+where
+    B: Backend,
+{
+    fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
+        // ELF doesn't carry any source code or inlining information.
+        let _opts = opts;
+
+        let symtab_cache = self.cache.ensure_symtab_cache()?;
+        let symtab_by_addr_idx = symtab_cache.ensure_by_addr_idx();
+
+        if let Some(sym) = find_sym(
+            &symtab_cache.syms,
+            self.module.as_deref(),
+            symtab_by_addr_idx,
+            &symtab_cache.strs,
+            addr,
+            SymType::Undefined,
+        )? {
+            return Ok(Ok(sym))
+        }
+
+        let dynsym_cache = self.cache.ensure_dynsym_cache()?;
+        let dynsym_by_addr_idx = dynsym_cache.ensure_by_addr_idx();
+        if let Some(sym) = find_sym(
+            &dynsym_cache.syms,
+            self.module.as_deref(),
+            dynsym_by_addr_idx,
+            &dynsym_cache.strs,
+            addr,
+            SymType::Undefined,
+        )? {
+            return Ok(Ok(sym))
+        }
+
+        // At this point we haven't found a symbol for the given
+        // address. The emptiness of `dynsym` has no bearing on the
+        // reason we report -- for all intents and purposes it is either
+        // required or not at all necessary.
+        let reason = if symtab_cache.syms.is_empty() {
+            Reason::MissingSyms
+        } else {
+            Reason::UnknownAddr
+        };
+        Ok(Err(reason))
     }
 }
 
