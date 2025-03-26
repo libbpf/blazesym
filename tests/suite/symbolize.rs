@@ -1009,6 +1009,36 @@ fn symbolize_process_with_custom_dispatch() {
     test(process_no_dispatch);
 }
 
+/// Test that we symbolize addresses in a vDSO.
+#[cfg(linux)]
+#[test]
+fn symbolize_process_vdso() {
+    use libc::clock_gettime;
+    use libc::gettimeofday;
+
+    let src = Source::Process(Process::new(Pid::Slf));
+    // Both functions are typically provided by the vDSO, though there
+    // is no guarantee of that.
+    let addrs = [gettimeofday as Addr, clock_gettime as Addr];
+    let symbolizer = Symbolizer::new();
+
+    // Symbolize twice, to exercise both cache population and cache
+    // usage paths.
+    for _ in [0, 1] {
+        let results = symbolizer
+            .symbolize(&src, Input::AbsAddr(&addrs))
+            .unwrap()
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 2);
+        // Given that we can't guarantee that these symbols are in a vDSO,
+        // it's hard for us to assert anything more than the name.
+        let sym1 = results[0].as_sym().unwrap();
+        assert!(sym1.name.ends_with("gettimeofday"), "{sym1:?}");
+        let sym2 = results[1].as_sym().unwrap();
+        assert!(sym2.name.contains("clock_gettime"), "{sym2:?}");
+    }
+}
 
 /// Make sure that we do not fail symbolization when an empty perf
 /// map is present.
