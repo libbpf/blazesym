@@ -442,6 +442,9 @@ struct SymbolizeHandler<'sym> {
     /// Whether to work with `/proc/<pid>/map_files/` entries or with
     /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
     map_files: bool,
+    /// Whether or not to symbolize addresses in a vDSO (virtual dynamic
+    /// shared object).
+    vdso: bool,
     /// Symbols representing the symbolized addresses.
     all_symbols: Vec<Symbolized<'sym>>,
 }
@@ -576,7 +579,7 @@ impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
             }
             Some(PathName::Component(component)) => {
                 match component.as_str() {
-                    "[vdso]" => {
+                    "[vdso]" if self.vdso => {
                         let () = self.handle_vdso_addr(addr, file_off, &entry.range)?;
                     }
                     _ => {
@@ -1027,6 +1030,7 @@ impl Symbolizer {
         debug_syms: bool,
         perf_map: bool,
         map_files: bool,
+        vdso: bool,
     ) -> Result<Vec<Symbolized>> {
         let mut handler = SymbolizeHandler {
             symbolizer: self,
@@ -1034,6 +1038,7 @@ impl Symbolizer {
             debug_syms,
             perf_map,
             map_files,
+            vdso,
             all_symbols: Vec::with_capacity(addrs.len()),
         };
 
@@ -1366,6 +1371,7 @@ impl Symbolizer {
                 debug_syms,
                 perf_map,
                 map_files,
+                vdso,
                 _non_exhaustive: (),
             }) => {
                 let addrs = match input {
@@ -1382,7 +1388,7 @@ impl Symbolizer {
                     }
                 };
 
-                self.symbolize_user_addrs(addrs, *pid, *debug_syms, *perf_map, *map_files)
+                self.symbolize_user_addrs(addrs, *pid, *debug_syms, *perf_map, *map_files, *vdso)
             }
             #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
@@ -1540,6 +1546,7 @@ impl Symbolizer {
                 debug_syms,
                 perf_map,
                 map_files,
+                vdso,
                 _non_exhaustive: (),
             }) => {
                 let addr = match input {
@@ -1556,8 +1563,14 @@ impl Symbolizer {
                     }
                 };
 
-                let mut symbols =
-                    self.symbolize_user_addrs(&[addr], *pid, *debug_syms, *perf_map, *map_files)?;
+                let mut symbols = self.symbolize_user_addrs(
+                    &[addr],
+                    *pid,
+                    *debug_syms,
+                    *perf_map,
+                    *map_files,
+                    *vdso,
+                )?;
                 debug_assert!(symbols.len() == 1, "{symbols:#?}");
                 // SANITY: `symbolize_user_addrs` should *always* return
                 //         one result for one input (except on error
@@ -1798,6 +1811,7 @@ mod tests {
             debug_syms: false,
             perf_map: false,
             map_files: false,
+            vdso: false,
             all_symbols: Vec::new(),
         };
         let () = normalize_sorted_user_addrs_with_entries(

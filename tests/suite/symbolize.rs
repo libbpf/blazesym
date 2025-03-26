@@ -1040,6 +1040,55 @@ fn symbolize_process_vdso() {
     }
 }
 
+/// Check support for vDSO symbolization enabling/disabling.
+#[cfg(linux)]
+#[forked_test]
+fn symbolize_process_no_vdso_no_permission() {
+    use libc::clock_gettime;
+    use libc::getresuid;
+    use libc::gettimeofday;
+
+    fn symbolize_vdso_impl() {
+        // Both functions are typically provided by the vDSO, though there
+        // is no guarantee of that.
+        let addrs = [gettimeofday as Addr, clock_gettime as Addr];
+        let symbolizer = Symbolizer::new();
+
+        // First try with vDSO symbolization. This *is likely* (it's not
+        // guaranteed, because the functions may not reside in a
+        // vDSO...) to fail, because we attempt to read our own memory
+        // via `/proc/<pid>/mem`, which we don't have the rights to.
+        let mut process = Process::new(Pid::Slf);
+        process.map_files = false;
+        let src = Source::Process(process);
+        let err = symbolizer
+            .symbolize(&src, Input::AbsAddr(&addrs))
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
+
+        let mut process = Process::new(Pid::Slf);
+        process.map_files = false;
+        process.vdso = false;
+        let src = Source::Process(process);
+        // Just make sure that we do not error out due to permission issues.
+        // We can't really make any claims about the resolved symbols,
+        // unfortunately.
+        let _results = symbolizer.symbolize(&src, Input::AbsAddr(&addrs)).unwrap();
+    }
+
+    let mut ruid = 0;
+    let mut euid = 0;
+    let mut suid = 0;
+
+    let result = unsafe { getresuid(&mut ruid, &mut euid, &mut suid) };
+    if result == -1 {
+        panic!("failed to get user IDs: {}", io::Error::last_os_error());
+    }
+
+    let uid = non_root_uid();
+    as_user(ruid, uid, symbolize_vdso_impl)
+}
+
 /// Make sure that we do not fail symbolization when an empty perf
 /// map is present.
 #[forked_test]
