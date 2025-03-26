@@ -350,7 +350,9 @@ jobs:
       MIRIFLAGS: '-Zmiri-disable-stacked-borrows'
     steps:
     - name: Install development dependencies
-      run: sudo apt-get install --yes --no-install-recommends libelf-dev zlib1g-dev
+      run: |
+        sudo apt-get update
+        sudo apt-get install --yes --no-install-recommends libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@nightly
       with:
@@ -447,7 +449,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install development dependencies
-        run: sudo apt-get install --yes --no-install-recommends libelf-dev zlib1g-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libelf-dev zlib1g-dev
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy --workspace --no-deps --all-targets --features=blazesym-dev/dont-generate-unit-test-files -- -A unknown_lints -D clippy::todo
