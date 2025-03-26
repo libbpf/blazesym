@@ -278,6 +278,20 @@ pub struct Process {
     /// However, by using symbolic paths the need for requiring the
     /// `SYS_ADMIN` capability is eliminated.
     pub map_files: bool,
+    /// Whether or not to symbolize addresses in a vDSO (virtual dynamic
+    /// shared object).
+    ///
+    /// The main reason to disable vDSO symbolization is in cases of
+    /// unpriviledged symbolization. Symbolizing vDSO data from a
+    /// different process requires reading memory from another process,
+    /// which is privileged.
+    // TODO: Think about making this a tri-state of sorts and allowing
+    //       for direct usage of the current process' vDSO (which is
+    //       *likely* the same one used in other processes). This would
+    //       allow for unprivileged vDSO symbolization (but should be
+    //       opt-in, because it *could* result in wrong symbolization if
+    //       a process uses a custom vDSO).
+    pub vdso: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -286,8 +300,8 @@ pub struct Process {
 impl Process {
     /// Create a new [`Process`] object using the provided `pid`.
     ///
-    /// `debug_syms` and `perf_map` default to `true` when using this
-    /// constructor.
+    /// `debug_syms`, `perf_map`, `map_files`, and `vdso` default to
+    /// `true` when using this constructor.
     #[inline]
     pub fn new(pid: Pid) -> Self {
         Self {
@@ -295,6 +309,7 @@ impl Process {
             debug_syms: true,
             perf_map: true,
             map_files: true,
+            vdso: true,
             _non_exhaustive: (),
         }
     }
@@ -307,6 +322,7 @@ impl Debug for Process {
             debug_syms: _,
             perf_map: _,
             map_files: _,
+            vdso: _,
             _non_exhaustive: (),
         } = self;
 

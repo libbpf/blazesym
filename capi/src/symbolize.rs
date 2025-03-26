@@ -346,6 +346,8 @@ impl From<blaze_symbolize_src_process> for Process {
             debug_syms,
             perf_map,
             map_files: !no_map_files,
+            // TODO: Hook up vDSO usage.
+            vdso: false,
             _non_exhaustive: (),
         }
     }
