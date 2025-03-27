@@ -83,6 +83,7 @@ blazesym = {version = "=0.2.0-rc.3", path = "../", features = ["bpf"]}
 [dev-dependencies]
 blazesym = {version = "=0.2.0-rc.3", path = "../", features = ["test"]}
 blazesym-c = {path = ".", features = ["check-doc-snippets"]}
+blazesym-dev = {path = "../dev", features = ["generate-unit-test-files"]}
 bindgen = {version = "0.71", default-features = false, features = ["runtime"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}

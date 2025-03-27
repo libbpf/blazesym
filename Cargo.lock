@@ -258,6 +258,7 @@ dependencies = [
  "bindgen",
  "blazesym",
  "blazesym-c",
+ "blazesym-dev",
  "cbindgen-assoc-const",
  "criterion",
  "libc",
