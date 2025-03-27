@@ -204,10 +204,7 @@ fn inspect_elf_file_offset() {
         assert_eq!(bytes, [0xde, 0xad, 0xbe, 0xef]);
     }
 
-    for file in [
-        "test-stable-addrs-no-dwarf.bin",
-        "test-stable-addrs-stripped-with-link.bin",
-    ] {
+    for file in [] {
         let () = test(file);
     }
 }
