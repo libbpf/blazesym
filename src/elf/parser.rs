@@ -492,12 +492,12 @@ where
                         // data.
                         let (ch_type, ch_size) = if shdr.is_32bit() {
                             let chdr = data
-                                .read_pod_ref::<Elf32_Chdr>()
+                                .read_pod::<Elf32_Chdr>()
                                 .ok_or_invalid_data(|| "failed to read ELF compression header")?;
                             (chdr.ch_type, chdr.ch_size.into())
                         } else {
                             let chdr = data
-                                .read_pod_ref::<Elf64_Chdr>()
+                                .read_pod::<Elf64_Chdr>()
                                 .ok_or_invalid_data(|| "failed to read ELF compression header")?;
                             (chdr.ch_type, chdr.ch_size)
                         };
@@ -1042,7 +1042,9 @@ where
     /// Retrieve the data corresponding to the ELF section at index
     /// `idx`, optionally decompressing it if it is compressed.
     pub(crate) fn section_data(&self, idx: usize) -> Result<&[u8]> {
-        self.cache.section_data(idx)
+        self.cache
+            .section_data(idx)
+            .with_context(|| format!("failed to read ELF section with index {idx}"))
     }
 
     /// Find the section of a given name.
@@ -1360,6 +1362,8 @@ mod tests {
     use std::mem::size_of;
     use std::path::Path;
     use std::slice;
+
+    use miniz_oxide::deflate::compress_to_vec_zlib;
 
     use tempfile::NamedTempFile;
 
@@ -2002,6 +2006,110 @@ mod tests {
 
         let symtab = cache.ensure_symtab().unwrap();
         assert!(symtab.is_empty());
+    }
+
+    /// Check that we can decompress ELF section data with an unaligned
+    /// compression header.
+    #[test]
+    fn unaligned_compression_header_reading() {
+        let ehdr = Elf64_Ehdr {
+            e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            e_type: 3,
+            e_machine: 62,
+            e_version: 1,
+            e_entry: 0,
+            e_phoff: 0,
+            e_shoff: 0,
+            e_flags: 0,
+            e_ehsize: 0,
+            e_phentsize: 0,
+            e_phnum: 0,
+            e_shentsize: 0,
+            e_shnum: 2,
+            e_shstrndx: 1,
+        };
+        let ehdr = EhdrExt {
+            ehdr: ElfN_Ehdr::B64(Cow::Borrowed(&ehdr)),
+            shnum: 2,
+            phnum: 0,
+        };
+
+        let data = [];
+        let zlib_hdr = compress_to_vec_zlib(&data, 0);
+        let chdr = Elf64_Chdr {
+            ch_type: ELFCOMPRESS_ZLIB,
+            ch_reserved: 0,
+            ch_size: 0,
+            ch_addralign: 1,
+        };
+        let shdrs = [
+            Elf64_Shdr {
+                sh_name: 0,
+                sh_type: 0,
+                sh_flags: 0,
+                sh_addr: 0,
+                sh_offset: 0,
+                sh_size: 0,
+                sh_link: 0,
+                sh_info: 0,
+                sh_addralign: 0,
+                sh_entsize: 0,
+            },
+            Elf64_Shdr {
+                sh_name: 0,
+                sh_type: 0,
+                sh_flags: SHF_COMPRESSED,
+                sh_addr: 0,
+                sh_offset: 0,
+                sh_size: (mem::size_of_val(&chdr) + zlib_hdr.len()) as _,
+                sh_link: 0,
+                sh_info: 0,
+                sh_addralign: 0,
+                sh_entsize: 0,
+            },
+        ];
+
+        let mut aligned_data = [0u64; 128];
+
+        // Write a compression header at an unaligned address, followed
+        // by the zlib data.
+        let () = unsafe {
+            aligned_data
+                .as_mut_ptr()
+                .cast::<u8>()
+                .add(1)
+                .cast::<Elf64_Chdr>()
+                .write_unaligned(chdr)
+        };
+        let () = unsafe {
+            aligned_data
+                .as_mut_ptr()
+                .cast::<u8>()
+                .add(1)
+                .add(mem::size_of::<Elf64_Chdr>())
+                .copy_from(zlib_hdr.as_ptr(), zlib_hdr.len())
+        };
+        let aligned_data = unsafe {
+            slice::from_raw_parts(
+                aligned_data.as_ptr().cast::<u8>(),
+                aligned_data.len() * size_of_val(&aligned_data[0]),
+            )
+        };
+        let unaligned_data = &aligned_data[1..];
+
+        let cache = Cache {
+            backend: unaligned_data,
+            ehdr: OnceCell::from(ehdr),
+            shdrs: OnceCell::from(ElfN_Shdrs::B64(Cow::Borrowed(shdrs.as_slice()))),
+            shstrtab: OnceCell::from(Cow::Borrowed(b".debug_info\x00".as_slice())),
+            phdrs: OnceCell::new(),
+            symtab: OnceCell::new(),
+            dynsym: OnceCell::new(),
+            section_data: OnceCell::from(vec![OnceCell::new(), OnceCell::new()].into_boxed_slice()),
+        };
+
+        let new_data = cache.section_data(1).unwrap();
+        assert_eq!(new_data, data);
     }
 
     /// Benchmark creation of our "str2symtab" table.
