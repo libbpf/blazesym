@@ -1298,12 +1298,16 @@ fn symbolize_kernel_kallsyms() {
         };
         let src = Source::Kernel(kernel);
         let symbolizer = Symbolizer::new();
-        let symbolized = symbolizer
-            .symbolize_single(&src, Input::AbsAddr(0xc080a470))
-            .unwrap();
-        let init_task_sym = symbolized.into_sym().unwrap();
-        assert_eq!(init_task_sym.name, "init_task");
-        assert_eq!(init_task_sym.code_info, None);
+
+        for offset in 0u16..20 {
+            let symbolized = symbolizer
+                .symbolize_single(&src, Input::AbsAddr(0xc080a470 + Addr::from(offset)))
+                .unwrap();
+            let init_task_sym = symbolized.into_sym().unwrap();
+            assert_eq!(init_task_sym.name, "init_task");
+            assert_eq!(init_task_sym.code_info, None);
+            assert_eq!(init_task_sym.offset, usize::from(offset));
+        }
     }
 
     test(MaybeDefault::None);
