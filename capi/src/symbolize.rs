@@ -313,9 +313,17 @@ pub struct blaze_symbolize_src_process {
     /// using symbolic paths (i.e., with `no_map_files` being `true`)
     /// the need for requiring the `SYS_ADMIN` capability is eliminated.
     pub no_map_files: bool,
+    /// Whether or not to symbolize addresses in a vDSO (virtual dynamic
+    /// shared object).
+    ///
+    /// The main reason to disable vDSO symbolization is in cases of
+    /// unpriviledged symbolization. Symbolizing vDSO data from a
+    /// different process requires reading memory from another process,
+    /// which is privileged.
+    pub no_vdso: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 17],
+    pub reserved: [u8; 16],
 }
 
 impl Default for blaze_symbolize_src_process {
@@ -326,7 +334,8 @@ impl Default for blaze_symbolize_src_process {
             debug_syms: false,
             perf_map: false,
             no_map_files: false,
-            reserved: [0; 17],
+            no_vdso: false,
+            reserved: [0; 16],
         }
     }
 }
@@ -339,6 +348,7 @@ impl From<blaze_symbolize_src_process> for Process {
             debug_syms,
             perf_map,
             no_map_files,
+            no_vdso,
             reserved: _,
         } = process;
         Self {
@@ -346,8 +356,7 @@ impl From<blaze_symbolize_src_process> for Process {
             debug_syms,
             perf_map,
             map_files: !no_map_files,
-            // TODO: Hook up vDSO usage.
-            vdso: false,
+            vdso: !no_vdso,
             _non_exhaustive: (),
         }
     }
@@ -1389,7 +1398,7 @@ mod tests {
         };
         assert_eq!(
             format!("{process:?}"),
-            "blaze_symbolize_src_process { type_size: 16, pid: 1337, debug_syms: true, perf_map: false, no_map_files: false, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_symbolize_src_process { type_size: 16, pid: 1337, debug_syms: true, perf_map: false, no_map_files: false, no_vdso: false, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let gsym_data = blaze_symbolize_src_gsym_data {

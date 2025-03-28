@@ -850,10 +850,20 @@ typedef struct blaze_symbolize_src_process {
    */
   bool no_map_files;
   /**
+   * Whether or not to symbolize addresses in a vDSO (virtual dynamic
+   * shared object).
+   *
+   * The main reason to disable vDSO symbolization is in cases of
+   * unpriviledged symbolization. Symbolizing vDSO data from a
+   * different process requires reading memory from another process,
+   * which is privileged.
+   */
+  bool no_vdso;
+  /**
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[17];
+  uint8_t reserved[16];
 } blaze_symbolize_src_process;
 
 /**
