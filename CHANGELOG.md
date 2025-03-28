@@ -4,6 +4,8 @@ Unreleased
   more gracefully
 - Report "symbolic" path in `symbolize::Sym::module` when using process
   symbolization on APKs with `map_files` set to `true`
+- Fixed reading of compressed ELF section data with unaligned
+  compression headers
 
 
 0.2.0-rc.3
