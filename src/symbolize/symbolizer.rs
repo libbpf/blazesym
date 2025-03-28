@@ -1,11 +1,20 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
+use std::env::temp_dir;
 use std::ffi::OsStr;
+use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::fs::remove_file;
 use std::fs::File;
+use std::hash::Hasher as _;
+use std::io::Read as _;
+use std::io::Seek as _;
+use std::io::SeekFrom;
+use std::io::Write as _;
 use std::mem::take;
 use std::ops::Deref as _;
 use std::ops::Range;
@@ -385,7 +394,9 @@ impl Builder {
             gsym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             ksym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
+            vdso_cache: InsertMap::new(),
             process_vma_cache: RefCell::new(HashMap::new()),
+            process_vdso_cache: InsertMap::new(),
             process_cache: InsertMap::new(),
             find_sym_opts,
             demangle,
@@ -432,6 +443,9 @@ struct SymbolizeHandler<'sym> {
     /// Whether to work with `/proc/<pid>/map_files/` entries or with
     /// symbolic paths mentioned in `/proc/<pid>/maps` instead.
     map_files: bool,
+    /// Whether or not to symbolize addresses in a vDSO (virtual dynamic
+    /// shared object).
+    vdso: bool,
     /// Symbols representing the symbolized addresses.
     all_symbols: Vec<Symbolized<'sym>>,
 }
@@ -498,6 +512,16 @@ impl SymbolizeHandler<'_> {
         }
         Ok(())
     }
+
+    fn handle_vdso_addr(&mut self, addr: Addr, vdso_range: &Range<Addr>) -> Result<()> {
+        let addr = addr - vdso_range.start;
+        let resolver = self.symbolizer.vdso_resolver(self.pid, vdso_range)?;
+        let symbolized = self
+            .symbolizer
+            .symbolize_with_resolver(addr, &Resolver::Cached(resolver))?;
+        let () = self.all_symbols.push(symbolized);
+        Ok(())
+    }
 }
 
 impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
@@ -545,8 +569,15 @@ impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
                     _ => self.handle_elf_addr(addr, file_off, entry_path),
                 }
             }
-            Some(PathName::Component(..)) => {
-                let () = self.handle_unknown_addr(addr, Reason::Unsupported);
+            Some(PathName::Component(component)) => {
+                match component.as_str() {
+                    "[vdso]" if self.vdso => {
+                        let () = self.handle_vdso_addr(addr, &entry.range)?;
+                    }
+                    _ => {
+                        let () = self.handle_unknown_addr(addr, Reason::Unsupported);
+                    }
+                }
                 Ok(())
             }
             // If there is no path associated with this entry, we don't
@@ -619,11 +650,18 @@ pub struct Symbolizer {
     gsym_cache: FileCache<GsymResolver<'static>>,
     ksym_cache: FileCache<Rc<KsymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
+    /// A mapping from vDSO content hash to vDSO ELF data.
+    ///
+    /// We use this member to share vDSO data instead of duplicating
+    /// copies all over the place.
+    vdso_cache: InsertMap<u64, Rc<ElfParser>>,
     /// Cache of VMA data on per-process basis.
     ///
     /// This member is only populated by explicit requests for caching
     /// data by the user.
     process_vma_cache: RefCell<HashMap<Pid, Box<[maps::MapsEntry]>>>,
+    /// A cache of per-process vDSO ELF data.
+    process_vdso_cache: InsertMap<Pid, ElfResolver>,
     process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
     find_sym_opts: FindSymOpts,
     demangle: bool,
@@ -879,6 +917,75 @@ impl Symbolizer {
         }
     }
 
+    fn create_vdso_resolver(&self, pid: Pid, range: &Range<Addr>) -> Result<ElfResolver> {
+        let start = range.start;
+        let size = range.end.saturating_sub(start);
+        // Put in some upper limit on the vDSO data that we are going to
+        // store directly. In most cases this should be a single 4 KiB
+        // page, maybe two. Assume a worst case of one 4 MiB page, which
+        // should provide plenty of slack.
+        if size > 4 * 1024 * 1024 {
+            return Err(Error::with_invalid_data(format!(
+                "vDSO of process {pid} is unexpectedly large ({size} bytes)"
+            )))
+        }
+
+        // Read the vDSO image.
+        let path = format!("/proc/{pid}/mem");
+        let mut mem =
+            File::open(&path).with_context(|| format!("failed to open `{path}` for reading"))?;
+        let _prev = mem
+            .seek(SeekFrom::Start(start))
+            .with_context(|| format!("failed to seek `{path}`"))?;
+
+        let mut vdso_buf = Vec::new();
+        let () = vdso_buf.resize(size as _, 0u8);
+        let () = mem
+            .read_exact(vdso_buf.as_mut_slice())
+            .with_context(|| format!("failed to read from `{path}`"))?;
+
+        // Hash it to compare it against potentially present images. It
+        // is *very* likely that all vDSOs on the system are the same,
+        // so we will likely be able to deduplicate subsequently.
+        let mut hasher = DefaultHasher::new();
+        let () = hasher.write(vdso_buf.as_slice());
+        let hash = hasher.finish();
+
+        // Check if we already hold a vDSO with the given hash, in which
+        // case we can just reuse the previously instantiated
+        // `ElfParser`, including already cached data.
+        let parser = self
+            .vdso_cache
+            .get_or_try_insert(hash, || {
+                let vdso_path = temp_dir().join(format!("__blazesym_vdso_image_{}", pid.resolve()));
+                let mut vdso_file = File::options()
+                    .create_new(true)
+                    .write(true)
+                    .read(true)
+                    .open(&vdso_path)
+                    .with_context(|| format!("failed to create `{}` file", vdso_path.display()))?;
+                let () = remove_file(&vdso_path).with_context(|| {
+                    format!("failed to remove vDSO image `{}`", vdso_path.display())
+                })?;
+                let () = vdso_file
+                    .write_all(&vdso_buf)
+                    .context("failed to write vDSO image")?;
+                let parser = Rc::new(ElfParser::from_file(&vdso_file, OsString::from("vDSO"))?);
+                Ok(parser)
+            })
+            .context("failed to create vDSO ELF parser")?;
+
+        let resolver = ElfResolver::from_parser(Rc::clone(parser), None)?;
+        Ok(resolver)
+    }
+
+    fn vdso_resolver<'slf>(&'slf self, pid: Pid, range: &Range<Addr>) -> Result<&'slf ElfResolver> {
+        let parser = self
+            .process_vdso_cache
+            .get_or_try_insert(pid, || self.create_vdso_resolver(pid, range))?;
+        Ok(parser)
+    }
+
     fn process_dispatch_resolver<'slf>(
         &'slf self,
         range: Range<Addr>,
@@ -910,6 +1017,7 @@ impl Symbolizer {
         debug_syms: bool,
         perf_map: bool,
         map_files: bool,
+        vdso: bool,
     ) -> Result<Vec<Symbolized>> {
         let mut handler = SymbolizeHandler {
             symbolizer: self,
@@ -917,6 +1025,7 @@ impl Symbolizer {
             debug_syms,
             perf_map,
             map_files,
+            vdso,
             all_symbols: Vec::with_capacity(addrs.len()),
         };
 
@@ -1249,6 +1358,7 @@ impl Symbolizer {
                 debug_syms,
                 perf_map,
                 map_files,
+                vdso,
                 _non_exhaustive: (),
             }) => {
                 let addrs = match input {
@@ -1265,7 +1375,7 @@ impl Symbolizer {
                     }
                 };
 
-                self.symbolize_user_addrs(addrs, *pid, *debug_syms, *perf_map, *map_files)
+                self.symbolize_user_addrs(addrs, *pid, *debug_syms, *perf_map, *map_files, *vdso)
             }
             #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
@@ -1423,6 +1533,7 @@ impl Symbolizer {
                 debug_syms,
                 perf_map,
                 map_files,
+                vdso,
                 _non_exhaustive: (),
             }) => {
                 let addr = match input {
@@ -1439,8 +1550,14 @@ impl Symbolizer {
                     }
                 };
 
-                let mut symbols =
-                    self.symbolize_user_addrs(&[addr], *pid, *debug_syms, *perf_map, *map_files)?;
+                let mut symbols = self.symbolize_user_addrs(
+                    &[addr],
+                    *pid,
+                    *debug_syms,
+                    *perf_map,
+                    *map_files,
+                    *vdso,
+                )?;
                 debug_assert!(symbols.len() == 1, "{symbols:#?}");
                 // SANITY: `symbolize_user_addrs` should *always* return
                 //         one result for one input (except on error
@@ -1681,6 +1798,7 @@ mod tests {
             debug_syms: false,
             perf_map: false,
             map_files: false,
+            vdso: false,
             all_symbols: Vec::new(),
         };
         let () = normalize_sorted_user_addrs_with_entries(
