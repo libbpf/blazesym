@@ -368,7 +368,7 @@ jobs:
       run: cargo miri test --workspace --features=blazesym-dev/dont-generate-unit-test-files -- ":miri:"
   test-32bit:
     name: Test 32bit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
     steps:
