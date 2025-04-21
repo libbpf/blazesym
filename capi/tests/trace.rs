@@ -17,7 +17,6 @@ use blazesym_c::blaze_syms_free;
 use blazesym_c::blaze_trace;
 use blazesym_c::blaze_trace_lvl;
 
-
 /// Check that we retrieve callbacks for traces being emitted.
 #[test]
 fn trace_callbacks() {
@@ -49,7 +48,7 @@ fn trace_callbacks() {
     }
 
     let traces = TRACES.lock().unwrap();
-    assert!(traces.len() > 0, "{traces:?}");
+    assert!(!traces.is_empty(), "{traces:?}");
 
     let () = blaze_trace(blaze_trace_lvl::TRACE, trace_cb);
     assert_eq!(blaze_err_last(), blaze_err::ALREADY_EXISTS);
