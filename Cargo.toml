@@ -148,7 +148,7 @@ zstd = {version = "0.13.3", default-features = false, optional = true}
 # For performance comparison; pinned, because we use #[doc(hidden)]
 # APIs.
 addr2line = "=0.24.2"
-anyhow = "1.0.97"
+anyhow = "1.0.98"
 blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
