@@ -136,7 +136,7 @@ codegen-units = 256
 [dependencies]
 cpp_demangle = {version = "0.4", optional = true}
 gimli = {version = "0.31", optional = true}
-libc = "0.2.171"
+libc = "0.2.172"
 memmap2 = {version = "0.9", default-features = false}
 miniz_oxide = {version = "0.8", default-features = false, features = ["simd", "with-alloc"], optional = true}
 nom = {version = "7", optional = true}
