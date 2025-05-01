@@ -23,6 +23,13 @@ transparently created as long as the `generate-unit-test-files` feature for the
 `blazesym-dev` package is active, which is enabled by default for
 testing.
 
+Note that if you explicitly and *only* run the test suite for the C API
+bindings (`blazesym-c`), you will have to explicitly have to generate test
+artifacts before the first test run, via:
+```sh
+cargo check --package blazesym-dev --features=generate-unit-test-files
+```
+
 ### Running Miri
 [Miri][miri] is used for testing the crate for any undefined behavior.
 The interpreter is restricted to functionality that does not cross FFI
