@@ -71,7 +71,7 @@ which = {version = "7.0.0", optional = true}
 # TODO: Enable `zstd` feature once we enabled it for testing in the main
 #       crate.
 blazesym = {version = "=0.2.0-rc.3", path = "../", features = ["apk", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
-libc = "0.2.172"
+libc = "0.2"
 # TODO: Remove dependency once MSRV is 1.77.
 memoffset = "0.9"
 tracing = "0.1"
