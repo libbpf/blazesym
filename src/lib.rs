@@ -76,6 +76,8 @@ pub mod symbolize;
 #[cfg(any(test, feature = "test"))]
 mod test_helper;
 mod util;
+#[cfg(linux)]
+mod vdso;
 #[cfg(feature = "apk")]
 mod zip;
 
@@ -195,6 +197,9 @@ pub mod __private {
         pub use crate::zip::Archive;
     }
 
+    #[cfg(linux)]
+    #[cfg(feature = "test")]
+    pub use crate::test_helper::find_gettimeofday_in_process;
     #[cfg(feature = "test")]
     pub use crate::test_helper::find_the_answer_fn;
     #[cfg(feature = "test")]

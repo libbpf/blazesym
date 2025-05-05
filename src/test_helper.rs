@@ -1,12 +1,25 @@
 use std::ffi::OsString;
 use std::mem::transmute;
+#[cfg(linux)]
+use std::ops::ControlFlow;
 use std::path::Path;
+#[cfg(linux)]
+use std::slice;
 
 use crate::elf::ElfParser;
 use crate::inspect;
+#[cfg(linux)]
+use crate::inspect::FindAddrOpts;
+#[cfg(linux)]
+use crate::inspect::SymInfo;
+#[cfg(linux)]
+use crate::vdso::find_vdso;
+#[cfg(linux)]
+use crate::vdso::find_vdso_maps;
 use crate::zip;
 use crate::Addr;
 use crate::Mmap;
+use crate::Pid;
 use crate::SymType;
 
 
@@ -57,4 +70,35 @@ pub fn find_the_answer_fn_in_zip(mmap: &Mmap) -> (inspect::SymInfo<'static>, Add
 
     let (sym, the_answer_addr) = find_the_answer_fn(&elf_mmap);
     (sym, the_answer_addr)
+}
+
+/// Find the address of the `gettimeofday` function in the given
+/// process.
+#[cfg(linux)]
+pub fn find_gettimeofday_in_process(pid: Pid) -> Addr {
+    let vdso_range = find_vdso().unwrap().unwrap();
+    let data = vdso_range.start as *const u8;
+    let len = vdso_range.end.saturating_sub(vdso_range.start);
+    let mem = unsafe { slice::from_raw_parts(data, len as _) };
+    let parser = ElfParser::from_mem(mem);
+    let opts = FindAddrOpts {
+        sym_type: SymType::Function,
+        file_offset: false,
+    };
+
+    let remote_vdso_range = find_vdso_maps(pid).unwrap().unwrap();
+
+    let mut found = None;
+    let () = parser
+        .for_each(&opts, &mut |sym: &SymInfo<'_>| {
+            if sym.name.contains("gettimeofday") {
+                found = Some(remote_vdso_range.start + sym.addr);
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
+        .unwrap();
+
+    found.expect("`gettimeofday` function not found")
 }

@@ -1,25 +1,18 @@
 use std::borrow::Cow;
 use std::cell::RefCell;
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::env::temp_dir;
 use std::ffi::OsStr;
-use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
-use std::fs::remove_file;
 use std::fs::File;
-use std::hash::Hasher as _;
-use std::io::Write as _;
 use std::mem::take;
 use std::ops::Deref as _;
 use std::ops::Range;
-#[cfg(linux)]
-use std::os::unix::fs::FileExt as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::slice;
 
 #[cfg(feature = "apk")]
 use crate::apk::create_apk_elf_path;
@@ -28,6 +21,7 @@ use crate::breakpad::BreakpadResolver;
 use crate::elf::ElfParser;
 use crate::elf::ElfResolver;
 use crate::elf::ElfResolverData;
+use crate::elf::StaticMem;
 #[cfg(feature = "dwarf")]
 use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::file_cache::FileCache;
@@ -46,6 +40,7 @@ use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
+use crate::once::OnceCell;
 #[cfg(feature = "apk")]
 use crate::pathlike::PathLike;
 use crate::perf_map::PerfMap;
@@ -396,10 +391,9 @@ impl Builder {
             gsym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             ksym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
-            vdso_cache: InsertMap::new(),
             process_vma_cache: RefCell::new(HashMap::new()),
-            process_vdso_cache: InsertMap::new(),
             process_cache: InsertMap::new(),
+            vdso_parser: OnceCell::new(),
             find_sym_opts,
             demangle,
             #[cfg(feature = "dwarf")]
@@ -521,12 +515,12 @@ impl SymbolizeHandler<'_> {
         file_off: u64,
         vdso_range: &Range<Addr>,
     ) -> Result<()> {
-        let resolver = self.symbolizer.vdso_resolver(self.pid, vdso_range)?;
-        match resolver.file_offset_to_virt_offset(file_off)? {
+        let parser = self.symbolizer.vdso_parser(self.pid, vdso_range)?;
+        match parser.file_offset_to_virt_offset(file_off)? {
             Some(addr) => {
                 let symbol = self
                     .symbolizer
-                    .symbolize_with_resolver(addr, &Resolver::Cached(resolver))?;
+                    .symbolize_with_resolver(addr, &Resolver::Cached(parser))?;
                 let () = self.all_symbols.push(symbol);
             }
             None => self.handle_unknown_addr(addr, Reason::InvalidFileOffset),
@@ -661,19 +655,14 @@ pub struct Symbolizer {
     gsym_cache: FileCache<GsymResolver<'static>>,
     ksym_cache: FileCache<Rc<KsymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
-    /// A mapping from vDSO content hash to vDSO ELF data.
-    ///
-    /// We use this member to share vDSO data instead of duplicating
-    /// copies all over the place.
-    vdso_cache: InsertMap<u64, Rc<ElfParser>>,
     /// Cache of VMA data on per-process basis.
     ///
     /// This member is only populated by explicit requests for caching
     /// data by the user.
     process_vma_cache: RefCell<HashMap<Pid, Box<[maps::MapsEntry]>>>,
-    /// A cache of per-process vDSO ELF data.
-    process_vdso_cache: InsertMap<Pid, ElfResolver>,
     process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
+    /// The ELF parser used for the system-wide vDSO.
+    vdso_parser: OnceCell<Box<ElfParser<StaticMem>>>,
     find_sym_opts: FindSymOpts,
     demangle: bool,
     #[cfg(feature = "dwarf")]
@@ -929,76 +918,45 @@ impl Symbolizer {
     }
 
     #[cfg(linux)]
-    fn create_vdso_resolver(&self, pid: Pid, range: &Range<Addr>) -> Result<ElfResolver> {
-        let start = range.start;
-        let size = range.end.saturating_sub(start);
-        // Put in some upper limit on the vDSO data that we are going to
-        // store directly. In most cases this should be a single 4 KiB
-        // page, maybe two. Assume a worst case of one 4 MiB page, which
-        // should provide plenty of slack.
-        if size > 4 * 1024 * 1024 {
-            return Err(Error::with_invalid_data(format!(
-                "vDSO of process {pid} is unexpectedly large ({size} bytes)"
-            )))
-        }
+    fn create_vdso_parser(&self, pid: Pid, range: &Range<Addr>) -> Result<ElfParser<StaticMem>> {
+        use crate::vdso::find_vdso;
 
-        // Read the vDSO image.
-        let path = format!("/proc/{pid}/mem");
-        let mem =
-            File::open(&path).with_context(|| format!("failed to open `{path}` for reading"))?;
+        let vdso_range = if pid == Pid::Slf {
+            range.clone()
+        } else {
+            if let Some(vdso_range) = find_vdso()? {
+                vdso_range
+            } else {
+                return Err(Error::with_not_found("failed to find vDSO"))
+            }
+        };
 
-        let mut vdso_buf = Vec::new();
-        let () = vdso_buf.resize(size as _, 0u8);
-        let () = mem
-            .read_exact_at(vdso_buf.as_mut_slice(), start)
-            .with_context(|| format!("failed to read from `{path}`"))?;
-
-        // Hash it to compare it against potentially present images. It
-        // is *very* likely that all vDSOs on the system are the same,
-        // so we will likely be able to deduplicate subsequently.
-        let mut hasher = DefaultHasher::new();
-        let () = hasher.write(vdso_buf.as_slice());
-        let hash = hasher.finish();
-
-        // Check if we already hold a vDSO with the given hash, in which
-        // case we can just reuse the previously instantiated
-        // `ElfParser`, including already cached data.
-        let parser = self
-            .vdso_cache
-            .get_or_try_insert(hash, || {
-                let vdso_path = temp_dir().join(format!("__blazesym_vdso_image_{}", pid.resolve()));
-                let mut vdso_file = File::options()
-                    .create_new(true)
-                    .write(true)
-                    .read(true)
-                    .open(&vdso_path)
-                    .with_context(|| format!("failed to create `{}` file", vdso_path.display()))?;
-                let () = remove_file(&vdso_path).with_context(|| {
-                    format!("failed to remove vDSO image `{}`", vdso_path.display())
-                })?;
-                let () = vdso_file
-                    .write_all(&vdso_buf)
-                    .context("failed to write vDSO image")?;
-                let parser = Rc::new(ElfParser::from_file(&vdso_file, OsString::from("vDSO"))?);
-                Ok(parser)
-            })
-            .context("failed to create vDSO ELF parser")?;
-
-        let resolver = ElfResolver::from_parser(Rc::clone(parser), None)?;
-        Ok(resolver)
+        let data = vdso_range.start as *const u8;
+        let len = vdso_range.end.saturating_sub(vdso_range.start);
+        // SAFETY: Everything points to `vdso_range` representing the
+        //         memory range of the vDSO, which is statically
+        //         allocated by the kernel and will never vanish.
+        let mem = unsafe { slice::from_raw_parts(data, len as _) };
+        let parser = ElfParser::from_mem(mem);
+        Ok(parser)
     }
 
     #[cfg(not(linux))]
-    fn create_vdso_resolver(&self, _pid: Pid, _range: &Range<Addr>) -> Result<ElfResolver> {
+    fn create_vdso_parser(&self, _pid: Pid, _range: &Range<Addr>) -> Result<ElfParser<StaticMem>> {
         Err(Error::with_unsupported(
             "vDSO address symbolization is unsupported on operating systems other than Linux",
         ))
     }
 
-    fn vdso_resolver<'slf>(&'slf self, pid: Pid, range: &Range<Addr>) -> Result<&'slf ElfResolver> {
-        let parser = self
-            .process_vdso_cache
-            .get_or_try_insert(pid, || self.create_vdso_resolver(pid, range))?;
+    fn vdso_parser<'slf>(
+        &'slf self,
+        pid: Pid,
+        range: &Range<Addr>,
+    ) -> Result<&'slf ElfParser<StaticMem>> {
+        let parser = self.vdso_parser.get_or_try_init(|| {
+            let parser = self.create_vdso_parser(pid, range)?;
+            Result::<_, Error>::Ok(Box::new(parser))
+        })?;
         Ok(parser)
     }
 
@@ -1685,7 +1643,7 @@ mod tests {
     fn symbolizer_size() {
         // TODO: This size is rather larger and we should look into
         //       minimizing it.
-        assert_eq!(size_of::<Symbolizer>(), 744);
+        assert_eq!(size_of::<Symbolizer>(), 624);
     }
 
     /// Check that we can correctly construct the source code path to a symbol.
