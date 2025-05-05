@@ -315,11 +315,6 @@ pub struct blaze_symbolize_src_process {
     pub no_map_files: bool,
     /// Whether or not to symbolize addresses in a vDSO (virtual dynamic
     /// shared object).
-    ///
-    /// The main reason to disable vDSO symbolization is in cases of
-    /// unpriviledged symbolization. Symbolizing vDSO data from a
-    /// different process requires reading memory from another process,
-    /// which is privileged.
     pub no_vdso: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.

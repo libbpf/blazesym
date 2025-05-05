@@ -47,6 +47,8 @@ use blazesym::MaybeDefault;
 use blazesym::Mmap;
 use blazesym::Pid;
 use blazesym::Result;
+#[cfg(linux)]
+use blazesym::__private::find_gettimeofday_in_process;
 use blazesym::__private::find_the_answer_fn_in_zip;
 
 #[cfg(linux)]
@@ -1009,10 +1011,10 @@ fn symbolize_process_with_custom_dispatch() {
     test(process_no_dispatch);
 }
 
-/// Test that we symbolize addresses in a vDSO.
+/// Test that we symbolize addresses in a vDSO in our process.
 #[cfg(linux)]
 #[test]
-fn symbolize_process_vdso() {
+fn symbolize_own_process_vdso() {
     use libc::clock_gettime;
     use libc::gettimeofday;
 
@@ -1040,53 +1042,26 @@ fn symbolize_process_vdso() {
     }
 }
 
-/// Check support for vDSO symbolization enabling/disabling.
+/// Test that we symbolize addresses in a vDSO in a "remote" process.
 #[cfg(linux)]
-#[forked_test]
-fn symbolize_process_no_vdso_no_permission() {
-    use libc::clock_gettime;
-    use libc::getresuid;
-    use libc::gettimeofday;
+#[test]
+fn symbolize_remote_process_vdso() {
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-block.bin");
+    let () = RemoteProcess::default().exec(&test_block, |pid, _addr| {
+        let addr = find_gettimeofday_in_process(pid);
 
-    fn symbolize_vdso_impl() {
-        // Both functions are typically provided by the vDSO, though there
-        // is no guarantee of that.
-        let addrs = [gettimeofday as Addr, clock_gettime as Addr];
+        let process = Process::new(pid);
+        let src = Source::Process(process);
         let symbolizer = Symbolizer::new();
-
-        // First try with vDSO symbolization. This *is likely* (it's not
-        // guaranteed, because the functions may not reside in a
-        // vDSO...) to fail, because we attempt to read our own memory
-        // via `/proc/<pid>/mem`, which we don't have the rights to.
-        let mut process = Process::new(Pid::Slf);
-        process.map_files = false;
-        let src = Source::Process(process);
-        let err = symbolizer
-            .symbolize(&src, Input::AbsAddr(&addrs))
-            .unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::PermissionDenied);
-
-        let mut process = Process::new(Pid::Slf);
-        process.map_files = false;
-        process.vdso = false;
-        let src = Source::Process(process);
-        // Just make sure that we do not error out due to permission issues.
-        // We can't really make any claims about the resolved symbols,
-        // unfortunately.
-        let _results = symbolizer.symbolize(&src, Input::AbsAddr(&addrs)).unwrap();
-    }
-
-    let mut ruid = 0;
-    let mut euid = 0;
-    let mut suid = 0;
-
-    let result = unsafe { getresuid(&mut ruid, &mut euid, &mut suid) };
-    if result == -1 {
-        panic!("failed to get user IDs: {}", io::Error::last_os_error());
-    }
-
-    let uid = non_root_uid();
-    as_user(ruid, uid, symbolize_vdso_impl)
+        let sym = symbolizer
+            .symbolize_single(&src, Input::AbsAddr(addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+        assert!(sym.name.ends_with("gettimeofday"), "{sym:?}");
+    });
 }
 
 /// Make sure that we do not fail symbolization when an empty perf
