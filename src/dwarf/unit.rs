@@ -155,7 +155,7 @@ impl<'dwarf> Unit<'dwarf> {
         let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         for func in functions.functions.iter() {
             let name = Some(name.as_bytes());
-            if func.name.as_ref().map(|r| r.slice()) == name {
+            if func.name.as_ref().map(gimli::EndianSlice::slice) == name {
                 return Ok(Some(func))
             }
         }

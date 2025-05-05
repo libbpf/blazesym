@@ -222,7 +222,7 @@ impl KsymResolver {
             }
         }
 
-        let () = syms.sort_by_key(|a| a.addr());
+        let () = syms.sort_by_key(Ksym::addr);
 
         let slf = Self {
             syms: syms.into_boxed_slice(),

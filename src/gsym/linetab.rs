@@ -114,7 +114,7 @@ pub(crate) fn run_op(
         }
         ADVANCE_PC => {
             let adv = ops.read_u64_leb128()?;
-            row.addr += adv as Addr;
+            row.addr += adv;
             Some(RunResult::NewRow)
         }
         ADVANCE_LINE => {

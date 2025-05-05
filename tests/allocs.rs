@@ -1,9 +1,6 @@
-#![allow(
-    clippy::fn_to_numeric_cast,
-    clippy::incompatible_msrv,
-    clippy::let_and_return,
-    clippy::let_unit_value
-)]
+//! Investigate allocation behavior of certain code paths.
+
+#![allow(clippy::incompatible_msrv)]
 #![cfg_attr(not(linux), allow(dead_code, unused_imports))]
 
 use std::alloc::GlobalAlloc;
@@ -36,20 +33,24 @@ struct TracingAlloc;
 
 unsafe impl GlobalAlloc for TracingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // Capturing a backtrace will allocate itself. Prevent infinite
-        // recursion with a flag.
-        if ENABLED.get() && !TRACING.with(|tracing| tracing.replace(true)) {
-            let bt = Backtrace::capture();
-            if let BacktraceStatus::Captured = bt.status() {
-                println!("{layout:?}:\n{bt}");
+        unsafe {
+            // Capturing a backtrace will allocate itself. Prevent infinite
+            // recursion with a flag.
+            if ENABLED.get() && !TRACING.with(|tracing| tracing.replace(true)) {
+                let bt = Backtrace::capture();
+                if let BacktraceStatus::Captured = bt.status() {
+                    println!("{layout:?}:\n{bt}");
+                }
+                let () = TRACING.with(|tracing| tracing.set(false));
             }
-            let () = TRACING.with(|tracing| tracing.set(false));
+            System.alloc(layout)
         }
-        System.alloc(layout)
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        System.dealloc(ptr, layout);
+        unsafe {
+            System.dealloc(ptr, layout);
+        }
     }
 }
 

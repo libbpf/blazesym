@@ -872,6 +872,7 @@ mod tests {
     /// Check that we can read various integers from a slice.
     #[tag(miri)]
     #[test]
+    #[expect(trivial_numeric_casts)]
     fn pod_reading() {
         macro_rules! test {
             ($type:ty) => {{

@@ -1,4 +1,4 @@
-#![allow(clippy::let_unit_value)]
+//! Build script for `blazesym-dev`.
 
 use std::env;
 use std::env::consts::ARCH;
@@ -181,6 +181,7 @@ where
         }
     };
 
+    #[allow(clippy::redundant_closure_for_method_calls)]
     let () = run(
         tool,
         options

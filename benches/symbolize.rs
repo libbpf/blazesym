@@ -1,5 +1,3 @@
-#![allow(clippy::fn_to_numeric_cast)]
-
 use std::hint::black_box;
 use std::path::Path;
 

@@ -77,7 +77,7 @@ thread_local! {
 /// Retrieve the error reported by the last fallible API function invoked.
 #[no_mangle]
 pub extern "C" fn blaze_err_last() -> blaze_err {
-    LAST_ERR.with(|cell| cell.get())
+    LAST_ERR.with(Cell::get)
 }
 
 /// Retrieve the error reported by the last fallible API function invoked.

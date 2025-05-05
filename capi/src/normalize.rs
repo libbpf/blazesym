@@ -967,7 +967,7 @@ mod tests {
     fn normalize_user_addrs() {
         fn test(normalizer: *const blaze_normalizer) {
             let addrs = [
-                0x0 as Addr,
+                0x0,
                 libc::atexit as Addr,
                 libc::chdir as Addr,
                 libc::fopen as Addr,
@@ -1205,7 +1205,7 @@ mod tests {
         let normalizer = blaze_normalizer_new();
         assert!(!normalizer.is_null());
 
-        let addrs = [the_answer_addr as Addr];
+        let addrs = [the_answer_addr];
         let opts = blaze_normalize_opts {
             apk_to_elf: true,
             ..Default::default()

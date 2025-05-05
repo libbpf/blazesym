@@ -89,3 +89,6 @@ criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e2
 tempfile = "3.19"
 test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
 test-tag = "0.1"
+
+[lints]
+workspace = true

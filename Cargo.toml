@@ -18,6 +18,37 @@ license = "BSD-3-Clause"
 repository = "https://github.com/libbpf/blazesym"
 homepage = "https://github.com/libbpf/blazesym"
 
+[workspace.lints.rust]
+deprecated-safe = "warn"
+future-incompatible = "warn"
+keyword-idents = "warn"
+let-underscore = "warn"
+missing-debug-implementations = "warn"
+missing-docs = "warn"
+trivial-numeric-casts = "warn"
+unexpected_cfgs = {level = "warn", check-cfg = ['cfg(has_procmap_query_ioctl)', 'cfg(has_large_test_files)']}
+unsafe-op-in-unsafe-fn = "warn"
+unused = "warn"
+
+[workspace.lints.clippy]
+collapsible-else-if = "allow"
+collapsible-if = "allow"
+fn-to-numeric-cast = "allow"
+let-and-return = "allow"
+let-unit-value = "allow"
+module-inception = "allow"
+type-complexity = "allow"
+absolute-paths = "warn"
+allow-attributes = "warn"
+clone-on-ref-ptr = "warn"
+dbg-macro = "warn"
+doc-markdown = "warn"
+join-absolute-paths = "warn"
+large-enum-variant = "warn"
+redundant-closure-for-method-calls = "warn"
+unchecked-duration-subtraction = "warn"
+uninlined-format-args = "warn"
+
 [package]
 name = "blazesym"
 description = "blazesym is a library for address symbolization and related tasks."
@@ -171,5 +202,5 @@ features = ["apk", "backtrace", "breakpad", "demangle", "dwarf", "gsym"]
 # defines the configuration attribute `docsrs`
 rustdoc-args = ["--cfg", "docsrs"]
 
-[lints.rust]
-unexpected_cfgs = {level = "warn", check-cfg = ['cfg(has_procmap_query_ioctl)', 'cfg(has_large_test_files)']}
+[lints]
+workspace = true

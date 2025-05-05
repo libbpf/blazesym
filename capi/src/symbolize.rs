@@ -1974,8 +1974,7 @@ mod tests {
             let name = unsafe { CStr::from_ptr(sym.name) };
             assert!(
                 name.to_str().unwrap().contains("test13test_function"),
-                "{:?}",
-                name
+                "{name:?}"
             );
 
             if sym.inlined_cnt == 0 {
@@ -1988,8 +1987,7 @@ mod tests {
             let name = unsafe { CStr::from_ptr((*sym.inlined).name) };
             assert!(
                 name.to_str().unwrap().contains("test12inlined_call"),
-                "{:?}",
-                name
+                "{name:?}"
             );
 
             let () = unsafe { blaze_syms_free(result) };

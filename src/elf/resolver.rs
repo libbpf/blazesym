@@ -64,7 +64,7 @@ impl FileCache<ElfResolverData> {
                     //         present and given that we are
                     //         initializing the `dwarf` part of it, the
                     //         `elf` part *must* be present.
-                    let parser = data.elf.get().unwrap().parser().clone();
+                    let parser = Rc::clone(data.elf.get().unwrap().parser());
                     let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
@@ -75,7 +75,7 @@ impl FileCache<ElfResolverData> {
                     //         present and given that we are
                     //         initializing the `elf` part of it, the
                     //         `dwarf` part *must* be present.
-                    let parser = data.dwarf.get().unwrap().parser().clone();
+                    let parser = Rc::clone(data.dwarf.get().unwrap().parser());
                     let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
@@ -236,7 +236,7 @@ mod tests {
             .join("test-stable-addrs.bin");
 
         let parser = Rc::new(ElfParser::open(path.as_path()).unwrap());
-        let resolver = ElfResolver::from_parser(parser.clone(), None).unwrap();
+        let resolver = ElfResolver::from_parser(Rc::clone(&parser), None).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("ElfParser("), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");

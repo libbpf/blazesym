@@ -21,7 +21,7 @@ use crate::Result;
 const PROC_KCORE: &str = "/proc/kcore";
 /// The name of the `VMCOREINFO` ELF note.
 ///
-/// See https://www.kernel.org/doc/html/latest/admin-guide/kdump/vmcoreinfo.html
+/// See <https://www.kernel.org/doc/html/latest/admin-guide/kdump/vmcoreinfo.html>
 const VMCOREINFO_NAME: &[u8] = b"VMCOREINFO\0";
 
 

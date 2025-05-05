@@ -6,7 +6,6 @@ use std::ffi::c_char;
 use std::ffi::CStr;
 use std::sync::Mutex;
 
-use blazesym::Addr;
 use blazesym_c::blaze_err;
 use blazesym_c::blaze_err_last;
 use blazesym_c::blaze_symbolize_process_abs_addrs;
@@ -39,7 +38,7 @@ fn trace_callbacks() {
             ..Default::default()
         };
         let symbolizer = blaze_symbolizer_new();
-        let addrs = [0x0 as Addr];
+        let addrs = [0x0];
         let result = unsafe {
             blaze_symbolize_process_abs_addrs(symbolizer, &process_src, addrs.as_ptr(), addrs.len())
         };

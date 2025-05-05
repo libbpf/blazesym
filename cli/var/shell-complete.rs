@@ -1,5 +1,3 @@
-#![allow(clippy::let_unit_value)]
-
 use std::io::stdout;
 
 use clap::CommandFactory as _;
