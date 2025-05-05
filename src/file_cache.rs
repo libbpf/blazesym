@@ -28,6 +28,7 @@ impl From<&libc::stat> for FileMeta {
     fn from(other: &libc::stat) -> Self {
         // Casts are necessary because on Android some libc types do not
         // use proper typedefs. https://github.com/rust-lang/libc/issues/3285
+        #[allow(trivial_numeric_casts)]
         Self {
             dev: other.st_dev as _,
             inode: other.st_ino as _,

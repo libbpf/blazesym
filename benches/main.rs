@@ -1,8 +1,6 @@
-#![allow(
-    clippy::incompatible_msrv,
-    clippy::let_and_return,
-    clippy::let_unit_value
-)]
+//! Benchmarks for `blazesym`.
+
+#![allow(missing_docs)]
 
 macro_rules! bench_fn {
     ($group:expr, $bench_fn:ident) => {

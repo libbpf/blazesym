@@ -293,7 +293,7 @@ mod tests {
     }
 
     /// Check that we can query an invalid VMA region using the
-    /// PROCMAP_QUERY ioctl.
+    /// `PROCMAP_QUERY` ioctl.
     #[test]
     #[ignore = "test requires PROCMAP_QUERY ioctl kernel support"]
     fn invalid_vma_querying_ioctl() {
@@ -306,7 +306,7 @@ mod tests {
     }
 
     /// Check that we can query a valid VMA region using the
-    /// PROCMAP_QUERY ioctl.
+    /// `PROCMAP_QUERY` ioctl.
     #[test]
     #[ignore = "test requires PROCMAP_QUERY ioctl kernel support"]
     fn valid_vma_querying_ioctl() {
@@ -349,7 +349,7 @@ mod tests {
     }
 
     /// Check that we see the same number of VMAs reported when using
-    /// `/proc/self/maps` parsing versus the PROCMAP_QUERY ioctl.
+    /// `/proc/self/maps` parsing versus the `PROCMAP_QUERY` ioctl.
     #[test]
     #[ignore = "test requires PROCMAP_QUERY ioctl kernel support"]
     fn vma_comparison() {

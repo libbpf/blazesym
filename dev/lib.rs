@@ -1,13 +1,4 @@
-#![allow(
-    clippy::clone_on_ref_ptr,
-    clippy::collapsible_else_if,
-    clippy::collapsible_if,
-    clippy::fn_to_numeric_cast,
-    clippy::let_and_return,
-    clippy::let_unit_value
-)]
-#![deny(unsafe_op_in_unsafe_fn)]
-
+//! Supporting dev-only functionality for `blazesym`.
 
 #[cfg(linux)]
 mod bpf {
@@ -44,6 +35,8 @@ mod bpf {
         obj
     }
 
+    /// Find and open the BPF object corresponding to the provided file
+    /// name.
     #[track_caller]
     pub fn test_object(filename: &str) -> Object {
         open_test_object(filename)

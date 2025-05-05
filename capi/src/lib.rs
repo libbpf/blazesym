@@ -29,14 +29,7 @@
 #![doc = include_str!("../examples/input-struct-init.c")]
 //! ```
 
-#![allow(
-    non_camel_case_types,
-    clippy::collapsible_if,
-    clippy::fn_to_numeric_cast,
-    clippy::let_and_return,
-    clippy::let_unit_value,
-    clippy::manual_non_exhaustive
-)]
+#![allow(non_camel_case_types, clippy::manual_non_exhaustive)]
 #![deny(unsafe_op_in_unsafe_fn)]
 
 

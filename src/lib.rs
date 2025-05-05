@@ -30,22 +30,6 @@
 //!
 //! [tracing.rs]: https://tracing.rs
 
-#![allow(
-    clippy::clone_on_ref_ptr,
-    clippy::collapsible_else_if,
-    clippy::collapsible_if,
-    clippy::fn_to_numeric_cast,
-    clippy::let_and_return,
-    clippy::let_unit_value,
-    clippy::type_complexity
-)]
-#![deny(unsafe_op_in_unsafe_fn)]
-#![warn(
-    missing_debug_implementations,
-    missing_docs,
-    clippy::absolute_paths,
-    rustdoc::broken_intra_doc_links
-)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(feature = "nightly", feature(test))]
 #![cfg_attr(

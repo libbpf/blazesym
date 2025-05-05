@@ -137,7 +137,7 @@ fn find_sym<'elf>(
     let idx = find_match_or_lower_bound_by_key(by_addr_idx, addr, |&idx| {
         // SANITY: The index originates in our code and is known to be
         //         in bounds.
-        syms.get(idx).unwrap().value() as Addr
+        syms.get(idx).unwrap().value()
     });
 
     match idx {
@@ -147,7 +147,7 @@ fn find_sym<'elf>(
                 // SANITY: The index originates in our code and is known
                 //         to be in bounds.
                 let sym = syms.get(*idx).unwrap().to_64bit();
-                if sym.st_value as Addr > addr {
+                if sym.st_value > addr {
                     // Once we are seeing start addresses past the provided
                     // address, we can no longer be dealing with a match and
                     // stop the search.
@@ -164,7 +164,7 @@ fn find_sym<'elf>(
                     let sym = ResolvedSym {
                         name: symbol_name(strtab, &sym)?,
                         module,
-                        addr: sym.st_value as Addr,
+                        addr: sym.st_value,
                         size: if sym.st_size == 0 {
                             None
                         } else {
@@ -533,11 +533,11 @@ where
     fn read_first_shdr(&self, ehdr: &ElfN_Ehdr<'_>) -> Result<ElfN_Shdr<'elf>> {
         let shdr = if ehdr.is_32bit() {
             self.backend
-                .read_pod_obj::<Elf32_Shdr>(ehdr.shoff() as _)
+                .read_pod_obj::<Elf32_Shdr>(ehdr.shoff())
                 .map(ElfN_Shdr::B32)
         } else {
             self.backend
-                .read_pod_obj::<Elf64_Shdr>(ehdr.shoff() as _)
+                .read_pod_obj::<Elf64_Shdr>(ehdr.shoff())
                 .map(ElfN_Shdr::B64)
         }
         .context("failed to read ELF section header")?;
@@ -1128,7 +1128,7 @@ where
                     if sym.st_shndx != SHN_UNDEF {
                         found.push(SymInfo {
                             name: Cow::Borrowed(name_visit.name(strs)?),
-                            addr: sym.st_value as Addr,
+                            addr: sym.st_value,
                             size: Some(sym.st_size as usize),
                             // SANITY: We filter out all unsupported symbol
                             //         types, so this conversion should always
@@ -1191,7 +1191,7 @@ where
             if sym.matches(opts.sym_type) && sym.st_shndx != SHN_UNDEF {
                 let sym_info = SymInfo {
                     name: Cow::Borrowed(name.name(strs)?),
-                    addr: sym.st_value as Addr,
+                    addr: sym.st_value,
                     size: Some(sym.st_size as usize),
                     // SANITY: We filter out all unsupported symbol
                     //         types, so this conversion should always
@@ -1274,7 +1274,7 @@ where
             let phdr = phdr.to_64bit();
             if phdr.p_type == PT_LOAD {
                 if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&offset) {
-                    return Some((offset - phdr.p_offset + phdr.p_vaddr) as Addr)
+                    return Some(offset - phdr.p_offset + phdr.p_vaddr)
                 }
             }
             None
@@ -1315,11 +1315,7 @@ where
 
         let idx = by_addr_idx.get(idx).unwrap();
         let sym_name = self.get_symbol_name(*idx).unwrap();
-        (
-            sym_name,
-            addr as Addr,
-            usize::try_from(size).unwrap_or(usize::MAX),
-        )
+        (sym_name, addr, usize::try_from(size).unwrap_or(usize::MAX))
     }
 
     pub(crate) fn cache(&self) -> Result<()> {
@@ -1437,7 +1433,7 @@ mod tests {
     /// headers and more than 0xffff program headers properly.
     #[test]
     fn excessive_section_and_program_headers() {
-        const SHNUM: u16 = (SHN_LORESERVE + 0x42) as _;
+        const SHNUM: u16 = SHN_LORESERVE + 0x42;
         const PHNUM: u32 = 0xffff + 0x43;
 
         #[repr(C)]
@@ -1520,7 +1516,7 @@ mod tests {
     /// 0xff00.
     #[test]
     fn large_e_shstrndx() {
-        const SHSTRNDX: u16 = (SHN_LORESERVE + 0x42) as _;
+        const SHSTRNDX: u16 = SHN_LORESERVE + 0x42;
 
         #[repr(C)]
         struct Elf {

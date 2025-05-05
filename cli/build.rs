@@ -1,3 +1,5 @@
+//! Build script for `blazecli`.
+
 use std::env;
 
 use anyhow::Result;

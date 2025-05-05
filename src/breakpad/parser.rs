@@ -78,13 +78,13 @@ fn stringify_error(input: &[u8], e: VerboseError<&[u8]>) -> String {
         if input.is_empty() {
             match kind {
                 VerboseErrorKind::Char(c) => {
-                    write!(&mut result, "{}: expected '{}', got empty input\n\n", i, c)
+                    write!(&mut result, "{i}: expected '{c}', got empty input\n\n")
                 }
                 VerboseErrorKind::Context(s) => {
-                    write!(&mut result, "{}: in {}, got empty input\n\n", i, s)
+                    write!(&mut result, "{i}: in {s}, got empty input\n\n")
                 }
                 VerboseErrorKind::Nom(e) => {
-                    write!(&mut result, "{}: in {:?}, got empty input\n\n", i, e)
+                    write!(&mut result, "{i}: in {e:?}, got empty input\n\n")
                 }
             }
         } else {
@@ -345,7 +345,7 @@ fn file_line(input: &[u8]) -> IResult<&[u8], (u32, String), VerboseError<&[u8]>>
     Ok((input, (id, filename.to_string())))
 }
 
-/// Matches an INLINE_ORIGIN record.
+/// Matches an `INLINE_ORIGIN` record.
 fn inline_origin_line(input: &[u8]) -> IResult<&[u8], (u32, String), VerboseError<&[u8]>> {
     let (input, _) = terminated(tag("INLINE_ORIGIN"), space1)(input)?;
     let (input, (id, function)) = cut(tuple((
@@ -661,7 +661,7 @@ impl SymbolParser {
         Ok((input, ()))
     }
 
-    /// Finish processing an item (cur_item) which had sublines.
+    /// Finish processing an item (`cur_item`) which had sublines.
     /// We now have all the sublines, so it's complete.
     fn finish_item(&mut self, item: Line) {
         match item {
@@ -774,7 +774,7 @@ foo bar baz
         assert_eq!(module_line(line), Ok((rest, OsStr::new("firefox x y z"))));
     }
 
-    /// Sometimes dump_syms on Windows does weird things and produces multiple
+    /// Sometimes `dump_syms` on Windows does weird things and produces multiple
     /// carriage returns before the line feed.
     #[test]
     fn parse_module_line_crcrlf() {

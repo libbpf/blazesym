@@ -98,7 +98,7 @@ impl<'dat> GsymResolver<'dat> {
         let finfo = self
             .ctx
             .file_info(file_idx as usize)
-            .ok_or_invalid_data(|| format!("failed to retrieve file info data @ {}", file_idx))?;
+            .ok_or_invalid_data(|| format!("failed to retrieve file info data @ {file_idx}"))?;
         let dir = self
             .ctx
             .get_str(finfo.directory as usize)

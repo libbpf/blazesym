@@ -3,8 +3,6 @@
 //! to symbolize addresses, as opposed to the default one that only looks
 //! directly at members and their ELF/DWARF symbols.
 
-#![allow(clippy::collapsible_if)]
-
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
@@ -61,7 +59,7 @@ impl TranslateFileOffset for CustomApkResolver {
         let addr = phdrs.iter().find_map(|phdr| {
             if phdr.p_type == elf64::program_header::PT_LOAD {
                 if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&file_offset) {
-                    return Some((file_offset - phdr.p_offset + phdr.p_vaddr) as Addr)
+                    return Some(file_offset - phdr.p_offset + phdr.p_vaddr)
                 }
             }
             None

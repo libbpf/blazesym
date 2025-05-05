@@ -1,4 +1,4 @@
-#![allow(clippy::collapsible_if)]
+//! Example illustrating `debuginfod` based symbolization.
 
 use anyhow::Context as _;
 use anyhow::Error;
@@ -70,20 +70,18 @@ fn print_frame(name: &str, addr_info: Option<(Addr, Addr, usize)>, code_info: &O
     if let Some((input_addr, addr, offset)) = addr_info {
         // If we have various address information bits we have a new symbol.
         println!(
-            "{input_addr:#0width$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
+            "{input_addr:#0ADDR_WIDTH$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
             code_info = code_info.as_deref().unwrap_or(""),
-            width = ADDR_WIDTH
         )
     } else {
         // Otherwise we are dealing with an inlined call.
         println!(
-            "{:width$}  {name}{code_info} [inlined]",
+            "{:ADDR_WIDTH$}  {name}{code_info} [inlined]",
             " ",
             code_info = code_info
                 .map(|info| format!(" @{info}"))
                 .as_deref()
-                .unwrap_or(""),
-            width = ADDR_WIDTH
+                .unwrap_or("")
         )
     }
 }
@@ -108,7 +106,7 @@ where
                 }
             }
             Symbolized::Unknown(..) => {
-                println!("{input_addr:#0width$x}: <no-symbol>", width = ADDR_WIDTH)
+                println!("{input_addr:#0ADDR_WIDTH$x}: <no-symbol>")
             }
         }
     }

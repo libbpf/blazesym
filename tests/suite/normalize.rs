@@ -55,8 +55,7 @@ fn normalize_unsorted_err() {
 fn normalize_unknown_addrs() {
     // The very first page of the address space should never be
     // mapped, so use addresses from there.
-    let addrs = [0x500 as Addr, 0x600 as Addr];
-
+    let addrs = [0x500, 0x600];
     let normalizer = Normalizer::new();
     let normalized = normalizer
         .normalize_user_addrs(Pid::Slf, addrs.as_slice())
@@ -202,7 +201,7 @@ fn normalize_custom_so() {
 
     let normalizer = Normalizer::new();
     let normalized = normalizer
-        .normalize_user_addrs(Pid::Slf, [the_answer_addr as Addr].as_slice())
+        .normalize_user_addrs(Pid::Slf, [the_answer_addr].as_slice())
         .unwrap();
     assert_eq!(normalized.outputs.len(), 1);
     assert_eq!(normalized.meta.len(), 1);
@@ -253,7 +252,7 @@ fn normalize_custom_so_in_zip() {
             .enable_build_id_caching(cache_build_ids)
             .build();
         let normalized = normalizer
-            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
+            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr].as_slice(), &opts)
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);
@@ -349,7 +348,7 @@ fn test_normalize_deleted_so(use_procmap_query: bool) {
             .enable_build_id_caching(cache_build_ids)
             .build();
         let normalized = normalizer
-            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr as Addr].as_slice(), &opts)
+            .normalize_user_addrs_opts(Pid::Slf, [the_answer_addr].as_slice(), &opts)
             .unwrap();
         assert_eq!(normalized.outputs.len(), 1);
         assert_eq!(normalized.meta.len(), 1);

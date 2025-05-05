@@ -906,7 +906,7 @@ Caused by:
         }
 
         // Ensure that we capture a backtrace.
-        let () = env::set_var("RUST_LIB_BACKTRACE", "1");
+        let () = unsafe { env::set_var("RUST_LIB_BACKTRACE", "1") };
 
         let err = io::Error::new(io::ErrorKind::InvalidData, "some invalid data");
         let err = Error::from(err);
@@ -921,8 +921,8 @@ Caused by:
     /// the `RUST_LIB_BACKTRACE` environment variable is not present.
     #[forked_test]
     fn error_no_backtrace1() {
-        let () = env::remove_var("RUST_BACKTRACE");
-        let () = env::remove_var("RUST_LIB_BACKTRACE");
+        let () = unsafe { env::remove_var("RUST_BACKTRACE") };
+        let () = unsafe { env::remove_var("RUST_LIB_BACKTRACE") };
 
         let err = io::Error::new(io::ErrorKind::InvalidData, "some invalid data");
         let err = Error::from(err);
@@ -935,8 +935,8 @@ Caused by:
     /// the `RUST_LIB_BACKTRACE` environment variable is "0".
     #[forked_test]
     fn error_no_backtrace2() {
-        let () = env::remove_var("RUST_BACKTRACE");
-        let () = env::set_var("RUST_LIB_BACKTRACE", "0");
+        let () = unsafe { env::remove_var("RUST_BACKTRACE") };
+        let () = unsafe { env::set_var("RUST_LIB_BACKTRACE", "0") };
 
         let err = io::Error::new(io::ErrorKind::InvalidData, "some invalid data");
         let err = Error::from(err);

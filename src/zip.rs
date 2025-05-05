@@ -1,5 +1,5 @@
 /// Specification of ZIP file format can be found here:
-/// https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT
+/// <https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT>
 /// For a high level overview of the structure of a ZIP file see
 /// sections 4.3.1 - 4.3.6.
 ///
@@ -33,7 +33,7 @@ const FLAG_HAS_DATA_DESCRIPTOR: u16 = 1 << 3;
 #[derive(Clone, Debug)]
 #[repr(C, packed)]
 struct EndOfCdRecord {
-    /// Magic value equal to END_OF_CD_RECORD_MAGIC.
+    /// Magic value equal to `END_OF_CD_RECORD_MAGIC`.
     magic: u32,
     /// Number of the file containing this structure or 0xFFFF if ZIP64 archive.
     /// Zip archive might span multiple files (disks).
@@ -66,7 +66,7 @@ unsafe impl Pod for EndOfCdRecord {}
 #[derive(Clone, Debug)]
 #[repr(C, packed)]
 struct CdFileHeader {
-    /// Magic value equal to CD_FILE_HEADER_MAGIC.
+    /// Magic value equal to `CD_FILE_HEADER_MAGIC`.
     magic: u32,
     version: u16,
     /// Minimum zip version needed to extract the file.
@@ -98,7 +98,7 @@ unsafe impl Pod for CdFileHeader {}
 #[derive(Clone, Debug)]
 #[repr(C, packed)]
 struct LocalFileHeader {
-    /// Magic value equal to LOCAL_FILE_HEADER_MAGIC.
+    /// Magic value equal to `LOCAL_FILE_HEADER_MAGIC`.
     magic: u32,
     /// Minimum zip version needed to extract the file.
     min_version: u16,

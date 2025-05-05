@@ -1,4 +1,4 @@
-#![allow(clippy::let_and_return, clippy::let_unit_value)]
+//! A command line utility for the `blazesym` library.
 
 mod args;
 mod trace;
@@ -96,7 +96,7 @@ fn inspect(inspect: args::inspect::Inspect) -> Result<()> {
                 }
             };
 
-            let names = names.iter().map(|s| s.as_ref()).collect::<Vec<&str>>();
+            let names = names.iter().map(AsRef::as_ref).collect::<Vec<&str>>();
             let result = inspector.lookup(&src, &names)?;
             let sym_infos = result
                 .into_iter()
@@ -208,20 +208,18 @@ fn print_frame(
     if let Some((input_addr, addr, offset)) = addr_info {
         // If we have various address information bits we have a new symbol.
         println!(
-            "{input_addr:#0width$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
-            code_info = code_info.as_deref().unwrap_or(""),
-            width = ADDR_WIDTH
+            "{input_addr:#0ADDR_WIDTH$x}: {name} @ {addr:#x}+{offset:#x}{code_info}",
+            code_info = code_info.as_deref().unwrap_or("")
         )
     } else {
         // Otherwise we are dealing with an inlined call.
         println!(
-            "{:width$}  {name}{code_info} [inlined]",
+            "{:ADDR_WIDTH$}  {name}{code_info} [inlined]",
             " ",
             code_info = code_info
                 .map(|info| format!(" @{info}"))
                 .as_deref()
-                .unwrap_or(""),
-            width = ADDR_WIDTH
+                .unwrap_or("")
         )
     }
 }
@@ -326,7 +324,7 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
                 }
             }
             symbolize::Symbolized::Unknown(..) => {
-                println!("{input_addr:#0width$x}: <no-symbol>", width = ADDR_WIDTH)
+                println!("{input_addr:#0ADDR_WIDTH$x}: <no-symbol>")
             }
         }
     }

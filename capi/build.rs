@@ -1,4 +1,4 @@
-#![allow(clippy::let_unit_value)]
+//! Build script for `blazesym-c`.
 
 use std::env;
 use std::ffi::OsStr;

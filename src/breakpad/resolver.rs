@@ -79,13 +79,14 @@ impl BreakpadResolver {
     }
 
     fn find_source_location(&self, file: u32) -> Result<(Option<&Path>, &OsStr)> {
-        let path = self.symbol_file.files.get(&file).ok_or_invalid_input(|| {
-            format!("failed to retrieve source file {}: not found", file)
-        })?;
+        let path =
+            self.symbol_file.files.get(&file).ok_or_invalid_input(|| {
+                format!("failed to retrieve source file {file}: not found")
+            })?;
         let mut comps = Path::new(path).components();
         let file = comps
             .next_back()
-            .ok_or_invalid_input(|| format!("source file {} does not contain a valid path", file))?
+            .ok_or_invalid_input(|| format!("source file {file} does not contain a valid path"))?
             .as_os_str();
         let dir = comps.as_path();
 
@@ -103,10 +104,7 @@ impl BreakpadResolver {
             .inline_origins
             .get(&origin_id)
             .ok_or_invalid_input(|| {
-                format!(
-                    "failed to retrieve inlinee origin with {}: not found",
-                    origin_id
-                )
+                format!("failed to retrieve inlinee origin with {origin_id}: not found")
             })?;
 
         Ok(name)

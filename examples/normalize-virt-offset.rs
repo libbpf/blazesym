@@ -2,8 +2,6 @@
 //! opposed to file offsets from the normalization step by applying some
 //! post-processing.
 
-#![allow(clippy::fn_to_numeric_cast)]
-
 use blazesym::helper::ElfResolver;
 use blazesym::normalize::Normalizer;
 use blazesym::symbolize::source::Elf;

@@ -1,9 +1,3 @@
-#![allow(
-    clippy::fn_to_numeric_cast,
-    clippy::let_and_return,
-    clippy::let_unit_value
-)]
-
 use std::env::current_exe;
 use std::ffi::OsStr;
 use std::ffi::OsString;

@@ -148,7 +148,7 @@ fn try_deref_debug_link(
 }
 
 
-/// DwarfResolver provides abilities to query DWARF information of binaries.
+/// `DwarfResolver` provides abilities to query DWARF information of binaries.
 pub(crate) struct DwarfResolver {
     /// The lazily parsed compilation units of the DWARF file.
     // SAFETY: We must not hand out references with a 'static lifetime to
@@ -230,7 +230,7 @@ impl DwarfResolver {
         let addr = function
             .range
             .as_ref()
-            .map(|range| range.begin as Addr)
+            .map(|range| range.begin)
             .unwrap_or(0);
         let size = function
             .range

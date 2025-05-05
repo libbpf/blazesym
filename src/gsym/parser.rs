@@ -26,9 +26,9 @@
 //! corresponding entry at the same offset in the other table.  The
 //! entries in the Address Data Offset Table are always 32bits
 //! (4bytes.)  It is the file offset to the respective Address
-//! Data. (AddrInfo actually)
+//! Data. (`AddrInfo` actually)
 //!
-//! An AddrInfo comprises the size and name of a symbol.  The name
+//! An `AddrInfo` comprises the size and name of a symbol.  The name
 //! is an offset in the string table.  You will find a null terminated
 //! C string at the give offset.  The size is the number of bytes of
 //! the respective object; ex, a function or variable.
@@ -58,8 +58,8 @@ use super::types::INFO_TYPE_END_OF_LIST;
 
 /// Hold the major parts of a standalone GSYM file.
 ///
-/// GsymContext provides functions to access major entities in GSYM.
-/// GsymContext can find respective AddrInfo for an address. But,
+/// `GsymContext` provides functions to access major entities in GSYM.
+/// `GsymContext` can find respective `AddrInfo` for an address. But,
 /// it doesn't parse [`AddrData`] to get line numbers.
 ///
 /// The developers should use [`parse_address_data()`],
@@ -81,7 +81,7 @@ impl GsymContext<'_> {
     ///
     /// * `data` - is the content of a standalone GSYM.
     ///
-    /// Returns a GsymContext, which includes the Header and other important
+    /// Returns a `GsymContext`, which includes the Header and other important
     /// tables.
     pub(crate) fn parse_header(data: &[u8]) -> Result<GsymContext> {
         fn parse_header_impl(mut data: &[u8]) -> Option<Result<GsymContext>> {
@@ -154,7 +154,7 @@ impl GsymContext<'_> {
         }
 
 
-        let relative_addr = addr.checked_sub(self.header.base_address as Addr)?;
+        let relative_addr = addr.checked_sub(self.header.base_address)?;
         let num_addrs = self.header.num_addrs as usize;
 
         match self.header.addr_off_size {
@@ -174,13 +174,13 @@ impl GsymContext<'_> {
             1 => data.read_u8()?.into(),
             2 => data.read_u16()?.into(),
             4 => data.read_u32()? as Addr,
-            8 => data.read_u64()? as Addr,
+            8 => data.read_u64()?,
             _ => return None,
         };
-        (self.header.base_address as Addr).checked_add(addr)
+        (self.header.base_address).checked_add(addr)
     }
 
-    /// Get the AddrInfo of an address given by an index.
+    /// Get the `AddrInfo` of an address given by an index.
     pub(crate) fn addr_info(&self, idx: usize) -> Option<AddrInfo> {
         let offset = *self.addr_data_off_tab.get(idx)?;
         let mut data = self.raw_data.get(offset as usize..)?;
@@ -213,7 +213,7 @@ impl GsymContext<'_> {
 ///
 /// # Arguments
 ///
-/// * `data` - is the slice from AddrInfo::data.
+/// * `data` - is the slice from `AddrInfo::data`.
 pub(crate) fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData> {
     iter::from_fn(move || {
         let typ = data.read_u32()?;

@@ -1,3 +1,5 @@
+//! Build script for `blazesym`.
+
 use std::env;
 
 

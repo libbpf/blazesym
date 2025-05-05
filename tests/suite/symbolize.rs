@@ -1239,7 +1239,7 @@ fn symbolize_zip_with_custom_dispatch() {
         let src = Source::Process(Process::new(Pid::Slf));
         let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
         let result = symbolizer
-            .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
+            .symbolize_single(&src, Input::AbsAddr(the_answer_addr))
             .unwrap()
             .into_sym()
             .unwrap();
@@ -1300,7 +1300,7 @@ fn symbolize_zip_with_custom_dispatch_errors() {
         let src = Source::Process(Process::new(Pid::Slf));
         let symbolizer = Symbolizer::builder().set_apk_dispatcher(dispatcher).build();
         let err = symbolizer
-            .symbolize_single(&src, Input::AbsAddr(the_answer_addr as Addr))
+            .symbolize_single(&src, Input::AbsAddr(the_answer_addr))
             .unwrap_err();
 
         assert_eq!(err.to_string(), "induced error");
