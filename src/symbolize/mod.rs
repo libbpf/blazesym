@@ -113,6 +113,9 @@ pub use symbolizer::ProcessDispatch;
 pub use symbolizer::ProcessMemberInfo;
 pub use symbolizer::Symbolizer;
 
+pub(crate) use symbolizer::symbolize_with_resolver;
+pub(crate) use symbolizer::Resolver;
+
 // Strictly speaking these types are applicable to the entire crate, but right
 // now they are only used as part of the symbolization APIs, so we re-export
 // them through this module only.

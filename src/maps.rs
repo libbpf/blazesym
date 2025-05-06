@@ -206,7 +206,7 @@ pub(crate) fn parse_path_name(
             let symbolic_path =
                 bytes_to_path(path.strip_suffix(b" (deleted)").unwrap_or(path))?.to_path_buf();
             // Make sure to resolve the potentially symbolic PID so that
-            // it have more of a meaning in case of remote symbolization
+            // it has more of a meaning in case of remote symbolization
             // use cases.
             let pid = pid.resolve();
             let maps_file =

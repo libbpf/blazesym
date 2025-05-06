@@ -2,12 +2,18 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io;
+use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::maps;
 use crate::maps::MapsEntry;
 use crate::maps::PathName;
+use crate::symbolize::symbolize_with_resolver;
+use crate::symbolize::FindSymOpts;
+use crate::symbolize::Resolver;
+use crate::symbolize::Symbolized;
+use crate::vdso::VDSO_MAPS_COMPONENT;
 use crate::Addr;
 use crate::BuildId;
 use crate::Error;
@@ -155,6 +161,35 @@ impl<'call> NormalizationHandler<'call, '_> {
             unknown_cache: HashMap::new(),
         }
     }
+
+    fn handle_vdso_addr(
+        &mut self,
+        addr: Addr,
+        file_off: u64,
+        vdso_range: &Range<Addr>,
+    ) -> Result<()> {
+        let parser = self.normalizer.vdso_parser(self.pid, vdso_range)?;
+        if let Some(addr) = parser.file_offset_to_virt_offset(file_off)? {
+            // The vDSO is an ELF file with C style names and no source
+            // code information. So there is no need for demangling or
+            // code info lookup.
+            let demangle = false;
+            let opts = FindSymOpts::Basic;
+            let result = symbolize_with_resolver(addr, &Resolver::Cached(parser), &opts, demangle)?;
+            if let Symbolized::Sym(sym) = result {
+                let meta_idx = self.normalized.meta.len();
+                // We circumvent the meta-data cache here, because we
+                // really don't want to cache each and every
+                // symbolized symbol.
+                let () = self.normalized.meta.push(UserMeta::Sym(sym.into_owned()));
+                let () = self.normalized.outputs.push((file_off, meta_idx));
+                return Ok(())
+            }
+        }
+
+        let () = self.handle_unknown_addr(addr, Reason::Unmapped);
+        Ok(())
+    }
 }
 
 impl Handler<Reason> for NormalizationHandler<'_, '_> {
@@ -166,6 +201,8 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
     }
 
     fn handle_entry_addr(&mut self, addr: Addr, entry: &MapsEntry) -> Result<()> {
+        let file_off = addr - entry.range.start + entry.offset;
+
         match &entry.path_name {
             Some(PathName::Path(entry_path)) => {
                 let path = if self.normalize_opts.map_files {
@@ -173,7 +210,6 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                 } else {
                     &entry_path.symbolic_path
                 };
-                let file_off = addr - entry.range.start + entry.offset;
                 let ext = entry_path
                     .symbolic_path
                     .extension()
@@ -237,8 +273,15 @@ impl Handler<Reason> for NormalizationHandler<'_, '_> {
                     ),
                 }
             }
-            Some(PathName::Component(..)) => {
-                let () = self.handle_unknown_addr(addr, Reason::Unsupported);
+            Some(PathName::Component(component)) => {
+                match component.as_str() {
+                    component if component == VDSO_MAPS_COMPONENT => {
+                        let () = self.handle_vdso_addr(addr, file_off, &entry.range)?;
+                    }
+                    _ => {
+                        let () = self.handle_unknown_addr(addr, Reason::Unsupported);
+                    }
+                }
                 Ok(())
             }
             // We could still normalize the address and report it, but without a

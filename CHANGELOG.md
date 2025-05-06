@@ -2,6 +2,8 @@ Unreleased
 ----------
 - Added support for symbolizing addresses in a vDSO
   - Added `vdso` attribute to `symbolize::Process` type
+- Added support for normalizing addresses in a vDSO
+  - Added `normalize::UserMeta::Sym` variant
 - Adjusted debug link resolution to handle self-referential debug links
   more gracefully
 - Report "symbolic" path in `symbolize::Sym::module` when using process
