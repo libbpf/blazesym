@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use crate::symbolize::Sym;
+
 use super::buildid::BuildId;
 #[cfg(doc)]
 use super::NormalizeOpts;
@@ -116,6 +118,12 @@ pub enum UserMeta<'src> {
     Apk(Apk),
     /// The address belongs to an ELF file.
     Elf(Elf<'src>),
+    /// Direct symbolization information for an address.
+    ///
+    /// Some address basically have to be symbolized on the device, as
+    /// they may belong to potentially ephemeral entities, such as BPF
+    /// programs.
+    Sym(Sym<'src>),
     /// The address' origin is unknown.
     Unknown(Unknown),
 }
@@ -141,6 +149,15 @@ impl<'src> UserMeta<'src> {
         }
     }
 
+    /// Retrieve the [`Sym`] of this enum, if this variant is active.
+    #[inline]
+    pub fn as_sym(&self) -> Option<&Sym<'src>> {
+        match self {
+            Self::Sym(sym) => Some(sym),
+            _ => None,
+        }
+    }
+
     /// Retrieve the [`Unknown`] of this enum, if this variant is active.
     #[inline]
     pub fn as_unknown(&self) -> Option<&Unknown> {
@@ -156,6 +173,8 @@ impl<'src> UserMeta<'src> {
 mod tests {
     use super::*;
 
+    use std::borrow::Cow;
+
 
     /// Check that we can access individual variants of a
     /// [`UserMeta`] via the accessor functions.
@@ -167,6 +186,7 @@ mod tests {
         });
         assert!(meta.as_apk().is_some());
         assert!(meta.as_elf().is_none());
+        assert!(meta.as_sym().is_none());
         assert!(meta.as_unknown().is_none());
 
         let meta = UserMeta::Elf(Elf {
@@ -176,6 +196,23 @@ mod tests {
         });
         assert!(meta.as_apk().is_none());
         assert!(meta.as_elf().is_some());
+        assert!(meta.as_sym().is_none());
+        assert!(meta.as_unknown().is_none());
+
+        let sym = Sym {
+            name: Cow::Borrowed("test"),
+            module: None,
+            addr: 1337,
+            offset: 42,
+            size: None,
+            code_info: None,
+            inlined: Box::new([]),
+            _non_exhaustive: (),
+        };
+        let meta = UserMeta::Sym(sym);
+        assert!(meta.as_apk().is_none());
+        assert!(meta.as_elf().is_none());
+        assert!(meta.as_sym().is_some());
         assert!(meta.as_unknown().is_none());
 
         let meta = UserMeta::Unknown(Unknown {
@@ -184,6 +221,7 @@ mod tests {
         });
         assert!(meta.as_apk().is_none());
         assert!(meta.as_elf().is_none());
+        assert!(meta.as_sym().is_none());
         assert!(meta.as_unknown().is_some());
     }
 }

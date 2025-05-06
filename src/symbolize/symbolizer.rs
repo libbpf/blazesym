@@ -161,7 +161,7 @@ fn maybe_demangle(symbol: Cow<'_, str>, language: SrcLang, demangle: bool) -> Co
 
 
 /// Symbolize an address using the provided [`SymResolver`].
-fn symbolize_with_resolver<'slf>(
+pub(crate) fn symbolize_with_resolver<'slf>(
     addr: Addr,
     resolver: &Resolver<'_, 'slf>,
     find_sym_opts: &FindSymOpts,
@@ -676,9 +676,9 @@ impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
 ///
 /// Objects of this type are at the core of our logic determining whether to
 /// heap allocate certain data such as paths or symbol names or whether to just
-/// hand out references to mmap'ed data.
+/// hand out references to mmap'ed (or potentially static) data.
 #[derive(Debug)]
-enum Resolver<'tmp, 'slf> {
+pub(crate) enum Resolver<'tmp, 'slf> {
     Uncached(&'tmp (dyn Symbolize + 'tmp)),
     Cached(&'slf dyn Symbolize),
 }

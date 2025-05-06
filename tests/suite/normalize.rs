@@ -15,6 +15,8 @@ use blazesym::symbolize;
 use blazesym::Addr;
 use blazesym::Mmap;
 use blazesym::Pid;
+#[cfg(linux)]
+use blazesym::__private::find_gettimeofday_in_process;
 use blazesym::__private::find_the_answer_fn;
 use blazesym::__private::zip;
 
@@ -26,6 +28,8 @@ use test_fork::test as forked_test;
 use test_log::test;
 
 use crate::suite::common::run_unprivileged_process_test;
+#[cfg(linux)]
+use crate::suite::common::RemoteProcess;
 
 
 /// Check that we detect unsorted input addresses.
@@ -491,4 +495,45 @@ fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
 #[forked_test]
 fn normalize_process_symbolic_paths() {
     run_unprivileged_process_test(normalize_permissionless_impl)
+}
+
+/// Make sure that we can normalize addresses in a vDSO in the current
+/// process.
+#[cfg(linux)]
+#[test]
+fn normalize_local_vdso_address() {
+    use libc::gettimeofday;
+
+    let addrs = [gettimeofday as Addr];
+    let normalizer = Normalizer::new();
+    let normalized = normalizer.normalize_user_addrs(Pid::Slf, &addrs).unwrap();
+    assert_eq!(normalized.outputs.len(), 1);
+    assert_eq!(normalized.meta.len(), 1);
+
+    let output = normalized.outputs[0];
+    let sym = &normalized.meta[output.1].as_sym().unwrap();
+    assert!(sym.name.ends_with("gettimeofday"), "{sym:?}");
+}
+
+/// Make sure that we can normalize addresses in a vDSO in a remote
+/// process.
+#[cfg(linux)]
+#[test]
+fn normalize_remote_vdso_address() {
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-block.bin");
+    let () = RemoteProcess::default().exec(&test_block, |pid, _addr| {
+        let addr = find_gettimeofday_in_process(pid);
+        let normalizer = Normalizer::new();
+        let normalized = normalizer
+            .normalize_user_addrs(pid, [addr].as_slice())
+            .unwrap();
+        assert_eq!(normalized.outputs.len(), 1);
+        assert_eq!(normalized.meta.len(), 1);
+
+        let output = normalized.outputs[0];
+        let sym = &normalized.meta[output.1].as_sym().unwrap();
+        assert!(sym.name.ends_with("gettimeofday"), "{sym:?}");
+    });
 }

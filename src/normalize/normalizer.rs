@@ -7,12 +7,15 @@ use std::path::PathBuf;
 #[cfg(feature = "apk")]
 use crate::apk::create_apk_elf_path;
 use crate::elf::ElfParser;
+use crate::elf::StaticMem;
 use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
 use crate::maps;
+use crate::once::OnceCell;
 use crate::util;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
+use crate::vdso::create_vdso_parser;
 #[cfg(feature = "apk")]
 use crate::zip;
 use crate::Addr;
@@ -149,6 +152,7 @@ impl Builder {
             cache_build_ids: build_ids && cache_build_ids,
             #[cfg(feature = "apk")]
             apk_cache: FileCache::default(),
+            vdso_parser: OnceCell::new(),
             entry_cache: InsertMap::new(),
             build_id_cache: FileCache::default(),
         }
@@ -181,7 +185,7 @@ impl Default for Builder {
 /// number of processes or involving a larger number of binaries with
 /// build IDs over time, you may want to consider creating a new
 /// `Normalizer` instance regularly to free up cached data.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Normalizer {
     /// See [`Builder::enable_procmap_query`].
     use_procmap_query: bool,
@@ -197,6 +201,8 @@ pub struct Normalizer {
         zip::Archive,
         InsertMap<Range<u64>, Option<BuildId<'static>>>,
     )>,
+    /// The ELF parser used for the system-wide vDSO.
+    vdso_parser: OnceCell<Box<ElfParser<StaticMem>>>,
     /// If `cache_vmas` is `true`, the cached parsed
     /// [`MapsEntry`][maps::MapsEntry] objects.
     entry_cache: InsertMap<Pid, Box<[maps::MapsEntry]>>,
@@ -420,5 +426,37 @@ impl Normalizer {
             }
         }
         Ok(None)
+    }
+
+    pub(crate) fn vdso_parser<'slf>(
+        &'slf self,
+        pid: Pid,
+        range: &Range<Addr>,
+    ) -> Result<&'slf ElfParser<StaticMem>> {
+        let parser = self.vdso_parser.get_or_try_init(|| {
+            let parser = create_vdso_parser(pid, range)?;
+            Result::<_, Error>::Ok(Box::new(parser))
+        })?;
+        Ok(parser)
+    }
+}
+
+impl Default for Normalizer {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    /// Exercise the `Default` impl for `Normalizer`.
+    #[test]
+    fn default_initialization() {
+        let _normalizer = Normalizer::default();
     }
 }
