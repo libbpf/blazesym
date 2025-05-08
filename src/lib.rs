@@ -46,6 +46,7 @@
 
 
 #[cfg(feature = "nightly")]
+#[allow(unused_extern_crates)]
 extern crate test;
 
 #[macro_use]
