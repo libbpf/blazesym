@@ -86,7 +86,7 @@ blazesym-c = {path = ".", features = ["check-doc-snippets"]}
 bindgen = {version = "0.71", default-features = false, features = ["runtime"]}
 # TODO: Use 0.5.2 once released.
 criterion = {git = "https://github.com/bheisler/criterion.rs.git", rev = "b913e232edd98780961ecfbae836ec77ede49259", default-features = false, features = ["rayon", "cargo_bench_support"]}
-tempfile = "3.19"
+tempfile = "3.20"
 test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
 test-tag = "0.1"
 
