@@ -575,11 +575,14 @@ typedef struct blaze_symbolizer_opts {
   /**
    * Whether to attempt to gather source code location information.
    *
-   * This setting implies `debug_syms` (and forces it to `true`).
+   * This option only has an effect if `debug_syms` of the particular
+   * symbol source is set to `true`.
    */
   bool code_info;
   /**
    * Whether to report inlined functions as part of symbolization.
+   *
+   * This option only has an effect if `code_info` is `true`.
    */
   bool inlined_fns;
   /**

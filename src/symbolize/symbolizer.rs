@@ -279,6 +279,9 @@ impl Builder {
 
     /// Enable/disable source code location information (line numbers,
     /// file names etc.).
+    ///
+    /// This option only has an effect if `debug_syms` of the particular
+    /// symbol source is set to `true`.
     pub fn enable_code_info(mut self, enable: bool) -> Self {
         self.code_info = enable;
         self
