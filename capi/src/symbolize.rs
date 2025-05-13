@@ -672,9 +672,12 @@ pub struct blaze_symbolizer_opts {
     pub auto_reload: bool,
     /// Whether to attempt to gather source code location information.
     ///
-    /// This setting implies `debug_syms` (and forces it to `true`).
+    /// This option only has an effect if `debug_syms` of the particular
+    /// symbol source is set to `true`.
     pub code_info: bool,
     /// Whether to report inlined functions as part of symbolization.
+    ///
+    /// This option only has an effect if `code_info` is `true`.
     pub inlined_fns: bool,
     /// Whether or not to transparently demangle symbols.
     ///
