@@ -276,20 +276,19 @@ impl BpfProg {
     /// Parse information about a BPF program from part of a `kallsyms`
     /// line.
     pub fn parse(s: &str, addr: Addr) -> Option<Self> {
-        let s = s.strip_prefix(BPF_PROG_PREFIX)?;
+        let no_prefix = s.strip_prefix(BPF_PROG_PREFIX)?;
         // The name is "optional".
-        let (tag, name) = if let Some(idx) = s.find('_') {
-            let (tag, name) = s.split_at(idx);
-            // Strip leading underscore from name.
-            (tag, &name[1..])
+        let tag = if let Some(idx) = no_prefix.find('_') {
+            let (tag, _name) = no_prefix.split_at(idx);
+            tag
         } else {
-            (s, "")
+            no_prefix
         };
 
         let tag = BpfTag::from_str(tag).ok()?;
         let prog = BpfProg {
             addr,
-            name: Box::from(name),
+            name: Box::from(s),
             tag,
             line_info: OnceCell::new(),
         };
@@ -437,7 +436,7 @@ mod tests {
         let bpf_prog = BpfProg::parse(name, addr).unwrap();
 
         let sym = SymInfo::try_from(&bpf_prog).unwrap();
-        assert_eq!(sym.name, "kprobe__cap_capable");
+        assert_eq!(sym.name, "bpf_prog_30304e82b4033ea3_kprobe__cap_capable");
         assert_eq!(sym.addr, 0x1337);
         assert_eq!(sym.sym_type, SymType::Function);
         assert_eq!(sym.file_offset, None);
@@ -452,7 +451,10 @@ mod tests {
         let name = "bpf_prog_30304e82b4033ea3_kprobe__cap_capable";
         let bpf_prog = BpfProg::parse(name, addr).unwrap();
         assert_eq!(bpf_prog.addr, addr);
-        assert_eq!(&*bpf_prog.name, "kprobe__cap_capable");
+        assert_eq!(
+            &*bpf_prog.name,
+            "bpf_prog_30304e82b4033ea3_kprobe__cap_capable"
+        );
         assert_eq!(
             bpf_prog.tag,
             BpfTag::from([0x30, 0x30, 0x4e, 0x82, 0xb4, 0x03, 0x3e, 0xa3])
@@ -462,7 +464,7 @@ mod tests {
         let name = "bpf_prog_30304e82b4033ea3";
         let bpf_prog = BpfProg::parse(name, addr).unwrap();
         assert_eq!(bpf_prog.addr, addr);
-        assert_eq!(&*bpf_prog.name, "");
+        assert_eq!(&*bpf_prog.name, "bpf_prog_30304e82b4033ea3");
         assert_eq!(bpf_prog.tag.to_string(), "30304e82b4033ea3");
 
         let name = "bpf_prog_run";

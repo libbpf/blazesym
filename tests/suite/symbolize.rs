@@ -1560,7 +1560,11 @@ fn symbolize_kernel_bpf_program() {
             .symbolize(&src, Input::AbsAddr(&[handle_getpid, subprogram]))
             .unwrap();
         let handle_getpid_sym = result[0].as_sym().unwrap();
-        assert_eq!(handle_getpid_sym.name, "handle__getpid");
+        assert!(
+            handle_getpid_sym.name.ends_with("handle__getpid"),
+            "{}",
+            handle_getpid_sym.name
+        );
         let code_info = handle_getpid_sym.code_info.as_ref().unwrap();
         assert_eq!(code_info.dir, None);
         assert_eq!(
@@ -1571,7 +1575,11 @@ fn symbolize_kernel_bpf_program() {
         assert_ne!(code_info.column, None);
 
         let subprogram_sym = result[1].as_sym().unwrap();
-        assert_eq!(subprogram_sym.name, "subprogram");
+        assert!(
+            subprogram_sym.name.ends_with("subprogram"),
+            "{}",
+            subprogram_sym.name
+        );
         let code_info = subprogram_sym.code_info.as_ref().unwrap();
         assert_eq!(code_info.dir, None);
         assert_eq!(

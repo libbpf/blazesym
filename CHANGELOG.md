@@ -8,6 +8,8 @@ Unreleased
   symbolization on APKs with `map_files` set to `true`
 - Fixed reading of compressed ELF section data with unaligned
   compression headers
+- Adjusted symbol names reported for BPF programs to contain `bpf_prog_`
+  prefix and program tag
 
 
 0.2.0-rc.3
