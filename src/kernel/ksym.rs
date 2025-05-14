@@ -402,7 +402,7 @@ ffffffffc212d000 t ftrace_trampoline    [__builtin__ftrace]
 
             let prog = resolver.syms[1].as_bpf_prog().unwrap();
             assert_eq!(prog.addr(), 0xffffffffc003e9c8);
-            assert_eq!(prog.name(), "kprobe__cap_capable");
+            assert_eq!(prog.name(), "bpf_prog_30304e82b4033ea3_kprobe__cap_capable");
             assert_eq!(
                 prog.tag(),
                 BpfTag::from([0x30, 0x30, 0x4e, 0x82, 0xb4, 0x03, 0x3e, 0xa3])
