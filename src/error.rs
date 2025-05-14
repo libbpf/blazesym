@@ -2,7 +2,6 @@ use std::backtrace::Backtrace;
 use std::backtrace::BacktraceStatus;
 use std::borrow::Borrow;
 use std::borrow::Cow;
-use std::env;
 use std::error::Error as StdError;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -94,38 +93,6 @@ impl IntoCowStr for &'static str {
 impl IntoCowStr for String {
     fn into_cow_str(self) -> Cow<'static, Str> {
         Cow::Owned(self.into_boxed_str())
-    }
-}
-
-
-trait MaybeCapture {
-    fn maybe_capture() -> Backtrace;
-}
-
-impl MaybeCapture for Backtrace {
-    fn maybe_capture() -> Backtrace {
-        if cfg!(debug_assertions) {
-            // For testing purposes we need to circumvent the standard
-            // library's caching logic, which otherwise could cause
-            // flakiness in our tests, as they'd be impacted by
-            // unrelated errors that check for backtrace capture.
-            let enabled = match env::var("RUST_LIB_BACKTRACE") {
-                Ok(s) => s != "0",
-                Err(_) => match env::var("RUST_BACKTRACE") {
-                    Ok(s) => s != "0",
-                    Err(_) => false,
-                },
-            };
-            if enabled {
-                Backtrace::force_capture()
-            } else {
-                Backtrace::disabled()
-            }
-        } else {
-            // Just use the standard capture infrastructure and its caching
-            // logic.
-            Self::capture()
-        }
     }
 }
 
@@ -563,7 +530,7 @@ impl From<gimli::Error> for Error {
             error: Box::new(ErrorImpl::Dwarf {
                 error: other,
                 #[cfg(feature = "backtrace")]
-                backtrace: Backtrace::maybe_capture(),
+                backtrace: Backtrace::capture(),
             }),
         }
     }
@@ -575,7 +542,7 @@ impl From<io::Error> for Error {
             error: Box::new(ErrorImpl::Io {
                 error: other,
                 #[cfg(feature = "backtrace")]
-                backtrace: Backtrace::maybe_capture(),
+                backtrace: Backtrace::capture(),
             }),
         }
     }
@@ -591,7 +558,7 @@ impl From<Box<dyn StdError + Send + Sync + 'static>> for Error {
                 // because no trait exposes it. So the best we can do is capture
                 // a backtrace ourselves. Sigh.
                 #[cfg(feature = "backtrace")]
-                backtrace: Backtrace::maybe_capture(),
+                backtrace: Backtrace::capture(),
             }),
         }
     }
@@ -762,7 +729,7 @@ mod tests {
     use std::env;
     use std::mem::size_of;
 
-    use test_log::test as forked_test;
+    use test_fork::test as forked_test;
     use test_log::test;
     use test_tag::tag;
 
