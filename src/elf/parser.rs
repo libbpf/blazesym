@@ -66,6 +66,9 @@ use super::types::SHN_XINDEX;
 use super::types::SHT_NOBITS;
 
 
+pub(crate) type StaticMem = &'static [u8];
+
+
 fn read_pod<T, R>(reader: &mut R) -> Result<T, io::Error>
 where
     T: Pod,
@@ -871,6 +874,11 @@ impl Backend for Mmap {
     type ImplTy<'bcknd> = &'bcknd [u8];
 }
 
+impl Backend for StaticMem {
+    type ObjTy = StaticMem;
+    type ImplTy<'bcknd> = &'bcknd [u8];
+}
+
 impl Backend for File {
     type ObjTy = Box<File>;
     type ImplTy<'bcknd> = &'bcknd File;
@@ -1010,7 +1018,7 @@ impl ElfParser<Mmap> {
         let data = unsafe { mem::transmute::<&[u8], &'static [u8]>(mmap.deref()) };
         let _backend = mmap;
 
-        let parser = ElfParser {
+        let parser = Self {
             cache: Cache::new(data),
             module,
             _backend,
@@ -1032,6 +1040,18 @@ impl ElfParser<Mmap> {
         let module = path.represented_path().as_os_str().to_os_string();
         let path = path.actual_path();
         open_impl(path, module)
+    }
+}
+
+impl ElfParser<StaticMem> {
+    /// Create an `ElfParser` from a region of static memory.
+    pub(crate) fn from_mem(mem: StaticMem) -> Self {
+        Self {
+            cache: Cache::new(mem),
+            // TODO: Should provide the module.
+            module: None,
+            _backend: mem,
+        }
     }
 }
 
@@ -1333,7 +1353,10 @@ where
     }
 }
 
-impl Debug for ElfParser {
+impl<B> Debug for ElfParser<B>
+where
+    B: Backend,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let module = self
             .module

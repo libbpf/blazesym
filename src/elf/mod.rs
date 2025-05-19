@@ -13,6 +13,7 @@ pub(crate) static DEFAULT_DEBUG_DIRS: &[&str] = &["/usr/lib/debug", "/lib/debug/
 
 pub(crate) use parser::BackendImpl;
 pub(crate) use parser::ElfParser;
+pub(crate) use parser::StaticMem;
 pub(crate) use resolver::ElfResolverData;
 
 pub use resolver::ElfResolver;
