@@ -1679,6 +1679,15 @@ mod tests {
         });
     }
 
+    /// Test forcing a double check of all `Symbolizer` size changes.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn symbolizer_size() {
+        // TODO: This size is rather larger and we should look into
+        //       minimizing it.
+        assert_eq!(size_of::<Symbolizer>(), 744);
+    }
+
     /// Check that we can correctly construct the source code path to a symbol.
     #[test]
     fn symbol_source_code_path() {
