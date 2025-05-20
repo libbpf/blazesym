@@ -62,7 +62,9 @@ pub enum Command {
 
 
 pub mod inspect {
-    use super::*;
+    use super::Arguments;
+    use super::PathBuf;
+    use super::Subcommand;
 
 
     /// A type representing the `inspect` command.
@@ -139,7 +141,12 @@ pub mod inspect {
 
 
 pub mod normalize {
-    use super::*;
+    use super::parse_addr;
+    use super::parse_pid;
+    use super::Addr;
+    use super::Arguments;
+    use super::Pid;
+    use super::Subcommand;
 
 
     /// A type representing the `normalize` command.
@@ -173,7 +180,15 @@ pub mod normalize {
 
 
 pub mod symbolize {
-    use super::*;
+    use super::parse_addr;
+    use super::parse_pid;
+    use super::Addr;
+    use super::Arguments;
+    use super::OsString;
+    use super::PathBuf;
+    use super::Pid;
+    use super::Subcommand;
+    use super::ValueHint;
 
 
     /// A type representing the `symbolize` command.

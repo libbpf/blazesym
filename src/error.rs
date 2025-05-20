@@ -14,7 +14,9 @@ use std::str;
 
 
 mod private {
-    use super::*;
+    use super::io;
+    use super::str;
+    use super::Error;
 
     pub trait Sealed {}
 

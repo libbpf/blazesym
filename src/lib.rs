@@ -137,7 +137,8 @@ impl<T> From<T> for MaybeDefault<T> {
 
 /// Utility functionality not specific to any overarching theme.
 pub mod helper {
-    use super::*;
+    use super::Addr;
+    use super::Result;
 
     pub use crate::normalize::buildid::read_elf_build_id;
     pub use crate::normalize::buildid::read_elf_build_id_from_mmap;

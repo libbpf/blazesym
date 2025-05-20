@@ -48,6 +48,7 @@ large-enum-variant = "warn"
 redundant-closure-for-method-calls = "warn"
 unchecked-duration-subtraction = "warn"
 uninlined-format-args = "warn"
+wildcard-imports = "warn"
 
 [package]
 name = "blazesym"
