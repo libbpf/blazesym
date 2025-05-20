@@ -58,7 +58,11 @@ use nom::IResult;
 use nom::Needed;
 use nom::Offset as _;
 
-use super::types::*;
+use super::types::Function;
+use super::types::Inlinee;
+use super::types::PublicSymbol;
+use super::types::SourceLine;
+use super::types::SymbolFile;
 
 use crate::error::IntoCowStr;
 use crate::once::OnceCell;
