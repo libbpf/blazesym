@@ -906,7 +906,7 @@ impl<'elf> BackendImpl<'elf> for &'elf [u8] {
     {
         let value = self
             .get(offset as _..)
-            .unwrap()
+            .ok_or_invalid_data(|| "failed to read slice data: invalid offset")?
             .read_pod_slice_ref::<T>(count)
             .ok_or_invalid_data(|| "failed to read slice from mmap")?;
         Ok(Cow::Borrowed(value))
