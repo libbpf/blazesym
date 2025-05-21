@@ -659,7 +659,7 @@ pub struct blaze_symbolizer_opts {
     /// Note that the directory containing a symbolization source is always an
     /// implicit candidate target directory of the highest precedence.
     pub debug_dirs: *const *const c_char,
-    /// The number of array elements in `debug_dirs`.
+    /// The number of array elements in [`debug_dirs`][Self::debug_dirs].
     pub debug_dirs_len: usize,
     /// Whether or not to automatically reload file system based
     /// symbolization sources that were updated since the last
@@ -668,11 +668,14 @@ pub struct blaze_symbolizer_opts {
     /// Whether to attempt to gather source code location information.
     ///
     /// This option only has an effect if `debug_syms` of the particular
-    /// symbol source is set to `true`.
+    /// symbol source is set to `true`. Furthermore, it is a necessary
+    /// prerequisite for retrieving inlined function information (see
+    /// [`inlined_fns`][Self::inlined_fns]).
     pub code_info: bool,
     /// Whether to report inlined functions as part of symbolization.
     ///
-    /// This option only has an effect if `code_info` is `true`.
+    /// This option only has an effect if [`code_info`][Self::code_info]
+    /// is `true`.
     pub inlined_fns: bool,
     /// Whether or not to transparently demangle symbols.
     ///

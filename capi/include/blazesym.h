@@ -563,7 +563,7 @@ typedef struct blaze_symbolizer_opts {
    */
   const char *const *debug_dirs;
   /**
-   * The number of array elements in `debug_dirs`.
+   * The number of array elements in [`debug_dirs`][Self::debug_dirs].
    */
   size_t debug_dirs_len;
   /**
@@ -576,13 +576,16 @@ typedef struct blaze_symbolizer_opts {
    * Whether to attempt to gather source code location information.
    *
    * This option only has an effect if `debug_syms` of the particular
-   * symbol source is set to `true`.
+   * symbol source is set to `true`. Furthermore, it is a necessary
+   * prerequisite for retrieving inlined function information (see
+   * [`inlined_fns`][Self::inlined_fns]).
    */
   bool code_info;
   /**
    * Whether to report inlined functions as part of symbolization.
    *
-   * This option only has an effect if `code_info` is `true`.
+   * This option only has an effect if [`code_info`][Self::code_info]
+   * is `true`.
    */
   bool inlined_fns;
   /**

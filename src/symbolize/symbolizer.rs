@@ -276,7 +276,9 @@ impl Builder {
     /// file names etc.).
     ///
     /// This option only has an effect if `debug_syms` of the particular
-    /// symbol source is set to `true`.
+    /// symbol source is set to `true`. Furthermore, it is a necessary
+    /// prerequisite for retrieving inlined function information (see
+    /// [`Self::enable_inlined_fns`]).
     pub fn enable_code_info(mut self, enable: bool) -> Self {
         self.code_info = enable;
         self
