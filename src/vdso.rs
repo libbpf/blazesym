@@ -1,7 +1,11 @@
 use std::ops::Range;
+use std::slice;
 
+use crate::elf::ElfParser;
+use crate::elf::StaticMem;
 use crate::maps;
 use crate::Addr;
+use crate::Error;
 use crate::Pid;
 use crate::Result;
 
@@ -33,6 +37,36 @@ pub(crate) fn find_vdso() -> Result<Option<Range<Addr>>> {
     // the end what we have is the most straight forward...
 
     find_vdso_maps(Pid::Slf)
+}
+
+
+#[cfg(linux)]
+pub(crate) fn create_vdso_parser(pid: Pid, range: &Range<Addr>) -> Result<ElfParser<StaticMem>> {
+    let vdso_range = if pid == Pid::Slf {
+        range.clone()
+    } else {
+        if let Some(vdso_range) = find_vdso()? {
+            vdso_range
+        } else {
+            return Err(Error::with_not_found("failed to find vDSO"))
+        }
+    };
+
+    let data = vdso_range.start as *const u8;
+    let len = vdso_range.end.saturating_sub(vdso_range.start);
+    // SAFETY: Everything points to `vdso_range` representing the
+    //         memory range of the vDSO, which is statically
+    //         allocated by the kernel and will never vanish.
+    let mem = unsafe { slice::from_raw_parts(data, len as _) };
+    let parser = ElfParser::from_mem(mem);
+    Ok(parser)
+}
+
+#[cfg(not(linux))]
+pub(crate) fn create_vdso_parser(_pid: Pid, _range: &Range<Addr>) -> Result<ElfParser<StaticMem>> {
+    Err(Error::with_unsupported(
+        "vDSO address symbolization is unsupported on operating systems other than Linux",
+    ))
 }
 
 

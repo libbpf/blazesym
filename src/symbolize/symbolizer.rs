@@ -12,7 +12,6 @@ use std::ops::Range;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::slice;
 
 #[cfg(feature = "apk")]
 use crate::apk::create_apk_elf_path;
@@ -52,6 +51,7 @@ use crate::util::uname_release;
 use crate::util::Dbg;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
+use crate::vdso::create_vdso_parser;
 use crate::vdso::VDSO_MAPS_COMPONENT;
 #[cfg(feature = "apk")]
 use crate::zip;
@@ -899,44 +899,13 @@ impl Symbolizer {
         }
     }
 
-    #[cfg(linux)]
-    fn create_vdso_parser(&self, pid: Pid, range: &Range<Addr>) -> Result<ElfParser<StaticMem>> {
-        use crate::vdso::find_vdso;
-
-        let vdso_range = if pid == Pid::Slf {
-            range.clone()
-        } else {
-            if let Some(vdso_range) = find_vdso()? {
-                vdso_range
-            } else {
-                return Err(Error::with_not_found("failed to find vDSO"))
-            }
-        };
-
-        let data = vdso_range.start as *const u8;
-        let len = vdso_range.end.saturating_sub(vdso_range.start);
-        // SAFETY: Everything points to `vdso_range` representing the
-        //         memory range of the vDSO, which is statically
-        //         allocated by the kernel and will never vanish.
-        let mem = unsafe { slice::from_raw_parts(data, len as _) };
-        let parser = ElfParser::from_mem(mem);
-        Ok(parser)
-    }
-
-    #[cfg(not(linux))]
-    fn create_vdso_parser(&self, _pid: Pid, _range: &Range<Addr>) -> Result<ElfParser<StaticMem>> {
-        Err(Error::with_unsupported(
-            "vDSO address symbolization is unsupported on operating systems other than Linux",
-        ))
-    }
-
     fn vdso_parser<'slf>(
         &'slf self,
         pid: Pid,
         range: &Range<Addr>,
     ) -> Result<&'slf ElfParser<StaticMem>> {
         let parser = self.vdso_parser.get_or_try_init(|| {
-            let parser = self.create_vdso_parser(pid, range)?;
+            let parser = create_vdso_parser(pid, range)?;
             Result::<_, Error>::Ok(Box::new(parser))
         })?;
         Ok(parser)
