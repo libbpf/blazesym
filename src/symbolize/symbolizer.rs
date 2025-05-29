@@ -44,7 +44,6 @@ use crate::once::OnceCell;
 #[cfg(feature = "apk")]
 use crate::pathlike::PathLike;
 use crate::perf_map::PerfMap;
-use crate::symbolize::InlinedFn;
 use crate::symbolize::Resolve;
 use crate::symbolize::TranslateFileOffset;
 use crate::util;
@@ -79,7 +78,6 @@ use super::source::GsymFile;
 use super::source::Kernel;
 use super::source::Process;
 use super::source::Source;
-use super::CodeInfo;
 use super::FindSymOpts;
 use super::Input;
 use super::Reason;
@@ -168,77 +166,48 @@ fn symbolize_with_resolver<'slf>(
     find_sym_opts: &FindSymOpts,
     demangle: bool,
 ) -> Result<Symbolized<'slf>> {
-    let (sym_name, sym_module, sym_addr, sym_size, code_info, inlined) = match resolver {
+    /// Convert a `ResolvedSym` into a `Sym`, potentially performing
+    /// symbol name demangling in the process.
+    fn convert_sym<'sym>(addr: Addr, sym: ResolvedSym<'sym>, demangle: bool) -> Sym<'sym> {
+        let ResolvedSym {
+            name,
+            module,
+            addr: sym_addr,
+            size,
+            lang,
+            code_info,
+            mut inlined,
+        } = sym;
+
+        let () = inlined.iter_mut().for_each(|inlined_fn| {
+            let name = take(&mut inlined_fn.name);
+            inlined_fn.name = maybe_demangle(name, lang, demangle);
+        });
+
+        let sym = Sym {
+            name: maybe_demangle(Cow::Borrowed(name), lang, demangle),
+            module: module.map(Cow::Borrowed),
+            addr: sym_addr,
+            offset: (addr - sym_addr) as usize,
+            size,
+            code_info,
+            inlined,
+            _non_exhaustive: (),
+        };
+        sym
+    }
+
+    let sym = match resolver {
         Resolver::Uncached(resolver) => match resolver.find_sym(addr, find_sym_opts)? {
-            Ok(sym) => {
-                let ResolvedSym {
-                    name,
-                    module,
-                    addr,
-                    size,
-                    lang,
-                    code_info,
-                    inlined,
-                } = sym;
-
-                let name =
-                    Cow::Owned(maybe_demangle(Cow::Borrowed(name), lang, demangle).into_owned());
-                let module = module.map(|module| Cow::Owned(module.to_os_string()));
-                let code_info = code_info.map(CodeInfo::into_owned);
-                let inlined = Vec::from(inlined)
-                    .into_iter()
-                    .map(|inlined_fn| {
-                        let InlinedFn {
-                            name,
-                            code_info,
-                            _non_exhaustive: (),
-                        } = inlined_fn;
-                        InlinedFn {
-                            name: Cow::Owned(maybe_demangle(name, lang, demangle).into_owned()),
-                            code_info: code_info.map(CodeInfo::into_owned),
-                            _non_exhaustive: (),
-                        }
-                    })
-                    .collect::<Box<[_]>>();
-
-                (name, module, addr, size, code_info, inlined)
-            }
+            Ok(sym) => convert_sym(addr, sym, demangle).into_owned(),
             Err(reason) => return Ok(Symbolized::Unknown(reason)),
         },
         Resolver::Cached(resolver) => match resolver.find_sym(addr, find_sym_opts)? {
-            Ok(sym) => {
-                let ResolvedSym {
-                    name,
-                    module,
-                    addr,
-                    size,
-                    lang,
-                    code_info,
-                    mut inlined,
-                } = sym;
-
-                let name = maybe_demangle(Cow::Borrowed(name), lang, demangle);
-                let module = module.map(Cow::Borrowed);
-                let () = inlined.iter_mut().for_each(|inlined_fn| {
-                    let name = take(&mut inlined_fn.name);
-                    inlined_fn.name = maybe_demangle(name, lang, demangle);
-                });
-                (name, module, addr, size, code_info, inlined)
-            }
+            Ok(sym) => convert_sym(addr, sym, demangle),
             Err(reason) => return Ok(Symbolized::Unknown(reason)),
         },
     };
 
-    let sym = Sym {
-        name: sym_name,
-        module: sym_module,
-        addr: sym_addr,
-        offset: (addr - sym_addr) as usize,
-        size: sym_size,
-        code_info,
-        inlined,
-        _non_exhaustive: (),
-    };
     Ok(Symbolized::Sym(sym))
 }
 
