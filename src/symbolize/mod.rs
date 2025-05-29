@@ -268,12 +268,20 @@ impl CodeInfo<'_> {
 
     /// Convert this object into one with all references converted into
     /// guaranteed owned (i.e., heap allocated) members.
-    pub fn to_owned(&self) -> CodeInfo<'static> {
+    pub fn into_owned(self) -> CodeInfo<'static> {
+        let Self {
+            dir,
+            file,
+            line,
+            column,
+            _non_exhaustive: (),
+        } = self;
+
         CodeInfo {
-            dir: self.dir.as_ref().map(|dir| Cow::Owned(dir.to_path_buf())),
-            file: Cow::Owned(self.file.to_os_string()),
-            line: self.line,
-            column: self.column,
+            dir: dir.map(|dir| Cow::Owned(dir.into_owned())),
+            file: Cow::Owned(file.into_owned()),
+            line,
+            column,
             _non_exhaustive: (),
         }
     }
