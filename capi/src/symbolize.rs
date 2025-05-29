@@ -919,7 +919,7 @@ fn convert_code_info(
 
 
 /// Convert a [`Sym`] into the `blaze_sym` C correspondent.
-fn convert_sym(
+pub(crate) fn convert_sym(
     sym: &Sym,
     sym_ref: &mut blaze_sym,
     inlined_last: &mut *mut blaze_symbolize_inlined_fn,

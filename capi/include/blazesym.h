@@ -282,6 +282,10 @@ typedef uint8_t blaze_user_meta_kind;
  */
 #define BLAZE_USER_META_KIND_ELF 2
 /**
+ * [`blaze_user_meta_variant::sym`] is valid.
+ */
+#define BLAZE_USER_META_KIND_SYM 3
+/**
  * Deprecated; use `BLAZE_USER_META_KIND_UNKNOWN`.
  */
 #define BLAZE_USER_META_KIND_BLAZE_USER_META_UNKNOWN 0
@@ -338,6 +342,188 @@ typedef struct blaze_user_meta_elf {
 } blaze_user_meta_elf;
 
 /**
+ * Source code location information for a symbol or inlined function.
+ */
+typedef struct blaze_symbolize_code_info {
+  /**
+   * The directory in which the source file resides.
+   *
+   * This attribute is optional and may be NULL.
+   */
+  const char *dir;
+  /**
+   * The file that defines the symbol.
+   *
+   * This attribute is optional and may be NULL.
+   */
+  const char *file;
+  /**
+   * The line number on which the symbol is located in the source
+   * code.
+   */
+  uint32_t line;
+  /**
+   * The column number of the symbolized instruction in the source
+   * code.
+   */
+  uint16_t column;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[10];
+} blaze_symbolize_code_info;
+
+/**
+ * Data about an inlined function call.
+ */
+typedef struct blaze_symbolize_inlined_fn {
+  /**
+   * The symbol name of the inlined function.
+   */
+  const char *name;
+  /**
+   * Source code location information for the inlined function.
+   */
+  struct blaze_symbolize_code_info code_info;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[8];
+} blaze_symbolize_inlined_fn;
+
+/**
+ * The reason why symbolization failed.
+ *
+ * The reason is generally only meant as a hint. Reasons reported may
+ * change over time and, hence, should not be relied upon for the
+ * correctness of the application.
+ */
+typedef uint8_t blaze_symbolize_reason;
+/**
+ * Symbolization was successful.
+ */
+#define BLAZE_SYMBOLIZE_REASON_SUCCESS 0
+/**
+ * The absolute address was not found in the corresponding process'
+ * virtual memory map.
+ */
+#define BLAZE_SYMBOLIZE_REASON_UNMAPPED 1
+/**
+ * The file offset does not map to a valid piece of code/data.
+ */
+#define BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET 2
+/**
+ * The `/proc/<pid>/maps` entry corresponding to the address does
+ * not have a component (file system path, object, ...) associated
+ * with it.
+ */
+#define BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT 3
+/**
+ * The symbolization source has no or no relevant symbols.
+ */
+#define BLAZE_SYMBOLIZE_REASON_MISSING_SYMS 4
+/**
+ * The address could not be found in the symbolization source.
+ */
+#define BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR 5
+/**
+ * The address belonged to an entity that is currently unsupported.
+ */
+#define BLAZE_SYMBOLIZE_REASON_UNSUPPORTED 6
+
+/**
+ * The result of symbolization of an address.
+ *
+ * A `blaze_sym` is the information of a symbol found for an
+ * address.
+ */
+typedef struct blaze_sym {
+  /**
+   * The symbol name is where the given address should belong to.
+   *
+   * If an address could not be symbolized, this member will be NULL.
+   * Check the `reason` member for additional information pertaining
+   * the failure.
+   */
+  const char *name;
+  /**
+   * The path to or name of the module containing the symbol.
+   *
+   * Typically this would be the path to a executable or shared
+   * object. Depending on the symbol source this member may not be
+   * present or it could also just be a file name without path. In
+   * case of an ELF file contained inside an APK, this will be an
+   * Android style path of the form `<apk>!<elf-in-apk>`. E.g.,
+   * `/root/test.apk!/lib/libc.so`.
+   */
+  const char *module;
+  /**
+   * The address at which the symbol is located (i.e., its "start").
+   *
+   * This is the "normalized" address of the symbol, as present in
+   * the file (and reported by tools such as `readelf(1)`,
+   * `llvm-gsymutil`, or similar).
+   */
+  uint64_t addr;
+  /**
+   * The byte offset of the address that got symbolized from the
+   * start of the symbol (i.e., from `addr`).
+   *
+   * E.g., when symbolizing address 0x1337 of a function that starts at
+   * 0x1330, the offset will be set to 0x07 (and `addr` will be 0x1330). This
+   * member is especially useful in contexts when input addresses are not
+   * already normalized, such as when symbolizing an address in a process
+   * context (which may have been relocated and/or have layout randomizations
+   * applied).
+   */
+  size_t offset;
+  /**
+   * The size of the symbol.
+   *
+   * If the symbol's size is not available, this member will be `-1`.
+   * Note that some symbol sources may not distinguish between
+   * "unknown" size and `0`. In that case the size will be reported
+   * as `0` here as well.
+   */
+  ptrdiff_t size;
+  /**
+   * Source code location information for the symbol.
+   */
+  struct blaze_symbolize_code_info code_info;
+  /**
+   * The number of symbolized inlined function calls present.
+   */
+  size_t inlined_cnt;
+  /**
+   * An array of `inlined_cnt` symbolized inlined function calls.
+   */
+  const struct blaze_symbolize_inlined_fn *inlined;
+  /**
+   * On error (i.e., if `name` is NULL), a reason trying to explain
+   * why symbolization failed.
+   */
+  blaze_symbolize_reason reason;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[15];
+} blaze_sym;
+
+/**
+ * Readily symbolized information for an address.
+ */
+typedef struct blaze_user_meta_sym {
+  /**
+   * The symbol data.
+   */
+  const struct blaze_sym *sym;
+  /**
+   * Unused member available for future expansion.
+   */
+  uint8_t reserved[16];
+} blaze_user_meta_sym;
+
+/**
  * C compatible version of [`Unknown`].
  */
 typedef struct blaze_user_meta_unknown {
@@ -366,6 +552,10 @@ typedef union blaze_user_meta_variant {
    * Valid on [`blaze_user_meta_kind::ELF`].
    */
   struct blaze_user_meta_elf elf;
+  /**
+   * Valid on [`blaze_user_meta_kind::SYM`].
+   */
+  struct blaze_user_meta_sym sym;
   /**
    * Valid on [`blaze_user_meta_kind::UNKNOWN`].
    */
@@ -489,46 +679,6 @@ typedef struct blaze_normalize_opts {
    */
   uint8_t reserved[21];
 } blaze_normalize_opts;
-
-/**
- * The reason why symbolization failed.
- *
- * The reason is generally only meant as a hint. Reasons reported may
- * change over time and, hence, should not be relied upon for the
- * correctness of the application.
- */
-typedef uint8_t blaze_symbolize_reason;
-/**
- * Symbolization was successful.
- */
-#define BLAZE_SYMBOLIZE_REASON_SUCCESS 0
-/**
- * The absolute address was not found in the corresponding process'
- * virtual memory map.
- */
-#define BLAZE_SYMBOLIZE_REASON_UNMAPPED 1
-/**
- * The file offset does not map to a valid piece of code/data.
- */
-#define BLAZE_SYMBOLIZE_REASON_INVALID_FILE_OFFSET 2
-/**
- * The `/proc/<pid>/maps` entry corresponding to the address does
- * not have a component (file system path, object, ...) associated
- * with it.
- */
-#define BLAZE_SYMBOLIZE_REASON_MISSING_COMPONENT 3
-/**
- * The symbolization source has no or no relevant symbols.
- */
-#define BLAZE_SYMBOLIZE_REASON_MISSING_SYMS 4
-/**
- * The address could not be found in the symbolization source.
- */
-#define BLAZE_SYMBOLIZE_REASON_UNKNOWN_ADDR 5
-/**
- * The address belonged to an entity that is currently unsupported.
- */
-#define BLAZE_SYMBOLIZE_REASON_UNSUPPORTED 6
 
 /**
  * C ABI compatible version of [`blazesym::symbolize::Symbolizer`].
@@ -667,134 +817,6 @@ typedef struct blaze_cache_src_process {
    */
   uint8_t reserved[19];
 } blaze_cache_src_process;
-
-/**
- * Source code location information for a symbol or inlined function.
- */
-typedef struct blaze_symbolize_code_info {
-  /**
-   * The directory in which the source file resides.
-   *
-   * This attribute is optional and may be NULL.
-   */
-  const char *dir;
-  /**
-   * The file that defines the symbol.
-   *
-   * This attribute is optional and may be NULL.
-   */
-  const char *file;
-  /**
-   * The line number on which the symbol is located in the source
-   * code.
-   */
-  uint32_t line;
-  /**
-   * The column number of the symbolized instruction in the source
-   * code.
-   */
-  uint16_t column;
-  /**
-   * Unused member available for future expansion.
-   */
-  uint8_t reserved[10];
-} blaze_symbolize_code_info;
-
-/**
- * Data about an inlined function call.
- */
-typedef struct blaze_symbolize_inlined_fn {
-  /**
-   * The symbol name of the inlined function.
-   */
-  const char *name;
-  /**
-   * Source code location information for the inlined function.
-   */
-  struct blaze_symbolize_code_info code_info;
-  /**
-   * Unused member available for future expansion.
-   */
-  uint8_t reserved[8];
-} blaze_symbolize_inlined_fn;
-
-/**
- * The result of symbolization of an address.
- *
- * A `blaze_sym` is the information of a symbol found for an
- * address.
- */
-typedef struct blaze_sym {
-  /**
-   * The symbol name is where the given address should belong to.
-   *
-   * If an address could not be symbolized, this member will be NULL.
-   * Check the `reason` member for additional information pertaining
-   * the failure.
-   */
-  const char *name;
-  /**
-   * The path to or name of the module containing the symbol.
-   *
-   * Typically this would be the path to a executable or shared
-   * object. Depending on the symbol source this member may not be
-   * present or it could also just be a file name without path. In
-   * case of an ELF file contained inside an APK, this will be an
-   * Android style path of the form `<apk>!<elf-in-apk>`. E.g.,
-   * `/root/test.apk!/lib/libc.so`.
-   */
-  const char *module;
-  /**
-   * The address at which the symbol is located (i.e., its "start").
-   *
-   * This is the "normalized" address of the symbol, as present in
-   * the file (and reported by tools such as `readelf(1)`,
-   * `llvm-gsymutil`, or similar).
-   */
-  uint64_t addr;
-  /**
-   * The byte offset of the address that got symbolized from the
-   * start of the symbol (i.e., from `addr`).
-   *
-   * E.g., when symbolizing address 0x1337 of a function that starts at
-   * 0x1330, the offset will be set to 0x07 (and `addr` will be 0x1330). This
-   * member is especially useful in contexts when input addresses are not
-   * already normalized, such as when symbolizing an address in a process
-   * context (which may have been relocated and/or have layout randomizations
-   * applied).
-   */
-  size_t offset;
-  /**
-   * The size of the symbol.
-   *
-   * If the symbol's size is not available, this member will be `-1`.
-   * Note that some symbol sources may not distinguish between
-   * "unknown" size and `0`. In that case the size will be reported
-   * as `0` here as well.
-   */
-  ptrdiff_t size;
-  /**
-   * Source code location information for the symbol.
-   */
-  struct blaze_symbolize_code_info code_info;
-  /**
-   * The number of symbolized inlined function calls present.
-   */
-  size_t inlined_cnt;
-  /**
-   * An array of `inlined_cnt` symbolized inlined function calls.
-   */
-  const struct blaze_symbolize_inlined_fn *inlined;
-  /**
-   * On error (i.e., if `name` is NULL), a reason trying to explain
-   * why symbolization failed.
-   */
-  blaze_symbolize_reason reason;
-  /**
-   * Unused member available for future expansion.
-   */
-  uint8_t reserved[15];
-} blaze_sym;
 
 /**
  * `blaze_syms` is the result of symbolization of a list of addresses.
