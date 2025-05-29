@@ -300,6 +300,24 @@ pub struct InlinedFn<'src> {
     pub _non_exhaustive: (),
 }
 
+impl InlinedFn<'_> {
+    /// Convert this object into one with all references converted into
+    /// guaranteed owned (i.e., heap allocated) members.
+    pub fn into_owned(self) -> InlinedFn<'static> {
+        let Self {
+            name,
+            code_info,
+            _non_exhaustive: (),
+        } = self;
+
+        InlinedFn {
+            name: Cow::Owned(name.into_owned()),
+            code_info: code_info.map(CodeInfo::into_owned),
+            _non_exhaustive: (),
+        }
+    }
+}
+
 
 /// The source code language from which a symbol originates.
 #[derive(Clone, Copy, Default, Debug, PartialEq)]
@@ -384,6 +402,37 @@ pub struct Sym<'src> {
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
+}
+
+impl Sym<'_> {
+    /// Convert this object into one with all references converted into
+    /// guaranteed owned (i.e., heap allocated) members.
+    pub fn into_owned(self) -> Sym<'static> {
+        let Self {
+            name,
+            module,
+            addr,
+            offset,
+            size,
+            code_info,
+            inlined,
+            _non_exhaustive,
+        } = self;
+
+        Sym {
+            name: Cow::Owned(name.into_owned()),
+            module: module.map(|module| Cow::Owned(module.into_owned())),
+            addr,
+            offset,
+            size,
+            code_info: code_info.map(CodeInfo::into_owned),
+            inlined: Vec::from(inlined)
+                .into_iter()
+                .map(InlinedFn::into_owned)
+                .collect::<Box<[_]>>(),
+            _non_exhaustive: (),
+        }
+    }
 }
 
 
@@ -588,6 +637,33 @@ mod tests {
             Reason::MissingSyms.to_string(),
             "symbolization source has no or no relevant symbols"
         );
+    }
+
+    /// Check that [`Sym::into_owned`] works as expected.
+    #[test]
+    fn owned_conversion() {
+        let sym = Sym {
+            name: Cow::Borrowed("test"),
+            module: Some(Cow::Borrowed(OsStr::new("module"))),
+            addr: 1337,
+            offset: 42,
+            size: None,
+            code_info: None,
+            inlined: Box::new([InlinedFn {
+                name: Cow::Borrowed("inlined_test"),
+                code_info: Some(CodeInfo {
+                    dir: Some(Cow::Borrowed(Path::new("/tmp/some-dir"))),
+                    file: Cow::Borrowed(OsStr::new("test.c")),
+                    line: Some(1337),
+                    column: None,
+                    _non_exhaustive: (),
+                }),
+                _non_exhaustive: (),
+            }]),
+            _non_exhaustive: (),
+        };
+
+        assert_eq!(sym, sym.clone().into_owned());
     }
 
     /// Check that the [`Input::map`] helper works as expected.
