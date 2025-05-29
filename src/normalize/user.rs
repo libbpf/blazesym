@@ -11,6 +11,7 @@ use crate::maps::PathName;
 use crate::Addr;
 use crate::BuildId;
 use crate::Error;
+use crate::Pid;
 use crate::Result;
 
 #[cfg(feature = "apk")]
@@ -124,6 +125,8 @@ pub(super) struct NormalizationHandler<'call, 'src> {
     normalizer: &'call Normalizer,
     /// The options used as part of the normalization request.
     normalize_opts: &'call NormalizeOpts,
+    /// The PID of the process in which we normalize.
+    pid: Pid,
     /// Lookup table from path (as used in each proc maps entry) to index into
     /// `output.meta`.
     meta_lookup: HashMap<PathBuf, usize>,
@@ -137,6 +140,7 @@ impl<'call> NormalizationHandler<'call, '_> {
     pub(crate) fn new(
         normalizer: &'call Normalizer,
         opts: &'call NormalizeOpts,
+        pid: Pid,
         addr_cnt: usize,
     ) -> Self {
         Self {
@@ -146,6 +150,7 @@ impl<'call> NormalizationHandler<'call, '_> {
             },
             normalize_opts: opts,
             normalizer,
+            pid,
             meta_lookup: HashMap::new(),
             unknown_cache: HashMap::new(),
         }
@@ -356,7 +361,7 @@ mod tests {
 
             let normalizer = Normalizer::new();
             let opts = NormalizeOpts::default();
-            let mut handler = NormalizationHandler::new(&normalizer, &opts, addrs.len());
+            let mut handler = NormalizationHandler::new(&normalizer, &opts, pid, addrs.len());
             let () = normalize_sorted_user_addrs_with_entries(
                 addrs.as_slice().iter().copied(),
                 entries,
@@ -411,7 +416,7 @@ mod tests {
 
         let normalizer = Normalizer::new();
         let opts = NormalizeOpts::default();
-        let mut handler = NormalizationHandler::new(&normalizer, &opts, addrs.len());
+        let mut handler = NormalizationHandler::new(&normalizer, &opts, Pid::Slf, addrs.len());
         let () = normalize_sorted_user_addrs_with_entries(
             addrs.as_slice().iter().copied(),
             entries,

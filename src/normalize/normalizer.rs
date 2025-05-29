@@ -223,6 +223,7 @@ impl Normalizer {
 
     fn normalize_user_addrs_impl<'slf, A, E, M>(
         &'slf self,
+        pid: Pid,
         addrs: A,
         entries: E,
         opts: &NormalizeOpts,
@@ -233,7 +234,7 @@ impl Normalizer {
         M: AsRef<maps::MapsEntry>,
     {
         let addrs_cnt = addrs.len();
-        let mut handler = user::NormalizationHandler::new(self, opts, addrs_cnt);
+        let mut handler = user::NormalizationHandler::new(self, opts, pid, addrs_cnt);
         let () = normalize_sorted_user_addrs_with_entries(addrs, entries, &mut handler)?;
         debug_assert_eq!(handler.normalized.outputs.len(), addrs_cnt);
         Ok(handler.normalized)
@@ -256,7 +257,7 @@ impl Normalizer {
             if !self.cache_vmas {
                 let entries =
                     move |addr| query_procmap(&file, pid, addr, self.build_ids).transpose();
-                self.normalize_user_addrs_impl(addrs, entries, opts)
+                self.normalize_user_addrs_impl(pid, addrs, entries, opts)
             } else {
                 let entries = self.entry_cache.get_or_try_insert(pid, || {
                     let mut entries = Vec::new();
@@ -272,13 +273,13 @@ impl Normalizer {
 
                 let mut entry_iter = entries.iter().map(Ok);
                 let entries = |_addr| entry_iter.next();
-                self.normalize_user_addrs_impl(addrs, entries, opts)
+                self.normalize_user_addrs_impl(pid, addrs, entries, opts)
             }
         } else {
             if !self.cache_vmas {
                 let mut entry_iter = maps::parse_filtered(pid)?;
                 let entries = |_addr| entry_iter.next();
-                self.normalize_user_addrs_impl(addrs, entries, opts)
+                self.normalize_user_addrs_impl(pid, addrs, entries, opts)
             } else {
                 let parsed = self.entry_cache.get_or_try_insert(pid, || {
                     // If we use the cached maps entries but don't have anything
@@ -290,7 +291,7 @@ impl Normalizer {
 
                 let mut entry_iter = parsed.iter().map(Ok);
                 let entries = |_addr| entry_iter.next();
-                self.normalize_user_addrs_impl(addrs, entries, opts)
+                self.normalize_user_addrs_impl(pid, addrs, entries, opts)
             }
         }
     }
