@@ -952,23 +952,23 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
         + mem::size_of::<blaze_syms>()
         + mem::size_of::<blaze_sym>() * results.len()
         + mem::size_of::<blaze_symbolize_inlined_fn>() * inlined_fn_cnt;
-    let raw_buf_with_sz = unsafe { alloc(Layout::from_size_align(buf_size, 8).unwrap()) };
-    if raw_buf_with_sz.is_null() {
+    let buf = unsafe { alloc(Layout::from_size_align(buf_size, 8).unwrap()) };
+    if buf.is_null() {
         return ptr::null()
     }
 
-    // prepend an u64 to store the size of the buffer.
-    unsafe { *(raw_buf_with_sz as *mut u64) = buf_size as u64 };
+    // Prepend a `u64` to store the size of the buffer.
+    unsafe { *buf.cast::<u64>() = buf_size as u64 };
 
-    let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
+    let syms_buf = unsafe { buf.add(mem::size_of::<u64>()) };
 
-    let syms_ptr = raw_buf as *mut blaze_syms;
-    let mut syms_last = unsafe { (*syms_ptr).syms.as_mut_slice().as_mut_ptr() };
+    let syms_ptr = syms_buf.cast::<blaze_syms>();
+    let mut syms_last = unsafe { (*syms_ptr).syms.as_mut_ptr() };
     let mut inlined_last = unsafe {
-        raw_buf.add(mem::size_of::<blaze_syms>() + mem::size_of::<blaze_sym>() * results.len())
+        syms_buf.add(mem::size_of::<blaze_syms>() + mem::size_of::<blaze_sym>() * results.len())
     } as *mut blaze_symbolize_inlined_fn;
     let mut cstr_last = unsafe {
-        raw_buf.add(
+        syms_buf.add(
             mem::size_of::<blaze_syms>()
                 + mem::size_of::<blaze_sym>() * results.len()
                 + mem::size_of::<blaze_symbolize_inlined_fn>() * inlined_fn_cnt,
@@ -1320,7 +1320,7 @@ pub unsafe extern "C" fn blaze_syms_free(syms: *const blaze_syms) {
 
     // Retrieve back the buffer with the `u64` size header.
     let buf = unsafe { syms.byte_sub(mem::size_of::<u64>()).cast::<u8>().cast_mut() };
-    let size = unsafe { *(buf as *mut u64) } as usize;
+    let size = unsafe { *buf.cast::<u64>() } as usize;
     unsafe { dealloc(buf, Layout::from_size_align(size, 8).unwrap()) };
 }
 
