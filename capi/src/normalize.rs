@@ -1,9 +1,13 @@
+use std::alloc::alloc;
+use std::alloc::dealloc;
+use std::alloc::Layout;
 use std::borrow::Cow;
 use std::ffi::CString;
 use std::ffi::OsString;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::mem;
 use std::mem::size_of;
 use std::mem::ManuallyDrop;
 use std::os::raw::c_char;
@@ -20,13 +24,18 @@ use blazesym::normalize::Reason;
 use blazesym::normalize::Unknown;
 use blazesym::normalize::UserMeta;
 use blazesym::normalize::UserOutput;
+use blazesym::symbolize::Sym;
 use blazesym::Addr;
 
 use crate::blaze_err;
 #[cfg(doc)]
 use crate::blaze_err_last;
+use crate::blaze_sym;
+use crate::blaze_symbolize_inlined_fn;
+use crate::convert_sym;
 use crate::set_last_err;
 use crate::util::slice_from_user_array;
+use crate::util::DynSize as _;
 
 
 /// C ABI compatible version of [`blazesym::normalize::Normalizer`].
@@ -284,6 +293,8 @@ impl blaze_user_meta_kind {
     pub const APK: blaze_user_meta_kind = blaze_user_meta_kind(1);
     /// [`blaze_user_meta_variant::elf`] is valid.
     pub const ELF: blaze_user_meta_kind = blaze_user_meta_kind(2);
+    /// [`blaze_user_meta_variant::sym`] is valid.
+    pub const SYM: blaze_user_meta_kind = blaze_user_meta_kind(3);
 
     // TODO: Remove the following constants with the 0.2 release
     /// Deprecated; use `BLAZE_USER_META_KIND_UNKNOWN`.
@@ -415,6 +426,55 @@ impl blaze_user_meta_elf {
 }
 
 
+/// Readily symbolized information for an address.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_user_meta_sym {
+    /// The symbol data.
+    pub sym: *const blaze_sym,
+    /// Unused member available for future expansion.
+    pub reserved: [u8; 16],
+}
+
+impl blaze_user_meta_sym {
+    fn from(sym: Sym) -> ManuallyDrop<Self> {
+        let strtab_size = sym.c_str_size();
+        let buf_size = mem::size_of::<u64>()
+            + mem::size_of::<blaze_sym>()
+            + sym.inlined.len() * mem::size_of::<blaze_symbolize_inlined_fn>()
+            + strtab_size;
+        let buf = unsafe { alloc(Layout::from_size_align(buf_size, 8).unwrap()) };
+        // TODO: Should ideally report runtime error, but we already
+        //       use panic-on-OOM functions elsewhere, so they'd all
+        //       need to be adjusted.
+        assert!(!buf.is_null());
+
+        // Prepend a `u64` to store the size of the buffer.
+        unsafe { *(buf as *mut u64) = buf_size as u64 };
+
+        let sym_buf = unsafe { buf.add(mem::size_of::<u64>()) }.cast::<blaze_sym>();
+        let mut inlined_last = unsafe { sym_buf.add(1) }.cast::<blaze_symbolize_inlined_fn>();
+        let mut cstr_last = unsafe { inlined_last.add(sym.inlined.len()) }.cast::<c_char>();
+        let sym_ref = unsafe { &mut *sym_buf };
+        let () = convert_sym(&sym, sym_ref, &mut inlined_last, &mut cstr_last);
+
+        let slf = Self {
+            sym: sym_buf,
+            reserved: [0; 16],
+        };
+        ManuallyDrop::new(slf)
+    }
+
+    unsafe fn free(self) {
+        let blaze_user_meta_sym { sym, reserved: _ } = self;
+
+        let buf = unsafe { sym.byte_sub(mem::size_of::<u64>()).cast::<u8>().cast_mut() };
+        let size = unsafe { *(buf as *mut u64) } as usize;
+        let () = unsafe { dealloc(buf, Layout::from_size_align(size, 8).unwrap()) };
+    }
+}
+
+
 /// The reason why normalization failed.
 ///
 /// The reason is generally only meant as a hint. Reasons reported may change
@@ -504,6 +564,8 @@ pub union blaze_user_meta_variant {
     pub apk: ManuallyDrop<blaze_user_meta_apk>,
     /// Valid on [`blaze_user_meta_kind::ELF`].
     pub elf: ManuallyDrop<blaze_user_meta_elf>,
+    /// Valid on [`blaze_user_meta_kind::SYM`].
+    pub sym: ManuallyDrop<blaze_user_meta_sym>,
     /// Valid on [`blaze_user_meta_kind::UNKNOWN`].
     pub unknown: ManuallyDrop<blaze_user_meta_unknown>,
 }
@@ -549,6 +611,14 @@ impl blaze_user_meta {
                 },
                 reserved: [0; 16],
             },
+            UserMeta::Sym(sym) => Self {
+                kind: blaze_user_meta_kind::SYM,
+                unused: [0; 7],
+                variant: blaze_user_meta_variant {
+                    sym: blaze_user_meta_sym::from(sym),
+                },
+                reserved: [0; 16],
+            },
             UserMeta::Unknown(unknown) => Self {
                 kind: blaze_user_meta_kind::UNKNOWN,
                 unused: [0; 7],
@@ -569,6 +639,9 @@ impl blaze_user_meta {
             },
             blaze_user_meta_kind::ELF => unsafe {
                 ManuallyDrop::into_inner(self.variant.elf).free()
+            },
+            blaze_user_meta_kind::SYM => unsafe {
+                ManuallyDrop::into_inner(self.variant.sym).free()
             },
             blaze_user_meta_kind::UNKNOWN => {
                 ManuallyDrop::into_inner(unsafe { self.variant.unknown }).free()
@@ -800,6 +873,7 @@ mod tests {
         assert_eq!(size_of::<blaze_normalize_opts>(), 32);
         assert_eq!(size_of::<blaze_user_meta_apk>(), 24);
         assert_eq!(size_of::<blaze_user_meta_elf>(), 40);
+        assert_eq!(size_of::<blaze_user_meta_sym>(), 24);
         assert_eq!(size_of::<blaze_user_meta_unknown>(), 16);
     }
 
@@ -1232,6 +1306,40 @@ mod tests {
         let elf = unsafe { &meta.variant.elf };
         let path = unsafe { CStr::from_ptr(elf.path) };
         assert!(path.to_str().unwrap().ends_with(so_name), "{path:?}");
+
+        let () = unsafe { blaze_user_output_free(result) };
+        let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
+
+    /// Make sure that we can normalize addresses in a vDSO in the current
+    /// process.
+    #[cfg(linux)]
+    // 32 bit system may not have vDSO.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn normalize_local_vdso_address() {
+        use libc::gettimeofday;
+
+        let addrs = [normalize_local_vdso_address as Addr, gettimeofday as Addr];
+        let normalizer = blaze_normalizer_new();
+        assert!(!normalizer.is_null());
+
+        let result = unsafe {
+            blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+        };
+        assert_ne!(result, ptr::null_mut());
+
+        let normalized = unsafe { &*result };
+        assert_eq!(normalized.meta_cnt, 2);
+        assert_eq!(normalized.output_cnt, 2);
+
+        let output = unsafe { &*normalized.outputs.add(1) };
+        let meta = unsafe { &*normalized.metas.add(output.meta_idx) };
+        assert_eq!(meta.kind, blaze_user_meta_kind::SYM);
+
+        let sym = unsafe { &*meta.variant.sym.sym };
+        let name = unsafe { CStr::from_ptr(sym.name) };
+        assert!(name.to_str().unwrap().ends_with("gettimeofday"), "{name:?}");
 
         let () = unsafe { blaze_user_output_free(result) };
         let () = unsafe { blaze_normalizer_free(normalizer) };
