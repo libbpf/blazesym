@@ -6,11 +6,17 @@ use crate::Pid;
 use crate::Result;
 
 
+/// The name of the "component" representing the vDSO inside
+/// `/proc/<pid>/maps`.
+pub(crate) const VDSO_MAPS_COMPONENT: &str = "[vdso]";
+
+
 pub(crate) fn find_vdso_maps(pid: Pid) -> Result<Option<Range<Addr>>> {
     let entries = maps::parse_filtered(pid)?;
     for result in entries {
         let entry = result?;
-        if matches!(entry.path_name, Some(maps::PathName::Component(c)) if c == "[vdso]") {
+        if matches!(entry.path_name, Some(maps::PathName::Component(c)) if c == VDSO_MAPS_COMPONENT)
+        {
             return Ok(Some(entry.range))
         }
     }
@@ -36,6 +42,7 @@ mod tests {
 
 
     /// Make sure that we can look up the address of the process' vDSO.
+    #[cfg(linux)]
     #[test]
     fn vdso_addr_finding() {
         let _range = find_vdso().unwrap();
