@@ -79,6 +79,7 @@ use super::source::GsymFile;
 use super::source::Kernel;
 use super::source::Process;
 use super::source::Source;
+use super::CodeInfo;
 use super::FindSymOpts;
 use super::Input;
 use super::Reason;
@@ -718,7 +719,7 @@ impl Symbolizer {
                     let name =
                         Cow::Owned(self.maybe_demangle(Cow::Borrowed(name), lang).into_owned());
                     let module = module.map(|module| Cow::Owned(module.to_os_string()));
-                    let code_info = code_info.map(|info| info.to_owned());
+                    let code_info = code_info.map(CodeInfo::into_owned);
                     let inlined = Vec::from(inlined)
                         .into_iter()
                         .map(|inlined_fn| {
@@ -729,7 +730,7 @@ impl Symbolizer {
                             } = inlined_fn;
                             InlinedFn {
                                 name: Cow::Owned(self.maybe_demangle(name, lang).into_owned()),
-                                code_info: code_info.map(|info| info.to_owned()),
+                                code_info: code_info.map(CodeInfo::into_owned),
                                 _non_exhaustive: (),
                             }
                         })

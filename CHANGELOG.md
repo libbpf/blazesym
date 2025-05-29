@@ -10,6 +10,7 @@ Unreleased
   compression headers
 - Adjusted symbol names reported for BPF programs to contain `bpf_prog_`
   prefix and program tag
+- Changed `CodeInfo::to_owned` to `into_owned`
 
 
 0.2.0-rc.3
