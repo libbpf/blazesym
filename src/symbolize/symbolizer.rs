@@ -733,8 +733,7 @@ impl Symbolizer {
                                 _non_exhaustive: (),
                             }
                         })
-                        .collect::<Vec<_>>()
-                        .into_boxed_slice();
+                        .collect::<Box<[_]>>();
 
                     (name, module, addr, size, code_info, inlined)
                 }
