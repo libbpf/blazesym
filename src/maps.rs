@@ -72,6 +72,8 @@ pub enum PathName {
     /// The member is a non-file system backed entity.
     ///
     /// Examples include the heap (`[heap]`) or BPF programs, for example.
+    // TODO: Consider making the inner variant an enum to represent
+    //       entities such as `[vdso]` in a more type-safe manner.
     Component(String),
 }
 

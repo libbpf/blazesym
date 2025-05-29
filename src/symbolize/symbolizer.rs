@@ -52,6 +52,7 @@ use crate::util::uname_release;
 use crate::util::Dbg;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
+use crate::vdso::VDSO_MAPS_COMPONENT;
 #[cfg(feature = "apk")]
 use crate::zip;
 use crate::Addr;
@@ -638,7 +639,7 @@ impl normalize::Handler<Reason> for SymbolizeHandler<'_> {
             }
             Some(PathName::Component(component)) => {
                 match component.as_str() {
-                    "[vdso]" if self.vdso => {
+                    component if self.vdso && component == VDSO_MAPS_COMPONENT => {
                         let () = self.handle_vdso_addr(addr, file_off, &entry.range)?;
                     }
                     _ => {
