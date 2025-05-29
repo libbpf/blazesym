@@ -865,7 +865,7 @@ mod tests {
             "blaze_user_meta { kind: blaze_user_meta_kind(0), unused: [0, 0, 0, 0, 0, 0, 0], variant: blaze_user_meta_variant, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }",
         );
 
-        let user_addrs = blaze_normalized_user_output {
+        let normalized = blaze_normalized_user_output {
             meta_cnt: 0,
             metas: ptr::null_mut(),
             output_cnt: 0,
@@ -873,7 +873,7 @@ mod tests {
             reserved: [0; 16],
         };
         assert_eq!(
-            format!("{user_addrs:?}"),
+            format!("{normalized:?}"),
             "blaze_normalized_user_output { meta_cnt: 0, metas: 0x0, output_cnt: 0, outputs: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }",
         );
     }
@@ -980,11 +980,11 @@ mod tests {
             };
             assert_ne!(result, ptr::null_mut());
 
-            let user_addrs = unsafe { &*result };
-            assert_eq!(user_addrs.meta_cnt, 3);
-            assert_eq!(user_addrs.output_cnt, 6);
+            let normalized = unsafe { &*result };
+            assert_eq!(normalized.meta_cnt, 3);
+            assert_eq!(normalized.output_cnt, 6);
 
-            let meta = unsafe { user_addrs.metas.read() };
+            let meta = unsafe { normalized.metas.read() };
             assert_eq!(meta.kind, blaze_user_meta_kind::UNKNOWN);
             assert_eq!(
                 unsafe { meta.variant.unknown.reason },
@@ -1042,9 +1042,9 @@ mod tests {
         };
         assert_ne!(result, ptr::null_mut());
 
-        let user_addrs = unsafe { &*result };
-        assert_eq!(user_addrs.meta_cnt, 2);
-        assert_eq!(user_addrs.output_cnt, 5);
+        let normalized = unsafe { &*result };
+        assert_eq!(normalized.meta_cnt, 2);
+        assert_eq!(normalized.output_cnt, 5);
 
         let () = unsafe { blaze_user_output_free(result) };
         let () = unsafe { blaze_normalizer_free(normalizer) };

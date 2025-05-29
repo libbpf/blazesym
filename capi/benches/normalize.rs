@@ -47,9 +47,9 @@ fn normalize_process_impl(read_build_ids: bool) {
     };
     assert_ne!(result, ptr::null_mut());
 
-    let user_addrs = unsafe { &*result };
-    assert_eq!(user_addrs.meta_cnt, 2);
-    assert_eq!(user_addrs.output_cnt, 5);
+    let normalized = unsafe { &*result };
+    assert_eq!(normalized.meta_cnt, 2);
+    assert_eq!(normalized.output_cnt, 5);
 
     let () = unsafe { blaze_user_output_free(result) };
     let () = unsafe { blaze_normalizer_free(normalizer) };
