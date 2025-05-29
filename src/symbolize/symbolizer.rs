@@ -124,7 +124,7 @@ impl Debug for DebugMapsEntry<'_> {
 
 /// Demangle a symbol name using the demangling scheme for the given language.
 #[cfg(feature = "demangle")]
-fn maybe_demangle(name: Cow<'_, str>, language: SrcLang) -> Cow<'_, str> {
+fn maybe_demangle_impl(name: Cow<'_, str>, language: SrcLang) -> Cow<'_, str> {
     match language {
         SrcLang::Rust => rustc_demangle::try_demangle(name.as_ref())
             .ok()
@@ -146,9 +146,18 @@ fn maybe_demangle(name: Cow<'_, str>, language: SrcLang) -> Cow<'_, str> {
 }
 
 #[cfg(not(feature = "demangle"))]
-fn maybe_demangle(name: Cow<'_, str>, _language: SrcLang) -> Cow<'_, str> {
+fn maybe_demangle_impl(name: Cow<'_, str>, _language: SrcLang) -> Cow<'_, str> {
     // Demangling is disabled.
     name
+}
+
+/// Demangle the provided symbol if asked for and possible.
+fn maybe_demangle(symbol: Cow<'_, str>, language: SrcLang, demangle: bool) -> Cow<'_, str> {
+    if demangle {
+        maybe_demangle_impl(symbol, language)
+    } else {
+        symbol
+    }
 }
 
 
@@ -687,15 +696,6 @@ impl Symbolizer {
         Builder::default()
     }
 
-    /// Demangle the provided symbol if asked for and possible.
-    fn maybe_demangle<'sym>(&self, symbol: Cow<'sym, str>, language: SrcLang) -> Cow<'sym, str> {
-        if self.demangle {
-            maybe_demangle(symbol, language)
-        } else {
-            symbol
-        }
-    }
-
     /// Symbolize an address using the provided [`SymResolver`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver.inner())))]
     fn symbolize_with_resolver<'slf>(
@@ -716,8 +716,9 @@ impl Symbolizer {
                         inlined,
                     } = sym;
 
-                    let name =
-                        Cow::Owned(self.maybe_demangle(Cow::Borrowed(name), lang).into_owned());
+                    let name = Cow::Owned(
+                        maybe_demangle(Cow::Borrowed(name), lang, self.demangle).into_owned(),
+                    );
                     let module = module.map(|module| Cow::Owned(module.to_os_string()));
                     let code_info = code_info.map(CodeInfo::into_owned);
                     let inlined = Vec::from(inlined)
@@ -729,7 +730,9 @@ impl Symbolizer {
                                 _non_exhaustive: (),
                             } = inlined_fn;
                             InlinedFn {
-                                name: Cow::Owned(self.maybe_demangle(name, lang).into_owned()),
+                                name: Cow::Owned(
+                                    maybe_demangle(name, lang, self.demangle).into_owned(),
+                                ),
                                 code_info: code_info.map(CodeInfo::into_owned),
                                 _non_exhaustive: (),
                             }
@@ -752,11 +755,11 @@ impl Symbolizer {
                         mut inlined,
                     } = sym;
 
-                    let name = self.maybe_demangle(Cow::Borrowed(name), lang);
+                    let name = maybe_demangle(Cow::Borrowed(name), lang, self.demangle);
                     let module = module.map(Cow::Borrowed);
                     let () = inlined.iter_mut().for_each(|inlined_fn| {
                         let name = take(&mut inlined_fn.name);
-                        inlined_fn.name = self.maybe_demangle(name, lang);
+                        inlined_fn.name = maybe_demangle(name, lang, self.demangle);
                     });
                     (name, module, addr, size, code_info, inlined)
                 }
@@ -1668,11 +1671,11 @@ mod tests {
     #[test]
     fn demangle() {
         let symbol = Cow::Borrowed("_ZN4core9panicking9panic_fmt17h5f1a6fd39197ad62E");
-        let name = maybe_demangle(symbol, SrcLang::Rust);
+        let name = maybe_demangle_impl(symbol, SrcLang::Rust);
         assert_eq!(name, "core::panicking::panic_fmt");
 
         let symbol = Cow::Borrowed("_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc");
-        let name = maybe_demangle(symbol, SrcLang::Cpp);
+        let name = maybe_demangle_impl(symbol, SrcLang::Cpp);
         assert_eq!(
             name,
             "std::basic_ostream<char, std::char_traits<char> >& std::operator<< <std::char_traits<char> >(std::basic_ostream<char, std::char_traits<char> >&, char const*)"
