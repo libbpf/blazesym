@@ -105,6 +105,7 @@ mod tests {
 
     use blazesym_dev::prog_mut;
     use blazesym_dev::test_object;
+    use blazesym_dev::TracepointCategory;
 
     use test_tag::tag;
 
@@ -196,7 +197,7 @@ mod tests {
         let mut obj = test_object("getpid.bpf.o");
         let prog = prog_mut(&mut obj, "handle__getpid");
         let _link = prog
-            .attach_tracepoint("syscalls", "sys_enter_getpid")
+            .attach_tracepoint(TracepointCategory::Syscalls, "sys_enter_getpid")
             .expect("failed to attach prog");
 
         let prog_id = 0;
