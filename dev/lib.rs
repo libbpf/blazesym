@@ -17,6 +17,8 @@ mod bpf {
     use libbpf_rs::ProgramMut;
     use libbpf_rs::RingBufferBuilder;
 
+    pub use libbpf_rs::TracepointCategory;
+
 
     fn test_object_path(object: &str) -> PathBuf {
         Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -98,7 +100,7 @@ mod bpf {
         let mut obj = test_object("getpid.bpf.o");
         let prog = prog_mut(&mut obj, "handle__getpid");
         let _link = prog
-            .attach_tracepoint("syscalls", "sys_enter_getpid")
+            .attach_tracepoint(TracepointCategory::Syscalls, "sys_enter_getpid")
             .expect("failed to attach prog");
 
         let map = map_mut(&mut obj, "ringbuf");
