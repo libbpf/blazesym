@@ -957,7 +957,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
         return ptr::null()
     }
 
-    // prepend an u64 to keep the size of the buffer.
+    // prepend an u64 to store the size of the buffer.
     unsafe { *(raw_buf_with_sz as *mut u64) = buf_size as u64 };
 
     let raw_buf = unsafe { raw_buf_with_sz.add(mem::size_of::<u64>()) };
@@ -1318,9 +1318,10 @@ pub unsafe extern "C" fn blaze_syms_free(syms: *const blaze_syms) {
         return
     }
 
-    let raw_buf_with_sz = unsafe { (syms as *mut u8).offset(-(mem::size_of::<u64>() as isize)) };
-    let sz = unsafe { *(raw_buf_with_sz as *mut u64) } as usize;
-    unsafe { dealloc(raw_buf_with_sz, Layout::from_size_align(sz, 8).unwrap()) };
+    // Retrieve back the buffer with the `u64` size header.
+    let buf = unsafe { syms.byte_sub(mem::size_of::<u64>()).cast::<u8>().cast_mut() };
+    let size = unsafe { *(buf as *mut u64) } as usize;
+    unsafe { dealloc(buf, Layout::from_size_align(size, 8).unwrap()) };
 }
 
 
