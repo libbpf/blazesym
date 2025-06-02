@@ -13,7 +13,7 @@ default-members = ["."]
 
 [workspace.package]
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.75"
 license = "BSD-3-Clause"
 repository = "https://github.com/libbpf/blazesym"
 homepage = "https://github.com/libbpf/blazesym"

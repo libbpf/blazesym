@@ -140,7 +140,7 @@ jobs:
         with:
           # Please adjust README, `rust-version` field in Cargo.toml,
           # and `msrv` in .clippy.toml when bumping version.
-          toolchain: 1.70.0
+          toolchain: 1.75.0
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --features="apk,backtrace,bpf,demangle,dwarf,gsym,tracing"
       - run: cargo build --package=blazesym-c

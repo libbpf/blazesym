@@ -195,8 +195,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
         }
     }
 
-    let array_sz = (mem::size_of::<*const u64>() * syms_list.len() + mem::size_of::<u64>() - 1)
-        / mem::size_of::<u64>()
+    let array_sz = (mem::size_of::<*const u64>() * syms_list.len()).div_ceil(mem::size_of::<u64>())
         * mem::size_of::<u64>();
     let sym_buf_sz = mem::size_of::<blaze_sym_info>() * sym_cnt;
     let buf_size = mem::size_of::<u64>() + array_sz + sym_buf_sz + str_buf_sz;

@@ -1,6 +1,6 @@
 # For general information about this file, check
 # https://doc.rust-lang.org/stable/clippy/configuration.html
 
-msrv = "1.70"
+msrv = "1.75"
 
 absolute-paths-allowed-crates = [ "gimli" ]
