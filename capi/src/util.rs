@@ -1,7 +1,137 @@
+use std::borrow::Borrow as _;
 use std::borrow::Cow;
+use std::ffi::OsStr;
 use std::mem::align_of;
+use std::path::Path;
 use std::ptr::NonNull;
 use std::slice;
+
+use blazesym::inspect::SymInfo;
+use blazesym::symbolize::CodeInfo;
+use blazesym::symbolize::InlinedFn;
+use blazesym::symbolize::Sym;
+
+
+pub(crate) trait DynSize {
+    /// Recursively calculate the size of dynamically allocated (NUL
+    /// terminated) C strings required to represent the object.
+    fn c_str_size(&self) -> usize;
+}
+
+impl DynSize for str {
+    fn c_str_size(&self) -> usize {
+        self.len() + 1
+    }
+}
+
+impl DynSize for OsStr {
+    fn c_str_size(&self) -> usize {
+        self.len() + 1
+    }
+}
+
+impl DynSize for Path {
+    fn c_str_size(&self) -> usize {
+        self.as_os_str().c_str_size()
+    }
+}
+
+impl<T> DynSize for Option<T>
+where
+    T: DynSize,
+{
+    fn c_str_size(&self) -> usize {
+        self.as_ref().map(T::c_str_size).unwrap_or(0)
+    }
+}
+
+impl<T> DynSize for [T]
+where
+    T: DynSize,
+{
+    fn c_str_size(&self) -> usize {
+        self.iter().map(T::c_str_size).sum()
+    }
+}
+
+impl<T> DynSize for Vec<T>
+where
+    T: DynSize,
+{
+    fn c_str_size(&self) -> usize {
+        self.as_slice().c_str_size()
+    }
+}
+
+impl<T> DynSize for Cow<'_, T>
+where
+    T: ?Sized + ToOwned + DynSize,
+{
+    fn c_str_size(&self) -> usize {
+        match self {
+            Self::Borrowed(x) => x.c_str_size(),
+            Self::Owned(x) => x.borrow().c_str_size(),
+        }
+    }
+}
+
+impl DynSize for CodeInfo<'_> {
+    fn c_str_size(&self) -> usize {
+        let Self {
+            dir,
+            file,
+            line: _,
+            column: _,
+            _non_exhaustive: (),
+        } = self;
+
+        dir.c_str_size() + file.c_str_size()
+    }
+}
+
+impl DynSize for InlinedFn<'_> {
+    fn c_str_size(&self) -> usize {
+        let Self {
+            name,
+            code_info,
+            _non_exhaustive: (),
+        } = self;
+
+        name.c_str_size() + code_info.c_str_size()
+    }
+}
+
+impl DynSize for Sym<'_> {
+    fn c_str_size(&self) -> usize {
+        let Self {
+            name,
+            module,
+            addr: _,
+            offset: _,
+            size: _,
+            code_info,
+            inlined,
+            _non_exhaustive: (),
+        } = self;
+
+        name.c_str_size() + module.c_str_size() + code_info.c_str_size() + inlined.c_str_size()
+    }
+}
+
+impl DynSize for SymInfo<'_> {
+    fn c_str_size(&self) -> usize {
+        let Self {
+            name,
+            addr: _,
+            size: _,
+            sym_type: _,
+            file_offset: _,
+            module,
+        } = self;
+
+        name.c_str_size() + module.c_str_size()
+    }
+}
 
 
 /// Check whether the given piece of memory is zeroed out.
