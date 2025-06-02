@@ -37,10 +37,10 @@ fn page_size() -> Result<usize> {
     // SAFETY: `sysconf` is always safe to call.
     let rc = unsafe { libc::sysconf(libc::_SC_PAGE_SIZE) };
     if rc < 0 {
-        return Err(Error::new(
-            ErrorKind::Other,
-            format!("failed to retrieve page size: {}", Error::last_os_error()),
-        ))
+        return Err(Error::other(format!(
+            "failed to retrieve page size: {}",
+            Error::last_os_error()
+        )))
     }
     Ok(usize::try_from(rc).unwrap())
 }
@@ -83,13 +83,10 @@ where
         .args(args.clone())
         .output()
         .map_err(|err| {
-            Error::new(
-                ErrorKind::Other,
-                format!(
-                    "failed to run `{}`: {err}",
-                    format_command(command.as_ref(), args.clone())
-                ),
-            )
+            Error::other(format!(
+                "failed to run `{}`: {err}",
+                format_command(command.as_ref(), args.clone())
+            ))
         })?;
 
     if !instance.status.success() {
@@ -107,13 +104,10 @@ where
             String::new()
         };
 
-        Err(Error::new(
-            ErrorKind::Other,
-            format!(
-                "`{}` reported non-zero exit-status{code}{stderr}",
-                format_command(command, args)
-            ),
-        ))
+        Err(Error::other(format!(
+            "`{}` reported non-zero exit-status{code}{stderr}",
+            format_command(command, args)
+        )))
     } else {
         Ok(())
     }
@@ -129,7 +123,7 @@ fn adjust_mtime(path: &Path) -> Result<()> {
     // don't rely on it for anything essential.
     let output = Path::new(&out_dir)
         .parent()
-        .ok_or_else(|| Error::new(ErrorKind::Other, "OUT_DIR has no parent"))?
+        .ok_or_else(|| Error::other("OUT_DIR has no parent"))?
         .join("output");
 
     if !output.exists() {

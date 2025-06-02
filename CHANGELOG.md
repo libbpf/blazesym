@@ -13,6 +13,7 @@ Unreleased
 - Adjusted symbol names reported for BPF programs to contain `bpf_prog_`
   prefix and program tag
 - Changed `CodeInfo::to_owned` to `into_owned`
+- Bumped minimum supported Rust version to `1.75`
 
 
 0.2.0-rc.3

@@ -1,6 +1,5 @@
 //! A copy of `std::once::OnceCell`.
-// TODO: Remove this module once our minimum supported Rust version is greater
-//       1.70 and/or `OnceCell::get_or_try_init` is stable.
+// TODO: Remove this module once `OnceCell::get_or_try_init` is stable.
 
 use std::cell::UnsafeCell;
 use std::convert::Infallible;
