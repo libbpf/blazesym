@@ -912,18 +912,31 @@ fn sym_strtab_size(sym: &Sym) -> usize {
             .sum::<usize>()
 }
 
+fn make_cstr(src: &OsStr, cstr_last: &mut *mut c_char) -> *mut c_char {
+    let cstr = *cstr_last;
+    unsafe { ptr::copy_nonoverlapping(src.as_bytes().as_ptr(), cstr as *mut u8, src.len()) };
+    unsafe { *cstr.add(src.len()) = 0 };
+    *cstr_last = unsafe { cstr_last.add(src.len() + 1) };
+
+    cstr
+}
+
 fn convert_code_info(
     code_info_in: &Option<CodeInfo>,
     code_info_out: &mut blaze_symbolize_code_info,
-    mut make_cstr: impl FnMut(&OsStr) -> *mut c_char,
+    cstr_last: &mut *mut c_char,
 ) {
     code_info_out.dir = code_info_in
         .as_ref()
-        .and_then(|info| info.dir.as_ref().map(|d| make_cstr(d.as_os_str())))
+        .and_then(|info| {
+            info.dir
+                .as_ref()
+                .map(|d| make_cstr(d.as_os_str(), cstr_last))
+        })
         .unwrap_or_else(ptr::null_mut);
     code_info_out.file = code_info_in
         .as_ref()
-        .map(|info| make_cstr(&info.file))
+        .map(|info| make_cstr(&info.file, cstr_last))
         .unwrap_or_else(ptr::null_mut);
     code_info_out.line = code_info_in
         .as_ref()
@@ -975,15 +988,6 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
         )
     } as *mut c_char;
 
-    let mut make_cstr = |src: &OsStr| {
-        let cstr = cstr_last;
-        unsafe { ptr::copy_nonoverlapping(src.as_bytes().as_ptr(), cstr as *mut u8, src.len()) };
-        unsafe { *cstr.add(src.len()) = 0 };
-        cstr_last = unsafe { cstr_last.add(src.len() + 1) };
-
-        cstr
-    };
-
     unsafe { (*syms_ptr).cnt = results.len() };
 
     // Convert all `Sym`s to `blazesym_sym`s.
@@ -991,11 +995,11 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
         match sym {
             Symbolized::Sym(sym) => {
                 let sym_ref = unsafe { &mut *syms_last };
-                let name_ptr = make_cstr(OsStr::new(sym.name.as_ref()));
+                let name_ptr = make_cstr(OsStr::new(sym.name.as_ref()), &mut cstr_last);
                 let module_ptr = sym
                     .module
                     .as_deref()
-                    .map(&mut make_cstr)
+                    .map(|module| make_cstr(module, &mut cstr_last))
                     .unwrap_or(ptr::null_mut());
 
                 sym_ref.name = name_ptr;
@@ -1006,7 +1010,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
                     .size
                     .map(|size| isize::try_from(size).unwrap_or(isize::MAX))
                     .unwrap_or(-1);
-                convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut make_cstr);
+                convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut cstr_last);
                 sym_ref.inlined_cnt = sym.inlined.len();
                 sym_ref.inlined = inlined_last;
                 sym_ref.reason = blaze_symbolize_reason::SUCCESS;
@@ -1014,12 +1018,12 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
                 for inlined in sym.inlined.iter() {
                     let inlined_ref = unsafe { &mut *inlined_last };
 
-                    let name_ptr = make_cstr(OsStr::new(inlined.name.as_ref()));
+                    let name_ptr = make_cstr(OsStr::new(inlined.name.as_ref()), &mut cstr_last);
                     inlined_ref.name = name_ptr;
                     convert_code_info(
                         &inlined.code_info,
                         &mut inlined_ref.code_info,
-                        &mut make_cstr,
+                        &mut cstr_last,
                     );
 
                     inlined_last = unsafe { inlined_last.add(1) };
