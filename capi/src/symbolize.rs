@@ -948,6 +948,46 @@ fn convert_code_info(
         .unwrap_or(0);
 }
 
+
+/// Convert a [`Sym`] into the `blaze_sym` C correspondent.
+fn convert_sym(
+    sym: &Sym,
+    sym_ref: &mut blaze_sym,
+    inlined_last: &mut *mut blaze_symbolize_inlined_fn,
+    cstr_last: &mut *mut c_char,
+) {
+    let name_ptr = make_cstr(OsStr::new(sym.name.as_ref()), cstr_last);
+    let module_ptr = sym
+        .module
+        .as_deref()
+        .map(|module| make_cstr(module, cstr_last))
+        .unwrap_or(ptr::null_mut());
+
+    sym_ref.name = name_ptr;
+    sym_ref.module = module_ptr;
+    sym_ref.addr = sym.addr;
+    sym_ref.offset = sym.offset;
+    sym_ref.size = sym
+        .size
+        .map(|size| isize::try_from(size).unwrap_or(isize::MAX))
+        .unwrap_or(-1);
+    convert_code_info(&sym.code_info, &mut sym_ref.code_info, cstr_last);
+    sym_ref.inlined_cnt = sym.inlined.len();
+    sym_ref.inlined = *inlined_last;
+    sym_ref.reason = blaze_symbolize_reason::SUCCESS;
+
+    for inlined in sym.inlined.iter() {
+        let inlined_ref = unsafe { &mut **inlined_last };
+
+        let name_ptr = make_cstr(OsStr::new(inlined.name.as_ref()), cstr_last);
+        inlined_ref.name = name_ptr;
+        convert_code_info(&inlined.code_info, &mut inlined_ref.code_info, cstr_last);
+
+        *inlined_last = unsafe { inlined_last.add(1) };
+    }
+}
+
+
 /// Convert [`Sym`] objects to [`blaze_syms`] ones.
 ///
 /// The returned pointer should be released using [`blaze_syms_free`] once
@@ -995,39 +1035,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
         match sym {
             Symbolized::Sym(sym) => {
                 let sym_ref = unsafe { &mut *syms_last };
-                let name_ptr = make_cstr(OsStr::new(sym.name.as_ref()), &mut cstr_last);
-                let module_ptr = sym
-                    .module
-                    .as_deref()
-                    .map(|module| make_cstr(module, &mut cstr_last))
-                    .unwrap_or(ptr::null_mut());
-
-                sym_ref.name = name_ptr;
-                sym_ref.module = module_ptr;
-                sym_ref.addr = sym.addr;
-                sym_ref.offset = sym.offset;
-                sym_ref.size = sym
-                    .size
-                    .map(|size| isize::try_from(size).unwrap_or(isize::MAX))
-                    .unwrap_or(-1);
-                convert_code_info(&sym.code_info, &mut sym_ref.code_info, &mut cstr_last);
-                sym_ref.inlined_cnt = sym.inlined.len();
-                sym_ref.inlined = inlined_last;
-                sym_ref.reason = blaze_symbolize_reason::SUCCESS;
-
-                for inlined in sym.inlined.iter() {
-                    let inlined_ref = unsafe { &mut *inlined_last };
-
-                    let name_ptr = make_cstr(OsStr::new(inlined.name.as_ref()), &mut cstr_last);
-                    inlined_ref.name = name_ptr;
-                    convert_code_info(
-                        &inlined.code_info,
-                        &mut inlined_ref.code_info,
-                        &mut cstr_last,
-                    );
-
-                    inlined_last = unsafe { inlined_last.add(1) };
-                }
+                let () = convert_sym(&sym, sym_ref, &mut inlined_last, &mut cstr_last);
             }
             Symbolized::Unknown(reason) => {
                 // Unknown symbols/addresses are just represented with all
