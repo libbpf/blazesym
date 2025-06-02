@@ -20,7 +20,6 @@ use blazesym::symbolize::source::Kernel;
 use blazesym::symbolize::source::Process;
 use blazesym::symbolize::source::Source;
 use blazesym::symbolize::CodeInfo;
-use blazesym::symbolize::InlinedFn;
 use blazesym::symbolize::Input;
 use blazesym::symbolize::Reason;
 use blazesym::symbolize::Sym;
@@ -35,6 +34,7 @@ use crate::blaze_err_last;
 use crate::set_last_err;
 use crate::util::slice_from_aligned_user_array;
 use crate::util::slice_from_user_array;
+use crate::util::DynSize as _;
 
 
 /// Configuration for caching of ELF symbolization data.
@@ -881,37 +881,6 @@ pub unsafe extern "C" fn blaze_symbolize_cache_process(
     let () = set_last_err(err);
 }
 
-fn code_info_strtab_size(code_info: &Option<CodeInfo>) -> usize {
-    code_info
-        .as_ref()
-        .and_then(|info| info.dir.as_ref().map(|d| d.as_os_str().len() + 1))
-        .unwrap_or(0)
-        + code_info
-            .as_ref()
-            .map(|info| info.file.len() + 1)
-            .unwrap_or(0)
-}
-
-fn inlined_fn_strtab_size(inlined_fn: &InlinedFn) -> usize {
-    inlined_fn.name.len() + 1 + code_info_strtab_size(&inlined_fn.code_info)
-}
-
-fn sym_strtab_size(sym: &Sym) -> usize {
-    sym.name.len()
-        + 1
-        + sym
-            .module
-            .as_deref()
-            .map(|module| module.len() + 1)
-            .unwrap_or(0)
-        + code_info_strtab_size(&sym.code_info)
-        + sym
-            .inlined
-            .iter()
-            .map(inlined_fn_strtab_size)
-            .sum::<usize>()
-}
-
 fn make_cstr(src: &OsStr, cstr_last: &mut *mut c_char) -> *mut c_char {
     let cstr = *cstr_last;
     unsafe { ptr::copy_nonoverlapping(src.as_bytes().as_ptr(), cstr as *mut u8, src.len()) };
@@ -996,7 +965,7 @@ fn convert_symbolizedresults_to_c(results: Vec<Symbolized>) -> *const blaze_syms
     // Allocate a buffer to contain a blaze_syms, all
     // blaze_sym, and C strings of symbol and path.
     let (strtab_size, inlined_fn_cnt) = results.iter().fold((0, 0), |acc, sym| match sym {
-        Symbolized::Sym(sym) => (acc.0 + sym_strtab_size(sym), acc.1 + sym.inlined.len()),
+        Symbolized::Sym(sym) => (acc.0 + sym.c_str_size(), acc.1 + sym.inlined.len()),
         Symbolized::Unknown(..) => acc,
     });
 
@@ -1353,6 +1322,7 @@ mod tests {
 
     use blazesym::inspect;
     use blazesym::normalize;
+    use blazesym::symbolize::InlinedFn;
     use blazesym::symbolize::Reason;
     use blazesym::Pid;
 

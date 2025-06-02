@@ -30,6 +30,7 @@ use crate::blaze_err_last;
 use crate::from_cstr;
 use crate::set_last_err;
 use crate::util::slice_from_user_array;
+use crate::util::DynSize as _;
 
 
 /// C ABI compatible version of [`blazesym::inspect::Inspector`].
@@ -182,18 +183,8 @@ pub struct blaze_sym_info {
 /// Convert [`SymInfo`] objects as returned by
 /// [`Symbolizer::find_addrs`] to a C array.
 fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_sym_info {
-    let mut sym_cnt = 0;
-    let mut str_buf_sz = 0;
-
-    for syms in &syms_list {
-        sym_cnt += syms.len() + 1;
-        for sym in syms {
-            str_buf_sz += sym.name.len() + 1;
-            if let Some(fname) = sym.module.as_ref() {
-                str_buf_sz += AsRef::<OsStr>::as_ref(fname.deref()).as_bytes().len() + 1;
-            }
-        }
-    }
+    let sym_cnt = syms_list.iter().map(|syms| syms.len() + 1).sum::<usize>();
+    let str_buf_sz = syms_list.c_str_size();
 
     let array_sz = (mem::size_of::<*const u64>() * syms_list.len()).div_ceil(mem::size_of::<u64>())
         * mem::size_of::<u64>();
