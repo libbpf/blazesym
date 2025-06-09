@@ -8,6 +8,8 @@ Unreleased
   more gracefully
 - Report "symbolic" path in `symbolize::Sym::module` when using process
   symbolization on APKs with `map_files` set to `true`
+- Improved handling of symbolic links to prevent duplicate work for
+  same symbol source reached through different links
 - Fixed reading of compressed ELF section data with unaligned
   compression headers
 - Adjusted symbol names reported for BPF programs to contain `bpf_prog_`

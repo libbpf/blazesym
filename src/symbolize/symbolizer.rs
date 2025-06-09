@@ -1592,9 +1592,9 @@ mod tests {
     #[cfg(target_pointer_width = "64")]
     #[test]
     fn symbolizer_size() {
-        // TODO: This size is rather larger and we should look into
+        // TODO: This size is rather large and we should look into
         //       minimizing it.
-        assert_eq!(size_of::<Symbolizer>(), 624);
+        assert_eq!(size_of::<Symbolizer>(), 1008);
     }
 
     /// Check that we can correctly construct the source code path to a symbol.
