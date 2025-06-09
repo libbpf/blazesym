@@ -160,7 +160,7 @@ impl<T> FileCache<T> {
         Builder::<T>::default()
     }
 
-    /// Retrieve an entry for the file at the given `path`.
+    /// Retrieve the entry for the file at the given `path`.
     pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
         let path_entry = self
             .cache
@@ -321,7 +321,7 @@ mod tests {
             let () = drop(tmpfile);
 
             {
-                let mut _file = File::create(&path).unwrap();
+                let mut _file = File::create_new(&path).unwrap();
                 let () = _file.write_all(b"foobar").unwrap();
             }
 
@@ -329,8 +329,9 @@ mod tests {
                 let (mut file, entry) = cache.entry(&path).unwrap();
 
                 if auto_reload && !pin {
+                    let new_modified = file.metadata().unwrap().modified().unwrap();
                     assert_eq!(entry.get(), None);
-                    assert_ne!(file.metadata().unwrap().modified().unwrap(), modified);
+                    assert!(new_modified > modified, "{new_modified:?} | {modified:?}");
 
                     let mut content = Vec::new();
                     let _count = file.read_to_end(&mut content);
