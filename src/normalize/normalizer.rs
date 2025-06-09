@@ -251,7 +251,7 @@ impl Normalizer {
         addrs: A,
         pid: Pid,
         opts: &NormalizeOpts,
-    ) -> Result<UserOutput>
+    ) -> Result<UserOutput<'_>>
     where
         A: ExactSizeIterator<Item = Addr> + Clone,
     {
@@ -326,7 +326,7 @@ impl Normalizer {
         pid: Pid,
         addrs: &[Addr],
         opts: &NormalizeOpts,
-    ) -> Result<UserOutput> {
+    ) -> Result<UserOutput<'_>> {
         if opts.sorted_addrs {
             self.normalize_user_addrs_iter(addrs.iter().copied(), pid, opts)
         } else {
@@ -342,7 +342,7 @@ impl Normalizer {
     ///
     /// A convenience wrapper around [`Normalizer::normalize_user_addrs_opts`][]
     /// that uses the default normalization options.
-    pub fn normalize_user_addrs(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput> {
+    pub fn normalize_user_addrs(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput<'_>> {
         self.normalize_user_addrs_opts(pid, addrs, &NormalizeOpts::default())
     }
 

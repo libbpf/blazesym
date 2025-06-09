@@ -102,7 +102,7 @@ fn parse_perf_map_line<'line>(line: &'line [u8]) -> Result<Function<'line>> {
 }
 
 
-fn parse_perf_map(data: &[u8]) -> Result<Vec<Function>> {
+fn parse_perf_map(data: &[u8]) -> Result<Vec<Function<'_>>> {
     let mut functions = data
         .split(|&b| b == b'\n' || b == b'\r')
         .filter(|line| !line.is_empty())

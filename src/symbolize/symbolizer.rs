@@ -943,7 +943,7 @@ impl Symbolizer {
         perf_map: bool,
         map_files: bool,
         vdso: bool,
-    ) -> Result<Vec<Symbolized>> {
+    ) -> Result<Vec<Symbolized<'_>>> {
         let mut handler = SymbolizeHandler {
             symbolizer: self,
             pid,

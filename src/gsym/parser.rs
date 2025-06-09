@@ -83,8 +83,8 @@ impl GsymContext<'_> {
     ///
     /// Returns a `GsymContext`, which includes the Header and other important
     /// tables.
-    pub(crate) fn parse_header(data: &[u8]) -> Result<GsymContext> {
-        fn parse_header_impl(mut data: &[u8]) -> Option<Result<GsymContext>> {
+    pub(crate) fn parse_header(data: &[u8]) -> Result<GsymContext<'_>> {
+        fn parse_header_impl(mut data: &[u8]) -> Option<Result<GsymContext<'_>>> {
             let head = data;
             let magic = data.read_u32()?;
             if magic != GSYM_MAGIC {
@@ -181,7 +181,7 @@ impl GsymContext<'_> {
     }
 
     /// Get the `AddrInfo` of an address given by an index.
-    pub(crate) fn addr_info(&self, idx: usize) -> Option<AddrInfo> {
+    pub(crate) fn addr_info(&self, idx: usize) -> Option<AddrInfo<'_>> {
         let offset = *self.addr_data_off_tab.get(idx)?;
         let mut data = self.raw_data.get(offset as usize..)?;
         let size = data.read_u32()?;
@@ -214,7 +214,7 @@ impl GsymContext<'_> {
 /// # Arguments
 ///
 /// * `data` - is the slice from `AddrInfo::data`.
-pub(crate) fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData> {
+pub(crate) fn parse_address_data(mut data: &[u8]) -> impl Iterator<Item = AddrData<'_>> {
     iter::from_fn(move || {
         let typ = data.read_u32()?;
         if typ == INFO_TYPE_END_OF_LIST {
