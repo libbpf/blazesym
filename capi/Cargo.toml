@@ -83,7 +83,7 @@ blazesym = {version = "=0.2.0-rc.3", path = "../", features = ["bpf"]}
 [dev-dependencies]
 blazesym = {version = "=0.2.0-rc.3", path = "../", features = ["test"]}
 blazesym-c = {path = ".", features = ["check-doc-snippets"]}
-bindgen = {version = "0.71", default-features = false, features = ["runtime"]}
+bindgen = {version = "0.72", default-features = false, features = ["runtime"]}
 criterion = {version = "0.6", default-features = false, features = ["rayon", "cargo_bench_support"]}
 tempfile = "3.20"
 test-log = {version = "0.2.14", default-features = false, features = ["trace"]}
