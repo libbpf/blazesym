@@ -1558,6 +1558,9 @@ impl Default for Symbolizer {
 mod tests {
     use super::*;
 
+    use std::env::current_exe;
+
+    use test_fork::test as forked_test;
     use test_log::test;
 
     use crate::maps::Perm;
@@ -1749,5 +1752,43 @@ mod tests {
             "{:?}",
             syms[0]
         );
+    }
+
+    /// Check that we instantiate only a minimal number of resolvers
+    /// when using process symbolization with `map_files` (i.e., going
+    /// through symbolic links).
+    ///
+    /// Effectively, this is an integration test that makes sure that we
+    /// dereference symbolic links properly and not duplicate binary
+    /// parsing over and over, but it peeks at implementation details.
+    // Run in separate process to make sure that VMAs are not influenced
+    // by tests running concurrently.
+    #[forked_test]
+    fn resolver_instantiation() {
+        let exe = current_exe().unwrap();
+        let addrs = maps::parse(Pid::Slf)
+            .unwrap()
+            .filter_map(|result| {
+                let entry = result.unwrap();
+                let path = entry.path_name.and_then(|path_name| {
+                    path_name.as_path().map(|path| path.symbolic_path.clone())
+                });
+                if path == Some(exe.clone()) {
+                    Some(entry.range.start)
+                } else {
+                    None
+                }
+            })
+            .collect::<Box<[_]>>();
+
+        assert!(addrs.len() > 1, "{:x?}", addrs.as_ref());
+
+        let src = Source::Process(Process::new(Pid::Slf));
+        let symbolizer = Symbolizer::new();
+        // We don't really care whether we could symbolize the addresses
+        // (unlikely), just that there was no error.
+        let _result = symbolizer.symbolize(&src, Input::AbsAddr(&addrs)).unwrap();
+
+        assert_eq!(symbolizer.elf_cache.entry_count(), 1);
     }
 }
