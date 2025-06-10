@@ -96,6 +96,16 @@ impl<K, V> InsertMap<K, V> {
             }
         }
     }
+
+    /// Retrieve the number of elements in the map.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        let _borrow = self.map.borrow();
+        // SAFETY: We are sure to not violate mutability rules because
+        //         the `_borrow` guard protects us.
+        let map = unsafe { self.map.as_ptr().as_ref() }.unwrap();
+        map.len()
+    }
 }
 
 impl<K, V> Default for InsertMap<K, V> {

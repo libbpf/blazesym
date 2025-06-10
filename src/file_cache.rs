@@ -204,6 +204,12 @@ impl<T> FileCache<T> {
     pub(crate) fn unpin(&self, path: &Path) -> Option<()> {
         self.set_pin_state(path, PinState::Unpinned)
     }
+
+    /// Retrieve the total number of entries in the cache.
+    #[cfg(test)]
+    pub(crate) fn entry_count(&self) -> usize {
+        self.entries.len()
+    }
 }
 
 impl<T> Default for FileCache<T> {
