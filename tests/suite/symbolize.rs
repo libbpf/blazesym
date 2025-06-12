@@ -1121,10 +1121,12 @@ fn symbolize_own_process_vdso() {
             .into_iter()
             .collect::<Vec<_>>();
         assert_eq!(results.len(), 2);
-        // Given that we can't guarantee that these symbols are in a vDSO,
-        // it's hard for us to assert anything more than the name.
+        // We always assume that at least `gettimeofday` resides within
+        // the vDSO.
         let sym1 = results[0].as_sym().unwrap();
         assert!(sym1.name.ends_with("gettimeofday"), "{sym1:?}");
+        assert_eq!(sym1.module, Some(Cow::from(OsStr::new("[vdso]"))));
+
         let sym2 = results[1].as_sym().unwrap();
         assert!(sym2.name.contains("clock_gettime"), "{sym2:?}");
     }
@@ -1149,6 +1151,7 @@ fn symbolize_remote_process_vdso() {
             .into_sym()
             .unwrap();
         assert!(sym.name.ends_with("gettimeofday"), "{sym:?}");
+        assert_eq!(sym.module, Some(Cow::from(OsStr::new("[vdso]"))));
     });
 }
 
@@ -1646,6 +1649,10 @@ fn symbolize_kernel_bpf_program() {
             "{}",
             handle_getpid_sym.name
         );
+        assert_eq!(
+            handle_getpid_sym.module,
+            Some(Cow::from(OsStr::new("[bpf]")))
+        );
         let code_info = handle_getpid_sym.code_info.as_ref().unwrap();
         assert_eq!(code_info.dir, None);
         assert_eq!(
@@ -1661,6 +1668,7 @@ fn symbolize_kernel_bpf_program() {
             "{}",
             subprogram_sym.name
         );
+        assert_eq!(subprogram_sym.module, Some(Cow::from(OsStr::new("[bpf]"))));
         let code_info = subprogram_sym.code_info.as_ref().unwrap();
         assert_eq!(code_info.dir, None);
         assert_eq!(

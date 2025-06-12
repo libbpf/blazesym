@@ -17,6 +17,8 @@ use crate::inspect::SymInfo;
 use crate::vdso::find_vdso;
 #[cfg(linux)]
 use crate::vdso::find_vdso_maps;
+#[cfg(linux)]
+use crate::vdso::VDSO_MODULE;
 use crate::zip;
 use crate::Addr;
 use crate::Mmap;
@@ -87,7 +89,7 @@ pub fn find_gettimeofday_in_process(pid: Pid) -> Addr {
     let data = vdso_range.start as *const u8;
     let len = vdso_range.end.saturating_sub(vdso_range.start);
     let mem = unsafe { slice::from_raw_parts(data, len as _) };
-    let parser = ElfParser::from_mem(mem);
+    let parser = ElfParser::from_mem(mem, OsString::from(VDSO_MODULE));
     let opts = FindAddrOpts {
         sym_type: SymType::Function,
         file_offset: false,

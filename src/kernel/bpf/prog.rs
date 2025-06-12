@@ -3,6 +3,7 @@ use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fmt::Formatter;
@@ -36,6 +37,9 @@ use super::sys;
 use super::Btf;
 
 
+/// The special module string that we report for symbols inside a BPF
+/// program.
+pub(crate) const BPF_MODULE: &str = "[bpf]";
 /// BPF kernel programs show up with this prefix followed by a tag and
 /// some other meta-data.
 const BPF_PROG_PREFIX: &str = "bpf_prog_";
@@ -371,7 +375,7 @@ impl BpfProg {
         } = self;
         let sym = ResolvedSym {
             name,
-            module: None,
+            module: Some(OsStr::new(BPF_MODULE)),
             addr: *prog_addr,
             // TODO: May be able to use `bpf_prog_info::func_info` here.
             //       Unsure.
@@ -411,7 +415,7 @@ impl<'prog> TryFrom<&'prog BpfProg> for SymInfo<'prog> {
             size: None,
             sym_type: SymType::Function,
             file_offset: None,
-            module: None,
+            module: Some(Cow::Borrowed(OsStr::new(BPF_MODULE))),
             _non_exhaustive: (),
         };
         Ok(sym)
