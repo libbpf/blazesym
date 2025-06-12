@@ -15,6 +15,7 @@ Unreleased
 - Adjusted symbol names reported for BPF programs to contain `bpf_prog_`
   prefix and program tag
 - Made `inspect::SymInfo` type non-exhaustive
+- Merged `normalize::Reason` and `symbolize::Reason`
 - Changed `CodeInfo::to_owned` to `into_owned`
 - Bumped minimum supported Rust version to `1.75`
 
