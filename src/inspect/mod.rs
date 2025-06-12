@@ -54,6 +54,9 @@ pub struct SymInfo<'src> {
     pub file_offset: Option<u64>,
     /// The path to or name of the module containing the symbol.
     pub module: Option<Cow<'src, OsStr>>,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
 }
 
 impl SymInfo<'_> {
@@ -71,6 +74,7 @@ impl SymInfo<'_> {
                 .module
                 .as_deref()
                 .map(|path| Cow::Owned(path.to_os_string())),
+            _non_exhaustive: (),
         }
     }
 }

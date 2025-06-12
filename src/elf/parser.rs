@@ -1114,6 +1114,7 @@ where
                                 .transpose()?
                                 .flatten(),
                             module: self.module.as_deref().map(Cow::Borrowed),
+                            _non_exhaustive: (),
                         });
                     }
                 }
@@ -1177,6 +1178,7 @@ where
                         .transpose()?
                         .flatten(),
                     module: None,
+                    _non_exhaustive: (),
                 };
                 if let ControlFlow::Break(()) = f(&sym_info) {
                     return Ok(())

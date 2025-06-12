@@ -248,6 +248,7 @@ impl DwarfResolver {
                 .transpose()?
                 .flatten(),
             module: self.parser.module().map(Cow::Borrowed),
+            _non_exhaustive: (),
         };
         Ok(Some(info))
     }

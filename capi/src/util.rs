@@ -127,6 +127,7 @@ impl DynSize for SymInfo<'_> {
             sym_type: _,
             file_offset: _,
             module,
+            _non_exhaustive: (),
         } = self;
 
         name.c_str_size() + module.c_str_size()
