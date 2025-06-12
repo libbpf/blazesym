@@ -48,10 +48,7 @@ mod meta;
 mod normalizer;
 mod user;
 
-use std::fmt::Display;
-use std::fmt::Formatter;
-use std::fmt::Result as FmtResult;
-use std::str;
+use crate::symbolize;
 
 cfg_apk! {
 pub use meta::Apk;
@@ -65,6 +62,7 @@ pub use normalizer::Normalizer;
 // will not resolve links. See https://github.com/rust-lang/rust/issues/116854
 #[doc(hidden)]
 pub use normalizer::Output;
+pub use symbolize::Reason;
 pub use user::UserOutput;
 
 pub(crate) use user::normalize_sorted_user_addrs_with_entries;
@@ -102,68 +100,4 @@ pub struct NormalizeOpts {
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
-}
-
-
-/// The reason why normalization failed.
-///
-/// The reason is generally only meant as a hint. Reasons reported may change
-/// over time and, hence, should not be relied upon for the correctness of the
-/// application.
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
-#[non_exhaustive]
-pub enum Reason {
-    /// The absolute address was not found in the corresponding process' virtual
-    /// memory map.
-    Unmapped,
-    /// The `/proc/<pid>/maps` entry corresponding to the address does not have
-    /// a component (file system path, object, ...) associated with it.
-    MissingComponent,
-    /// The address belonged to an entity that is currently unsupported.
-    Unsupported,
-}
-
-impl Reason {
-    #[doc(hidden)]
-    #[inline]
-    pub fn as_bytes(&self) -> &'static [u8] {
-        match self {
-            Self::Unmapped => b"absolute address not found in virtual memory map of process\0",
-            Self::MissingComponent => b"proc maps entry has no component\0",
-            Self::Unsupported => b"address belongs to unsupported entity\0",
-        }
-    }
-}
-
-impl Display for Reason {
-    fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
-        let cstr = self.as_bytes();
-        // SAFETY: `as_bytes` always returns a valid string.
-        let s = unsafe { str::from_utf8_unchecked(&cstr[..cstr.len() - 1]) };
-        f.write_str(s)
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-
-    /// Exercise the `Display` representation of various types.
-    #[test]
-    fn display_repr() {
-        assert_eq!(
-            Reason::Unmapped.to_string(),
-            "absolute address not found in virtual memory map of process"
-        );
-        assert_eq!(
-            Reason::MissingComponent.to_string(),
-            "proc maps entry has no component"
-        );
-        assert_eq!(
-            Reason::Unsupported.to_string(),
-            "address belongs to unsupported entity"
-        );
-    }
 }

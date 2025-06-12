@@ -122,7 +122,6 @@ pub(crate) use symbolizer::Resolver;
 pub use crate::maps::EntryPath as ProcessMemberPath;
 pub use crate::maps::PathName as ProcessMemberType;
 
-use crate::normalize;
 use crate::Addr;
 use crate::Result;
 
@@ -491,17 +490,6 @@ impl Display for Reason {
     }
 }
 
-impl From<normalize::Reason> for Reason {
-    #[inline]
-    fn from(reason: normalize::Reason) -> Self {
-        match reason {
-            normalize::Reason::Unmapped => Self::Unmapped,
-            normalize::Reason::MissingComponent => Self::MissingComponent,
-            normalize::Reason::Unsupported => Self::Unsupported,
-        }
-    }
-}
-
 
 /// An enumeration used as reporting vehicle for address symbolization.
 // We keep this enum as exhaustive because additions to it, should they occur,
@@ -685,21 +673,6 @@ mod tests {
         for variant in [Input::AbsAddr, Input::VirtOffset, Input::FileOffset] {
             let () = test(variant);
         }
-    }
-
-    /// Check that we can convert `normalize::Reason` objects into
-    /// `symbolize::Reason` objects.
-    #[test]
-    fn reason_conversion() {
-        assert_eq!(Reason::from(normalize::Reason::Unmapped), Reason::Unmapped);
-        assert_eq!(
-            Reason::from(normalize::Reason::MissingComponent),
-            Reason::MissingComponent
-        );
-        assert_eq!(
-            Reason::from(normalize::Reason::Unsupported),
-            Reason::Unsupported
-        );
     }
 
     /// Test the `Symbolized::*_sym()` conversion methods for the `Unknown`

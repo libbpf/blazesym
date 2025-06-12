@@ -176,14 +176,20 @@ impl<'call> NormalizationHandler<'call, '_> {
             let demangle = false;
             let opts = FindSymOpts::Basic;
             let result = symbolize_with_resolver(addr, &Resolver::Cached(parser), &opts, demangle)?;
-            if let Symbolized::Sym(sym) = result {
-                let meta_idx = self.normalized.meta.len();
-                // We circumvent the meta-data cache here, because we
-                // really don't want to cache each and every
-                // symbolized symbol.
-                let () = self.normalized.meta.push(UserMeta::Sym(sym.into_owned()));
-                let () = self.normalized.outputs.push((file_off, meta_idx));
-                return Ok(())
+            match result {
+                Symbolized::Sym(sym) => {
+                    let meta_idx = self.normalized.meta.len();
+                    // We circumvent the meta-data cache here, because we
+                    // really don't want to cache each and every
+                    // symbolized symbol.
+                    let () = self.normalized.meta.push(UserMeta::Sym(sym.into_owned()));
+                    let () = self.normalized.outputs.push((file_off, meta_idx));
+                    return Ok(())
+                }
+                Symbolized::Unknown(reason) => {
+                    let () = self.handle_unknown_addr(addr, reason);
+                    return Ok(())
+                }
             }
         }
 
