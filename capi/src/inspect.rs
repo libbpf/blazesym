@@ -211,6 +211,7 @@ fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_s
             sym_type,
             file_offset,
             module,
+            _non_exhaustive: (),
         } in syms
         {
             let name_ptr = str_ptr.cast();
@@ -535,6 +536,7 @@ mod tests {
             sym_type: SymType::Function,
             file_offset: Some(1337),
             module: Some(OsStr::new("/tmp/foobar.so").into()),
+            _non_exhaustive: (),
         }]];
         test(syms);
 
@@ -547,6 +549,7 @@ mod tests {
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
                 module: Some(OsStr::new("/tmp/foobar.so").into()),
+                _non_exhaustive: (),
             },
             SymInfo {
                 name: "sym2".into(),
@@ -555,6 +558,7 @@ mod tests {
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
                 module: Some(OsStr::new("other.so").into()),
+                _non_exhaustive: (),
             },
         ]];
         test(syms);
@@ -568,6 +572,7 @@ mod tests {
                 sym_type: SymType::Function,
                 file_offset: Some(1337),
                 module: Some(OsStr::new("/tmp/foobar.so").into()),
+                _non_exhaustive: (),
             }],
             vec![SymInfo {
                 name: "sym2".into(),
@@ -576,6 +581,7 @@ mod tests {
                 sym_type: SymType::Undefined,
                 file_offset: Some(1338),
                 module: Some(OsStr::new("other.so").into()),
+                _non_exhaustive: (),
             }],
         ];
         test(syms);
@@ -588,6 +594,7 @@ mod tests {
             sym_type: SymType::Function,
             file_offset: Some(1337),
             module: Some(OsStr::new("/tmp/foobar.so").into()),
+            _non_exhaustive: (),
         };
         let syms = vec![(0..200).map(|_| sym.clone()).collect()];
         test(syms);

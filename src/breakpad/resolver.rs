@@ -42,6 +42,7 @@ impl<'func> From<&'func Function> for SymInfo<'func> {
             sym_type: SymType::Function,
             file_offset: None,
             module: None,
+            _non_exhaustive: (),
         }
     }
 }
