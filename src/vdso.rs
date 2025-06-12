@@ -10,6 +10,9 @@ use crate::Pid;
 use crate::Result;
 
 
+/// The special module string that we report for symbols inside the
+/// vDSO.
+pub(crate) const VDSO_MODULE: &str = "[vdso]";
 /// The name of the "component" representing the vDSO inside
 /// `/proc/<pid>/maps`.
 pub(crate) const VDSO_MAPS_COMPONENT: &str = "[vdso]";
@@ -42,6 +45,8 @@ pub(crate) fn find_vdso() -> Result<Option<Range<Addr>>> {
 
 #[cfg(linux)]
 pub(crate) fn create_vdso_parser(pid: Pid, range: &Range<Addr>) -> Result<ElfParser<StaticMem>> {
+    use std::ffi::OsString;
+
     let vdso_range = if pid == Pid::Slf {
         range.clone()
     } else {
@@ -58,7 +63,7 @@ pub(crate) fn create_vdso_parser(pid: Pid, range: &Range<Addr>) -> Result<ElfPar
     //         memory range of the vDSO, which is statically
     //         allocated by the kernel and will never vanish.
     let mem = unsafe { slice::from_raw_parts(data, len as _) };
-    let parser = ElfParser::from_mem(mem);
+    let parser = ElfParser::from_mem(mem, OsString::from(VDSO_MODULE));
     Ok(parser)
 }
 

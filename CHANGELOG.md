@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Adjusted `symbolize::{Resolved,}Sym::code_info` to be heap allocated
 - Made `symbolize::ResolvedSym` non-exhaustive
+- Report special module string when symbolizing vDSO and BPF symbols
 
 
 0.2.0-rc.5

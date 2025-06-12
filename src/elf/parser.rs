@@ -1066,11 +1066,10 @@ impl ElfParser<Mmap> {
 
 impl ElfParser<StaticMem> {
     /// Create an `ElfParser` from a region of static memory.
-    pub(crate) fn from_mem(mem: StaticMem) -> Self {
+    pub(crate) fn from_mem(mem: StaticMem, module: OsString) -> Self {
         Self {
             cache: Cache::new(mem),
-            // TODO: Should provide the module.
-            module: None,
+            module: Some(module),
             _backend: mem,
         }
     }
