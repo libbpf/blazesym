@@ -10,7 +10,13 @@ env:
   # Enable backtraces for panics but not for "regular" errors.
   RUST_BACKTRACE: 1
   RUST_LIB_BACKTRACE: 0
-  RUSTFLAGS: '-D warnings'
+  # Build with only line information enabled to decrease compilation
+  # time and binary artifact sizes in CI, while still providing relevant
+  # data in backtraces. This option is assumed to only have marginal
+  # effects on the generated code, likely only in terms of section
+  # arrangement. See
+  # https://doc.rust-lang.org/rustc/codegen-options/index.html#debuginfo
+  RUSTFLAGS: '-D warnings -C debuginfo=line-tables-only'
 
 jobs:
   build-linux-kernel:
@@ -337,6 +343,7 @@ jobs:
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
+    - run: echo "RUSTFLAGS=${RUSTFLAGS} -C debuginfo=limited" >> $GITHUB_ENV
     - env:
         # Support incremental compilation here to not penalize CI compile times too much.
         CARGO_PROFILE_RELEASE_INCREMENTAL: true
@@ -401,6 +408,7 @@ jobs:
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v4
     - uses: dtolnay/rust-toolchain@stable
+    - run: echo "RUSTFLAGS=${RUSTFLAGS} -C debuginfo=limited" >> $GITHUB_ENV
     - run: cargo run --example backtrace
     - run: cargo run --example inspect-mangled
     - run: cargo run --example normalize-virt-offset
