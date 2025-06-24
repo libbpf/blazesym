@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.2
+-----
 - Introduced `blaze_user_meta_sym` meta data variant
   - Added support for normalization of vDSO addresses
 - Added shorter `blaze_user_meta_kind` constants
