@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped `blazesym` dependency to `0.2.0-rc.4`
+
+
 0.1.9
 -----
 - Added `--debug-dirs` and `--no-debug-syms` options to `symbolize

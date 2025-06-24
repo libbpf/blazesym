@@ -4,6 +4,7 @@ Unreleased
   - Added support for normalization of vDSO addresses
 - Added shorter `blaze_user_meta_kind` constants
   - Deprecated `BLAZE_USER_META_KIND_BLAZE_USER_META_*` constants
+- Bumped `blazesym` dependency to `0.2.0-rc.4`
 
 
 0.1.1

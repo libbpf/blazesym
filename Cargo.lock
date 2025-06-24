@@ -235,7 +235,7 @@ dependencies = [
 
 [[package]]
 name = "blazesym"
-version = "0.2.0-rc.3"
+version = "0.2.0-rc.4"
 dependencies = [
  "addr2line 0.25.0",
  "anyhow",
