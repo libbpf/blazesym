@@ -1,4 +1,4 @@
-Unreleased
+0.2.0-rc.4
 ----------
 - Added support for symbolizing addresses in a vDSO
   - Added `vdso` attribute to `symbolize::Process` type
