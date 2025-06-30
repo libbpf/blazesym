@@ -61,7 +61,7 @@ Completion scripts for other shells work in a similar manner. Please
 refer to the help text (`--help`) of the `shell-complete` program for
 the list of supported shells.
 
-[blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build.yml
+[blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build-cli.yml
 [blazesym]: https://crates.io/crates/blazesym
 [blazesym-sym]: https://docs.rs/blazesym/0.2.0-rc.4/blazesym/symbolize/struct.Symbolizer.html
 [blazesym-elf-src]: https://docs.rs/blazesym/0.2.0-rc.4/blazesym/symbolize/enum.Source.html#variant.Elf
