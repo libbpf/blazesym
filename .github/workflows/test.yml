@@ -505,7 +505,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@nightly
-      - run: cargo doc --workspace --exclude=blazesym-dev --exclude=gsym-in-apk --no-deps
+      - run: cargo doc --workspace --exclude=blazesym-dev --exclude=gsym-in-apk --no-deps --document-private-items
 
   required-checks:
     needs: [

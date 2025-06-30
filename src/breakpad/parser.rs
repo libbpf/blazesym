@@ -420,8 +420,8 @@ fn func_line(input: &[u8]) -> IResult<&[u8], Function, VerboseError<&[u8]>> {
     ))
 }
 
-/// Matches one entry of the form <addr> <size> which is used at the end of
-/// an INLINE record
+/// Matches one entry of the form `<addr> <size>` which is used at the
+/// end of an INLINE record
 fn inline_address_range(input: &[u8]) -> IResult<&[u8], (u64, u32), VerboseError<&[u8]>> {
     tuple((terminated(hex_str::<u64>, space1), hex_str::<u32>))(input)
 }

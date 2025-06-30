@@ -160,7 +160,7 @@ fn maybe_demangle(symbol: Cow<'_, str>, language: SrcLang, demangle: bool) -> Co
 }
 
 
-/// Symbolize an address using the provided [`SymResolver`].
+/// Symbolize an address using the provided [`Resolver`].
 pub(crate) fn symbolize_with_resolver<'slf>(
     addr: Addr,
     resolver: &Resolver<'_, 'slf>,
@@ -747,7 +747,7 @@ impl Symbolizer {
         Builder::default()
     }
 
-    /// Symbolize an address using the provided [`SymResolver`].
+    /// Symbolize an address using the provided [`Resolver`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver.inner())))]
     fn symbolize_with_resolver<'slf>(
         &'slf self,
@@ -757,7 +757,7 @@ impl Symbolizer {
         symbolize_with_resolver(addr, resolver, &self.find_sym_opts, self.demangle)
     }
 
-    /// Symbolize a list of addresses using the provided [`SymResolver`].
+    /// Symbolize a list of addresses using the provided [`Resolver`].
     fn symbolize_addrs<'slf>(
         &'slf self,
         addrs: &[Addr],
@@ -1136,15 +1136,15 @@ impl Symbolizer {
     /// Symbolize a list of addresses.
     ///
     /// Symbolize a list of addresses using the provided symbolization
-    /// [`Source`][Source].
+    /// [`Source`].
     ///
     /// This function returns exactly one [`Symbolized`] object for each input
     /// address, in the order of input addresses.
     ///
     /// The following table lists which features the various formats
-    /// (represented by the [`Source`][Source] argument) support. If a feature
-    /// is not supported, the corresponding data in the [`Sym`] result will not
-    /// be populated.
+    /// (represented by the [`Source`] argument) support. If a feature is not
+    /// supported, the corresponding data in the [`Sym`] result will not be
+    /// populated.
     ///
     /// | Format      | Feature                          | Supported by format? | Supported by blazesym? |
     /// |-------------|----------------------------------|:--------------------:|:----------------------:|

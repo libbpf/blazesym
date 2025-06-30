@@ -9,15 +9,10 @@ use std::hint::unreachable_unchecked;
 /// A cell which can be written to only once.
 ///
 /// This allows obtaining a shared `&T` reference to its inner value without
-/// copying or replacing it (unlike [`Cell`]), and without runtime borrow checks
-/// (unlike [`RefCell`]). However, only immutable references can be obtained
-/// unless one has a mutable reference to the cell itself.
-///
-/// For a thread-safe version of this struct, see [`std::sync::OnceLock`].
-///
-/// [`RefCell`]: crate::cell::RefCell
-/// [`Cell`]: crate::cell::Cell
-/// [`std::sync::OnceLock`]: ../../std/sync/struct.OnceLock.html
+/// copying or replacing it (unlike [`Cell`][std::cell::Cell]), and without
+/// runtime borrow checks (unlike [`RefCell`][std::cell::RefCell]). However,
+/// only immutable references can be obtained unless one has a mutable
+/// reference to the cell itself.
 pub struct OnceCell<T> {
     // Invariant: written to at most once.
     inner: UnsafeCell<Option<T>>,
