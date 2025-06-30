@@ -180,8 +180,7 @@ pub struct blaze_sym_info {
 }
 
 
-/// Convert [`SymInfo`] objects as returned by
-/// [`Symbolizer::find_addrs`] to a C array.
+/// Convert [`SymInfo`] objects to a C array.
 fn convert_syms_list_to_c(syms_list: Vec<Vec<SymInfo>>) -> *const *const blaze_sym_info {
     let sym_cnt = syms_list.iter().map(|syms| syms.len() + 1).sum::<usize>();
     let str_buf_sz = syms_list.c_str_size();

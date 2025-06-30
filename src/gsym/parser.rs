@@ -59,12 +59,7 @@ use super::types::INFO_TYPE_END_OF_LIST;
 /// Hold the major parts of a standalone GSYM file.
 ///
 /// `GsymContext` provides functions to access major entities in GSYM.
-/// `GsymContext` can find respective `AddrInfo` for an address. But,
-/// it doesn't parse [`AddrData`] to get line numbers.
-///
-/// The developers should use [`parse_address_data()`],
-/// [`parse_line_table_header()`], and [`linetab::run_op()`] to get
-/// line number information from [`AddrInfo`].
+/// `GsymContext` can find respective `AddrInfo` for an address.
 pub(crate) struct GsymContext<'a> {
     header: Header,
     addr_tab: &'a [u8],
@@ -207,7 +202,7 @@ impl GsymContext<'_> {
 
 /// Parse [`AddrData`].
 ///
-/// [`AddrData`] objects are items following [`AndressInfo`].
+/// [`AddrData`] objects are items following [`AddrInfo`].
 /// [`GsymContext::addr_info()`] returns the raw data of [`AddrData`] objects as
 /// a slice at [`AddrInfo::data`].
 ///

@@ -3,6 +3,12 @@
 use crate::util::ReadRaw as _;
 use crate::Addr;
 
+#[cfg(doc)]
+use super::types::AddrData;
+#[cfg(doc)]
+use super::types::INFO_TYPE_LINE_TABLE_INFO;
+
+
 /// End of the line table
 const END_SEQUENCE: u8 = 0x00;
 /// Set [`LineTableRow.file_idx`], don't push a row.
@@ -76,8 +82,7 @@ impl LineTableRow {
     ///
     /// # Arguments
     ///
-    /// * `header` - is a [`LineTableHeader`] returned by
-    ///   [`parse_line_table_header()`].
+    /// * `header` - is a [`LineTableHeader`].
     /// * `symaddr` - the address of the symbol that `header` belongs to.
     pub(crate) fn from_header(header: &LineTableHeader, symaddr: Addr) -> Self {
         Self {
