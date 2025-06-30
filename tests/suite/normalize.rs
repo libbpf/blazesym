@@ -24,7 +24,7 @@ use scopeguard::defer;
 
 use tempfile::tempdir;
 
-use test_fork::test as forked_test;
+use test_fork::fork;
 use test_log::test;
 
 use crate::suite::common::run_unprivileged_process_test;
@@ -492,7 +492,8 @@ fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
 /// Check that we can normalize an address in a process using only
 /// symbolic paths.
 #[cfg(linux)]
-#[forked_test]
+#[fork]
+#[test]
 fn normalize_process_symbolic_paths() {
     run_unprivileged_process_test(normalize_permissionless_impl)
 }

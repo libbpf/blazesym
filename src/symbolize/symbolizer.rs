@@ -1560,7 +1560,7 @@ mod tests {
 
     use std::env::current_exe;
 
-    use test_fork::test as forked_test;
+    use test_fork::fork;
     use test_log::test;
 
     use crate::maps::Perm;
@@ -1763,7 +1763,8 @@ mod tests {
     /// parsing over and over, but it peeks at implementation details.
     // Run in separate process to make sure that VMAs are not influenced
     // by tests running concurrently.
-    #[forked_test]
+    #[fork]
+    #[test]
     fn resolver_instantiation() {
         let exe = current_exe().unwrap();
         let addrs = maps::parse(Pid::Slf)

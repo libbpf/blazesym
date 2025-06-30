@@ -731,7 +731,7 @@ mod tests {
     use std::env;
     use std::mem::size_of;
 
-    use test_fork::test as forked_test;
+    use test_fork::fork;
     use test_log::test;
     use test_tag::tag;
 
@@ -868,7 +868,8 @@ Caused by:
     /// that the file name is contained in the backtrace. For that reason we
     /// only run it on debug builds (represented by the `debug_assertions`
     /// proxy cfg).
-    #[forked_test]
+    #[fork]
+    #[test]
     fn error_backtrace() {
         if !cfg!(debug_assertions) {
             return
@@ -888,7 +889,8 @@ Caused by:
 
     /// Make sure that we do not emit backtraces in errors when
     /// the `RUST_LIB_BACKTRACE` environment variable is not present.
-    #[forked_test]
+    #[fork]
+    #[test]
     fn error_no_backtrace1() {
         let () = unsafe { env::remove_var("RUST_BACKTRACE") };
         let () = unsafe { env::remove_var("RUST_LIB_BACKTRACE") };
@@ -902,7 +904,8 @@ Caused by:
 
     /// Make sure that we do not emit backtraces in errors when
     /// the `RUST_LIB_BACKTRACE` environment variable is "0".
-    #[forked_test]
+    #[fork]
+    #[test]
     fn error_no_backtrace2() {
         let () = unsafe { env::remove_var("RUST_BACKTRACE") };
         let () = unsafe { env::set_var("RUST_LIB_BACKTRACE", "0") };
