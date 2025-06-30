@@ -60,7 +60,7 @@ use scopeguard::defer;
 use tempfile::tempdir;
 use tempfile::NamedTempFile;
 
-use test_fork::test as forked_test;
+use test_fork::fork;
 use test_log::test;
 use test_tag::tag;
 
@@ -201,7 +201,8 @@ fn symbolize_no_permission_impl(path: &Path) {
 /// Check that we fail symbolization as expected when we don't have the
 /// permission to open the symbolization source.
 #[cfg(linux)]
-#[forked_test]
+#[fork]
+#[test]
 fn symbolize_elf_no_permission() {
     use libc::getresuid;
     use std::os::unix::fs::PermissionsExt as _;
@@ -1066,7 +1067,8 @@ fn symbolize_remote_process_vdso() {
 
 /// Make sure that we do not fail symbolization when an empty perf
 /// map is present.
-#[forked_test]
+#[fork]
+#[test]
 fn symbolize_with_empty_perf_map() {
     let heap = vec![0; 4096];
     let path = format!("/tmp/perf-{}.map", process::id());
@@ -1094,7 +1096,8 @@ fn symbolize_with_empty_perf_map() {
 
 /// Check that we can symbolize an address using a perf map.
 #[cfg(linux)]
-#[forked_test]
+#[fork]
+#[test]
 #[ignore = "test requires python 3.12 or higher"]
 fn symbolize_process_perf_map() {
     use std::ffi::OsString;
@@ -1178,7 +1181,8 @@ fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
 /// Check that we can symbolize an address in a process using only
 /// symbolic paths.
 #[cfg(linux)]
-#[forked_test]
+#[fork]
+#[test]
 fn symbolize_process_symbolic_paths() {
     run_unprivileged_process_test(symbolize_permissionless_impl)
 }
