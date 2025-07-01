@@ -40,7 +40,7 @@ zip = {version = "4.2", optional = true, default-features = false}
 zstd = {version = "0.13.3", default-features = false, optional = true}
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.build-dependencies]
-libbpf-sys = {version = "1.4.1", default-features = false, optional = true}
+libbpf-sys = {version = "1.5.2", default-features = false, optional = true}
 
 [dependencies]
 # TODO: Enable `zstd` feature once toolchain support for it is more
