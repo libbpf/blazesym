@@ -14,6 +14,7 @@ use std::io::Write as _;
 use std::path::Path;
 use std::path::PathBuf;
 use std::process;
+use std::rc::Rc;
 
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
@@ -1604,4 +1605,24 @@ fn symbolize_normalized_large_memsize() {
             .unwrap();
         assert_eq!(sym.name, "_start");
     });
+}
+
+#[cfg(linux)]
+#[test]
+fn register_an_existing_elfresolver() {
+    let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.bin");
+
+    let resolver = Rc::new(ElfResolver::open(&bin_name).unwrap());
+    let mut symbolizer = Symbolizer::new();
+    symbolizer
+        .register_elf_resolver(&bin_name, Rc::clone(&resolver))
+        .unwrap();
+
+    let result = symbolizer
+        .register_elf_resolver(&bin_name, Rc::clone(&resolver))
+        .unwrap_err();
+
+    assert_eq!(result.kind(), ErrorKind::AlreadyExists);
 }

@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
@@ -42,6 +43,22 @@ pub(crate) struct ElfResolverData {
     pub elf: OnceCell<Rc<ElfResolver>>,
     /// An ELF resolver with debug information enabled.
     pub dwarf: OnceCell<Rc<ElfResolver>>,
+}
+
+impl From<Rc<ElfResolver>> for ElfResolverData {
+    fn from(other: Rc<ElfResolver>) -> Self {
+        match other.backend {
+            #[cfg(feature = "dwarf")]
+            ElfBackend::Dwarf(..) => Self {
+                dwarf: OnceCell::from(other),
+                elf: OnceCell::new(),
+            },
+            ElfBackend::Elf(..) => Self {
+                dwarf: OnceCell::new(),
+                elf: OnceCell::from(other),
+            },
+        }
+    }
 }
 
 impl FileCache<ElfResolverData> {
@@ -111,8 +128,25 @@ impl FileCache<ElfResolverData> {
         // SANITY: We made sure to create the desired resolver above.
         Ok(resolver.unwrap())
     }
-}
 
+    /// Register an existing `ElfResolver` for a given path.
+    pub(crate) fn register(&self, path: &Path, elf_resolver: Rc<ElfResolver>) -> Result<()> {
+        // TODO: Need to use passed-in `ElfResolver`'s file instead of
+        //       opening a new one here. Doing so will need adjustments
+        //       to `FileCache` API.
+        let (_file, cell) = self.entry(path.actual_path())?;
+        cell.set(elf_resolver.into()).map_err(|_| {
+            io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!(
+                    "an ElfResolver object is alread set for path {}",
+                    path.display()
+                ),
+            )
+        })?;
+        Ok(())
+    }
+}
 
 /// The symbol resolver for a single ELF file.
 pub struct ElfResolver {
