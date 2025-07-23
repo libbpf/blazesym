@@ -2,6 +2,7 @@ use std::ffi::OsString;
 use std::mem::transmute;
 #[cfg(linux)]
 use std::ops::ControlFlow;
+use std::ops::Range;
 use std::path::Path;
 #[cfg(linux)]
 use std::slice;
@@ -70,6 +71,12 @@ pub fn find_the_answer_fn_in_zip(mmap: &Mmap) -> (inspect::SymInfo<'static>, Add
 
     let (sym, the_answer_addr) = find_the_answer_fn(&elf_mmap);
     (sym, the_answer_addr)
+}
+
+/// Find the range of the sytem's vDSO.
+#[cfg(linux)]
+pub fn find_vdso_range() -> Range<Addr> {
+    find_vdso().unwrap().unwrap()
 }
 
 /// Find the address of the `gettimeofday` function in the given
