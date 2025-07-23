@@ -747,6 +747,23 @@ impl Symbolizer {
         Builder::default()
     }
 
+    /// Register an [`ElfResolver`] to use for subsequent symbolization
+    /// requests.
+    ///
+    /// Register an existing externally managed [`ElfResolver`] object
+    /// to use in subsequent symbolization requests involving `path`.
+    /// Doing so allows for reuse of already parsed ELF data.
+    ///
+    /// This method will fail if a cached [`ElfResolver`] is already
+    /// present for the given path.
+    pub fn register_elf_resolver(
+        &mut self,
+        path: &Path,
+        elf_resolver: Rc<ElfResolver>,
+    ) -> Result<()> {
+        self.elf_cache.register(path, elf_resolver)
+    }
+
     /// Symbolize an address using the provided [`Resolver`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver.inner())))]
     fn symbolize_with_resolver<'slf>(
