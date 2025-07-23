@@ -493,6 +493,12 @@ impl blaze_normalize_reason {
     pub const MISSING_COMPONENT: blaze_normalize_reason = blaze_normalize_reason(1);
     /// The address belonged to an entity that is currently unsupported.
     pub const UNSUPPORTED: blaze_normalize_reason = blaze_normalize_reason(2);
+    /// The file offset does not map to a valid piece of code/data.
+    pub const INVALID_FILE_OFFSET: blaze_normalize_reason = blaze_normalize_reason(3);
+    /// The symbolization source has no or no relevant symbols.
+    pub const MISSING_SYMS: blaze_normalize_reason = blaze_normalize_reason(4);
+    /// The address could not be found in the symbolization source.
+    pub const UNKNOWN_ADDR: blaze_normalize_reason = blaze_normalize_reason(5);
 }
 
 impl From<Reason> for blaze_normalize_reason {
@@ -501,6 +507,9 @@ impl From<Reason> for blaze_normalize_reason {
             Reason::Unmapped => blaze_normalize_reason::UNMAPPED,
             Reason::MissingComponent => blaze_normalize_reason::MISSING_COMPONENT,
             Reason::Unsupported => blaze_normalize_reason::UNSUPPORTED,
+            Reason::InvalidFileOffset => blaze_normalize_reason::INVALID_FILE_OFFSET,
+            Reason::MissingSyms => blaze_normalize_reason::MISSING_SYMS,
+            Reason::UnknownAddr => blaze_normalize_reason::UNKNOWN_ADDR,
             _ => unreachable!(),
         }
     }
@@ -509,13 +518,18 @@ impl From<Reason> for blaze_normalize_reason {
 
 /// Retrieve a textual representation of the reason of a normalization failure.
 #[no_mangle]
-pub extern "C" fn blaze_normalize_reason_str(err: blaze_normalize_reason) -> *const c_char {
-    match err {
+pub extern "C" fn blaze_normalize_reason_str(reason: blaze_normalize_reason) -> *const c_char {
+    match reason {
         blaze_normalize_reason::UNMAPPED => Reason::Unmapped.as_bytes().as_ptr().cast(),
         blaze_normalize_reason::MISSING_COMPONENT => {
             Reason::MissingComponent.as_bytes().as_ptr().cast()
         }
         blaze_normalize_reason::UNSUPPORTED => Reason::Unsupported.as_bytes().as_ptr().cast(),
+        blaze_normalize_reason::INVALID_FILE_OFFSET => {
+            Reason::InvalidFileOffset.as_bytes().as_ptr().cast()
+        }
+        blaze_normalize_reason::MISSING_SYMS => Reason::MissingSyms.as_bytes().as_ptr().cast(),
+        blaze_normalize_reason::UNKNOWN_ADDR => Reason::UnknownAddr.as_bytes().as_ptr().cast(),
         _ => b"unknown reason\0".as_ptr().cast(),
     }
 }
@@ -963,6 +977,12 @@ mod tests {
                 blaze_normalize_reason::MISSING_COMPONENT,
             ),
             (Reason::Unsupported, blaze_normalize_reason::UNSUPPORTED),
+            (
+                Reason::InvalidFileOffset,
+                blaze_normalize_reason::INVALID_FILE_OFFSET,
+            ),
+            (Reason::MissingSyms, blaze_normalize_reason::MISSING_SYMS),
+            (Reason::UnknownAddr, blaze_normalize_reason::UNKNOWN_ADDR),
         ];
 
         for (reason, expected) in data {
