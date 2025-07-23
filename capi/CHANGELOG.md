@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Fixed potential panic when normalizing vDSO addresses
+
+
 0.1.2
 -----
 - Introduced `blaze_user_meta_sym` meta data variant

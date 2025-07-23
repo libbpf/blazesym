@@ -460,6 +460,8 @@ pub type blaze_symbolizer = Symbolizer;
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct blaze_symbolize_reason(u8);
 
+// Please adjust `blaze_normalize_reason` as well when adding a new
+// variant.
 impl blaze_symbolize_reason {
     /// Symbolization was successful.
     pub const SUCCESS: blaze_symbolize_reason = blaze_symbolize_reason(0);
@@ -499,8 +501,8 @@ impl From<Reason> for blaze_symbolize_reason {
 /// Retrieve a textual representation of the reason of a symbolization
 /// failure.
 #[no_mangle]
-pub extern "C" fn blaze_symbolize_reason_str(err: blaze_symbolize_reason) -> *const c_char {
-    match err {
+pub extern "C" fn blaze_symbolize_reason_str(reason: blaze_symbolize_reason) -> *const c_char {
+    match reason {
         blaze_symbolize_reason::SUCCESS => b"success\0".as_ptr().cast(),
         blaze_symbolize_reason::UNMAPPED => Reason::Unmapped.as_bytes().as_ptr().cast(),
         blaze_symbolize_reason::INVALID_FILE_OFFSET => {

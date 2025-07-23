@@ -264,6 +264,18 @@ typedef uint8_t blaze_normalize_reason;
  * The address belonged to an entity that is currently unsupported.
  */
 #define BLAZE_NORMALIZE_REASON_UNSUPPORTED 2
+/**
+ * The file offset does not map to a valid piece of code/data.
+ */
+#define BLAZE_NORMALIZE_REASON_INVALID_FILE_OFFSET 3
+/**
+ * The symbolization source has no or no relevant symbols.
+ */
+#define BLAZE_NORMALIZE_REASON_MISSING_SYMS 4
+/**
+ * The address could not be found in the symbolization source.
+ */
+#define BLAZE_NORMALIZE_REASON_UNKNOWN_ADDR 5
 
 /**
  * The valid variant kind in [`blaze_user_meta`].
@@ -1217,7 +1229,7 @@ void blaze_normalizer_free(blaze_normalizer *normalizer);
 /**
  * Retrieve a textual representation of the reason of a normalization failure.
  */
-const char *blaze_normalize_reason_str(blaze_normalize_reason err);
+const char *blaze_normalize_reason_str(blaze_normalize_reason reason);
 
 /**
  * Normalize a list of user space addresses.
@@ -1285,7 +1297,7 @@ void blaze_user_output_free(struct blaze_normalized_user_output *output);
  * Retrieve a textual representation of the reason of a symbolization
  * failure.
  */
-const char *blaze_symbolize_reason_str(blaze_symbolize_reason err);
+const char *blaze_symbolize_reason_str(blaze_symbolize_reason reason);
 
 /**
  * Create an instance of a symbolizer.
