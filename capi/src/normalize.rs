@@ -1364,4 +1364,45 @@ mod tests {
         let () = unsafe { blaze_user_output_free(result) };
         let () = unsafe { blaze_normalizer_free(normalizer) };
     }
+
+    /// Make sure that we can handle an invalid address inside the
+    /// system vDSO as expected.
+    #[cfg(linux)]
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn normalize_invalid_vdso_address() {
+        use blazesym::__private::find_vdso_range;
+
+        let vdso = find_vdso_range();
+        // This address should map to the vDSO's ELF header, meaning it
+        // does not belong to a symbol and normalization/symbolization
+        // should fail.
+        let addrs = [vdso.start];
+        let normalizer = blaze_normalizer_new();
+        assert!(!normalizer.is_null());
+
+        let result = unsafe {
+            blaze_normalize_user_addrs(normalizer, 0, addrs.as_slice().as_ptr(), addrs.len())
+        };
+        assert_ne!(result, ptr::null_mut());
+
+        let normalized = unsafe { &*result };
+        assert_eq!(normalized.meta_cnt, 1);
+        assert_eq!(normalized.output_cnt, 1);
+
+        let output = unsafe { &*normalized.outputs };
+        let meta = unsafe { &*normalized.metas.add(output.meta_idx) };
+        match meta.kind {
+            // Perhaps counter-intuitively, we may actually see a
+            // symbolization here. The reason being that some vDSOs
+            // contains an absolute 0-byte LINUX_2.6 tag in there, which,
+            // well, because of all the heuristics we need to employ, we
+            // end up symbolizing.
+            blaze_user_meta_kind::UNKNOWN | blaze_user_meta_kind::SYM => (),
+            _ => panic!("encountered unexpected meta kind: {:?}", meta.kind),
+        }
+
+        let () = unsafe { blaze_user_output_free(result) };
+        let () = unsafe { blaze_normalizer_free(normalizer) };
+    }
 }

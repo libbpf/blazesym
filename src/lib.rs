@@ -203,6 +203,9 @@ pub mod __private {
     pub use crate::test_helper::find_the_answer_fn;
     #[cfg(feature = "test")]
     pub use crate::test_helper::find_the_answer_fn_in_zip;
+    #[cfg(linux)]
+    #[cfg(feature = "test")]
+    pub use crate::test_helper::find_vdso_range;
 }
 
 
