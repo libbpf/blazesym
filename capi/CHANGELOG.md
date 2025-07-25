@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.3
+-----
 - Fixed potential panic when normalizing vDSO addresses
 
 
