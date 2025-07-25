@@ -1605,3 +1605,24 @@ fn symbolize_normalized_large_memsize() {
         assert_eq!(sym.name, "_start");
     });
 }
+
+#[test]
+fn symbolize_with_existing_symbolizer() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.bin");
+
+    let resolver = ElfResolver::open(&path).unwrap();
+
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_with_symbolizer(0x4001100, &resolver)
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "a_variable");
+    assert_eq!(result.module, Some(Cow::Borrowed(path.as_os_str())));
+    assert_eq!(result.addr, 0x4001100);
+    assert_eq!(result.offset, 0);
+}
