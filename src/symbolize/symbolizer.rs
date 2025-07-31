@@ -747,6 +747,22 @@ impl Symbolizer {
         Builder::default()
     }
 
+    /// Symbolize an address using the given [`Symbolize`] object.
+    /// This is a low-level function and *must* be used in case where you
+    /// own the [`Symbolize`] object and want toreuse it multiple times.
+    pub fn symbolize_with_symbolizer<'slf>(
+        &'slf self,
+        addr: Addr,
+        symbolizer: &'slf dyn Symbolize,
+    ) -> Result<Symbolized<'slf>> {
+        symbolize_with_resolver(
+            addr,
+            &Resolver::Cached(symbolizer),
+            &self.find_sym_opts,
+            self.demangle,
+        )
+    }
+
     /// Symbolize an address using the provided [`Resolver`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(addr = format_args!("{addr:#x}"), resolver = ?resolver.inner())))]
     fn symbolize_with_resolver<'slf>(
