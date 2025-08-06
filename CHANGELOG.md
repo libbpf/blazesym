@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added `Symbolizer::register_elf_resolver` method
+
+
 0.2.0-rc.4
 ----------
 - Added support for symbolizing addresses in a vDSO

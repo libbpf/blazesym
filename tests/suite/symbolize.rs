@@ -1607,7 +1607,8 @@ fn symbolize_normalized_large_memsize() {
     });
 }
 
-#[cfg(linux)]
+/// Make sure that registering an [`ElfResolver`] with a [`Symbolizer`]
+/// fails if one is already present for a given path.
 #[test]
 fn register_an_existing_elfresolver() {
     let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -1616,13 +1617,13 @@ fn register_an_existing_elfresolver() {
 
     let resolver = Rc::new(ElfResolver::open(&bin_name).unwrap());
     let mut symbolizer = Symbolizer::new();
-    symbolizer
+    let () = symbolizer
         .register_elf_resolver(&bin_name, Rc::clone(&resolver))
         .unwrap();
 
-    let result = symbolizer
+    let err = symbolizer
         .register_elf_resolver(&bin_name, Rc::clone(&resolver))
         .unwrap_err();
 
-    assert_eq!(result.kind(), ErrorKind::AlreadyExists);
+    assert_eq!(err.kind(), ErrorKind::AlreadyExists);
 }

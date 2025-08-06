@@ -135,11 +135,15 @@ impl FileCache<ElfResolverData> {
         //       opening a new one here. Doing so will need adjustments
         //       to `FileCache` API.
         let (_file, cell) = self.entry(path.actual_path())?;
-        cell.set(elf_resolver.into()).map_err(|_| {
+        // We only allow the call to succeed if no `ElfResolverData` is
+        // set at all, to prevent any potential confusion with different
+        // `ElfParser`s being shared between the DWARF and ELF
+        // attributes of the type.
+        let () = cell.set(ElfResolverData::from(elf_resolver)).map_err(|_| {
             io::Error::new(
                 io::ErrorKind::AlreadyExists,
                 format!(
-                    "an ElfResolver object is alread set for path {}",
+                    "ELF resolver object alread set for path `{}`",
                     path.display()
                 ),
             )
@@ -279,6 +283,24 @@ mod tests {
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("DwarfResolver("), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");
+    }
+
+    /// Exercise the [`ElfResolverData`] conversion from an
+    /// [`ElfResolver`].
+    #[test]
+    fn elf_resolver_data_conversion() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs.bin");
+
+        let parser = Rc::new(ElfParser::open(path.as_path()).unwrap());
+        let resolver = ElfResolver::from_parser(Rc::clone(&parser), None).unwrap();
+        let data = ElfResolverData::from(Rc::new(resolver));
+        let _resolver = data.elf.get_or_init(|| panic!());
+
+        let resolver = ElfResolver::from_parser(parser, Some(&[])).unwrap();
+        let data = ElfResolverData::from(Rc::new(resolver));
+        let _resolver = data.dwarf.get_or_init(|| panic!());
     }
 
     /// Check that we fail finding an offset for an address not
