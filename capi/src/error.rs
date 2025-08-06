@@ -35,7 +35,8 @@ impl blaze_err {
     /// A parameter was incorrect.
     pub const INVALID_INPUT: blaze_err = blaze_err(-256);
     /// An error returned when an operation could not be completed
-    /// because a call to [`write`] returned [`Ok(0)`].
+    /// because a call to [`write`][std::io::Write::write] returned
+    /// [`Ok(0)`][Ok].
     pub const WRITE_ZERO: blaze_err = blaze_err(-257);
     /// An error returned when an operation ould not be completed
     /// because an "end of file" was reached prematurely.

@@ -11,11 +11,11 @@ use super::types::INFO_TYPE_LINE_TABLE_INFO;
 
 /// End of the line table
 const END_SEQUENCE: u8 = 0x00;
-/// Set [`LineTableRow.file_idx`], don't push a row.
+/// Set [`LineTableRow::file_idx`], don't push a row.
 const SET_FILE: u8 = 0x01;
-/// Increment [`LineTableRow.address`], and push a row.
+/// Increment [`LineTableRow::addr`] and push a row.
 const ADVANCE_PC: u8 = 0x02;
-/// Set [`LineTableRow.file_line`], don't push a row.
+/// Set [`LineTableRow::file_line`], don't push a row.
 const ADVANCE_LINE: u8 = 0x03;
 /// All special opcodes push a row.
 const FIRST_SPECIAL: u8 = 0x04;
