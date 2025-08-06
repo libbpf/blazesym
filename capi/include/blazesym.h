@@ -64,7 +64,8 @@ typedef int16_t blaze_err;
 #define BLAZE_ERR_INVALID_INPUT -256
 /**
  * An error returned when an operation could not be completed
- * because a call to [`write`] returned [`Ok(0)`].
+ * because a call to [`write`][std::io::Write::write] returned
+ * [`Ok(0)`][Ok].
  */
 #define BLAZE_ERR_WRITE_ZERO -257
 /**

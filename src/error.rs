@@ -312,7 +312,8 @@ pub enum ErrorKind {
     /// The I/O operation's timeout expired, causing it to be canceled.
     TimedOut,
     /// An error returned when an operation could not be completed
-    /// because a call to [`write`] returned [`Ok(0)`].
+    /// because a call to [`write`][std::io::Write::write] returned
+    /// [`Ok(0)`][Ok].
     WriteZero,
     /// This operation is unsupported on this platform.
     Unsupported,
