@@ -1449,13 +1449,17 @@ fn symbolize_kernel_system_vmlinux() {
         let mut pairs = content
             .lines()
             .filter_map(|line| {
-                let [addr, ty, name] = line
-                    .split_ascii_whitespace()
-                    .collect::<Vec<_>>()
-                    .get(0..3)?
-                    .try_into()
-                    .unwrap();
+                let fields = line.split_ascii_whitespace().collect::<Vec<_>>();
+                let (addr, ty, name, module) = match fields[..] {
+                    [addr, ty, name] => (addr, ty, name, None),
+                    [addr, ty, name, module] => (addr, ty, name, Some(module)),
+                    _ => panic!("encountered unexpected kallsyms line: {line}"),
+                };
                 if !["D", "T", "t", "W"].contains(&ty) {
+                    return None
+                }
+                // TODO: Eventually we need to support modules.
+                if module.is_some() {
                     return None
                 }
                 let addr = Addr::from_str_radix(addr, 16).unwrap();
@@ -1518,7 +1522,18 @@ fn symbolize_kernel_system_vmlinux() {
         let sym = sym
             .as_sym()
             .unwrap_or_else(|| panic!("failed to symbolize {:x?}", syms[i]));
-        assert_eq!(sym.name, syms[i].1, "{sym:?} | {:?}", syms[i]);
+        // We have seen cases where symbols were suffixed with LLVM
+        // specific prefixes in kallsyms but not in the ELF file. But,
+        // in all likelihood, that can happen the other way around as
+        // well..
+        // E.g.,
+        //   left: "fanotify_free_mark"
+        //   right: "fanotify_free_mark.llvm.12215866716532162847"
+        assert!(
+            sym.name.starts_with(&syms[i].1) || syms[i].1.starts_with(sym.name.as_ref()),
+            "{sym:?} | {:?}",
+            syms[i]
+        );
     }
 }
 
