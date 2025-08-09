@@ -1677,3 +1677,13 @@ fn register_an_existing_elfresolver() {
 
     assert_eq!(err.kind(), ErrorKind::AlreadyExists);
 }
+
+/// Make sure that creating an [`ElfResolver`] from a non-existing file
+/// fails with an actual error instead of panicking.
+#[test]
+fn create_elf_resolver_from_non_existing_path() {
+    let path = Path::new("/This/Path/Does.Not/Exist");
+    let err = ElfResolver::open(path).unwrap_err();
+
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+}
