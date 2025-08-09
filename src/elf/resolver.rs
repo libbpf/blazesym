@@ -164,7 +164,7 @@ impl ElfResolver {
         P: AsRef<Path>,
     {
         let path = path.as_ref();
-        let parser = Rc::new(ElfParser::open(path).unwrap());
+        let parser = Rc::new(ElfParser::open(path)?);
         Self::from_parser(
             parser,
             Some(
