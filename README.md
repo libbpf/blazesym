@@ -34,8 +34,11 @@ guaranteed to build with `1.63` and higher.
 
 
 ## Status
-**blazesym** is at the core of Meta's internal continuous profiling solution,
-where it handles billions of symbolization requests per day.
+**blazesym** is at the core of Meta's continuous profiling solution,
+[Strobelight][strobelight], where it handles billions of symbolization
+requests per day. It also powers the company's crash dump backtrace
+symbolization and is helping developers identify performance bottlenecks
+across millions of Quest Virtual Reality devices.
 
 The library is being actively worked on, with a major goal being stabilization
 of the API surface. Feel free to contribute with discussions, feature
@@ -115,3 +118,4 @@ Statically linked binaries for various target triples are available on-demand
 
 [blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build-cli.yml
 [cargo-semver]: https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility
+[strobelight]: https://engineering.fb.com/2025/01/21/production-engineering/strobelight-a-profiling-service-built-on-open-source-technology/

@@ -468,9 +468,9 @@ where
     /// `idx`.
     ///
     /// # Notes
-    /// This method returns potentially compressed data, but adheres is
-    /// able to do so with 'elf lifetime. To transparently decompress,
-    /// use [`Cache::section_data`] instead.
+    /// This method returns potentially compressed data, but is able to
+    /// do so with the `'elf` lifetime. To transparently decompress, use
+    /// [`Cache::section_data`] instead.
     fn section_data_raw(&self, idx: usize) -> Result<Cow<'elf, [u8]>> {
         let shdr = self.section_hdr(idx)?;
         if shdr.type_() != SHT_NOBITS {
