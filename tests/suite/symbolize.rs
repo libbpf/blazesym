@@ -828,19 +828,10 @@ fn symbolize_dwarf_demangle() {
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
-    assert!(!results.is_empty());
+    assert_eq!(results.len(), 1);
 
     let addr = results[0].addr;
-    let src = Source::Elf(Elf::new(&test_dwarf));
-    let symbolizer = Symbolizer::builder().enable_demangling(false).build();
-    let result = symbolizer
-        .symbolize_single(&src, Input::VirtOffset(addr))
-        .unwrap()
-        .into_sym()
-        .unwrap();
-
-    let addr = result.addr;
-    let size = result.size.unwrap() as u64;
+    let size = results[0].size.unwrap() as u64;
     for inst_addr in addr..addr + size {
         if test(&test_dwarf, inst_addr).is_ok() {
             return
