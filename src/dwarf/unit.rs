@@ -25,7 +25,9 @@
 // > IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // > DEALINGS IN THE SOFTWARE.
 
-use crate::once::OnceCell;
+use std::cell::OnceCell;
+
+use crate::util::OnceCellExt as _;
 
 use super::function::Function;
 use super::function::Functions;
@@ -82,7 +84,7 @@ impl<'dwarf> Unit<'dwarf> {
         &'unit self,
         units: &Units<'dwarf>,
     ) -> Result<&'unit Functions<'dwarf>, gimli::Error> {
-        self.funcs.get_or_try_init(|| {
+        self.funcs.get_or_try_init_(|| {
             let unit = units.unit_ref(&self.dw_unit);
             let funcs = Functions::parse(unit, units)?;
             let () = funcs.parse_inlined_functions(unit, units)?;
@@ -101,7 +103,7 @@ impl<'dwarf> Unit<'dwarf> {
             None => return Ok(None),
         };
         self.lines
-            .get_or_try_init(|| Lines::parse(unit, ilnp.clone()))
+            .get_or_try_init_(|| Lines::parse(unit, ilnp.clone()))
             .map(Some)
     }
 
@@ -125,7 +127,8 @@ impl<'dwarf> Unit<'dwarf> {
         unit: gimli::UnitRef<'_, R<'dwarf>>,
         units: &Units<'dwarf>,
     ) -> Result<&Functions<'dwarf>, gimli::Error> {
-        self.funcs.get_or_try_init(|| Functions::parse(unit, units))
+        self.funcs
+            .get_or_try_init_(|| Functions::parse(unit, units))
     }
 
     pub(super) fn find_function(

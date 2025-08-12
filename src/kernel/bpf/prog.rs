@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -18,12 +19,12 @@ use std::str::FromStr;
 
 use crate::inspect::SymInfo;
 use crate::log;
-use crate::once::OnceCell;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::ResolvedSym;
 use crate::symbolize::SrcLang;
 use crate::util::find_match_or_lower_bound_by_key;
+use crate::util::OnceCellExt as _;
 use crate::Addr;
 use crate::Error;
 use crate::ErrorExt as _;
@@ -300,7 +301,7 @@ impl BpfProg {
         addr: Addr,
         info_cache: &BpfInfoCache,
     ) -> Result<Option<CodeInfo<'_>>> {
-        let line_info = self.line_info.get_or_try_init(|| {
+        let line_info = self.line_info.get_or_try_init_(|| {
             let prog_info = info_cache.lookup(self.tag)?.ok_or_not_found(|| {
                 format!(
                     "failed to find information for BPF program with tag {}",

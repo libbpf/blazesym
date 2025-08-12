@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::OsStr;
@@ -39,7 +40,6 @@ use crate::mmap::Mmap;
 use crate::normalize;
 use crate::normalize::normalize_sorted_user_addrs_with_entries;
 use crate::normalize::Handler as _;
-use crate::once::OnceCell;
 #[cfg(feature = "apk")]
 use crate::pathlike::PathLike;
 use crate::perf_map::PerfMap;
@@ -51,6 +51,7 @@ use crate::util::uname_release;
 use crate::util::Dbg;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
+use crate::util::OnceCellExt as _;
 use crate::vdso::create_vdso_parser;
 use crate::vdso::VDSO_MAPS_COMPONENT;
 #[cfg(feature = "apk")]
@@ -795,7 +796,7 @@ impl Symbolizer {
     #[cfg(feature = "gsym")]
     fn gsym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf GsymResolver<'static>> {
         let (file, cell) = self.gsym_cache.entry(path)?;
-        let resolver = cell.get_or_try_init(|| self.create_gsym_resolver(path, file))?;
+        let resolver = cell.get_or_try_init_(|| self.create_gsym_resolver(path, file))?;
         Ok(resolver)
     }
 
@@ -867,7 +868,7 @@ impl Symbolizer {
     ) -> Result<Option<(&'slf dyn Resolve, Addr)>> {
         let actual_path = path.actual_path();
         let (file, cell) = self.apk_cache.entry(actual_path)?;
-        let (apk, resolvers) = cell.get_or_try_init(|| {
+        let (apk, resolvers) = cell.get_or_try_init_(|| {
             let mmap = Mmap::builder()
                 .map(file)
                 .with_context(|| format!("failed to memory map `{}`", actual_path.display()))?;
@@ -891,7 +892,7 @@ impl Symbolizer {
     #[cfg(feature = "breakpad")]
     fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf BreakpadResolver> {
         let (file, cell) = self.breakpad_cache.entry(path)?;
-        let resolver = cell.get_or_try_init(|| self.create_breakpad_resolver(path, file))?;
+        let resolver = cell.get_or_try_init_(|| self.create_breakpad_resolver(path, file))?;
         Ok(resolver)
     }
 
@@ -906,7 +907,7 @@ impl Symbolizer {
         match self.perf_map_cache.entry(&path) {
             Ok((file, cell)) => {
                 let perf_map =
-                    cell.get_or_try_init(|| self.create_perf_map_resolver(&path, file))?;
+                    cell.get_or_try_init_(|| self.create_perf_map_resolver(&path, file))?;
                 Ok(Some(perf_map))
             }
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
@@ -921,7 +922,7 @@ impl Symbolizer {
         pid: Pid,
         range: &Range<Addr>,
     ) -> Result<&'slf ElfParser<StaticMem>> {
-        let parser = self.vdso_parser.get_or_try_init(|| {
+        let parser = self.vdso_parser.get_or_try_init_(|| {
             let parser = create_vdso_parser(pid, range)?;
             Result::<_, Error>::Ok(Box::new(parser))
         })?;
@@ -1009,7 +1010,7 @@ impl Symbolizer {
 
     fn ksym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<KsymResolver>> {
         let (file, cell) = self.ksym_cache.entry(path)?;
-        let resolver = cell.get_or_try_init(|| self.create_ksym_resolver(path, file))?;
+        let resolver = cell.get_or_try_init_(|| self.create_ksym_resolver(path, file))?;
         Ok(resolver)
     }
 
