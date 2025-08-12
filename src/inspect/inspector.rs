@@ -12,6 +12,7 @@ use crate::elf::ElfResolverData;
 use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::file_cache::FileCache;
 use crate::inspect::ForEachFn;
+use crate::util::OnceCellExt as _;
 use crate::Result;
 
 #[cfg(feature = "breakpad")]
@@ -64,7 +65,7 @@ impl Inspector {
     #[cfg(feature = "breakpad")]
     fn breakpad_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf BreakpadResolver> {
         let (file, cell) = self.breakpad_cache.entry(path)?;
-        let resolver = cell.get_or_try_init(|| self.create_breakpad_resolver(path, file))?;
+        let resolver = cell.get_or_try_init_(|| self.create_breakpad_resolver(path, file))?;
         Ok(resolver)
     }
 

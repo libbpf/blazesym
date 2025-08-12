@@ -25,10 +25,11 @@
 // > IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // > DEALINGS IN THE SOFTWARE.
 
+use std::cell::OnceCell;
 use std::ops::ControlFlow;
 
 use crate::log::warn;
-use crate::once::OnceCell;
+use crate::util::OnceCellExt as _;
 use crate::ErrorExt as _;
 use crate::Result;
 
@@ -193,7 +194,7 @@ impl<'dwarf> Units<'dwarf> {
                 // The unit did not declare any ranges.
                 // Try to get some ranges from the line program sequences.
                 if let Some(ref ilnp) = dw_unit.line_program {
-                    if let Ok(lines) = lines.get_or_try_init(|| {
+                    if let Ok(lines) = lines.get_or_try_init_(|| {
                         let unit = gimli::UnitRef::new(&sections, &dw_unit);
                         Lines::parse(unit, ilnp.clone())
                     }) {

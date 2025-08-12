@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::OnceCell;
 use std::fs::File;
 use std::ops::Range;
 use std::path::Path;
@@ -11,10 +12,10 @@ use crate::elf::StaticMem;
 use crate::file_cache::FileCache;
 use crate::insert_map::InsertMap;
 use crate::maps;
-use crate::once::OnceCell;
 use crate::util;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
+use crate::util::OnceCellExt as _;
 use crate::vdso::create_vdso_parser;
 #[cfg(feature = "apk")]
 use crate::zip;
@@ -352,7 +353,7 @@ impl Normalizer {
         let build_id = if self.build_ids {
             if self.cache_build_ids {
                 let (file, cell) = self.build_id_cache.entry(path)?;
-                cell.get_or_try_init(|| {
+                cell.get_or_try_init_(|| {
                     let parser = ElfParser::from_file(file, path.to_path_buf().into_os_string())?;
                     let build_id =
                         read_build_id(&parser)?.map(|build_id| Cow::Owned(build_id.to_vec()));
@@ -381,7 +382,7 @@ impl Normalizer {
         apk_path: &Path,
     ) -> Result<Option<(u64, PathBuf, Option<BuildId<'static>>)>> {
         let (file, cell) = self.apk_cache.entry(apk_path)?;
-        let (apk, elf_build_ids) = cell.get_or_try_init(|| {
+        let (apk, elf_build_ids) = cell.get_or_try_init_(|| {
             let mmap = Mmap::builder()
                 .map(file)
                 .with_context(|| format!("failed to memory map `{}`", apk_path.display()))?;
@@ -433,7 +434,7 @@ impl Normalizer {
         pid: Pid,
         range: &Range<Addr>,
     ) -> Result<&'slf ElfParser<StaticMem>> {
-        let parser = self.vdso_parser.get_or_try_init(|| {
+        let parser = self.vdso_parser.get_or_try_init_(|| {
             let parser = create_vdso_parser(pid, range)?;
             Result::<_, Error>::Ok(Box::new(parser))
         })?;

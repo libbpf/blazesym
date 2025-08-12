@@ -1,11 +1,11 @@
 use std::cell::Cell;
+use std::cell::OnceCell;
 use std::fs::File;
 use std::marker::PhantomData;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::insert_map::InsertMap;
-use crate::once::OnceCell;
 use crate::util::stat;
 use crate::ErrorExt as _;
 use crate::Result;

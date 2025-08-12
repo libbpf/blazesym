@@ -1,3 +1,4 @@
+use std::cell::OnceCell;
 use std::cmp::Ordering;
 use std::ffi::CStr;
 use std::ffi::CString;
@@ -242,6 +243,28 @@ pub(crate) fn path_to_bytes(path: &Path) -> io::Result<&[u8]> {
         .as_bytes();
     Ok(bytes)
 }
+
+// TODO: Remove once `OnceCell::get_or_try_init()` is stable.
+pub(crate) trait OnceCellExt<T> {
+    fn get_or_try_init_<F, E>(&self, f: F) -> Result<&T, E>
+    where
+        F: FnOnce() -> Result<T, E>;
+}
+
+impl<T> OnceCellExt<T> for OnceCell<T> {
+    fn get_or_try_init_<F, E>(&self, f: F) -> Result<&T, E>
+    where
+        F: FnOnce() -> Result<T, E>,
+    {
+        if let Some(value) = self.get() {
+            Ok(value)
+        } else {
+            let value = f()?;
+            Ok(self.get_or_init(|| value))
+        }
+    }
+}
+
 
 /// Reorder elements of `array` based on index information in `indices`.
 fn reorder<T, U>(array: &mut [T], indices: Vec<(U, usize)>) {

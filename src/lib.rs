@@ -68,7 +68,6 @@ mod kernel;
 mod maps;
 mod mmap;
 pub mod normalize;
-mod once;
 mod pathlike;
 mod perf_map;
 mod pid;

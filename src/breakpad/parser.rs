@@ -26,6 +26,7 @@
 //!
 //! See <https://github.com/google/breakpad/blob/main/docs/symbol_files.md>
 
+use std::cell::OnceCell;
 use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::ffi::OsString;
@@ -65,7 +66,6 @@ use super::types::SourceLine;
 use super::types::SymbolFile;
 
 use crate::error::IntoCowStr;
-use crate::once::OnceCell;
 use crate::util::bytes_to_os_str;
 use crate::Error;
 use crate::ErrorExt;

@@ -25,6 +25,7 @@
 // > IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // > DEALINGS IN THE SOFTWARE.
 
+use std::cell::OnceCell;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -33,7 +34,7 @@ use std::vec;
 
 use gimli::Error;
 
-use crate::once::OnceCell;
+use crate::util::OnceCellExt as _;
 
 use super::range::RangeAttributes;
 use super::reader::R;
@@ -459,7 +460,7 @@ impl<'dwarf> Function<'dwarf> {
         units: &Units<'dwarf>,
     ) -> Result<&InlinedFunctions<'dwarf>, Error> {
         self.inlined_functions
-            .get_or_try_init(|| InlinedFunctions::parse(self.dw_die_offset, unit, units))
+            .get_or_try_init_(|| InlinedFunctions::parse(self.dw_die_offset, unit, units))
     }
 
 
