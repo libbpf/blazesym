@@ -563,6 +563,7 @@ fn symbolize_dwarf_gsym_inlined() {
     for file in [
         "test-stable-addrs-stripped-elf-with-dwarf.bin",
         "test-stable-addrs-stripped-with-link.bin",
+        "test-stable-addrs-split-dwarf.bin",
         "test-stable-addrs-compressed-debug-zlib.bin",
         #[cfg(feature = "zstd")]
         "test-stable-addrs-compressed-debug-zstd.bin",
@@ -829,6 +830,66 @@ fn symbolize_dwarf_demangle() {
         .flatten()
         .collect::<Vec<_>>();
     assert_eq!(results.len(), 1);
+
+    let addr = results[0].addr;
+    let size = results[0].size.unwrap() as u64;
+    for inst_addr in addr..addr + size {
+        if test(&test_dwarf, inst_addr).is_ok() {
+            return
+        }
+    }
+
+    panic!("failed to find inlined function call");
+}
+
+/// Check that we can symbolize an address with inline function
+/// information inside a DWARF package.
+#[tag(other_os)]
+#[test]
+fn symbolize_rust_dwp() {
+    fn test(test_dwarf: &Path, addr: Addr) -> Result<(), ()> {
+        let src = Source::Elf(Elf::new(test_dwarf));
+        let symbolizer = Symbolizer::new();
+        let sym = symbolizer
+            .symbolize_single(&src, Input::VirtOffset(addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(sym.name, "test::test_function");
+
+        let code_info = sym.code_info.as_ref().unwrap();
+        assert_ne!(code_info.dir, None);
+        assert_eq!(code_info.file, OsStr::new("test.rs"));
+        assert!(code_info.line.is_some());
+
+        if sym.inlined.is_empty() {
+            return Err(())
+        }
+        assert_eq!(sym.inlined.len(), 1, "{:#?}", sym.inlined);
+        let inlined = &sym.inlined[0];
+        assert_eq!(inlined.name, "test::inlined_call");
+        let code_info = inlined.code_info.as_ref().unwrap();
+        assert_ne!(code_info.dir, None);
+        assert_eq!(code_info.file, OsStr::new("test.rs"));
+        assert!(code_info.line.is_some());
+        Ok(())
+    }
+
+    let test_dwarf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-rs-split-dwarf.bin");
+    let elf = inspect::source::Elf::new(&test_dwarf);
+    let src = inspect::source::Source::Elf(elf);
+
+    let inspector = inspect::Inspector::new();
+    let results = inspector
+        .lookup(&src, &["_RNvCs69hjMPjVIJK_4test13test_function"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert!(!results.is_empty());
 
     let addr = results[0].addr;
     let size = results[0].size.unwrap() as u64;
