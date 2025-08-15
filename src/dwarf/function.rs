@@ -34,8 +34,6 @@ use std::vec;
 
 use gimli::Error;
 
-use crate::util::OnceCellExt as _;
-
 use super::range::RangeAttributes;
 use super::reader::R;
 use super::units::Units;
@@ -247,7 +245,7 @@ pub(crate) struct Function<'dwarf> {
     /// The function's range (begin and end address).
     pub(crate) range: Option<gimli::Range>,
     /// List of inlined function calls.
-    pub(super) inlined_functions: OnceCell<InlinedFunctions<'dwarf>>,
+    pub(super) inlined_functions: OnceCell<gimli::Result<InlinedFunctions<'dwarf>>>,
 }
 
 impl Debug for Function<'_> {
@@ -372,12 +370,12 @@ impl<'dwarf> Functions<'dwarf> {
 
         // The binary search requires the addresses to be sorted.
         //
-        // It also requires them to be non-overlapping.  In practice, overlapping
+        // It also requires them to be non-overlapping. In practice, overlapping
         // function ranges are unlikely, so we don't try to handle that yet.
         //
         // It's possible for multiple functions to have the same address range if the
-        // compiler can detect and remove functions with identical code.  In that case
-        // we'll nondeterministically return one of them.
+        // compiler can detect and remove functions with identical code. In that case
+        // we'll non-deterministically return one of them.
         addresses.sort_by_key(|x| x.range.begin);
 
         Ok(Functions {
@@ -460,7 +458,9 @@ impl<'dwarf> Function<'dwarf> {
         units: &Units<'dwarf>,
     ) -> Result<&InlinedFunctions<'dwarf>, Error> {
         self.inlined_functions
-            .get_or_try_init_(|| InlinedFunctions::parse(self.dw_die_offset, unit, units))
+            .get_or_init(|| InlinedFunctions::parse(self.dw_die_offset, unit, units))
+            .as_ref()
+            .map_err(|err| *err)
     }
 
 
