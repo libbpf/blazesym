@@ -27,8 +27,6 @@
 
 use std::cell::OnceCell;
 
-use crate::util::OnceCellExt as _;
-
 use super::function::Function;
 use super::function::Functions;
 use super::lines::Lines;
@@ -50,7 +48,7 @@ pub(super) struct Unit<'dwarf> {
     dw_unit: gimli::Unit<R<'dwarf>>,
     lang: Option<gimli::DwLang>,
     lines: OnceCell<gimli::Result<Lines<'dwarf>>>,
-    funcs: OnceCell<Functions<'dwarf>>,
+    funcs: OnceCell<gimli::Result<Functions<'dwarf>>>,
 }
 
 impl<'dwarf> Unit<'dwarf> {
@@ -88,12 +86,15 @@ impl<'dwarf> Unit<'dwarf> {
         &'unit self,
         units: &Units<'dwarf>,
     ) -> gimli::Result<&'unit Functions<'dwarf>> {
-        self.funcs.get_or_try_init_(|| {
-            let unit = units.unit_ref(&self.dw_unit);
-            let funcs = Functions::parse(unit, units)?;
-            let () = funcs.parse_inlined_functions(unit, units)?;
-            Ok(funcs)
-        })
+        self.funcs
+            .get_or_init(|| {
+                let unit = units.unit_ref(&self.dw_unit);
+                let funcs = Functions::parse(unit, units)?;
+                let () = funcs.parse_inlined_functions(unit, units)?;
+                Ok(funcs)
+            })
+            .as_ref()
+            .map_err(|err| *err)
     }
 
     pub(super) fn parse_lines(
@@ -135,7 +136,9 @@ impl<'dwarf> Unit<'dwarf> {
         units: &Units<'dwarf>,
     ) -> gimli::Result<&Functions<'dwarf>> {
         self.funcs
-            .get_or_try_init_(|| Functions::parse(unit, units))
+            .get_or_init(|| Functions::parse(unit, units))
+            .as_ref()
+            .map_err(|err| *err)
     }
 
     pub(super) fn find_function(
