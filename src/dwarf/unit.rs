@@ -49,7 +49,7 @@ pub(super) struct Unit<'dwarf> {
     offset: gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset>,
     dw_unit: gimli::Unit<R<'dwarf>>,
     lang: Option<gimli::DwLang>,
-    lines: OnceCell<Lines<'dwarf>>,
+    lines: OnceCell<gimli::Result<Lines<'dwarf>>>,
     funcs: OnceCell<Functions<'dwarf>>,
 }
 
@@ -64,7 +64,11 @@ impl<'dwarf> Unit<'dwarf> {
             offset,
             dw_unit: unit,
             lang,
-            lines,
+            lines: lines
+                .into_inner()
+                .map(Result::Ok)
+                .map(OnceCell::from)
+                .unwrap_or_default(),
             funcs: OnceCell::new(),
         }
     }
@@ -102,9 +106,12 @@ impl<'dwarf> Unit<'dwarf> {
             Some(ref ilnp) => ilnp,
             None => return Ok(None),
         };
-        self.lines
-            .get_or_try_init_(|| Lines::parse(unit, ilnp.clone()))
-            .map(Some)
+        let lines = self
+            .lines
+            .get_or_init(|| Lines::parse(unit, ilnp.clone()))
+            .as_ref()
+            .map_err(|err| *err)?;
+        Ok(Some(lines))
     }
 
     pub(super) fn find_location(
