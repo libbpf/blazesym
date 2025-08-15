@@ -112,6 +112,9 @@ fn find_debug_file(file: &OsStr, linker: Option<&Path>, debug_dirs: &[PathBuf]) 
 }
 
 
+// TODO: We really should have a cache of debug link targets as well, to
+//       avoid potentially re-parsing the same files over and over
+//       again.
 fn try_deref_debug_link(
     parser: &ElfParser,
     debug_dirs: &[PathBuf],
