@@ -23,9 +23,6 @@ pub(super) fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
         None => &[],
     };
 
-    #[cfg(target_endian = "little")]
-    let reader = EndianSlice::new(data, gimli::LittleEndian);
-    #[cfg(target_endian = "big")]
-    let reader = EndianSlice::new(data, gimli::BigEndian);
+    let reader = EndianSlice::new(data, Endianess::default());
     Ok(reader)
 }
