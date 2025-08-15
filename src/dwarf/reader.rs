@@ -6,9 +6,9 @@ use crate::Result;
 
 
 #[cfg(target_endian = "little")]
-type Endianess = gimli::LittleEndian;
+pub(super) type Endianess = gimli::LittleEndian;
 #[cfg(target_endian = "big")]
-type Endianess = gimli::BigEndian;
+pub(super) type Endianess = gimli::BigEndian;
 
 /// The gimli reader type we currently use. Could be made generic if
 /// need be, but we keep things simple while we can.
@@ -33,4 +33,8 @@ fn load_section_impl<'elf>(parser: &'elf ElfParser, name: Option<&str>) -> Resul
 
 pub(super) fn load_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
     load_section_impl(parser, Some(id.name()))
+}
+
+pub(super) fn load_dwo_section(parser: &ElfParser, id: SectionId) -> Result<R<'_>> {
+    load_section_impl(parser, id.dwo_name())
 }
