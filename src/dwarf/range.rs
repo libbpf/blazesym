@@ -49,7 +49,7 @@ impl<R: gimli::Reader> RangeAttributes<R> {
         &self,
         unit: gimli::UnitRef<'_, R>,
         mut f: F,
-    ) -> Result<bool, gimli::Error> {
+    ) -> gimli::Result<bool> {
         let mut added_any = false;
         let mut add_range = |range: gimli::Range| {
             if range.begin < range.end {

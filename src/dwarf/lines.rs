@@ -51,7 +51,7 @@ fn render_file<'dwarf>(
     unit: gimli::UnitRef<'_, R<'dwarf>>,
     file: &gimli::FileEntry<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
     header: &gimli::LineProgramHeader<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
-) -> Result<(Cow<'dwarf, Path>, &'dwarf OsStr), gimli::Error> {
+) -> gimli::Result<(Cow<'dwarf, Path>, &'dwarf OsStr)> {
     let dir = if let Some(ref comp_dir) = unit.comp_dir {
         bytes_to_path(comp_dir.slice())?
     } else {
@@ -99,7 +99,7 @@ impl<'dwarf> Lines<'dwarf> {
     pub(crate) fn parse(
         unit: gimli::UnitRef<'_, R<'dwarf>>,
         ilnp: gimli::IncompleteLineProgram<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
-    ) -> Result<Self, gimli::Error> {
+    ) -> gimli::Result<Self> {
         let mut sequences = Vec::new();
         let mut sequence_rows = Vec::<LineRow>::new();
         let mut rows = ilnp.rows();

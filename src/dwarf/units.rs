@@ -239,13 +239,10 @@ impl<'dwarf> Units<'dwarf> {
     pub(super) fn find_unit(
         &self,
         offset: gimli::DebugInfoOffset<<R<'_> as gimli::Reader>::Offset>,
-    ) -> Result<
-        (
-            gimli::UnitRef<'_, R<'dwarf>>,
-            gimli::UnitOffset<<R<'dwarf> as gimli::Reader>::Offset>,
-        ),
-        gimli::Error,
-    > {
+    ) -> gimli::Result<(
+        gimli::UnitRef<'_, R<'dwarf>>,
+        gimli::UnitOffset<<R<'dwarf> as gimli::Reader>::Offset>,
+    )> {
         let unit = match self
             .units
             .binary_search_by_key(&offset.0, |unit| unit.offset().0)
@@ -332,7 +329,7 @@ impl<'dwarf> Units<'dwarf> {
     pub(super) fn find_function(
         &self,
         probe: u64,
-    ) -> Result<Option<(&Function<'dwarf>, &Unit<'dwarf>)>, gimli::Error> {
+    ) -> gimli::Result<Option<(&Function<'dwarf>, &Unit<'dwarf>)>> {
         for unit in self.find_units(probe) {
             if let Some(function) = unit.find_function(probe, self)? {
                 return Ok(Some((function, unit)))
@@ -347,13 +344,10 @@ impl<'dwarf> Units<'dwarf> {
         probe: u64,
         function: &'slf Function<'dwarf>,
         unit: &'slf Unit<'dwarf>,
-    ) -> Result<
+    ) -> gimli::Result<
         Option<
-            impl ExactSizeIterator<
-                    Item = Result<(&'dwarf str, Option<Location<'slf>>), gimli::Error>,
-                > + 'slf,
+            impl ExactSizeIterator<Item = gimli::Result<(&'dwarf str, Option<Location<'slf>>)>> + 'slf,
         >,
-        gimli::Error,
     > {
         let unit_ref = gimli::UnitRef::new(&self.dwarf, unit.dw_unit());
         let inlined_fns = function.parse_inlined_functions(unit_ref, self)?;
@@ -393,7 +387,7 @@ impl<'dwarf> Units<'dwarf> {
 
     /// Find the source file and line corresponding to the given virtual memory
     /// address.
-    pub(crate) fn find_location(&self, probe: u64) -> Result<Option<Location<'_>>, gimli::Error> {
+    pub(crate) fn find_location(&self, probe: u64) -> gimli::Result<Option<Location<'_>>> {
         for unit in self.find_units(probe) {
             if let Some(location) = unit.find_location(probe, self)? {
                 return Ok(Some(location))
@@ -405,13 +399,13 @@ impl<'dwarf> Units<'dwarf> {
     pub(crate) fn find_name<'s, 'slf: 's>(
         &'slf self,
         name: &'s str,
-    ) -> impl Iterator<Item = Result<&'slf Function<'dwarf>, gimli::Error>> + 's {
+    ) -> impl Iterator<Item = gimli::Result<&'slf Function<'dwarf>>> + 's {
         self.units
             .iter()
             .filter_map(move |unit| unit.find_name(name, self).transpose())
     }
 
-    pub(crate) fn for_each_function<F>(&self, mut f: F) -> Result<(), gimli::Error>
+    pub(crate) fn for_each_function<F>(&self, mut f: F) -> gimli::Result<()>
     where
         F: FnMut(&Function<'dwarf>) -> ControlFlow<()>,
     {
@@ -439,7 +433,7 @@ impl<'dwarf> Units<'dwarf> {
     /// Initialize all function data structures. This is used for benchmarks.
     #[cfg(test)]
     #[cfg(feature = "nightly")]
-    fn parse_functions(&self) -> Result<(), gimli::Error> {
+    fn parse_functions(&self) -> gimli::Result<()> {
         for unit in self.units.iter() {
             let _functions = unit.parse_functions(self)?;
         }
@@ -450,7 +444,7 @@ impl<'dwarf> Units<'dwarf> {
     /// benchmarks.
     #[cfg(test)]
     #[cfg(feature = "nightly")]
-    fn parse_inlined_functions(&self) -> Result<(), gimli::Error> {
+    fn parse_inlined_functions(&self) -> gimli::Result<()> {
         for unit in self.units.iter() {
             let _functions = unit.parse_inlined_functions(self)?;
         }
@@ -460,7 +454,7 @@ impl<'dwarf> Units<'dwarf> {
     /// Initialize all line data structures. This is used for benchmarks.
     #[cfg(test)]
     #[cfg(feature = "nightly")]
-    fn parse_lines(&self) -> Result<(), gimli::Error> {
+    fn parse_lines(&self) -> gimli::Result<()> {
         for unit in self.units.iter() {
             let unit_ref = self.unit_ref(unit.dw_unit());
             let _lines = unit.parse_lines(unit_ref)?;
