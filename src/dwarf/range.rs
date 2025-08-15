@@ -26,22 +26,12 @@
 // > DEALINGS IN THE SOFTWARE.
 
 
+#[derive(Default)]
 pub(crate) struct RangeAttributes<R: gimli::Reader> {
     pub(crate) low_pc: Option<u64>,
     pub(crate) high_pc: Option<u64>,
     pub(crate) size: Option<u64>,
     pub(crate) ranges_offset: Option<gimli::RangeListsOffset<R::Offset>>,
-}
-
-impl<R: gimli::Reader> Default for RangeAttributes<R> {
-    fn default() -> Self {
-        RangeAttributes {
-            low_pc: None,
-            high_pc: None,
-            size: None,
-            ranges_offset: None,
-        }
-    }
 }
 
 impl<R: gimli::Reader> RangeAttributes<R> {
