@@ -172,10 +172,7 @@ impl DwarfResolver {
         &self.parser
     }
 
-    pub(crate) fn from_parser(
-        parser: Rc<ElfParser>,
-        debug_dirs: &[PathBuf],
-    ) -> Result<Self, Error> {
+    pub(crate) fn from_parser(parser: Rc<ElfParser>, debug_dirs: &[PathBuf]) -> Result<Self> {
         let linkee_parser = try_deref_debug_link(&parser, debug_dirs)?;
 
         // SAFETY: We own the `ElfParser` and make sure that it stays
