@@ -186,7 +186,7 @@ criterion = {version = "0.7", default-features = false, features = ["rayon", "ca
 rand = {version = "0.9", default-features = false, features = ["std", "thread_rng"]}
 scopeguard = "1.2"
 stats_alloc = {version = "0.1.1", features = ["nightly"]}
-tempfile = "3.20"
+tempfile = "3.21"
 test-fork = "0.1"
 test-log = {version = "0.2.18", default-features = false, features = ["trace"]}
 test-tag = "0.1.3"
