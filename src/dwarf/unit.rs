@@ -35,6 +35,20 @@ use super::reader::R;
 use super::units::Units;
 
 
+/// A DWO unit has its own DWARF sections.
+#[derive(Debug)]
+struct DwoUnit<'dwarf> {
+    dwarf: gimli::Dwarf<R<'dwarf>>,
+    dw_unit: gimli::Unit<R<'dwarf>>,
+}
+
+impl<'dwarf> DwoUnit<'dwarf> {
+    fn unit_ref<'unit>(&'unit self) -> gimli::UnitRef<'unit, R<'dwarf>> {
+        gimli::UnitRef::new(&self.dwarf, &self.dw_unit)
+    }
+}
+
+
 pub(super) struct UnitRange {
     pub unit_id: usize,
     pub max_end: u64,
@@ -49,6 +63,7 @@ pub(super) struct Unit<'dwarf> {
     lang: Option<gimli::DwLang>,
     lines: OnceCell<gimli::Result<Lines<'dwarf>>>,
     funcs: OnceCell<gimli::Result<Functions<'dwarf>>>,
+    dwo: OnceCell<gimli::Result<Option<DwoUnit<'dwarf>>>>,
 }
 
 impl<'dwarf> Unit<'dwarf> {
@@ -68,14 +83,67 @@ impl<'dwarf> Unit<'dwarf> {
                 .map(OnceCell::from)
                 .unwrap_or_default(),
             funcs: OnceCell::new(),
+            dwo: OnceCell::new(),
         }
+    }
+
+    fn process_dwo(
+        &self,
+        dwo_dwarf: Option<gimli::Dwarf<R<'dwarf>>>,
+    ) -> gimli::Result<Option<DwoUnit<'dwarf>>> {
+        let dwo_dwarf = match dwo_dwarf {
+            None => return Ok(None),
+            Some(dwo_dwarf) => dwo_dwarf,
+        };
+        let mut dwo_units = dwo_dwarf.units();
+        let dwo_header = match dwo_units.next()? {
+            Some(dwo_header) => dwo_header,
+            None => return Ok(None),
+        };
+
+        let mut dwo_unit = dwo_dwarf.unit(dwo_header)?;
+        let () = dwo_unit.copy_relocated_attributes(&self.dw_unit);
+
+        Ok(Some(DwoUnit {
+            dwarf: dwo_dwarf,
+            dw_unit: dwo_unit,
+        }))
+    }
+
+    pub(super) fn unit_ref<'unit>(
+        &'unit self,
+        units: &'unit Units<'dwarf>,
+    ) -> gimli::Result<gimli::UnitRef<'unit, R<'dwarf>>> {
+        let map_dwo_result = |dwo_result: &'unit gimli::Result<Option<DwoUnit<'dwarf>>>| {
+            dwo_result
+                .as_ref()
+                .map(|dwo_unit| match dwo_unit {
+                    Some(dwo_unit) => dwo_unit.unit_ref(),
+                    None => units.unit_ref(&self.dw_unit),
+                })
+                .map_err(|err| *err)
+        };
+
+        if let Some(result) = self.dwo.get() {
+            return map_dwo_result(result)
+        }
+
+        let dwo_id = match self.dw_unit.dwo_id {
+            Some(dwo_id) => dwo_id,
+            None => return map_dwo_result(self.dwo.get_or_init(|| Ok(None))),
+        };
+
+        let result = self
+            .dwo
+            .get_or_init(|| self.process_dwo(units.load_dwo(dwo_id)?));
+        map_dwo_result(result)
     }
 
     pub(super) fn parse_functions<'unit>(
         &'unit self,
         units: &Units<'dwarf>,
     ) -> gimli::Result<&'unit Functions<'dwarf>> {
-        let unit = units.unit_ref(&self.dw_unit);
+        let unit = self.unit_ref(units)?;
         let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         Ok(functions)
     }
@@ -88,7 +156,7 @@ impl<'dwarf> Unit<'dwarf> {
     ) -> gimli::Result<&'unit Functions<'dwarf>> {
         self.funcs
             .get_or_init(|| {
-                let unit = units.unit_ref(&self.dw_unit);
+                let unit = self.unit_ref(units)?;
                 let funcs = Functions::parse(unit, units)?;
                 let () = funcs.parse_inlined_functions(unit, units)?;
                 Ok(funcs)
@@ -146,7 +214,7 @@ impl<'dwarf> Unit<'dwarf> {
         probe: u64,
         units: &Units<'dwarf>,
     ) -> gimli::Result<Option<&Function<'dwarf>>> {
-        let unit = units.unit_ref(&self.dw_unit);
+        let unit = self.unit_ref(units)?;
         let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         let function = match functions.find_address(probe) {
             Some(address) => {
@@ -164,7 +232,7 @@ impl<'dwarf> Unit<'dwarf> {
         name: &str,
         units: &Units<'dwarf>,
     ) -> gimli::Result<Option<&'slf Function<'dwarf>>> {
-        let unit = units.unit_ref(&self.dw_unit);
+        let unit = self.unit_ref(units)?;
         let functions = self.parse_functions_dwarf_and_unit(unit, units)?;
         for func in functions.functions.iter() {
             let name = Some(name.as_bytes());

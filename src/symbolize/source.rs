@@ -125,6 +125,15 @@ pub struct Elf {
     /// On top of this runtime configuration, the crate needs to be
     /// built with the `dwarf` feature to actually consult debug
     /// symbols. If neither is satisfied, ELF symbols will be used.
+    ///
+    /// Debug symbols are anything DWARF related. This can be DWARF data
+    /// directly embedded in the ELF file, separate DWARF packages
+    /// discovered by adding the `.dwp` extension to `path`, as well as
+    /// data referenced via debug links inside the binary. For the
+    /// latter, the directories that are searched for candidate files
+    /// can be configured via [`Builder::set_debug_dirs`][debug_dirs].
+    ///
+    /// [debug_dirs]: crate::symbolize::Builder::set_debug_dirs
     pub debug_syms: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
