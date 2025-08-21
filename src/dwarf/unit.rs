@@ -99,17 +99,20 @@ impl<'dwarf> Unit<'dwarf> {
 
     pub(super) fn parse_lines(
         &self,
-        unit: gimli::UnitRef<'_, R<'dwarf>>,
+        units: &Units<'dwarf>,
     ) -> gimli::Result<Option<&Lines<'dwarf>>> {
-        // NB: line information is always stored in the main debug file so this does not
-        // need to handle DWOs.
-        let ilnp = match unit.unit.line_program {
+        let ilnp = match self.dw_unit.line_program {
             Some(ref ilnp) => ilnp,
             None => return Ok(None),
         };
         let lines = self
             .lines
-            .get_or_init(|| Lines::parse(unit, ilnp.clone()))
+            .get_or_init(|| {
+                // NB: line information is always stored in the main
+                //     debug file so this does not need to handle DWOs.
+                let unit = units.unit_ref(&self.dw_unit);
+                Lines::parse(unit, ilnp.clone())
+            })
             .as_ref()
             .map_err(|err| *err)?;
         Ok(Some(lines))
@@ -120,8 +123,7 @@ impl<'dwarf> Unit<'dwarf> {
         probe: u64,
         units: &Units<'dwarf>,
     ) -> gimli::Result<Option<Location<'_>>> {
-        let unit = units.unit_ref(&self.dw_unit);
-        if let Some(lines) = self.parse_lines(unit)? {
+        if let Some(lines) = self.parse_lines(units)? {
             lines.find_location(probe)
         } else {
             Ok(None)

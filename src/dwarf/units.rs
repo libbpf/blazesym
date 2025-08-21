@@ -340,7 +340,7 @@ impl<'dwarf> Units<'dwarf> {
                 .unwrap_or("");
 
             let code_info = if let Some(call_file) = inlined_fn.call_file {
-                if let Some(lines) = unit.parse_lines(unit_ref)? {
+                if let Some(lines) = unit.parse_lines(self)? {
                     if let Some((dir, file)) = lines.files.get(call_file as usize) {
                         let code_info = Location {
                             dir,
@@ -437,8 +437,7 @@ impl<'dwarf> Units<'dwarf> {
     #[cfg(feature = "nightly")]
     fn parse_lines(&self) -> gimli::Result<()> {
         for unit in self.units.iter() {
-            let unit_ref = self.unit_ref(unit.dw_unit());
-            let _lines = unit.parse_lines(unit_ref)?;
+            let _lines = unit.parse_lines(self)?;
         }
         Ok(())
     }
