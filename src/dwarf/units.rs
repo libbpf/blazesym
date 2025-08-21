@@ -228,6 +228,22 @@ impl<'dwarf> Units<'dwarf> {
         Ok(slf)
     }
 
+    pub(super) fn load_dwo(
+        &self,
+        dwo_id: gimli::DwoId,
+    ) -> gimli::Result<Option<gimli::Dwarf<R<'dwarf>>>> {
+        // Load the DWO file from the DWARF package, if available.
+        // TODO: We could check for .dwo files referenced by
+        //       `gimli::Unit::dwo_name()` in certain directories, but
+        //       for now we only support DWOs bundled in a DWP.
+        if let Some(dwp) = self.package.as_ref() {
+            if let Some(cu) = dwp.find_cu(dwo_id, &self.dwarf)? {
+                return Ok(Some(cu))
+            }
+        }
+        Ok(None)
+    }
+
     /// Find the unit containing the given offset, and convert the
     /// offset into a unit offset.
     pub(super) fn find_unit(
@@ -336,7 +352,7 @@ impl<'dwarf> Units<'dwarf> {
             impl ExactSizeIterator<Item = gimli::Result<(&'dwarf str, Option<Location<'slf>>)>> + 'slf,
         >,
     > {
-        let unit_ref = gimli::UnitRef::new(&self.dwarf, unit.dw_unit());
+        let unit_ref = unit.unit_ref(self)?;
         let inlined_fns = function.parse_inlined_functions(unit_ref, self)?;
         let iter = inlined_fns.find_inlined_functions(probe).map(move |inlined_fn| {
             let name = inlined_fn

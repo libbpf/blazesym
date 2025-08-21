@@ -156,6 +156,9 @@ fn try_deref_debug_link(
     }
 }
 
+
+/// Try to find a DWARF package (`.dwp`) "belonging" to the file
+/// referenced by the given [`ElfParser`].
 fn try_find_dwp(parser: &ElfParser) -> Result<Option<Rc<ElfParser>>> {
     if let Some(path) = parser.module() {
         let mut dwp_path = path.to_os_string();
@@ -566,6 +569,24 @@ mod tests {
             resolver.linkee_parser.as_ref().unwrap().module(),
             Some(linkee_path.as_os_str())
         );
+    }
+
+    /// Check that we can discover DWARF packages as expected.
+    #[test]
+    fn dwp_discovery() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-rs-split-dwarf.bin");
+        let parser = ElfParser::open(&path).unwrap();
+        let dwp_parser = try_find_dwp(&parser).unwrap();
+        assert!(dwp_parser.is_some());
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-rs.bin");
+        let parser = ElfParser::open(&path).unwrap();
+        let dwp_parser = try_find_dwp(&parser).unwrap();
+        assert!(dwp_parser.is_none());
     }
 
     /// Check that we can find the source code location of an address.

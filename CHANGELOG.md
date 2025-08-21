@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added support for discovering and using DWARF packages (`*.dwp`)
 - Added `Symbolizer::register_elf_resolver` method
 - Adjusted ELF logic to include `STT_NOTYPE` symbols in symbolization
 
