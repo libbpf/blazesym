@@ -26,11 +26,13 @@
 // > DEALINGS IN THE SOFTWARE.
 
 use std::borrow::Cow;
+use std::cmp::Ordering;
 use std::ffi::OsStr;
 use std::mem;
 use std::num::NonZeroU64;
 use std::path::Path;
 
+use super::location::Location;
 use super::reader::R;
 
 use crate::util::bytes_to_os_str;
@@ -160,5 +162,49 @@ impl<'dwarf> Lines<'dwarf> {
             files: files.into_boxed_slice(),
             sequences: sequences.into_boxed_slice(),
         })
+    }
+
+    fn row_location(&self, row: &LineRow) -> Location<'_> {
+        // SANITY: We always have a file present for each `file_index`.
+        let (dir, file) = self.files.get(row.file_index as usize).unwrap();
+
+        Location {
+            dir,
+            file,
+            line: if row.line != 0 { Some(row.line) } else { None },
+            // If row.line is specified then row.column always has meaning.
+            column: if row.line != 0 {
+                Some(row.column)
+            } else {
+                None
+            },
+        }
+    }
+
+    pub(crate) fn find_location(&self, probe: u64) -> gimli::Result<Option<Location<'_>>> {
+        let seq_idx = self.sequences.binary_search_by(|sequence| {
+            if probe < sequence.start {
+                Ordering::Greater
+            } else if probe >= sequence.end {
+                Ordering::Less
+            } else {
+                Ordering::Equal
+            }
+        });
+        let seq_idx = match seq_idx {
+            Ok(x) => x,
+            Err(_) => return Ok(None),
+        };
+        let sequence = &self.sequences[seq_idx];
+
+        let idx = sequence
+            .rows
+            .binary_search_by(|row| row.address.cmp(&probe));
+        let idx = match idx {
+            Ok(x) => x,
+            Err(0) => return Ok(None),
+            Err(x) => x - 1,
+        };
+        Ok(Some(self.row_location(&sequence.rows[idx])))
     }
 }

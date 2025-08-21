@@ -31,7 +31,6 @@ use super::function::Function;
 use super::function::Functions;
 use super::lines::Lines;
 use super::location::Location;
-use super::location::LocationRangeUnitIter;
 use super::reader::R;
 use super::units::Units;
 
@@ -120,11 +119,9 @@ impl<'dwarf> Unit<'dwarf> {
         probe: u64,
         units: &Units<'dwarf>,
     ) -> gimli::Result<Option<Location<'_>>> {
-        if let Some(mut iter) = LocationRangeUnitIter::new(self, units, probe, probe + 1)? {
-            match iter.next() {
-                None => Ok(None),
-                Some((_addr, _len, loc)) => Ok(Some(loc)),
-            }
+        let unit = units.unit_ref(&self.dw_unit);
+        if let Some(lines) = self.parse_lines(unit)? {
+            lines.find_location(probe)
         } else {
             Ok(None)
         }
