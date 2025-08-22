@@ -284,28 +284,21 @@ impl<'dwarf> Units<'dwarf> {
         probe_low: u64,
         probe_high: u64,
     ) -> impl Iterator<Item = (&Unit<'dwarf>, &gimli::Range)> {
-        // First up find the position in the array which could have our function
-        // address.
+        // Find the position of a range which begins at `probe_high` or higher.
         let pos = match self
             .unit_ranges
             .binary_search_by_key(&probe_high, |i| i.range.begin)
         {
-            // Although unlikely, we could find an exact match.
-            Ok(i) => i + 1,
-            // No exact match was found, but this probe would fit at slot `i`.
-            // This means that slot `i` is bigger than `probe`, along with all
-            // indices greater than `i`, so we need to search all previous
-            // entries.
-            Err(i) => i,
+            Ok(i) => i,  // Range `i` begins at exactly `probe_high`.
+            Err(i) => i, // Range `i` begins at a higher address.
         };
 
-        // Once we have our index we iterate backwards from that position
-        // looking for a matching CU.
+        // Iterate backwards from that position to find matching CUs.
         self.unit_ranges[..pos]
             .iter()
             .rev()
             .take_while(move |i| {
-                // We know that this CU's start is beneath the probe already because
+                // We know that this CU's start is no more than `probe_high` because
                 // of our sorted array.
                 debug_assert!(i.range.begin <= probe_high);
 
