@@ -30,7 +30,6 @@ use std::ops::ControlFlow;
 
 use crate::log::warn;
 use crate::util::OnceCellExt as _;
-use crate::ErrorExt as _;
 use crate::Result;
 
 use super::function::Function;
@@ -40,18 +39,6 @@ use super::range::RangeAttributes;
 use super::reader::R;
 use super::unit::Unit;
 use super::unit::UnitRange;
-
-
-fn format_offset(offset: gimli::UnitSectionOffset<usize>) -> String {
-    match offset {
-        gimli::UnitSectionOffset::DebugInfoOffset(o) => {
-            format!(".debug_info+0x{:08x}", o.0)
-        }
-        gimli::UnitSectionOffset::DebugTypesOffset(o) => {
-            format!(".debug_types+0x{:08x}", o.0)
-        }
-    }
-}
 
 
 pub(crate) struct Units<'dwarf> {
@@ -87,21 +74,24 @@ impl<'dwarf> Units<'dwarf> {
             // We mainly want compile units, but we may need to follow references to entries
             // within other units for function names.  We don't need anything from type
             // units.
-            match header.type_() {
+            let mut need_unit_range = match header.type_() {
                 gimli::UnitType::Type { .. } | gimli::UnitType::SplitType { .. } => continue,
-                _ => {}
-            }
-            let dw_unit = sections.unit(header).with_context(|| {
-                format!(
-                    "failed to retrieve DWARF unit for unit header @ {}",
-                    format_offset(header.offset())
-                )
-            })?;
+                gimli::UnitType::Partial => {
+                    // Partial units are only needed for references from other units.
+                    // They shouldn't have any address ranges.
+                    false
+                }
+                _ => true,
+            };
+            let dw_unit = match sections.unit(header) {
+                Ok(dw_unit) => dw_unit,
+                Err(_) => continue,
+            };
 
+            let dw_unit_ref = gimli::UnitRef::new(&sections, &dw_unit);
             let mut lang = None;
-            let mut have_unit_range = false;
-            {
-                let mut entries = dw_unit.entries_raw(None)?;
+            if need_unit_range {
+                let mut entries = dw_unit_ref.entries_raw(None)?;
 
                 let abbrev = match entries.read_abbreviation()? {
                     Some(abbrev) => abbrev,
@@ -173,13 +163,12 @@ impl<'dwarf> Units<'dwarf> {
                                     unit_id,
                                     max_end: 0,
                                 });
-                                have_unit_range = true;
+                                need_unit_range = false;
                             }
                         }
                     }
                 } else {
-                    let unit = gimli::UnitRef::new(&sections, &dw_unit);
-                    have_unit_range |= ranges.for_each_range(unit, |range| {
+                    need_unit_range &= !ranges.for_each_range(dw_unit_ref, |range| {
                         unit_ranges.push(UnitRange {
                             range,
                             unit_id,
@@ -190,7 +179,7 @@ impl<'dwarf> Units<'dwarf> {
             }
 
             let lines = OnceCell::new();
-            if !have_unit_range {
+            if need_unit_range {
                 // The unit did not declare any ranges.
                 // Try to get some ranges from the line program sequences.
                 if let Some(ref ilnp) = dw_unit.line_program {
@@ -477,16 +466,6 @@ mod tests {
     use crate::dwarf::reader;
     use crate::elf::ElfParser;
 
-
-    /// Check that we can format a section offset as expected.
-    #[test]
-    fn offset_formatting() {
-        let offset = gimli::UnitSectionOffset::DebugInfoOffset(gimli::DebugInfoOffset(42usize));
-        assert_eq!(format_offset(offset), format!(".debug_info+0x0000002a"));
-
-        let offset = gimli::UnitSectionOffset::DebugTypesOffset(gimli::DebugTypesOffset(1337usize));
-        assert_eq!(format_offset(offset), format!(".debug_types+0x00000539"));
-    }
 
     /// Check that we can parse function and line information in various
     /// DWARF versions.
