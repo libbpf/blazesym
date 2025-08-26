@@ -248,6 +248,74 @@ pub(crate) struct Function<'dwarf> {
     pub(super) inlined_functions: OnceCell<gimli::Result<InlinedFunctions<'dwarf>>>,
 }
 
+impl<'dwarf> Function<'dwarf> {
+    fn parse_children(
+        entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
+        depth: isize,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
+        units: &Units<'dwarf>,
+        inlined_functions: &mut Vec<InlinedFunction<'dwarf>>,
+        inlined_addresses: &mut Vec<InlinedFunctionAddress>,
+        inlined_depth: usize,
+    ) -> Result<(), Error> {
+        loop {
+            let next_depth = entries.next_depth();
+            if next_depth <= depth {
+                return Ok(())
+            }
+            if let Some(abbrev) = entries.read_abbreviation()? {
+                match abbrev.tag() {
+                    gimli::DW_TAG_subprogram => {
+                        Function::skip(entries, abbrev, next_depth)?;
+                    }
+                    gimli::DW_TAG_inlined_subroutine => {
+                        InlinedFunction::parse(
+                            entries,
+                            abbrev,
+                            next_depth,
+                            unit,
+                            units,
+                            inlined_functions,
+                            inlined_addresses,
+                            inlined_depth,
+                        )?;
+                    }
+                    _ => {
+                        entries.skip_attributes(abbrev.attributes())?;
+                    }
+                }
+            }
+        }
+    }
+
+    pub(super) fn parse_inlined_functions(
+        &self,
+        unit: gimli::UnitRef<'_, R<'dwarf>>,
+        units: &Units<'dwarf>,
+    ) -> Result<&InlinedFunctions<'dwarf>, Error> {
+        self.inlined_functions
+            .get_or_init(|| InlinedFunctions::parse(self.dw_die_offset, unit, units))
+            .as_ref()
+            .map_err(|err| *err)
+    }
+
+
+    fn skip(
+        entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
+        abbrev: &gimli::Abbreviation,
+        depth: isize,
+    ) -> Result<(), Error> {
+        // TODO: use DW_AT_sibling
+        entries.skip_attributes(abbrev.attributes())?;
+        while entries.next_depth() > depth {
+            if let Some(abbrev) = entries.read_abbreviation()? {
+                entries.skip_attributes(abbrev.attributes())?;
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Debug for Function<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let Self {
@@ -409,74 +477,6 @@ impl<'dwarf> Functions<'dwarf> {
                 }
             })
             .ok()
-    }
-}
-
-impl<'dwarf> Function<'dwarf> {
-    fn parse_children(
-        entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
-        depth: isize,
-        unit: gimli::UnitRef<'_, R<'dwarf>>,
-        units: &Units<'dwarf>,
-        inlined_functions: &mut Vec<InlinedFunction<'dwarf>>,
-        inlined_addresses: &mut Vec<InlinedFunctionAddress>,
-        inlined_depth: usize,
-    ) -> Result<(), Error> {
-        loop {
-            let next_depth = entries.next_depth();
-            if next_depth <= depth {
-                return Ok(())
-            }
-            if let Some(abbrev) = entries.read_abbreviation()? {
-                match abbrev.tag() {
-                    gimli::DW_TAG_subprogram => {
-                        Function::skip(entries, abbrev, next_depth)?;
-                    }
-                    gimli::DW_TAG_inlined_subroutine => {
-                        InlinedFunction::parse(
-                            entries,
-                            abbrev,
-                            next_depth,
-                            unit,
-                            units,
-                            inlined_functions,
-                            inlined_addresses,
-                            inlined_depth,
-                        )?;
-                    }
-                    _ => {
-                        entries.skip_attributes(abbrev.attributes())?;
-                    }
-                }
-            }
-        }
-    }
-
-    pub(super) fn parse_inlined_functions(
-        &self,
-        unit: gimli::UnitRef<'_, R<'dwarf>>,
-        units: &Units<'dwarf>,
-    ) -> Result<&InlinedFunctions<'dwarf>, Error> {
-        self.inlined_functions
-            .get_or_init(|| InlinedFunctions::parse(self.dw_die_offset, unit, units))
-            .as_ref()
-            .map_err(|err| *err)
-    }
-
-
-    fn skip(
-        entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
-        abbrev: &gimli::Abbreviation,
-        depth: isize,
-    ) -> Result<(), Error> {
-        // TODO: use DW_AT_sibling
-        entries.skip_attributes(abbrev.attributes())?;
-        while entries.next_depth() > depth {
-            if let Some(abbrev) = entries.read_abbreviation()? {
-                entries.skip_attributes(abbrev.attributes())?;
-            }
-        }
-        Ok(())
     }
 }
 
