@@ -110,6 +110,17 @@ fn name_attr<'dwarf>(
 }
 
 
+struct InlinedState<'call, 'dwarf> {
+    // Mutable fields.
+    entries: gimli::EntriesRaw<'call, 'call, R<'dwarf>>,
+    functions: Vec<InlinedFunction<'dwarf>>,
+    addresses: Vec<InlinedFunctionAddress>,
+
+    // Constant fields.
+    unit: gimli::UnitRef<'call, R<'dwarf>>,
+    units: &'call Units<'dwarf>,
+}
+
 pub(super) struct InlinedFunction<'dwarf> {
     pub(crate) name: Option<R<'dwarf>>,
     pub(crate) call_file: Option<u64>,
@@ -118,15 +129,10 @@ pub(super) struct InlinedFunction<'dwarf> {
 }
 
 impl<'dwarf> InlinedFunction<'dwarf> {
-    #[allow(clippy::too_many_arguments)]
     fn parse(
-        entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
+        state: &mut InlinedState<'_, 'dwarf>,
         abbrev: &gimli::Abbreviation,
         depth: isize,
-        unit: gimli::UnitRef<'_, R<'dwarf>>,
-        units: &Units<'dwarf>,
-        inlined_functions: &mut Vec<InlinedFunction<'dwarf>>,
-        inlined_addresses: &mut Vec<InlinedFunctionAddress>,
         inlined_depth: usize,
     ) -> Result<(), Error> {
         let mut ranges = RangeAttributes::default();
@@ -135,39 +141,39 @@ impl<'dwarf> InlinedFunction<'dwarf> {
         let mut call_line = 0;
         let mut call_column = 0;
         for spec in abbrev.attributes() {
-            match entries.read_attribute(*spec) {
+            match state.entries.read_attribute(*spec) {
                 Ok(ref attr) => match attr.name() {
                     gimli::DW_AT_low_pc => match attr.value() {
                         gimli::AttributeValue::Addr(val) => ranges.low_pc = Some(val),
                         gimli::AttributeValue::DebugAddrIndex(index) => {
-                            ranges.low_pc = Some(unit.address(index)?);
+                            ranges.low_pc = Some(state.unit.address(index)?);
                         }
                         _ => {}
                     },
                     gimli::DW_AT_high_pc => match attr.value() {
                         gimli::AttributeValue::Addr(val) => ranges.high_pc = Some(val),
                         gimli::AttributeValue::DebugAddrIndex(index) => {
-                            ranges.high_pc = Some(unit.address(index)?);
+                            ranges.high_pc = Some(state.unit.address(index)?);
                         }
                         gimli::AttributeValue::Udata(val) => ranges.size = Some(val),
                         _ => {}
                     },
                     gimli::DW_AT_ranges => {
-                        ranges.ranges_offset = unit.attr_ranges_offset(attr.value())?;
+                        ranges.ranges_offset = state.unit.attr_ranges_offset(attr.value())?;
                     }
                     gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                        if let Ok(val) = unit.attr_string(attr.value()) {
+                        if let Ok(val) = state.unit.attr_string(attr.value()) {
                             name = Some(val);
                         }
                     }
                     gimli::DW_AT_name => {
                         if name.is_none() {
-                            name = unit.attr_string(attr.value()).ok();
+                            name = state.unit.attr_string(attr.value()).ok();
                         }
                     }
                     gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
                         if name.is_none() {
-                            name = name_attr(attr.value(), unit, units, 16)?;
+                            name = name_attr(attr.value(), state.unit, state.units, 16)?;
                         }
                     }
                     gimli::DW_AT_call_file => {
@@ -183,7 +189,7 @@ impl<'dwarf> InlinedFunction<'dwarf> {
                         // index of 0 as such.
                         // [1]: http://wiki.dwarfstd.org/index.php?title=DWARF5_Line_Table_File_Numbers
                         if let gimli::AttributeValue::FileIndex(fi) = attr.value() {
-                            if fi > 0 || unit.header.version() >= 5 {
+                            if fi > 0 || state.unit.header.version() >= 5 {
                                 call_file = Some(fi);
                             }
                         }
@@ -200,31 +206,23 @@ impl<'dwarf> InlinedFunction<'dwarf> {
             }
         }
 
-        let function_index = inlined_functions.len();
-        inlined_functions.push(InlinedFunction {
+        let function_index = state.functions.len();
+        state.functions.push(InlinedFunction {
             name,
             call_file,
             call_line,
             call_column,
         });
 
-        ranges.for_each_range(unit, |range| {
-            inlined_addresses.push(InlinedFunctionAddress {
+        ranges.for_each_range(state.unit, |range| {
+            state.addresses.push(InlinedFunctionAddress {
                 range,
                 call_depth: inlined_depth,
                 function: function_index,
             });
         })?;
 
-        Function::parse_children(
-            entries,
-            depth,
-            unit,
-            units,
-            inlined_functions,
-            inlined_addresses,
-            inlined_depth + 1,
-        )
+        Function::parse_children(state, depth, inlined_depth + 1)
     }
 }
 
@@ -262,17 +260,14 @@ impl<'dwarf> InlinedFunctions<'dwarf> {
         debug_assert_eq!(abbrev.tag(), gimli::DW_TAG_subprogram);
         let () = entries.skip_attributes(abbrev.attributes())?;
 
-        let mut inlined_functions = Vec::new();
-        let mut inlined_addresses = Vec::new();
-        Function::parse_children(
-            &mut entries,
-            depth,
+        let mut state = InlinedState {
+            entries,
+            functions: Vec::new(),
+            addresses: Vec::new(),
             unit,
             units,
-            &mut inlined_functions,
-            &mut inlined_addresses,
-            0,
-        )?;
+        };
+        Function::parse_children(&mut state, depth, 0)?;
 
         // Sort ranges in "breadth-first traversal order", i.e. first by
         // `call_depth` and then by `range.begin`. This allows finding
@@ -286,13 +281,13 @@ impl<'dwarf> InlinedFunctions<'dwarf> {
         // In this example, if you want to look up address 7 at depth 0,
         // and you encounter [0..2 at depth 1], are you before or after
         // the target range? You don't know.
-        inlined_addresses.sort_by(|r1, r2| {
+        state.addresses.sort_by(|r1, r2| {
             (r1.call_depth, r1.range.begin).cmp(&(r2.call_depth, r2.range.begin))
         });
 
         Ok(Self {
-            inlined_functions: inlined_functions.into_boxed_slice(),
-            inlined_addresses: inlined_addresses.into_boxed_slice(),
+            inlined_functions: state.functions.into_boxed_slice(),
+            inlined_addresses: state.addresses.into_boxed_slice(),
         })
     }
 
@@ -361,38 +356,25 @@ pub(crate) struct Function<'dwarf> {
 
 impl<'dwarf> Function<'dwarf> {
     fn parse_children(
-        entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
+        state: &mut InlinedState<'_, 'dwarf>,
         depth: isize,
-        unit: gimli::UnitRef<'_, R<'dwarf>>,
-        units: &Units<'dwarf>,
-        inlined_functions: &mut Vec<InlinedFunction<'dwarf>>,
-        inlined_addresses: &mut Vec<InlinedFunctionAddress>,
         inlined_depth: usize,
     ) -> Result<(), Error> {
         loop {
-            let next_depth = entries.next_depth();
+            let next_depth = state.entries.next_depth();
             if next_depth <= depth {
                 return Ok(())
             }
-            if let Some(abbrev) = entries.read_abbreviation()? {
+            if let Some(abbrev) = state.entries.read_abbreviation()? {
                 match abbrev.tag() {
                     gimli::DW_TAG_subprogram => {
-                        Function::skip(entries, abbrev, next_depth)?;
+                        Function::skip(&mut state.entries, abbrev, next_depth)?;
                     }
                     gimli::DW_TAG_inlined_subroutine => {
-                        InlinedFunction::parse(
-                            entries,
-                            abbrev,
-                            next_depth,
-                            unit,
-                            units,
-                            inlined_functions,
-                            inlined_addresses,
-                            inlined_depth,
-                        )?;
+                        InlinedFunction::parse(state, abbrev, next_depth, inlined_depth)?;
                     }
                     _ => {
-                        entries.skip_attributes(abbrev.attributes())?;
+                        state.entries.skip_attributes(abbrev.attributes())?;
                     }
                 }
             }
