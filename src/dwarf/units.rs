@@ -183,10 +183,9 @@ impl<'dwarf> Units<'dwarf> {
                 // The unit did not declare any ranges.
                 // Try to get some ranges from the line program sequences.
                 if let Some(ref ilnp) = dw_unit.line_program {
-                    if let Ok(lines) = lines.get_or_try_init_(|| {
-                        let unit = gimli::UnitRef::new(&sections, &dw_unit);
-                        Lines::parse(unit, ilnp.clone())
-                    }) {
+                    if let Ok(lines) =
+                        lines.get_or_try_init_(|| Lines::parse(dw_unit_ref, ilnp.clone()))
+                    {
                         for sequence in lines.sequences.iter() {
                             unit_ranges.push(UnitRange {
                                 range: gimli::Range {
