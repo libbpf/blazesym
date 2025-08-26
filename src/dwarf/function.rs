@@ -121,6 +121,7 @@ struct InlinedState<'call, 'dwarf> {
     units: &'call Units<'dwarf>,
 }
 
+#[derive(Debug)]
 pub(super) struct InlinedFunction<'dwarf> {
     pub(crate) name: Option<R<'dwarf>>,
     pub(crate) call_file: Option<u64>,

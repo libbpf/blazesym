@@ -79,12 +79,14 @@ fn render_file<'dwarf>(
 }
 
 
+#[derive(Debug)]
 pub(crate) struct LineSequence {
     pub(crate) start: u64,
     pub(crate) end: u64,
     pub(crate) rows: Box<[LineRow]>,
 }
 
+#[derive(Debug)]
 pub(crate) struct LineRow {
     pub(crate) address: u64,
     pub(crate) file_index: u64,
@@ -92,6 +94,7 @@ pub(crate) struct LineRow {
     pub(crate) column: u32,
 }
 
+#[derive(Debug)]
 pub(crate) struct Lines<'dwarf> {
     pub(crate) files: Box<[(Cow<'dwarf, Path>, &'dwarf OsStr)]>,
     pub(crate) sequences: Box<[LineSequence]>,
