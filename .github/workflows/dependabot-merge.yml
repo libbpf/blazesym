@@ -12,8 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'libbpf/blazesym'
     steps:
+      - uses: actions/checkout@v4
       - name: Check if Cargo.lock was modified
         id: check_cargo_lock
+        shell: bash
         run: |
           # For the time being, we only enable auto-merge for changes
           # confined to Cargo.lock.
