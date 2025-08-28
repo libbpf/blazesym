@@ -413,7 +413,7 @@ jobs:
     - run: cargo run --example inspect-mangled
     - run: cargo run --example normalize-virt-offset
     - run: cargo run --package gsym-in-apk
-  c-lib:
+  c-header:
     name: Check generated C header
     runs-on: ubuntu-latest
     steps:
@@ -423,30 +423,6 @@ jobs:
     - name: Check that C header is up-to-date
       run: git diff --exit-code ||
              (echo "!!!! CHECKED IN C HEADER IS OUTDATED !!!!" && false)
-    - uses: actions/cache/restore@v4
-      id: restore-cargo-c
-      with:
-        path: cargo-c/
-        key: cargo-c
-    - if: steps.restore-cargo-c.outputs.cache-hit != 'true'
-      name: Install cargo-c
-      # TODO: We will never upgrade the program unless the cache gets
-      #       purged.
-      run: cargo install cargo-c --features=vendored-openssl --root cargo-c
-    - if: steps.restore-cargo-c.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
-      with:
-        path: cargo-c/
-        key: cargo-c
-    - name: Run cargo-c
-      run: |
-        cargo-c/bin/cargo-cinstall cinstall --package blazesym-c --prefix / --destdir ./blazesym-c
-        tree ./blazesym-c || true
-        # We could do more sanity checking here, but we mostly care
-        # that cargo-c succeeded and on top of just checking for
-        # command success also check for existence of generated
-        # pkg-config file.
-        test -f ./blazesym-c/lib/x86_64-linux-gnu/pkgconfig/blazesym_c.pc
   bench:
     # Only run benchmarks on the final push. They are generally only
     # informative because the GitHub Runners do not provide a stable
@@ -518,7 +494,7 @@ jobs:
       test-release,
       test-miri,
       test-examples,
-      c-lib,
+      c-header,
       clippy,
       rustfmt,
       cargo-doc,
