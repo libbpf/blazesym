@@ -13,13 +13,14 @@ jobs:
     if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'libbpf/blazesym'
     steps:
       - uses: actions/checkout@v4
+      - run: git fetch origin ${{ github.base_ref }} --depth=1
       - name: Check if Cargo.lock was modified
         id: check_cargo_lock
         shell: bash
         run: |
           # For the time being, we only enable auto-merge for changes
           # confined to Cargo.lock.
-          if [ "$(git show --no-prefix --name-only --format='' HEAD)" = "Cargo.lock" ]; then
+          if [ "$(git diff --no-prefix --name-only origin/${{ github.base_ref }})" = "Cargo.lock" ]; then
             echo "enable_auto_merge=true" >> $GITHUB_OUTPUT
           else
             echo "enable_auto_merge=false" >> $GITHUB_OUTPUT
