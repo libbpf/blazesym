@@ -844,7 +844,6 @@ fn symbolize_dwarf_demangle() {
 
 /// Check that we can symbolize an address with inline function
 /// information inside a DWARF package.
-#[tag(other_os)]
 #[test]
 fn symbolize_rust_dwp() {
     fn test(test_dwarf: &Path, addr: Addr) -> Result<(), ()> {
