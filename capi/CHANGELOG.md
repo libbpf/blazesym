@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped `blazesym` dependency to `0.2.0-rc.5`
+
+
 0.1.3
 -----
 - Fixed potential panic when normalizing vDSO addresses

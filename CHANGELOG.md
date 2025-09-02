@@ -1,4 +1,4 @@
-Unreleased
+0.2.0-rc.5
 ----------
 - Added support for discovering and using DWARF packages (`*.dwp`)
 - Added `Symbolizer::register_elf_resolver` method
