@@ -30,7 +30,7 @@ jobs:
     outputs:
       kernel-artifact-id: ${{ steps.upload-linux-kernel.outputs.artifact-id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: actions/cache/restore@v4
         id: restore-cached-kernel
         with:
@@ -39,7 +39,7 @@ jobs:
             build/vmlinux
           key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ inputs.kernel-repo }}
           ref: ${{ inputs.rev }}
