@@ -75,12 +75,12 @@ To get a CPU profile in the form of a flamegraph, you can use
 flamegraph`). The following command will create a profile for the
 `bench_function_parsing_blazesym` benchmark, for example:
 ```sh
-$ cargo flamegraph --package=blazesym --unit-bench --root --features=nightly -- bench_function_parsing_blazesym
+$ RUSTFLAGS="-C force-frame-pointers=yes" cargo flamegraph -o /tmp/flamegraph.svg --cmd 'record -F 997 --call-graph dwarf,64000 -g -o /tmp/perf.dat' --package=blazesym --unit-bench --root --features=nightly -- bench_function_parsing_blazesym
 ```
 
 For Criterion based benchmarks, use:
 ```sh
-$ cargo flamegraph --bench=main --root --features=nightly -- symbolize_gsym_multi_no_setup --bench
+$ RUSTFLAGS="-C force-frame-pointers=yes" cargo flamegraph -o /tmp/flamegraph.svg --cmd 'record -F 997 --call-graph dwarf,64000 -g -o /tmp/perf.dat' --bench=main --root --features=nightly -- symbolize_gsym_multi_no_setup --bench
 ```
 
 
