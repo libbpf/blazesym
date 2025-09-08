@@ -13,6 +13,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
 
+void __stack_chk_fail(void) {}
 
 void _start(void) {
   char buf[2];
