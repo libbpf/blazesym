@@ -13,6 +13,9 @@ use crate::inspect::FindAddrOpts;
 use crate::inspect::ForEachFn;
 use crate::inspect::Inspect;
 use crate::inspect::SymInfo;
+use crate::log;
+#[cfg(not(windows))]
+use crate::mmap::Advice;
 use crate::mmap::Mmap;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
@@ -71,6 +74,17 @@ impl BreakpadResolver {
     pub(crate) fn from_file(path: PathBuf, file: &File) -> Result<Self> {
         let mmap = Mmap::map(file)
             .with_context(|| format!("failed to memory map breakpad file `{}`", path.display()))?;
+        // We are going to read the file in its entirety, so tell the
+        // kernel about that.
+        // Note that `PopulateRead` results in better performance still,
+        // but comes with the drawback of seemingly promoting the
+        // process to get killed earlier on OOM situations, which is not
+        // something we want to get into.
+        #[cfg(not(windows))]
+        if let Err(err) = mmap.advise(Advice::WillNeed) {
+            log::warn!("failed to madvise() mmap of `{}`: {err}", path.display());
+        }
+
         let slf = Self {
             symbol_file: SymbolFile::from_bytes(&mmap)
                 .with_context(|| format!("failed to parse Breakpad file `{}`", path.display()))?,
