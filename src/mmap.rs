@@ -11,6 +11,9 @@ use crate::Error;
 use crate::ErrorExt as _;
 use crate::Result;
 
+#[cfg(not(windows))]
+pub(crate) type Advice = memmap2::Advice;
+
 
 #[doc(hidden)]
 #[derive(Debug)]
@@ -91,6 +94,15 @@ impl Mmap {
     /// Map the provided file into memory, in its entirety.
     pub(crate) fn map(file: &File) -> Result<Self> {
         Self::builder().map(file)
+    }
+
+    /// Provide a hint about the mapping to the kernel.
+    #[cfg(not(windows))]
+    pub(crate) fn advise(&self, advise: Advice) -> Result<()> {
+        self.mapping
+            .as_ref()
+            .map(|mmap| mmap.advise(advise).map_err(Error::from))
+            .unwrap_or(Ok(()))
     }
 
     /// Create a new `Mmap` object (sharing the same underlying memory mapping
