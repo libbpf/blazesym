@@ -287,7 +287,7 @@ dependencies = [
  "thorin-dwp",
  "vmlinux",
  "xz2",
- "zip 5.0.0",
+ "zip 5.0.1",
  "zstd",
 ]
 
@@ -1000,7 +1000,7 @@ dependencies = [
  "blazesym",
  "blazesym-dev",
  "goblin 0.10.1",
- "zip 5.0.0",
+ "zip 5.0.1",
 ]
 
 [[package]]
@@ -3425,9 +3425,9 @@ dependencies = [
 
 [[package]]
 name = "zip"
-version = "5.0.0"
+version = "5.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9fdfa5f34b5980f2c21b3a2c68c09ade4debddc7be52c51056695effc73a08c"
+checksum = "c7bd5b91aa407cb977468d108ca3fede2c992ea44bb1d989e21756749d7dccff"
 dependencies = [
  "arbitrary",
  "crc32fast",
