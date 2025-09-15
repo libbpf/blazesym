@@ -19,8 +19,8 @@ use blazesym::Addr;
 const ADDR_WIDTH: usize = 16;
 
 
-fn print_frame(name: &str, addr_info: Option<(Addr, Addr, usize)>, code_info: &Option<CodeInfo>) {
-    let code_info = code_info.as_ref().map(|code_info| {
+fn print_frame(name: &str, addr_info: Option<(Addr, Addr, usize)>, code_info: Option<&CodeInfo>) {
+    let code_info = code_info.map(|code_info| {
         let path = code_info.to_path();
         let path = path.display();
 
@@ -84,9 +84,13 @@ fn main() -> Result<()> {
                 inlined,
                 ..
             }) => {
-                print_frame(&name, Some((input_addr, addr, offset)), &code_info);
+                print_frame(
+                    &name,
+                    Some((input_addr, addr, offset)),
+                    code_info.as_deref(),
+                );
                 for frame in inlined.iter() {
-                    print_frame(&frame.name, None, &frame.code_info);
+                    print_frame(&frame.name, None, frame.code_info.as_ref());
                 }
             }
             Symbolized::Unknown(..) => {

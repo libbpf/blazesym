@@ -316,7 +316,7 @@ impl GsymResolver<'_> {
             }
         }
 
-        sym.code_info = Some(line_tab_info);
+        sym.code_info = Some(Box::new(line_tab_info));
         sym.inlined = inlined.into_boxed_slice();
 
         Ok(())

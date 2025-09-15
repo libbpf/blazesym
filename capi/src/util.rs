@@ -45,6 +45,15 @@ where
     }
 }
 
+impl<T> DynSize for Box<T>
+where
+    T: DynSize,
+{
+    fn c_str_size(&self) -> usize {
+        self.as_ref().c_str_size()
+    }
+}
+
 impl<T> DynSize for [T]
 where
     T: DynSize,

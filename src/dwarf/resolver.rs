@@ -509,7 +509,7 @@ impl<'dwarf> Units<'dwarf> {
             Vec::new()
         };
 
-        sym.code_info = Some(direct_code_info);
+        sym.code_info = Some(Box::new(direct_code_info));
         sym.inlined = inlined.into_boxed_slice();
 
         Ok(())

@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Adjusted `symbolize::{Resolved,}Sym::code_info` to be heap allocated
 - Made `symbolize::ResolvedSym` non-exhaustive
 
 
