@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Made `symbolize::ResolvedSym` non-exhaustive
+
+
 0.2.0-rc.5
 ----------
 - Added support for discovering and using DWARF packages (`*.dwp`)

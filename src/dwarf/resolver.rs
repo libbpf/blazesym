@@ -325,6 +325,7 @@ impl Symbolize for DwarfResolver {
                 lang: unit.language().into(),
                 code_info: None,
                 inlined: Box::new([]),
+                _non_exhaustive: (),
             }
         } else {
             // Fall back to checking ELF for the symbol corresponding to

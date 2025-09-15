@@ -183,6 +183,7 @@ fn find_sym<'elf>(
                         // information.
                         code_info: None,
                         inlined: Box::new([]),
+                        _non_exhaustive: (),
                     };
                     return Ok(Some(sym))
                 }

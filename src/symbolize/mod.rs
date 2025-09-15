@@ -352,6 +352,9 @@ pub struct ResolvedSym<'src> {
     pub code_info: Option<CodeInfo<'src>>,
     /// Inlined function information.
     pub inlined: Box<[InlinedFn<'src>]>,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
 }
 
 

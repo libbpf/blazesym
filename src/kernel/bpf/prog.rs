@@ -379,6 +379,7 @@ impl BpfProg {
             lang: SrcLang::Unknown,
             code_info,
             inlined: Box::new([]),
+            _non_exhaustive: (),
         };
         Ok(sym)
     }

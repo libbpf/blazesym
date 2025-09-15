@@ -176,6 +176,7 @@ impl Symbolize for PerfMap {
                             lang: SrcLang::Unknown,
                             code_info: None,
                             inlined: Box::new([]),
+                            _non_exhaustive: (),
                         };
                         return Ok(Ok(sym))
                     }
