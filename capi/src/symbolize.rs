@@ -893,7 +893,7 @@ fn make_cstr(src: &OsStr, cstr_last: &mut *mut c_char) -> *mut c_char {
 }
 
 fn convert_code_info(
-    code_info_in: &Option<CodeInfo>,
+    code_info_in: Option<&CodeInfo>,
     code_info_out: &mut blaze_symbolize_code_info,
     cstr_last: &mut *mut c_char,
 ) {
@@ -942,7 +942,7 @@ pub(crate) fn convert_sym(
         .size
         .map(|size| isize::try_from(size).unwrap_or(isize::MAX))
         .unwrap_or(-1);
-    convert_code_info(&sym.code_info, &mut sym_ref.code_info, cstr_last);
+    convert_code_info(sym.code_info.as_deref(), &mut sym_ref.code_info, cstr_last);
     sym_ref.inlined_cnt = sym.inlined.len();
     sym_ref.inlined = *inlined_last;
     sym_ref.reason = blaze_symbolize_reason::SUCCESS;
@@ -952,7 +952,11 @@ pub(crate) fn convert_sym(
 
         let name_ptr = make_cstr(OsStr::new(inlined.name.as_ref()), cstr_last);
         inlined_ref.name = name_ptr;
-        convert_code_info(&inlined.code_info, &mut inlined_ref.code_info, cstr_last);
+        convert_code_info(
+            inlined.code_info.as_ref(),
+            &mut inlined_ref.code_info,
+            cstr_last,
+        );
 
         *inlined_last = unsafe { inlined_last.add(1) };
     }
@@ -1625,13 +1629,13 @@ mod tests {
             addr: 0x1337,
             offset: 0x1338,
             size: Some(42),
-            code_info: Some(CodeInfo {
+            code_info: Some(Box::new(CodeInfo {
                 dir: None,
                 file: OsStr::new("a-file").into(),
                 line: Some(42),
                 column: Some(43),
                 _non_exhaustive: (),
-            }),
+            })),
             inlined: vec![InlinedFn {
                 name: "inlined_fn".into(),
                 code_info: Some(CodeInfo {

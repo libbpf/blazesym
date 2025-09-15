@@ -349,7 +349,7 @@ pub struct ResolvedSym<'src> {
     /// The source code language from which the symbol originates.
     pub lang: SrcLang,
     /// Source code location information.
-    pub code_info: Option<CodeInfo<'src>>,
+    pub code_info: Option<Box<CodeInfo<'src>>>,
     /// Inlined function information.
     pub inlined: Box<[InlinedFn<'src>]>,
     /// The struct is non-exhaustive and open to extension.
@@ -391,7 +391,7 @@ pub struct Sym<'src> {
     /// The symbol's size, if available.
     pub size: Option<usize>,
     /// Source code location information for the symbol.
-    pub code_info: Option<CodeInfo<'src>>,
+    pub code_info: Option<Box<CodeInfo<'src>>>,
     /// Inlined function information, if requested and available.
     ///
     /// Availability depends on both the underlying symbolization source (e.g.,
@@ -430,7 +430,7 @@ impl Sym<'_> {
             addr,
             offset,
             size,
-            code_info: code_info.map(CodeInfo::into_owned),
+            code_info: code_info.map(|info| Box::new(info.into_owned())),
             inlined: Vec::from(inlined)
                 .into_iter()
                 .map(InlinedFn::into_owned)
@@ -631,6 +631,13 @@ mod tests {
             Reason::MissingSyms.to_string(),
             "symbolization source has no or no relevant symbols"
         );
+    }
+
+    /// Test forcing a double check of all `Sym` size changes.
+    #[cfg(target_pointer_width = "64")]
+    #[test]
+    fn sym_size() {
+        assert_eq!(size_of::<Sym>(), 104);
     }
 
     /// Check that [`Sym::into_owned`] works as expected.

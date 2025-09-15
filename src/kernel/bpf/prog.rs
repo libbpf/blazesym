@@ -377,7 +377,7 @@ impl BpfProg {
             //       Unsure.
             size: None,
             lang: SrcLang::Unknown,
-            code_info,
+            code_info: code_info.map(Box::new),
             inlined: Box::new([]),
             _non_exhaustive: (),
         };
