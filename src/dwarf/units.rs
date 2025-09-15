@@ -161,7 +161,16 @@ impl<'dwarf> Units<'dwarf> {
                     for (_, aranges_offset) in aranges[i..].iter().take_while(|x| x.0 == offset) {
                         let aranges_header = sections.debug_aranges.header(*aranges_offset)?;
                         let mut aranges = aranges_header.entries();
-                        while let Some(arange) = aranges.next()? {
+                        while let Some(arange) = aranges.next().transpose() {
+                            let Ok(arange) = arange else {
+                                // Ignore errors. In particular, this will ignore address overflow.
+                                // This has been seen for a unit that had a single variable
+                                // with rustc 1.89.0.
+                                //
+                                // This relies on `ArangeEntryIter::next` fusing for errors that
+                                // can't be ignored.
+                                continue;
+                            };
                             if arange.length() != 0 {
                                 unit_ranges.push(UnitRange {
                                     range: arange.range(),
@@ -172,8 +181,9 @@ impl<'dwarf> Units<'dwarf> {
                             }
                         }
                     }
-                } else {
-                    need_unit_range &= !ranges.for_each_range(dw_unit_ref, |range| {
+                }
+                if need_unit_range {
+                    need_unit_range = !ranges.for_each_range(dw_unit_ref, |range| {
                         unit_ranges.push(UnitRange {
                             range,
                             unit_id,
