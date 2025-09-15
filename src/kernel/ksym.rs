@@ -145,6 +145,7 @@ impl Kfunc {
             // kallsyms doesn't have source code location information.
             code_info: None,
             inlined: Box::new([]),
+            _non_exhaustive: (),
         };
         Ok(sym)
     }

@@ -212,6 +212,7 @@ impl Symbolize for BreakpadResolver {
             lang: SrcLang::Unknown,
             code_info: None,
             inlined: Box::new([]),
+            _non_exhaustive: (),
         };
         let () = self.fill_code_info(&mut sym, addr, opts, func)?;
 

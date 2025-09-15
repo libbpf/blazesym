@@ -206,6 +206,7 @@ impl Symbolize for GsymResolver<'_> {
                 lang,
                 code_info: None,
                 inlined: Box::new([]),
+                _non_exhaustive: (),
             };
             let () = self.fill_code_info(&mut sym, addr, opts, sym_addr, &info)?;
 

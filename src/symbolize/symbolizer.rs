@@ -179,6 +179,7 @@ pub(crate) fn symbolize_with_resolver<'slf>(
             lang,
             code_info,
             mut inlined,
+            _non_exhaustive: (),
         } = sym;
 
         let () = inlined.iter_mut().for_each(|inlined_fn| {
