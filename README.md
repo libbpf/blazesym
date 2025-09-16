@@ -94,6 +94,12 @@ For a quick set of examples please refer to the [`examples/` folder](examples/).
 Please refer to the [documentation](https://docs.rs/blazesym) for a
 comprehensive explanation of individual types and functions.
 
+#### Features
+The library comes with a set of compile-time features to statically
+enable/disable chosen functionality as necessary. Refer to the
+`[feature]` section in [`Cargo.toml`][cargo-toml-features] for
+information about those.
+
 
 ### C
 The companion crate [`blazesym-c`](capi/) provides the means for interfacing
@@ -118,4 +124,5 @@ Statically linked binaries for various target triples are available on-demand
 
 [blazecli-bins]: https://github.com/libbpf/blazesym/actions/workflows/build-cli.yml
 [cargo-semver]: https://doc.rust-lang.org/cargo/reference/resolver.html#semver-compatibility
+[cargo-toml-features]: https://github.com/libbpf/blazesym/blob/main/Cargo.toml#:~:text=%5Bfeatures%5D
 [strobelight]: https://engineering.fb.com/2025/01/21/production-engineering/strobelight-a-profiling-service-built-on-open-source-technology/
