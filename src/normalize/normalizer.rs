@@ -90,13 +90,13 @@ impl Builder {
     /// functionality.
     ///
     /// # Notes
-    /// Support for this ioctl is only present in very recent kernels
-    /// (likely: 6.11+). See <https://lwn.net/Articles/979931/> for
+    /// Support for this ioctl is only present on kernels of version
+    /// 6.11 or higher. See <https://lwn.net/Articles/979931/> for
     /// details.
     ///
     /// Furthermore, the ioctl will also be used for retrieving build
     /// IDs (if enabled). Build ID reading logic in the kernel is known
-    /// to be incomplete, with a fix slated to be included only with
+    /// to be incomplete in 6.11 and earlier, but a fix included with
     /// 6.12.
     pub fn enable_procmap_query(mut self, enable: bool) -> Builder {
         self.use_procmap_query = enable;
