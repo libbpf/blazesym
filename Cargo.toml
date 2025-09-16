@@ -108,7 +108,8 @@ dwarf = ["dep:gimli"]
 # Enable this feature to enable Gsym support.
 gsym = []
 # Emit `tracing` traces and configure spans. User code is responsible for
-# subscribing.
+# subscribing. Refer to the documentation of the [tracing] crate.
+# [tracing]: https://github.com/tokio-rs/tracing
 tracing = ["dep:tracing"]
 # Enable this feature to enable support for zlib decompression. This is
 # currently only used for handling compressed debug information.
