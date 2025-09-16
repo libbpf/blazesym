@@ -269,7 +269,7 @@ pub struct Process {
     /// built with the `dwarf` feature to actually consult debug
     /// symbols. If neither is satisfied, ELF symbols will be used.
     pub debug_syms: bool,
-    /// Whether to incorporate a process' [perf map][] file into the
+    /// Whether to incorporate a process' [perf map] file into the
     /// symbolization procedure.
     ///
     /// Perf map files mostly have relevance in just-in-time compiled languages,

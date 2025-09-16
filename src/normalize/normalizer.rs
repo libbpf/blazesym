@@ -341,7 +341,7 @@ impl Normalizer {
 
     /// Normalize addresses belonging to a process.
     ///
-    /// A convenience wrapper around [`Normalizer::normalize_user_addrs_opts`][]
+    /// A convenience wrapper around [`Normalizer::normalize_user_addrs_opts`]
     /// that uses the default normalization options.
     pub fn normalize_user_addrs(&self, pid: Pid, addrs: &[Addr]) -> Result<UserOutput<'_>> {
         self.normalize_user_addrs_opts(pid, addrs, &NormalizeOpts::default())
