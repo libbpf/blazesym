@@ -22,13 +22,16 @@ use crate::Addr;
 
 
 #[cfg(feature = "tracing")]
-pub(crate) struct Hexify<'addrs>(pub &'addrs [Addr]);
+pub(crate) struct Hexify<T>(pub T);
 
 #[cfg(feature = "tracing")]
-impl Debug for Hexify<'_> {
+impl<T> Debug for Hexify<T>
+where
+    T: AsRef<[Addr]>,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         let mut lst = f.debug_list();
-        for addr in self.0 {
+        for addr in self.0.as_ref() {
             let _lst = lst.entry(&format_args!("{addr:#x}"));
         }
         lst.finish()
