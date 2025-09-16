@@ -972,8 +972,9 @@ where
     /// A cache for relevant parts of the ELF file.
     // SAFETY: We must not hand out references with a 'static lifetime to
     //         this member. Rather, they should never outlive `self`.
-    //         Furthermore, this member has to be listed before `_mmap`
-    //         to make sure we never end up with a dangling reference.
+    //         Furthermore, this member has to be listed before
+    //         `_backend` to make sure we never end up with a dangling
+    //         reference.
     cache: Cache<'static, B::ImplTy<'static>>,
     /// The "module" that this parser represents.
     ///
