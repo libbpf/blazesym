@@ -536,8 +536,9 @@ impl<'src> Symbolized<'src> {
 
 
 /// A trait helping with upcasting into a `dyn Symbolize`.
-// TODO: This trait is currently necessary because Rust does not yet support
-//       trait upcasting on stable (check `trait_upcasting` feature).
+// TODO: This trait is currently necessary because our MSRV is <1.86.
+//       Once we upgrade to that, we can make use of "native" upcasting
+//       support on stable.
 #[doc(hidden)]
 pub trait AsSymbolize {
     fn as_symbolize(&self) -> &dyn Symbolize;
