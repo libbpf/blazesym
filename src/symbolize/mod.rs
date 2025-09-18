@@ -353,6 +353,9 @@ pub struct ResolvedSym<'src> {
     /// Inlined function information.
     pub inlined: Box<[InlinedFn<'src>]>,
     /// The struct is non-exhaustive and open to extension.
+    // TODO: In the future we may want to make this type exhaustive to
+    //       allow users to construct it easily themselves, in order to
+    //       enable usage of custom "resolvers".
     #[doc(hidden)]
     pub _non_exhaustive: (),
 }
