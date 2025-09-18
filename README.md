@@ -34,15 +34,11 @@ guaranteed to build with `1.63` and higher.
 
 
 ## Status
-**blazesym** is at the core of Meta's continuous profiling solution,
-[Strobelight][strobelight], where it handles billions of symbolization
-requests per day. It also powers the company's crash dump backtrace
-symbolization and is helping developers identify performance bottlenecks
-across millions of Quest Virtual Reality devices.
-
-The library is being actively worked on, with a major goal being stabilization
-of the API surface. Feel free to contribute with discussions, feature
-suggestions, or code contributions!
+**blazesym** is being used in production: it is at the core of Meta's continuous
+profiling solution, [Strobelight][strobelight], where it handles billions of
+symbolization requests per day. It also powers the company's crash dump
+backtrace symbolization and is helping developers identify performance
+bottlenecks across millions of Quest Virtual Reality devices.
 
 As alluded to above, the library provides support for a variety of formats. For
 symbolization specifically, the following table lays out what features each
@@ -87,7 +83,7 @@ project manager (e.g., `cargo build`).
 Consumption from a Rust project should happen via `Cargo.toml`:
 ```toml
 [dependencies]
-blazesym = "=0.2.0-rc.5"
+blazesym = "0.2"
 ```
 
 For a quick set of examples please refer to the [`examples/` folder](examples/).
