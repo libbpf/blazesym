@@ -59,6 +59,10 @@ impl Builder {
         } else {
             let opts = MmapOptions::new();
 
+            // SAFETY: The library doesn't modify mmap'ed data, but we cannot
+            //         control users modifying files behind our back. This is a
+            //         systemic problem of contemporary memory mapping
+            //         implementations.
             let mapping = if self.exec {
                 unsafe { opts.map_exec(file) }
             } else {
