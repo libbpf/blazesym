@@ -11,7 +11,7 @@ name = "gsym-in-apk"
 path = "main.rs"
 
 [dependencies]
-blazesym = {version = "=0.2.0-rc.5", path = "../..", default-features = false, features = [
+blazesym = {version = "0.2", path = "../..", default-features = false, features = [
   "apk",
   "gsym",
 ]}
