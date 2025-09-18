@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped `blazesym` dependency to `0.2.0`
+
+
 0.1.11
 ------
 - Bumped `blazesym` dependency to `0.2.0-rc.5`
