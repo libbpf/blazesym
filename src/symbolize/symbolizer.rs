@@ -1173,7 +1173,6 @@ impl Symbolizer {
         Ok(())
     }
 
-    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = ?input.map(Hexify)), err))]
     fn symbolize_impl<'in_, 'slf, A>(
         &'slf self,
         src: &Source,
@@ -1270,11 +1269,9 @@ impl Symbolizer {
                             .collect();
                         Ok(symbols)
                     }
-                    Input::AbsAddr(..) => {
-                        return Err(Error::with_unsupported(
-                            "ELF symbolization does not support absolute address inputs",
-                        ))
-                    }
+                    Input::AbsAddr(..) => Err(Error::with_unsupported(
+                        "ELF symbolization does not support absolute address inputs",
+                    )),
                     Input::FileOffset(offsets) => {
                         let symbols = offsets
                             .as_ref()
@@ -1447,6 +1444,7 @@ impl Symbolizer {
     /// | BPF program | symbol size                      | no (?)               | no                     |
     /// |             | source code location information | yes                  | yes                    |
     /// |             | inlined function information     | no                   | no                     |
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = ?input.map(Hexify)), err))]
     pub fn symbolize<'slf>(
         &'slf self,
         src: &Source,
