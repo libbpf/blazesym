@@ -132,14 +132,14 @@ fn maybe_demangle_impl(name: Cow<'_, str>, language: SrcLang) -> Cow<'_, str> {
             .map(|x| Cow::Owned(format!("{x:#}"))),
         SrcLang::Cpp => cpp_demangle::Symbol::new(name.as_ref())
             .ok()
-            .and_then(|x| x.demangle(&Default::default()).ok().map(Cow::Owned)),
+            .and_then(|x| x.demangle().ok().map(Cow::Owned)),
         SrcLang::Unknown => rustc_demangle::try_demangle(name.as_ref())
             .map(|x| Cow::Owned(format!("{x:#}")))
             .ok()
             .or_else(|| {
                 cpp_demangle::Symbol::new(name.as_ref())
                     .ok()
-                    .and_then(|sym| sym.demangle(&Default::default()).ok().map(Cow::Owned))
+                    .and_then(|sym| sym.demangle().ok().map(Cow::Owned))
             }),
     }
     .unwrap_or(name)

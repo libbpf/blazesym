@@ -17,7 +17,7 @@ version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b5d307320b3181d6d7954e663bd7c774a838b8220fe0593c86d9fb09f498b4b"
 dependencies = [
- "cpp_demangle",
+ "cpp_demangle 0.4.5",
  "fallible-iterator 0.3.0",
  "gimli 0.32.3",
  "memmap2",
@@ -235,7 +235,7 @@ dependencies = [
  "anyhow",
  "blazesym",
  "blazesym-dev",
- "cpp_demangle",
+ "cpp_demangle 0.5.0",
  "criterion",
  "gimli 0.32.3",
  "libc",
@@ -497,9 +497,18 @@ checksum = "5b63caa9aa9397e2d9480a9b13673856c78d8ac123288526c37d7839f2a86990"
 
 [[package]]
 name = "cpp_demangle"
-version = "0.4.4"
+version = "0.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96e58d342ad113c2b878f16d5d034c03be492ae460cdbc02b7f0f2284d310c7d"
+checksum = "f2bb79cb74d735044c972aae58ed0aaa9a837e85b01106a54c39e42e97f62253"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "cpp_demangle"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dcc405d55da54ad965aff198909afdcc8aeefc8ac6ba26d6abd19aa8aeacb2a"
 dependencies = [
  "cfg-if",
 ]
@@ -2451,7 +2460,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d234917f7986498e7f62061438cee724bafb483fe84cfbe2486f68dce48240d7"
 dependencies = [
  "cc",
- "cpp_demangle",
+ "cpp_demangle 0.4.5",
  "msvc-demangler",
  "rustc-demangle",
  "symbolic-common",
