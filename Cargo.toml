@@ -167,7 +167,7 @@ lto = false
 codegen-units = 256
 
 [dependencies]
-cpp_demangle = {version = "0.4", optional = true}
+cpp_demangle = {version = "0.5", optional = true}
 gimli = {version = "0.32", optional = true}
 libc = "0.2"
 memmap2 = {version = "0.9", default-features = false}
