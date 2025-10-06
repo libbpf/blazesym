@@ -88,8 +88,9 @@ pub struct Mmap {
     view: Range<u64>,
 }
 
+#[allow(rustdoc::private_intra_doc_links)]
 impl Mmap {
-    /// Create [`Builder`] for creating a customizable memory mapping.
+    /// Create a [`Builder`] for creating a customizable memory mapping.
     #[doc(hidden)]
     pub fn builder() -> Builder {
         Builder::new()
