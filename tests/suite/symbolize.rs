@@ -922,10 +922,16 @@ fn symbolize_process() {
     );
 
     let result = results[1].as_sym().unwrap();
-    // It's not entirely clear why we have seen two different demangled
-    // symbols, but they both seem legit.
     assert!(
-        result.name == "blazesym::symbolize::symbolizer::Symbolizer::symbolize"
+        // We accept this simple symbolization in case the user has
+        // only enabled minimal debug information enabled. This is
+        // necessary because right now it appears that project-wide
+        // debug settings can't overwrite global ones.
+        // https://github.com/rust-lang/cargo/issues/16080
+        result.name == "symbolize"
+            // It's not entirely clear why we have seen two different demangled
+            // symbols, but they both seem legit.
+            || result.name == "blazesym::symbolize::symbolizer::Symbolizer::symbolize"
             || result.name == "<blazesym::symbolize::symbolizer::Symbolizer>::symbolize",
         "{}",
         result.name
