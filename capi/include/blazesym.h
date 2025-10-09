@@ -277,6 +277,10 @@ typedef uint8_t blaze_normalize_reason;
  * The address could not be found in the symbolization source.
  */
 #define BLAZE_NORMALIZE_REASON_UNKNOWN_ADDR 5
+/**
+ * An error prevented the symbolization of the address from succeeding.
+ */
+#define BLAZE_NORMALIZE_REASON_IGNORED_ERROR 7
 
 /**
  * The valid variant kind in [`blaze_user_meta`].
@@ -443,6 +447,10 @@ typedef uint8_t blaze_symbolize_reason;
  * The address belonged to an entity that is currently unsupported.
  */
 #define BLAZE_SYMBOLIZE_REASON_UNSUPPORTED 6
+/**
+ * An error prevented the symbolization of the address from succeeding.
+ */
+#define BLAZE_SYMBOLIZE_REASON_IGNORED_ERROR 7
 
 /**
  * The result of symbolization of an address.

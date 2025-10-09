@@ -499,6 +499,8 @@ impl blaze_normalize_reason {
     pub const MISSING_SYMS: blaze_normalize_reason = blaze_normalize_reason(4);
     /// The address could not be found in the symbolization source.
     pub const UNKNOWN_ADDR: blaze_normalize_reason = blaze_normalize_reason(5);
+    /// An error prevented the symbolization of the address from succeeding.
+    pub const IGNORED_ERROR: blaze_normalize_reason = blaze_normalize_reason(7);
 }
 
 impl From<Reason> for blaze_normalize_reason {
@@ -510,6 +512,7 @@ impl From<Reason> for blaze_normalize_reason {
             Reason::InvalidFileOffset => blaze_normalize_reason::INVALID_FILE_OFFSET,
             Reason::MissingSyms => blaze_normalize_reason::MISSING_SYMS,
             Reason::UnknownAddr => blaze_normalize_reason::UNKNOWN_ADDR,
+            Reason::IgnoredError => blaze_normalize_reason::IGNORED_ERROR,
             _ => unreachable!(),
         }
     }
@@ -530,6 +533,7 @@ pub extern "C" fn blaze_normalize_reason_str(reason: blaze_normalize_reason) -> 
         }
         blaze_normalize_reason::MISSING_SYMS => Reason::MissingSyms.as_bytes().as_ptr().cast(),
         blaze_normalize_reason::UNKNOWN_ADDR => Reason::UnknownAddr.as_bytes().as_ptr().cast(),
+        blaze_normalize_reason::IGNORED_ERROR => Reason::IgnoredError.as_bytes().as_ptr().cast(),
         _ => b"unknown reason\0".as_ptr().cast(),
     }
 }
@@ -983,6 +987,7 @@ mod tests {
             ),
             (Reason::MissingSyms, blaze_normalize_reason::MISSING_SYMS),
             (Reason::UnknownAddr, blaze_normalize_reason::UNKNOWN_ADDR),
+            (Reason::IgnoredError, blaze_normalize_reason::IGNORED_ERROR),
         ];
 
         for (reason, expected) in data {
