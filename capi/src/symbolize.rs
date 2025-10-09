@@ -481,6 +481,8 @@ impl blaze_symbolize_reason {
     pub const UNKNOWN_ADDR: blaze_symbolize_reason = blaze_symbolize_reason(5);
     /// The address belonged to an entity that is currently unsupported.
     pub const UNSUPPORTED: blaze_symbolize_reason = blaze_symbolize_reason(6);
+    /// An error prevented the symbolization of the address from succeeding.
+    pub const PERMITTED_ERROR: blaze_symbolize_reason = blaze_symbolize_reason(7);
 }
 
 
@@ -493,6 +495,7 @@ impl From<Reason> for blaze_symbolize_reason {
             Reason::MissingSyms => blaze_symbolize_reason::MISSING_SYMS,
             Reason::Unsupported => blaze_symbolize_reason::UNSUPPORTED,
             Reason::UnknownAddr => blaze_symbolize_reason::UNKNOWN_ADDR,
+            Reason::PermittedError => blaze_symbolize_reason::PERMITTED_ERROR,
             _ => unreachable!(),
         }
     }
@@ -515,6 +518,9 @@ pub extern "C" fn blaze_symbolize_reason_str(reason: blaze_symbolize_reason) -> 
         blaze_symbolize_reason::MISSING_SYMS => Reason::MissingSyms.as_bytes().as_ptr().cast(),
         blaze_symbolize_reason::UNKNOWN_ADDR => Reason::UnknownAddr.as_bytes().as_ptr().cast(),
         blaze_symbolize_reason::UNSUPPORTED => Reason::Unsupported.as_bytes().as_ptr().cast(),
+        blaze_symbolize_reason::PERMITTED_ERROR => {
+            Reason::PermittedError.as_bytes().as_ptr().cast()
+        }
         _ => b"unknown reason\0".as_ptr().cast(),
     }
 }
@@ -1613,6 +1619,10 @@ mod tests {
             (Reason::MissingSyms, blaze_symbolize_reason::MISSING_SYMS),
             (Reason::Unsupported, blaze_symbolize_reason::UNSUPPORTED),
             (Reason::UnknownAddr, blaze_symbolize_reason::UNKNOWN_ADDR),
+            (
+                Reason::PermittedError,
+                blaze_symbolize_reason::PERMITTED_ERROR,
+            ),
         ];
 
         for (reason, expected) in data {
