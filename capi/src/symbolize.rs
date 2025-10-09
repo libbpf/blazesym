@@ -1084,7 +1084,7 @@ unsafe fn blaze_symbolize_impl(
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
 /// - `src` needs to point to a valid [`blaze_symbolize_src_process`] object
-/// - `abs_addrs` point to an array of `abs_addr_cnt` addresses
+/// - `abs_addrs` needs to point to an array of `abs_addr_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
     symbolizer: *mut blaze_symbolizer,
@@ -1117,7 +1117,7 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
 /// - `src` needs to point to a valid [`blaze_symbolize_src_kernel`] object
-/// - `abs_addrs` point to an array of `abs_addr_cnt` addresses
+/// - `abs_addrs` needs to point to an array of `abs_addr_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
     symbolizer: *mut blaze_symbolizer,
@@ -1150,7 +1150,7 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
 /// - `src` needs to point to a valid [`blaze_symbolize_src_elf`] object
-/// - `virt_offsets` point to an array of `virt_offset_cnt` addresses
+/// - `virt_offsets` needs to point to an array of `virt_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
@@ -1189,7 +1189,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
 /// - `src` needs to point to a valid [`blaze_symbolize_src_elf`] object
-/// - `file_offsets` point to an array of `file_offset_cnt` addresses
+/// - `file_offsets` needs to point to an array of `file_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
     symbolizer: *mut blaze_symbolizer,
@@ -1229,7 +1229,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
 /// - `src` needs to point to a valid [`blaze_symbolize_src_gsym_data`] object
-/// - `virt_offsets` point to an array of `virt_offset_cnt` addresses
+/// - `virt_offsets` needs to point to an array of `virt_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
@@ -1268,7 +1268,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
 /// # Safety
 /// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
 /// - `src` needs to point to a valid [`blaze_symbolize_src_gsym_file`] object
-/// - `virt_offsets` point to an array of `virt_offset_cnt` addresses
+/// - `virt_offsets` needs to point to an array of `virt_offset_cnt` addresses
 #[no_mangle]
 pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
     symbolizer: *mut blaze_symbolizer,
