@@ -23,6 +23,7 @@ use blazesym::symbolize::CodeInfo;
 use blazesym::symbolize::Input;
 use blazesym::symbolize::Reason;
 use blazesym::symbolize::Sym;
+use blazesym::symbolize::SymbolizeOpts;
 use blazesym::symbolize::Symbolized;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
@@ -706,6 +707,57 @@ impl Default for blaze_symbolizer_opts {
 }
 
 
+/// Options influencing the address symbolization process.
+#[repr(C)]
+#[derive(Debug)]
+pub struct blaze_symbolize_opts {
+    /// The size of this object's type.
+    ///
+    /// Make sure to initialize it to `sizeof(<type>)`. This member is used to
+    /// ensure compatibility in the presence of member additions.
+    pub type_size: usize,
+    /// Whether or not to operate in permissive mode.
+    ///
+    /// In permissive mode batch address symbolization does not
+    /// short-circuit on error but keeps going. Failure to symbolize an
+    /// individual addresses will be communicated via the
+    /// [`Unknown`][Symbolized::Unknown] variant of the corresponding
+    /// [`Symbolized`] object.
+    ///
+    /// Note that this does not make symbolization infallible: failure
+    /// of an operation affecting all addresses (such as opening the ELF
+    /// file) will still be reported as regular error.
+    pub permissive: bool,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 23],
+}
+
+impl Default for blaze_symbolize_opts {
+    fn default() -> Self {
+        Self {
+            type_size: mem::size_of::<Self>(),
+            permissive: false,
+            reserved: [0; 23],
+        }
+    }
+}
+
+impl From<blaze_symbolize_opts> for SymbolizeOpts {
+    fn from(opts: blaze_symbolize_opts) -> Self {
+        let blaze_symbolize_opts {
+            type_size: _,
+            permissive,
+            reserved: _,
+        } = opts;
+        Self {
+            permissive,
+            _non_exhaustive: (),
+        }
+    }
+}
+
+
 /// Create an instance of a symbolizer.
 ///
 /// C ABI compatible version of [`blazesym::symbolize::Symbolizer::new()`].
@@ -1034,6 +1086,7 @@ unsafe fn blaze_symbolize_impl(
     src: Source<'_>,
     inputs: Input<*const u64>,
     input_cnt: usize,
+    opts: *const blaze_symbolize_opts,
 ) -> *const blaze_syms {
     // SAFETY: The caller ensures that the pointer is valid.
     let symbolizer = unsafe { &*symbolizer };
@@ -1047,7 +1100,19 @@ unsafe fn blaze_symbolize_impl(
         Input::FileOffset(..) => Input::FileOffset(addrs.deref()),
     };
 
-    let result = symbolizer.symbolize(&src, input);
+    let result = if opts.is_null() {
+        symbolizer.symbolize(&src, input)
+    } else {
+        if !input_zeroed!(opts, blaze_symbolize_opts) {
+            let () = set_last_err(blaze_err::INVALID_INPUT);
+            return ptr::null()
+        }
+        let opts = input_sanitize!(opts, blaze_symbolize_opts);
+        let opts = SymbolizeOpts::from(opts);
+
+        symbolizer.symbolize_opts(&src, input, &opts)
+    };
+
     match result {
         Ok(results) if results.is_empty() => {
             let () = set_last_err(blaze_err::OK);
@@ -1099,7 +1164,15 @@ pub unsafe extern "C" fn blaze_symbolize_process_abs_addrs(
     let src = input_sanitize!(src, blaze_symbolize_src_process);
     let src = Source::from(Process::from(src));
 
-    unsafe { blaze_symbolize_impl(symbolizer, src, Input::AbsAddr(abs_addrs), abs_addr_cnt) }
+    unsafe {
+        blaze_symbolize_impl(
+            symbolizer,
+            src,
+            Input::AbsAddr(abs_addrs),
+            abs_addr_cnt,
+            ptr::null(),
+        )
+    }
 }
 
 
@@ -1132,7 +1205,15 @@ pub unsafe extern "C" fn blaze_symbolize_kernel_abs_addrs(
     let src = input_sanitize!(src, blaze_symbolize_src_kernel);
     let src = Source::from(Kernel::from(src));
 
-    unsafe { blaze_symbolize_impl(symbolizer, src, Input::AbsAddr(abs_addrs), abs_addr_cnt) }
+    unsafe {
+        blaze_symbolize_impl(
+            symbolizer,
+            src,
+            Input::AbsAddr(abs_addrs),
+            abs_addr_cnt,
+            ptr::null(),
+        )
+    }
 }
 
 
@@ -1171,9 +1252,55 @@ pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets(
             src,
             Input::VirtOffset(virt_offsets),
             virt_offset_cnt,
+            ptr::null(),
         )
     }
 }
+
+
+/// Symbolize virtual offsets in an ELF file, providing additional
+/// symbolization options.
+///
+/// On success, the function returns a [`blaze_syms`] containing an
+/// array of `virt_offset_cnt` [`blaze_sym`] objects. The returned
+/// object should be released using [`blaze_syms_free`] once it is no
+/// longer needed.
+///
+/// On error, the function returns `NULL` and sets the thread's last error to
+/// indicate the problem encountered. Use [`blaze_err_last`] to retrieve this
+/// error.
+///
+/// # Safety
+/// - `symbolizer` needs to point to a valid [`blaze_symbolizer`] object
+/// - `src` needs to point to a valid [`blaze_symbolize_src_elf`] object
+/// - `virt_offsets` needs to point to an array of `virt_offset_cnt` addresses
+/// - `opts` needs to point to a valid `blaze_symbolize_opts` object
+#[no_mangle]
+pub unsafe extern "C" fn blaze_symbolize_elf_virt_offsets_opts(
+    symbolizer: *mut blaze_symbolizer,
+    src: *const blaze_symbolize_src_elf,
+    virt_offsets: *const Addr,
+    virt_offset_cnt: usize,
+    opts: *const blaze_symbolize_opts,
+) -> *const blaze_syms {
+    if !input_zeroed!(src, blaze_symbolize_src_elf) {
+        let () = set_last_err(blaze_err::INVALID_INPUT);
+        return ptr::null()
+    }
+    let src = input_sanitize!(src, blaze_symbolize_src_elf);
+    let src = Source::from(Elf::from(src));
+
+    unsafe {
+        blaze_symbolize_impl(
+            symbolizer,
+            src,
+            Input::VirtOffset(virt_offsets),
+            virt_offset_cnt,
+            opts,
+        )
+    }
+}
+
 
 /// Symbolize file offsets in an ELF file.
 ///
@@ -1210,6 +1337,7 @@ pub unsafe extern "C" fn blaze_symbolize_elf_file_offsets(
             src,
             Input::FileOffset(file_offsets),
             file_offset_cnt,
+            ptr::null(),
         )
     }
 }
@@ -1249,6 +1377,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_data_virt_offsets(
             src,
             Input::VirtOffset(virt_offsets),
             virt_offset_cnt,
+            ptr::null(),
         )
     }
 }
@@ -1289,6 +1418,7 @@ pub unsafe extern "C" fn blaze_symbolize_gsym_file_virt_offsets(
             src,
             Input::VirtOffset(virt_offsets),
             virt_offset_cnt,
+            ptr::null(),
         )
     }
 }
@@ -1352,6 +1482,7 @@ mod tests {
         assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_data>(), 40);
         assert_eq!(mem::size_of::<blaze_symbolize_src_gsym_file>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolizer_opts>(), 48);
+        assert_eq!(mem::size_of::<blaze_symbolize_opts>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_code_info>(), 32);
         assert_eq!(mem::size_of::<blaze_symbolize_inlined_fn>(), 48);
         assert_eq!(mem::size_of::<blaze_sym>(), 104);
@@ -1812,6 +1943,40 @@ mod tests {
         test(symbolize, true);
     }
 
+    /// Check that `blaze_symbolize_elf_virt_offsets_opts` fails if the
+    /// input source does not have reserved fields set to zero.
+    #[test]
+    fn symbolize_elf_virt_offset_opts_non_zero_reserved() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addrs.bin");
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let elf_src = blaze_symbolize_src_elf {
+            path: path_c.as_ptr(),
+            ..Default::default()
+        };
+
+        let addrs = [blaze_symbolizer_new as Addr];
+        let mut opts = blaze_symbolize_opts::default();
+        opts.reserved[1] = 1;
+
+        let symbolizer = blaze_symbolizer_new();
+
+        let result = unsafe {
+            blaze_symbolize_elf_virt_offsets_opts(
+                symbolizer,
+                &elf_src,
+                addrs.as_ptr(),
+                addrs.len(),
+                &opts,
+            )
+        };
+        assert_eq!(result, ptr::null());
+        assert_eq!(blaze_err_last(), blaze_err::INVALID_INPUT);
+
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
 
     /// Check that we can symbolize a file offset in an ELF file.
     #[test]
@@ -2179,8 +2344,18 @@ mod tests {
 
         let symbolizer = blaze_symbolizer_new();
         let addrs = [blaze_symbolizer_new as Addr];
+        let opts = blaze_symbolize_opts {
+            permissive: true,
+            ..Default::default()
+        };
         let result = unsafe {
-            blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
+            blaze_symbolize_elf_virt_offsets_opts(
+                symbolizer,
+                &elf_src,
+                addrs.as_ptr(),
+                addrs.len(),
+                &opts,
+            )
         };
         assert!(result.is_null());
         assert_eq!(blaze_err_last(), blaze_err::NOT_FOUND);

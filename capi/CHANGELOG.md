@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Introduced `blaze_symbolize_elf_virt_offsets_opts` function for
+  symbolization with non-default options
+
+
 0.1.5
 -----
 - Bumped `blazesym` dependency to `0.2.0`
