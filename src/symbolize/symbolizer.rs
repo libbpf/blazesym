@@ -214,6 +214,30 @@ pub(crate) fn symbolize_with_resolver<'slf>(
     Ok(Symbolized::Sym(sym))
 }
 
+
+/// Options influencing the address symbolization process.
+///
+/// By default all options are disabled.
+#[derive(Clone, Debug, Default)]
+pub struct SymbolizeOpts {
+    /// Whether or not to operate in permissive mode.
+    ///
+    /// In permissive mode batch address symbolization does not
+    /// short-circuit on error but keeps going. Failure to symbolize an
+    /// individual addresses will be communicated via the
+    /// [`Unknown`][Symbolized::Unknown] variant of the corresponding
+    /// [`Symbolized`] object.
+    ///
+    /// Note that this does not make symbolization infallible: failure
+    /// of an operation affecting all addresses (such as opening the ELF
+    /// file) will still be reported as regular error.
+    pub permissive: bool,
+    /// The struct is non-exhaustive and open to extension.
+    #[doc(hidden)]
+    pub _non_exhaustive: (),
+}
+
+
 /// Information about a member inside an APK.
 ///
 /// This type is used in conjunction with the APK "dispatcher" infrastructure;
@@ -1177,10 +1201,24 @@ impl Symbolizer {
         &'slf self,
         src: &Source,
         input: Input<A>,
+        opts: &SymbolizeOpts,
     ) -> Result<A::OutTy<'slf>>
     where
         A: Copy + Addrs + 'in_,
     {
+        let SymbolizeOpts {
+            permissive,
+            _non_exhaustive: (),
+        } = opts;
+
+        let maybe_permit_error = |err| {
+            if *permissive {
+                Ok(Symbolized::Unknown(Reason::PermittedError))
+            } else {
+                Err(err)
+            }
+        };
+
         match src {
             #[cfg(feature = "apk")]
             Source::Apk(Apk {
@@ -1215,6 +1253,7 @@ impl Symbolizer {
                             None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                         },
                     )
+                    .map(|result| result.or_else(maybe_permit_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1243,6 +1282,7 @@ impl Symbolizer {
                     .iter()
                     .copied()
                     .map(|addr| self.symbolize_with_resolver(addr, &Resolver::Cached(resolver)))
+                    .map(|result| result.or_else(maybe_permit_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1266,6 +1306,7 @@ impl Symbolizer {
                                     &Resolver::Cached(resolver.deref()),
                                 )
                             })
+                            .map(|result| result.or_else(maybe_permit_error))
                             .collect();
                         Ok(symbols)
                     }
@@ -1286,6 +1327,7 @@ impl Symbolizer {
                                     None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                                 },
                             )
+                            .map(|result| result.or_else(maybe_permit_error))
                             .collect();
                         Ok(symbols)
                     }
@@ -1314,6 +1356,7 @@ impl Symbolizer {
                     .map(|addr| {
                         self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
                     })
+                    .map(|result| result.or_else(maybe_permit_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1347,7 +1390,11 @@ impl Symbolizer {
                     *map_files,
                     *vdso,
                 )?;
-                Ok(symbols.into_iter().map(Ok).collect())
+                Ok(symbols
+                    .into_iter()
+                    .map(Ok)
+                    .map(|result| result.or_else(maybe_permit_error))
+                    .collect())
             }
             #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
@@ -1376,6 +1423,7 @@ impl Symbolizer {
                     .map(|addr| {
                         self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
                     })
+                    .map(|result| result.or_else(maybe_permit_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1404,6 +1452,7 @@ impl Symbolizer {
                     .iter()
                     .copied()
                     .map(|addr| self.symbolize_with_resolver(addr, &Resolver::Cached(resolver)))
+                    .map(|result| result.or_else(maybe_permit_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1416,7 +1465,7 @@ impl Symbolizer {
     /// Symbolize a list of addresses using the provided symbolization
     /// [`Source`].
     ///
-    /// This function returns exactly one [`Symbolized`] object for each input
+    /// This method returns exactly one [`Symbolized`] object for each input
     /// address, in the order of input addresses.
     ///
     /// The following table lists which features the various formats
@@ -1451,7 +1500,8 @@ impl Symbolizer {
         input: Input<&[u64]>,
     ) -> Result<Vec<Symbolized<'slf>>> {
         // TODO: Use `Result::flatten` once our MSRV is 1.89.
-        self.symbolize_impl(src, input).and_then(|result| result)
+        self.symbolize_impl(src, input, &SymbolizeOpts::default())
+            .and_then(|result| result)
     }
 
     /// Symbolize a single input address/offset.
@@ -1466,7 +1516,25 @@ impl Symbolizer {
         input: Input<u64>,
     ) -> Result<Symbolized<'slf>> {
         let input = input.map(|addr| [addr; 1]);
-        self.symbolize_impl(src, input)?.0
+        self.symbolize_impl(src, input, &SymbolizeOpts::default())?
+            .0
+    }
+
+    /// Symbolize a list of addresses.
+    ///
+    /// This method is similar to [`symbolize`][Self::symbolize], but
+    /// allows for passing in of a [`SymbolizeOpts`] object to control
+    /// chosen details of the symbolization process.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, addrs = ?input.map(Hexify), opts), err))]
+    pub fn symbolize_opts<'slf>(
+        &'slf self,
+        src: &Source,
+        input: Input<&[u64]>,
+        opts: &SymbolizeOpts,
+    ) -> Result<Vec<Symbolized<'slf>>> {
+        // TODO: Use `Result::flatten` once our MSRV is 1.89.
+        self.symbolize_impl(src, input, opts)
+            .and_then(|result| result)
     }
 
     fn maybe_debug_dirs(&self, debug_syms: bool) -> Option<&[PathBuf]> {
@@ -1491,10 +1559,14 @@ mod tests {
     use super::*;
 
     use std::env::current_exe;
+    use std::io::Write as _;
+    use std::slice;
 
+    use tempfile::NamedTempFile;
     use test_fork::fork;
     use test_log::test;
 
+    use crate::elf::types::Elf64_Ehdr;
     use crate::maps::Perm;
     use crate::symbolize::CodeInfo;
 
@@ -1723,5 +1795,75 @@ mod tests {
         let _result = symbolizer.symbolize(&src, Input::AbsAddr(&addrs)).unwrap();
 
         assert_eq!(symbolizer.elf_cache.entry_count(), 1);
+    }
+
+    /// Check that ELF symbolization in "permissive mode" works as expected.
+    #[test]
+    fn symbolize_elf_permissive() {
+        #[repr(C)]
+        struct ElfFile {
+            ehdr: Elf64_Ehdr,
+        }
+
+        let elf = ElfFile {
+            ehdr: Elf64_Ehdr {
+                e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                e_type: 3,
+                e_machine: 62,
+                e_version: 1,
+                e_entry: 4208,
+                e_phoff: size_of::<Elf64_Ehdr>() as _,
+                e_shoff: 0,
+                e_flags: 0,
+                e_ehsize: 64,
+                e_phentsize: 56,
+                e_phnum: 1000,
+                e_shentsize: 0,
+                e_shnum: 1000,
+                e_shstrndx: 0,
+            },
+        };
+
+        // Craft some broken ELF file to test error behavior.
+        let mut file = NamedTempFile::new().unwrap();
+        let dump = unsafe {
+            slice::from_raw_parts((&elf as *const ElfFile).cast::<u8>(), size_of::<ElfFile>())
+        };
+        let () = file.write_all(dump).unwrap();
+        let path = file.path();
+
+        let module = path.as_os_str().to_os_string();
+        let parser = ElfParser::from_file(file.as_file(), module.clone()).unwrap();
+        let resolver = ElfResolver::from_parser(Rc::new(parser), None).unwrap();
+        let resolver = Rc::new(resolver);
+
+        for permissive in [false, true] {
+            let mut symbolizer = Symbolizer::new();
+            let () = symbolizer
+                .register_elf_resolver(path, Rc::clone(&resolver))
+                .unwrap();
+
+            let mut elf = Elf::new(path);
+            elf.debug_syms = false;
+            let src = Source::from(elf);
+            let opts = SymbolizeOpts {
+                permissive,
+                ..Default::default()
+            };
+            let result =
+                symbolizer.symbolize_opts(&src, Input::VirtOffset([0x1337].as_slice()), &opts);
+
+            if permissive {
+                let symbolized = result.unwrap();
+                assert_eq!(symbolized.len(), 1);
+                let symbolized = symbolized.first().unwrap();
+                let Symbolized::Unknown(reason) = symbolized else {
+                    panic!("unexpected symbolization result: {symbolized:?}");
+                };
+                assert_eq!(*reason, Reason::PermittedError);
+            } else {
+                let _err = result.unwrap_err();
+            }
+        }
     }
 }
