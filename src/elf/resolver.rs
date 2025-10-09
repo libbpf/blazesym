@@ -159,7 +159,7 @@ pub struct ElfResolver {
 }
 
 impl ElfResolver {
-    /// Create a `ElfResolver` that loads data from the provided file.
+    /// Create an `ElfResolver` that loads data from the provided file.
     pub fn open<P>(path: P) -> Result<Self>
     where
         P: AsRef<Path>,
