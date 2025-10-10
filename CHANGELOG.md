@@ -1,3 +1,12 @@
+Unreleased
+----------
+- Introduced `symbolize::Symbolizer::symbolize_opts` method for
+  symbolization with non-default options
+  - Added `symbolize::SymbolizeOpts` type for enabling permissive
+    symbolization mode
+  - Added `Reason::PermittedError` variant
+
+
 0.2.0
 -----
 - Adjusted `symbolize::{Resolved,}Sym::code_info` to be heap allocated
