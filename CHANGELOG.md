@@ -1,3 +1,10 @@
+Unreleased
+----------
+- Adjusted `symbolize::Symbolizer::symbolize` behavior to stop being
+  short-circuiting
+  - Added `Reason::IgnoredError` variant
+
+
 0.2.0
 -----
 - Adjusted `symbolize::{Resolved,}Sym::code_info` to be heap allocated
