@@ -1177,6 +1177,7 @@ impl Symbolizer {
         &'slf self,
         src: &Source,
         input: Input<A>,
+        maybe_fold_error: fn(Error) -> Result<Symbolized<'slf>>,
     ) -> Result<A::OutTy<'slf>>
     where
         A: Copy + Addrs + 'in_,
@@ -1215,6 +1216,7 @@ impl Symbolizer {
                             None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                         },
                     )
+                    .map(|result| result.or_else(maybe_fold_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1243,6 +1245,7 @@ impl Symbolizer {
                     .iter()
                     .copied()
                     .map(|addr| self.symbolize_with_resolver(addr, &Resolver::Cached(resolver)))
+                    .map(|result| result.or_else(maybe_fold_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1266,6 +1269,7 @@ impl Symbolizer {
                                     &Resolver::Cached(resolver.deref()),
                                 )
                             })
+                            .map(|result| result.or_else(maybe_fold_error))
                             .collect();
                         Ok(symbols)
                     }
@@ -1286,6 +1290,7 @@ impl Symbolizer {
                                     None => Ok(Symbolized::Unknown(Reason::InvalidFileOffset)),
                                 },
                             )
+                            .map(|result| result.or_else(maybe_fold_error))
                             .collect();
                         Ok(symbols)
                     }
@@ -1314,6 +1319,7 @@ impl Symbolizer {
                     .map(|addr| {
                         self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
                     })
+                    .map(|result| result.or_else(maybe_fold_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1347,7 +1353,11 @@ impl Symbolizer {
                     *map_files,
                     *vdso,
                 )?;
-                Ok(symbols.into_iter().map(Ok).collect())
+                Ok(symbols
+                    .into_iter()
+                    .map(Ok)
+                    .map(|result| result.or_else(maybe_fold_error))
+                    .collect())
             }
             #[cfg(feature = "gsym")]
             Source::Gsym(Gsym::Data(GsymData {
@@ -1376,6 +1386,7 @@ impl Symbolizer {
                     .map(|addr| {
                         self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
                     })
+                    .map(|result| result.or_else(maybe_fold_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1404,6 +1415,7 @@ impl Symbolizer {
                     .iter()
                     .copied()
                     .map(|addr| self.symbolize_with_resolver(addr, &Resolver::Cached(resolver)))
+                    .map(|result| result.or_else(maybe_fold_error))
                     .collect();
                 Ok(symbols)
             }
@@ -1411,13 +1423,18 @@ impl Symbolizer {
         }
     }
 
-    /// Symbolize a list of addresses.
+    /// Symbolize a batch of addresses.
     ///
-    /// Symbolize a list of addresses using the provided symbolization
+    /// Symbolize a batch of addresses using the provided symbolization
     /// [`Source`].
     ///
-    /// This function returns exactly one [`Symbolized`] object for each input
-    /// address, in the order of input addresses.
+    /// This method returns exactly one [`Symbolized`] object for each
+    /// input address, in the order of input addresses. Unless an error
+    /// occurs that would effect all addresses, problems preventing
+    /// symbolization of individual addresses are reported via the
+    /// [`Symbolized::Unknown`] variant. If you need more detailed error
+    /// information for such a failure, redo the operation using
+    /// [`symbolize_single`][Self::symbolize_single].
     ///
     /// The following table lists which features the various formats
     /// (represented by the [`Source`] argument) support. If a feature is not
@@ -1450,8 +1467,10 @@ impl Symbolizer {
         src: &Source,
         input: Input<&[u64]>,
     ) -> Result<Vec<Symbolized<'slf>>> {
+        let fold_error = |_err| Ok(Symbolized::Unknown(Reason::IgnoredError));
         // TODO: Use `Result::flatten` once our MSRV is 1.89.
-        self.symbolize_impl(src, input).and_then(|result| result)
+        self.symbolize_impl(src, input, fold_error)
+            .and_then(|result| result)
     }
 
     /// Symbolize a single input address/offset.
@@ -1459,6 +1478,13 @@ impl Symbolizer {
     /// In general, it is more performant to symbolize addresses in batches
     /// using [`symbolize`][Self::symbolize]. However, in cases where only a
     /// single address is available, this method provides a more convenient API.
+    ///
+    /// Note that this method also exhibits a slightly different error
+    /// reporting behavior compared to [`symbolize`][Self::symbolize]:
+    /// when symbolization of an address fails, a more comprehensive
+    /// error is reported. When possible errors are not folded into the
+    /// [`Symbolized::Unknown`] variant but conveyed directly as
+    /// [`Result::Err`].
     #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(src = ?src, input = format_args!("{input:#x?}")), err))]
     pub fn symbolize_single<'slf>(
         &'slf self,
@@ -1466,7 +1492,8 @@ impl Symbolizer {
         input: Input<u64>,
     ) -> Result<Symbolized<'slf>> {
         let input = input.map(|addr| [addr; 1]);
-        self.symbolize_impl(src, input)?.0
+        let keep_error = |err| Err(err);
+        self.symbolize_impl(src, input, keep_error)?.0
     }
 
     fn maybe_debug_dirs(&self, debug_syms: bool) -> Option<&[PathBuf]> {
@@ -1491,10 +1518,14 @@ mod tests {
     use super::*;
 
     use std::env::current_exe;
+    use std::io::Write as _;
+    use std::slice;
 
+    use tempfile::NamedTempFile;
     use test_fork::fork;
     use test_log::test;
 
+    use crate::elf::types::Elf64_Ehdr;
     use crate::maps::Perm;
     use crate::symbolize::CodeInfo;
 
@@ -1723,5 +1754,77 @@ mod tests {
         let _result = symbolizer.symbolize(&src, Input::AbsAddr(&addrs)).unwrap();
 
         assert_eq!(symbolizer.elf_cache.entry_count(), 1);
+    }
+
+    /// Check the error reporting behavior of the
+    /// `Symbolizer::symbolize` and `Symbolizer::symbolize_single`
+    /// methods.
+    #[test]
+    fn symbolize_error_reporting() {
+        #[repr(C)]
+        struct ElfFile {
+            ehdr: Elf64_Ehdr,
+        }
+
+        let elf = ElfFile {
+            ehdr: Elf64_Ehdr {
+                e_ident: [127, 69, 76, 70, 2, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                e_type: 3,
+                e_machine: 62,
+                e_version: 1,
+                e_entry: 4208,
+                e_phoff: size_of::<Elf64_Ehdr>() as _,
+                e_shoff: 0,
+                e_flags: 0,
+                e_ehsize: 64,
+                e_phentsize: 56,
+                e_phnum: 1000,
+                e_shentsize: 0,
+                e_shnum: 1000,
+                e_shstrndx: 0,
+            },
+        };
+
+        // Craft some broken ELF file to test error behavior.
+        let mut file = NamedTempFile::new().unwrap();
+        let dump = unsafe {
+            slice::from_raw_parts((&elf as *const ElfFile).cast::<u8>(), size_of::<ElfFile>())
+        };
+        let () = file.write_all(dump).unwrap();
+        let path = file.path();
+
+        let module = path.as_os_str().to_os_string();
+        let parser = ElfParser::from_file(file.as_file(), module.clone()).unwrap();
+        let resolver = ElfResolver::from_parser(Rc::new(parser), None).unwrap();
+        let resolver = Rc::new(resolver);
+
+        for batch in [false, true] {
+            let mut symbolizer = Symbolizer::new();
+            let () = symbolizer
+                .register_elf_resolver(path, Rc::clone(&resolver))
+                .unwrap();
+
+            let mut elf = Elf::new(path);
+            elf.debug_syms = false;
+            let src = Source::from(elf);
+            if batch {
+                let symbolized = symbolizer
+                    .symbolize(&src, Input::VirtOffset([0x1337].as_slice()))
+                    .unwrap();
+                assert_eq!(symbolized.len(), 1);
+                let symbolized = symbolized.first().unwrap();
+                let Symbolized::Unknown(reason) = symbolized else {
+                    panic!("unexpected symbolization result: {symbolized:?}");
+                };
+                assert_eq!(*reason, Reason::IgnoredError);
+            } else {
+                // `symbolize_single` is expected to report the error
+                // directly and not fold it into the `Symbolized::Unknown`
+                // variant.
+                let _err = symbolizer
+                    .symbolize_single(&src, Input::VirtOffset(0x1337))
+                    .unwrap_err();
+            }
+        }
     }
 }
