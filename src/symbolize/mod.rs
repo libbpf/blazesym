@@ -180,7 +180,10 @@ pub enum Input<T> {
 }
 
 impl<T> Input<T> {
-    fn map<F, U>(&self, f: F) -> Input<U>
+    /// Apply a function to the inner address while preserving the
+    /// active variant.
+    #[inline]
+    pub fn map<F, U>(&self, f: F) -> Input<U>
     where
         T: Copy,
         F: FnOnce(T) -> U,

@@ -304,9 +304,16 @@ fn symbolize(symbolize: args::symbolize::Symbolize) -> Result<()> {
     };
 
     let symbolizer = builder.build();
-    let syms = symbolizer
-        .symbolize(&src, input)
-        .context("failed to symbolize addresses")?;
+    let syms = if let [addr] = input.as_inner_ref() {
+        symbolizer
+            .symbolize_single(&src, input.map(|_| *addr))
+            .context("failed to symbolize address")
+            .map(|symbolized| Vec::from([symbolized]))?
+    } else {
+        symbolizer
+            .symbolize(&src, input)
+            .context("failed to symbolize addresses")?
+    };
 
     for (input_addr, sym) in addrs.iter().copied().zip(syms) {
         match sym {
