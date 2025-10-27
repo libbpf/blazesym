@@ -77,7 +77,7 @@ jobs:
             build/bzImage
             build/vmlinux
           key: linux-kernel-${{ inputs.rev }}-${{ hashFiles(inputs.config) }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         id: upload-linux-kernel
         # TODO: Having a single path/name may be problematic should we
         #       ever opt to reusing this workflow multiple times with
