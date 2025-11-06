@@ -1426,7 +1426,11 @@ impl Symbolizer {
     /// Symbolize a batch of addresses.
     ///
     /// Symbolize a batch of addresses using the provided symbolization
-    /// [`Source`].
+    /// [`Source`]. The [`Input`] enum describes what type of address is
+    /// provided. Not all symbol sources support all address types,
+    /// e.g., due to inherent limitations of the source. If an address
+    /// type is not supported the method will return an [`Error`] of the
+    /// [`Unsupported`][ErrorKind::Unsupported] kind.
     ///
     /// This method returns exactly one [`Symbolized`] object for each
     /// input address, in the order of input addresses. Unless an error
@@ -1437,9 +1441,9 @@ impl Symbolizer {
     /// [`symbolize_single`][Self::symbolize_single].
     ///
     /// The following table lists which features the various formats
-    /// (represented by the [`Source`] argument) support. If a feature is not
-    /// supported, the corresponding data in the [`Sym`] result will not be
-    /// populated.
+    /// (represented by the [`Source`] argument) support. If a feature
+    /// is not supported, the corresponding data in the [`Sym`] result
+    /// will not be populated.
     ///
     /// | Format      | Feature                          | Supported by format? | Supported by blazesym? |
     /// |-------------|----------------------------------|:--------------------:|:----------------------:|
