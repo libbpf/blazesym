@@ -1,6 +1,7 @@
 #[cfg(feature = "bpf")]
 mod bpf;
 mod cache;
+mod depmod;
 mod kaslr;
 mod ksym;
 mod modmap;
