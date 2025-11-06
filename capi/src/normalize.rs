@@ -14,7 +14,6 @@ use std::os::raw::c_char;
 use std::os::unix::ffi::OsStringExt as _;
 use std::path::PathBuf;
 use std::ptr;
-use std::slice;
 
 use blazesym::normalize::Apk;
 use blazesym::normalize::Elf;
@@ -416,7 +415,7 @@ impl blaze_user_meta_elf {
             )),
             build_id: (!build_id.is_null()).then(|| unsafe {
                 Cow::Owned(
-                    Box::<[u8]>::from_raw(slice::from_raw_parts_mut(build_id, build_id_len))
+                    Box::<[u8]>::from_raw(ptr::slice_from_raw_parts_mut(build_id, build_id_len))
                         .into_vec(),
                 )
             }),
@@ -844,14 +843,14 @@ pub unsafe extern "C" fn blaze_user_output_free(output: *mut blaze_normalized_us
     //         our blessed functions.
     let user_output = unsafe { Box::from_raw(output) };
     let addr_metas = unsafe {
-        Box::<[blaze_user_meta]>::from_raw(slice::from_raw_parts_mut(
+        Box::<[blaze_user_meta]>::from_raw(ptr::slice_from_raw_parts_mut(
             user_output.metas,
             user_output.meta_cnt,
         ))
     }
     .into_vec();
     let _norm_addrs = unsafe {
-        Box::<[blaze_normalized_output]>::from_raw(slice::from_raw_parts_mut(
+        Box::<[blaze_normalized_output]>::from_raw(ptr::slice_from_raw_parts_mut(
             user_output.outputs,
             user_output.output_cnt,
         ))
