@@ -3,6 +3,8 @@ Unreleased
 - Adjusted `symbolize::Symbolizer::symbolize` behavior to stop being
   short-circuiting
   - Added `Reason::IgnoredError` variant
+- Fixed reporting of code info directory for DWARF symbolization if not
+  explicitly overwritten by source file
 
 
 0.2.0

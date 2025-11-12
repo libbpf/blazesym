@@ -39,13 +39,11 @@ use crate::util::bytes_to_os_str;
 use crate::util::bytes_to_path;
 
 
-fn path_push<'p>(path: &'p Path, p: &'p Path) -> Cow<'p, Path> {
+fn path_push<'path>(path: &mut Cow<'path, Path>, p: &'path Path) {
     if p.is_absolute() {
-        Cow::Borrowed(p)
+        *path = Cow::Borrowed(p)
     } else {
-        let mut path = Cow::Borrowed(path);
         let () = path.to_mut().push(p);
-        path
     }
 }
 
@@ -59,19 +57,16 @@ fn render_file<'dwarf>(
     } else {
         Path::new("")
     };
+    let mut dir = Cow::Borrowed(dir);
 
     // The directory index 0 is defined to correspond to the compilation unit
     // directory.
-    let dir = if file.directory_index() != 0 {
+    if file.directory_index() != 0 {
         if let Some(directory) = file.directory(header) {
             let d = unit.attr_string(directory)?;
-            path_push(dir, bytes_to_path(d.slice())?)
-        } else {
-            Cow::default()
+            path_push(&mut dir, bytes_to_path(d.slice())?)
         }
-    } else {
-        Cow::default()
-    };
+    }
 
     let f = unit.attr_string(file.path_name())?;
     let file = bytes_to_os_str(f.slice())?;
