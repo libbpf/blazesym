@@ -161,7 +161,7 @@ jobs:
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v5
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@stable
     - name: Check incremental rebuilds
       env:
         CARGO_OPTS: --workspace --quiet --tests
