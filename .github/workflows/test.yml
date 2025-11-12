@@ -441,7 +441,11 @@ jobs:
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v5
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        # TODO: Remove specification and switch back to @nightly once
+        #       `function_casts_as_integer` lint is stable.
+        toolchain: 'nightly-2025-11-05'
     - name: Run benchmarks
       shell: bash
       run: |
