@@ -1,6 +1,7 @@
 //! Build script for `blazesym-dev`.
 
 use std::borrow::Cow;
+use std::convert::identity;
 use std::env;
 use std::env::consts::ARCH;
 use std::ffi::OsStr;
@@ -70,13 +71,14 @@ where
 }
 
 /// Run a command with the provided arguments.
-fn run<C, A, S>(command: C, args: A) -> Result<()>
+fn run<C, A, S, F>(command: C, args: A, command_mod: F) -> Result<()>
 where
     C: AsRef<OsStr>,
     A: IntoIterator<Item = S> + Clone,
     S: AsRef<OsStr>,
+    F: FnOnce(Command) -> Command,
 {
-    let instance = Command::new(command.as_ref())
+    let instance = command_mod(Command::new(command.as_ref()))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .env_clear()
@@ -142,6 +144,7 @@ fn adjust_mtime(path: &Path) -> Result<()> {
             output.as_os_str(),
             path.as_os_str(),
         ],
+        identity,
     )?;
     Ok(())
 }
@@ -152,14 +155,24 @@ enum ArgSpec {
 }
 
 /// Invoke `tool` to convert `src` into `dst`.
-fn toolize_impl<'p, S, I>(tool: &str, arg_spec: ArgSpec, srcs: S, dst: &Path, options: &[&str])
-where
+fn toolize_impl<'p, S, I>(
+    tool: &str,
+    arg_spec: ArgSpec,
+    srcs: S,
+    dst: &Path,
+    options: &[&str],
+    cwd: Option<&Path>,
+) where
     S: IntoIterator<IntoIter = I>,
     I: Iterator<Item = &'p Path> + Clone,
 {
     let srcs = srcs.into_iter();
     for src in srcs.clone() {
-        println!("cargo:rerun-if-changed={}", src.display());
+        if let Some(cwd) = cwd {
+            println!("cargo:rerun-if-changed={}", cwd.join(src).display());
+        } else {
+            println!("cargo:rerun-if-changed={}", src.display());
+        }
     }
     println!("cargo:rerun-if-changed={}", dst.display());
 
@@ -176,6 +189,16 @@ where
         }
     };
 
+    let command_mod = if let Some(cwd) = cwd {
+        let cwd = cwd.to_path_buf();
+        &mut (move |mut cmd: Command| {
+            cmd.current_dir(&cwd);
+            cmd
+        }) as &mut dyn FnMut(Command) -> Command
+    } else {
+        &mut identity as &mut dyn FnMut(Command) -> Command
+    };
+
     #[allow(clippy::redundant_closure_for_method_calls)]
     let () = run(
         tool,
@@ -184,6 +207,7 @@ where
             .map(OsStr::new)
             .chain(srcs.map(|src| src.as_os_str()))
             .chain(args.iter().map(Deref::deref)),
+        command_mod,
     )
     .unwrap_or_else(|err| panic!("failed to run `{tool}`: {err}"));
 
@@ -193,13 +217,13 @@ where
 fn toolize(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
-    toolize_impl(tool, ArgSpec::SrcDst, [src], &dst, options)
+    toolize_impl(tool, ArgSpec::SrcDst, [src], &dst, options, None)
 }
 
 fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
-    toolize_impl(tool, ArgSpec::SrcDashODst, [src], &dst, options)
+    toolize_impl(tool, ArgSpec::SrcDashODst, [src], &dst, options, None)
 }
 
 /// Compile `src` into `dst` using `cc`.
@@ -216,7 +240,7 @@ where
     let ld = env::var("LD")
         .map(Cow::Owned)
         .unwrap_or_else(|_| Cow::Borrowed("ld"));
-    toolize_impl(&ld, ArgSpec::SrcDashODst, srcs, dst, options)
+    toolize_impl(&ld, ArgSpec::SrcDashODst, srcs, dst, options, None)
 }
 
 /// Compile `src` into `dst` using `rustc`.
@@ -237,6 +261,7 @@ fn gsym(src: &Path, dst: impl AsRef<OsStr>) {
     let () = run(
         gsymutil,
         ["--convert".as_ref(), src, "--out-file".as_ref(), &dst],
+        identity,
     )
     .expect("failed to run `llvm-gsymutil`");
 
@@ -324,7 +349,7 @@ where
 {
     // We could reasonably rely on `dwp` being present ala
     // ```rust
-    // toolize_impl("dwp", ArgSpec::SrcDashODst, dwos, dst, &[])
+    // toolize_impl("dwp", ArgSpec::SrcDashODst, dwos, dst, &[], None)
     // ```
     // but then again, we don't really want configurability to begin with
     // here.
@@ -624,6 +649,23 @@ fn prepare_test_files() {
             &["-gstrict-dwarf", "-gdwarf-5", "-gz=zstd"],
         );
     }
+
+    // Generate this binary by passing the source file name without a
+    // path to the compiler (which means we need to `cd` into the
+    // containing directory first). At least for gcc this causes debug
+    // information to be laid out in such a way that the `comp_dir` is
+    // not explicitly overwritten for the unit, which is a case we want
+    // to test.
+    let src = Path::new("test-empty.c");
+    let dst = data_dir.join(Path::new("test-empty.bin"));
+    toolize_impl(
+        "cc",
+        ArgSpec::SrcDashODst,
+        [src],
+        &dst,
+        &["-g"],
+        Some(&data_dir),
+    );
 
     let src = data_dir.join("test-wait.c");
     cc(&src, "test-wait.bin", &[]);

@@ -577,6 +577,37 @@ fn symbolize_dwarf_gsym_inlined() {
     }
 }
 
+/// Check that we correctly determine the symbol's source code directory
+/// even if it is not overwritten for the compilation unit that a symbol
+/// resides in.
+#[test]
+fn symbolize_dwarf_without_comp_dir_overwrite() {
+    let data_dir = Path::new(&env!("CARGO_MANIFEST_DIR")).join("data");
+    let path = data_dir.join("test-empty.bin");
+
+    let src = inspect::source::Source::Elf(inspect::source::Elf::new(&path));
+    let inspector = inspect::Inspector::new();
+    let results = inspector
+        .lookup(&src, &["main"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+
+    let addr = results[0].addr;
+    let src = Source::Elf(Elf::new(path));
+    let symbolizer = Symbolizer::new();
+    let sym = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    let code_info = sym.code_info.as_ref().unwrap();
+    assert_eq!(code_info.dir.as_deref(), Some(data_dir.as_path()));
+    assert_eq!(code_info.file, OsStr::new("test-empty.c"));
+}
+
 /// Make sure that we fail loading linked debug information on CRC
 /// mismatch.
 #[tag(other_os)]
