@@ -70,7 +70,7 @@ which = {version = "8.0.0", optional = true}
 # Pinned, because we use #[doc(hidden)] APIs.
 # TODO: Enable `zstd` feature once we enabled it for testing in the main
 #       crate.
-blazesym = {version = "=0.2.0", path = "../", features = ["apk", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
+blazesym = {version = ">=0.2.0, <=0.2.1", path = "../", features = ["apk", "demangle", "dwarf", "gsym", "tracing", "zlib"]}
 libc = "0.2"
 # TODO: Remove dependency once MSRV is 1.77.
 memoffset = "0.9"
@@ -78,10 +78,10 @@ tracing = "0.1"
 tracing-subscriber = {version = "0.3", default-features = false, features = ["fmt"]}
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-blazesym = {version = "=0.2.0", path = "../", features = ["bpf"]}
+blazesym = {version = ">=0.2.0, <=0.2.1", path = "../", features = ["bpf"]}
 
 [dev-dependencies]
-blazesym = {version = "=0.2.0", path = "../", features = ["test"]}
+blazesym = {version = "0.2", path = "../", features = ["test"]}
 blazesym-c = {path = ".", features = ["check-doc-snippets"]}
 bindgen = {version = "0.72", default-features = false, features = ["runtime"]}
 criterion = {version = "0.7", default-features = false, features = ["rayon", "cargo_bench_support"]}

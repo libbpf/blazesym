@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.1
+-----
 - Adjusted `symbolize::Symbolizer::symbolize` behavior to stop being
   short-circuiting
   - Added `Reason::IgnoredError` variant
