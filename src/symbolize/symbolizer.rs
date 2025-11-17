@@ -1114,7 +1114,9 @@ impl Symbolizer {
             MaybeDefault::None => None,
         };
 
-        KernelResolver::new(ksym_resolver.cloned(), elf_resolver.cloned(), *kaslr_offset)
+        let ksym_resolver = ksym_resolver.map(Rc::clone);
+        let elf_resolver = elf_resolver.map(Rc::clone);
+        KernelResolver::new(ksym_resolver, elf_resolver, *kaslr_offset)
     }
 
     #[cfg(not(linux))]
