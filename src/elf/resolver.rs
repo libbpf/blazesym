@@ -185,7 +185,7 @@ impl ElfResolver {
     ) -> Result<Self> {
         #[cfg(feature = "dwarf")]
         let backend = if let Some(debug_dirs) = debug_dirs {
-            let dwarf = DwarfResolver::from_parser(parser, debug_dirs)?;
+            let dwarf = DwarfResolver::from_parser(parser, debug_dirs, _elf_cache)?;
             let backend = ElfBackend::Dwarf(Rc::new(dwarf));
             backend
         } else {
