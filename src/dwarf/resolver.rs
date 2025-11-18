@@ -19,9 +19,11 @@ use gimli::Dwarf;
 use crate::dwarf::reader::Endianess;
 use crate::dwarf::reader::R;
 use crate::elf::ElfParser;
+use crate::elf::ElfResolverData;
 #[cfg(test)]
 use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::error::IntoCowStr;
+use crate::file_cache::FileCache;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::ForEachFn;
 use crate::inspect::Inspect;
@@ -117,12 +119,10 @@ fn find_debug_file(file: &OsStr, linker: Option<&Path>, debug_dirs: &[PathBuf]) 
 }
 
 
-// TODO: We really should have a cache of debug link targets as well, to
-//       avoid potentially re-parsing the same files over and over
-//       again.
 fn try_deref_debug_link(
     parser: &ElfParser,
     debug_dirs: &[PathBuf],
+    elf_cache: Option<&FileCache<ElfResolverData>>,
 ) -> Result<Option<Rc<ElfParser>>> {
     if let Some((file, checksum)) = read_debug_link(parser)? {
         // TODO: Usage of the module here is fishy, as it may not
@@ -132,10 +132,23 @@ fn try_deref_debug_link(
         let linker = parser.module().map(OsStr::as_ref);
         match find_debug_file(file, linker, debug_dirs) {
             Some(path) => {
-                let dst_parser = ElfParser::open(&path).with_context(|| {
-                    format!("failed to open debug link destination `{}`", path.display())
-                })?;
-                let dst_parser = &Rc::new(dst_parser);
+                let tmp_parser;
+                let dst_parser = if let Some(elf_cache) = elf_cache {
+                    // TODO: Unclear whether we should provide `debug_dirs`
+                    //       here instead of `None`?
+                    elf_cache
+                        .elf_resolver(&path, None)
+                        .with_context(|| {
+                            format!("failed to open debug link destination `{}`", path.display())
+                        })?
+                        .parser()
+                } else {
+                    let parser = ElfParser::open(&path).with_context(|| {
+                        format!("failed to open debug link destination `{}`", path.display())
+                    })?;
+                    tmp_parser = Rc::new(parser);
+                    &tmp_parser
+                };
                 let mmap = dst_parser.backend();
                 let crc = debug_link_crc32(mmap);
                 if crc != checksum {
@@ -201,8 +214,12 @@ impl DwarfResolver {
         &self.parser
     }
 
-    pub(crate) fn from_parser(parser: Rc<ElfParser>, debug_dirs: &[PathBuf]) -> Result<Self> {
-        let linkee_parser = try_deref_debug_link(&parser, debug_dirs)?;
+    pub(crate) fn from_parser(
+        parser: Rc<ElfParser>,
+        debug_dirs: &[PathBuf],
+        elf_cache: Option<&FileCache<ElfResolverData>>,
+    ) -> Result<Self> {
+        let linkee_parser = try_deref_debug_link(&parser, debug_dirs, elf_cache)?;
         let dwp_parser = try_find_dwp(&parser)?;
 
         // SAFETY: We own the `ElfParser` and make sure that it stays
@@ -257,7 +274,7 @@ impl DwarfResolver {
             .iter()
             .map(PathBuf::from)
             .collect::<Vec<_>>();
-        Self::from_parser(Rc::new(parser), debug_dirs.as_slice())
+        Self::from_parser(Rc::new(parser), debug_dirs.as_slice(), None)
     }
 
     /// Try converting a `Function` into a `SymInfo`.
