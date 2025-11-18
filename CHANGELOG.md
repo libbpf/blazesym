@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Improved data caching for debug link targets and DWP files
+
+
 0.2.1
 -----
 - Adjusted `symbolize::Symbolizer::symbolize` behavior to stop being

@@ -170,16 +170,27 @@ fn try_deref_debug_link(
 
 /// Try to find a DWARF package (`.dwp`) "belonging" to the file
 /// referenced by the given [`ElfParser`].
-fn try_find_dwp(parser: &ElfParser) -> Result<Option<Rc<ElfParser>>> {
+fn try_find_dwp(
+    parser: &ElfParser,
+    elf_cache: Option<&FileCache<ElfResolverData>>,
+) -> Result<Option<Rc<ElfParser>>> {
     if let Some(path) = parser.module() {
         let mut dwp_path = path.to_os_string();
         let () = dwp_path.push(".dwp");
         let dwp_path = PathBuf::from(dwp_path);
 
-        match ElfParser::open(&dwp_path) {
+        let result = if let Some(elf_cache) = elf_cache {
+            elf_cache
+                .elf_resolver(&dwp_path, None)
+                .map(|resolver| Rc::clone(resolver.parser()))
+        } else {
+            ElfParser::open(&dwp_path).map(Rc::new)
+        };
+
+        match result {
             Ok(parser) => {
                 log::debug!("using DWARF package `{}`", dwp_path.display());
-                Ok(Some(Rc::new(parser)))
+                Ok(Some(parser))
             }
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
             Err(err) => Err(err),
@@ -220,7 +231,7 @@ impl DwarfResolver {
         elf_cache: Option<&FileCache<ElfResolverData>>,
     ) -> Result<Self> {
         let linkee_parser = try_deref_debug_link(&parser, debug_dirs, elf_cache)?;
-        let dwp_parser = try_find_dwp(&parser)?;
+        let dwp_parser = try_find_dwp(&parser, elf_cache)?;
 
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
@@ -594,14 +605,14 @@ mod tests {
             .join("data")
             .join("test-rs-split-dwarf.bin");
         let parser = ElfParser::open(&path).unwrap();
-        let dwp_parser = try_find_dwp(&parser).unwrap();
+        let dwp_parser = try_find_dwp(&parser, None).unwrap();
         assert!(dwp_parser.is_some());
 
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-rs.bin");
         let parser = ElfParser::open(&path).unwrap();
-        let dwp_parser = try_find_dwp(&parser).unwrap();
+        let dwp_parser = try_find_dwp(&parser, None).unwrap();
         assert!(dwp_parser.is_none());
     }
 
