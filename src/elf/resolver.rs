@@ -83,7 +83,7 @@ impl FileCache<ElfResolverData> {
                     //         initializing the `dwarf` part of it, the
                     //         `elf` part *must* be present.
                     let parser = Rc::clone(data.elf.get().unwrap().parser());
-                    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
+                    let resolver = ElfResolver::from_parser(parser, debug_dirs, Some(self))?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
@@ -94,7 +94,7 @@ impl FileCache<ElfResolverData> {
                     //         initializing the `elf` part of it, the
                     //         `dwarf` part *must* be present.
                     let parser = Rc::clone(data.dwarf.get().unwrap().parser());
-                    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
+                    let resolver = ElfResolver::from_parser(parser, debug_dirs, Some(self))?;
                     let resolver = Rc::new(resolver);
                     Result::<_, Error>::Ok(resolver)
                 })?
@@ -103,7 +103,7 @@ impl FileCache<ElfResolverData> {
         } else {
             let module = path.represented_path().as_os_str().to_os_string();
             let parser = Rc::new(ElfParser::from_file(file, module)?);
-            let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
+            let resolver = ElfResolver::from_parser(parser, debug_dirs, Some(self))?;
             Rc::new(resolver)
         };
 
@@ -166,15 +166,12 @@ impl ElfResolver {
     {
         let path = path.as_ref();
         let parser = Rc::new(ElfParser::open(path)?);
-        Self::from_parser(
-            parser,
-            Some(
-                &DEFAULT_DEBUG_DIRS
-                    .iter()
-                    .map(PathBuf::from)
-                    .collect::<Vec<_>>(),
-            ),
-        )
+        let debug_dirs = DEFAULT_DEBUG_DIRS
+            .iter()
+            .map(PathBuf::from)
+            .collect::<Vec<_>>();
+        let elf_cache = None;
+        Self::from_parser(parser, Some(&debug_dirs), elf_cache)
     }
 
     /// Create a new [`ElfResolver`] using `parser`.
@@ -184,6 +181,7 @@ impl ElfResolver {
     pub(crate) fn from_parser(
         parser: Rc<ElfParser>,
         debug_dirs: Option<&[PathBuf]>,
+        _elf_cache: Option<&FileCache<ElfResolverData>>,
     ) -> Result<Self> {
         #[cfg(feature = "dwarf")]
         let backend = if let Some(debug_dirs) = debug_dirs {
@@ -273,14 +271,17 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs.bin");
+        let elf_cache = None;
 
         let parser = Rc::new(ElfParser::open(path.as_path()).unwrap());
-        let resolver = ElfResolver::from_parser(Rc::clone(&parser), None).unwrap();
+        let debug_dirs = None;
+        let resolver = ElfResolver::from_parser(Rc::clone(&parser), debug_dirs, elf_cache).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("ElfParser("), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");
 
-        let resolver = ElfResolver::from_parser(parser, Some(&[])).unwrap();
+        let debug_dirs = Some([].as_slice());
+        let resolver = ElfResolver::from_parser(parser, debug_dirs, elf_cache).unwrap();
         let dbg = format!("{resolver:?}");
         assert!(dbg.starts_with("DwarfResolver("), "{dbg}");
         assert!(dbg.ends_with("test-stable-addrs.bin\")"), "{dbg}");
@@ -293,13 +294,16 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs.bin");
+        let elf_cache = None;
 
         let parser = Rc::new(ElfParser::open(path.as_path()).unwrap());
-        let resolver = ElfResolver::from_parser(Rc::clone(&parser), None).unwrap();
+        let debug_dirs = None;
+        let resolver = ElfResolver::from_parser(Rc::clone(&parser), debug_dirs, elf_cache).unwrap();
         let data = ElfResolverData::from(Rc::new(resolver));
         let _resolver = data.elf.get_or_init(|| panic!());
 
-        let resolver = ElfResolver::from_parser(parser, Some(&[])).unwrap();
+        let debug_dirs = Some([].as_slice());
+        let resolver = ElfResolver::from_parser(parser, debug_dirs, elf_cache).unwrap();
         let data = ElfResolverData::from(Rc::new(resolver));
         let _resolver = data.dwarf.get_or_init(|| panic!());
     }
