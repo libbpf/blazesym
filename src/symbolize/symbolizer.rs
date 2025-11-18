@@ -275,7 +275,10 @@ fn default_apk_dispatcher(
         info.member_mmap,
         Some(apk_elf_path.into_os_string()),
     ));
-    let resolver = ElfResolver::from_parser(parser, debug_dirs)?;
+    // TODO: Would be good to provide the `Symbolizer`'s ELF cache for
+    //       use here.
+    let elf_cache = None;
+    let resolver = ElfResolver::from_parser(parser, debug_dirs, elf_cache)?;
     let resolver = Box::new(resolver);
     Ok(resolver)
 }
@@ -1549,7 +1552,9 @@ mod tests {
             .join("data")
             .join("test-stable-addrs.bin");
         let parser = Rc::new(ElfParser::open(test_elf.as_path()).unwrap());
-        let resolver = ElfResolver::from_parser(parser, None).unwrap();
+        let debug_dirs = None;
+        let elf_cache = None;
+        let resolver = ElfResolver::from_parser(parser, debug_dirs, elf_cache).unwrap();
         let resolver = Resolver::Cached(&resolver);
         assert_ne!(format!("{resolver:?}"), "");
         assert_ne!(format!("{:?}", resolver.inner()), "");
@@ -1801,7 +1806,9 @@ mod tests {
 
         let module = path.as_os_str().to_os_string();
         let parser = ElfParser::from_file(file.as_file(), module.clone()).unwrap();
-        let resolver = ElfResolver::from_parser(Rc::new(parser), None).unwrap();
+        let debug_dirs = None;
+        let elf_cache = None;
+        let resolver = ElfResolver::from_parser(Rc::new(parser), debug_dirs, elf_cache).unwrap();
         let resolver = Rc::new(resolver);
 
         for batch in [false, true] {
