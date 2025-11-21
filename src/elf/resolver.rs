@@ -199,7 +199,7 @@ impl ElfResolver {
         Ok(resolver)
     }
 
-    fn parser(&self) -> &Rc<ElfParser> {
+    pub(crate) fn parser(&self) -> &Rc<ElfParser> {
         match &self.backend {
             #[cfg(feature = "dwarf")]
             ElfBackend::Dwarf(dwarf) => dwarf.parser(),

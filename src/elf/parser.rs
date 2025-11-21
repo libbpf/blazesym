@@ -1017,7 +1017,7 @@ impl ElfParser<File> {
         open_impl(path, module)
     }
 
-    /// Retrieve a reference to the backend in use.
+    /// Retrieve a reference to the file backend in use.
     pub(crate) fn backend(&self) -> &File {
         &self._backend
     }
@@ -1061,6 +1061,11 @@ impl ElfParser<Mmap> {
         let module = path.represented_path().as_os_str().to_os_string();
         let path = path.actual_path();
         open_impl(path, module)
+    }
+
+    /// Retrieve a reference to the `Mmap` backend in use.
+    pub(crate) fn backend(&self) -> &Mmap {
+        &self._backend
     }
 }
 
