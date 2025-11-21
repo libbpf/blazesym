@@ -40,7 +40,6 @@ use crate::Addr;
 use crate::Error;
 use crate::ErrorExt;
 use crate::ErrorKind;
-use crate::Mmap;
 use crate::Result;
 use crate::SymType;
 
@@ -133,10 +132,12 @@ fn try_deref_debug_link(
         let linker = parser.module().map(OsStr::as_ref);
         match find_debug_file(file, linker, debug_dirs) {
             Some(path) => {
-                let mmap = Mmap::builder().open(&path).with_context(|| {
+                let dst_parser = ElfParser::open(&path).with_context(|| {
                     format!("failed to open debug link destination `{}`", path.display())
                 })?;
-                let crc = debug_link_crc32(&mmap);
+                let dst_parser = &Rc::new(dst_parser);
+                let mmap = dst_parser.backend();
+                let crc = debug_link_crc32(mmap);
                 if crc != checksum {
                     return Err(Error::with_invalid_data(format!(
                         "debug link destination `{}` checksum does not match \
@@ -144,10 +145,7 @@ fn try_deref_debug_link(
                         path.display()
                     )))
                 }
-
-                let module = path.into_os_string();
-                let dst_parser = Rc::new(ElfParser::from_mmap(mmap, Some(module)));
-                Ok(Some(dst_parser))
+                Ok(Some(Rc::clone(dst_parser)))
             }
             None => Ok(None),
         }
