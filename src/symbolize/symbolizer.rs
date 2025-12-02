@@ -28,6 +28,7 @@ use crate::file_cache::FileCache;
 #[cfg(feature = "gsym")]
 use crate::gsym::GsymResolver;
 use crate::insert_map::InsertMap;
+use crate::kernel::find_kalsr_offset;
 use crate::kernel::KernelResolver;
 use crate::kernel::KsymResolver;
 use crate::kernel::KALLSYMS;
@@ -462,6 +463,7 @@ impl Builder {
             process_vma_cache: RefCell::new(HashMap::new()),
             process_cache: InsertMap::new(),
             vdso_parser: OnceCell::new(),
+            kaslr_offset: OnceCell::new(),
             find_sym_opts,
             demangle,
             #[cfg(feature = "dwarf")]
@@ -762,6 +764,8 @@ pub struct Symbolizer {
     /// data by the user.
     process_vma_cache: RefCell<HashMap<Pid, Box<[maps::MapsEntry]>>>,
     process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
+    /// The system's KASLR offset.
+    kaslr_offset: OnceCell<u64>,
     /// The ELF parser used for the system-wide vDSO.
     vdso_parser: OnceCell<Box<ElfParser<StaticMem>>>,
     find_sym_opts: FindSymOpts,
@@ -1119,7 +1123,16 @@ impl Symbolizer {
 
         let ksym_resolver = ksym_resolver.map(Rc::clone);
         let elf_resolver = elf_resolver.map(Rc::clone);
-        KernelResolver::new(ksym_resolver, elf_resolver, *kaslr_offset)
+        let kaslr_offset = kaslr_offset.map(Ok).unwrap_or_else(|| {
+            self.kaslr_offset
+                .get_or_try_init_(|| {
+                    find_kalsr_offset()
+                        .context("failed to query system KASLR offset")
+                        .map(Option::unwrap_or_default)
+                })
+                .copied()
+        })?;
+        KernelResolver::new(ksym_resolver, elf_resolver, kaslr_offset)
     }
 
     #[cfg(not(linux))]
@@ -1571,7 +1584,7 @@ mod tests {
     fn symbolizer_size() {
         // TODO: This size is rather large and we should look into
         //       minimizing it.
-        assert_eq!(size_of::<Symbolizer>(), 1008);
+        assert_eq!(size_of::<Symbolizer>(), 1024);
     }
 
     /// Check that we can correctly construct the source code path to a symbol.
