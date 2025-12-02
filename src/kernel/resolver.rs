@@ -10,11 +10,9 @@ use crate::symbolize::ResolvedSym;
 use crate::symbolize::Symbolize;
 use crate::Addr;
 use crate::Error;
-use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Result;
 
-use super::kaslr::find_kalsr_offset;
 use super::ksym::KsymResolver;
 
 
@@ -28,21 +26,13 @@ impl KernelResolver {
     pub(crate) fn new(
         ksym_resolver: Option<Rc<KsymResolver>>,
         elf_resolver: Option<Rc<ElfResolver>>,
-        kaslr_offset: Option<u64>,
+        kaslr_offset: u64,
     ) -> Result<KernelResolver> {
         if ksym_resolver.is_none() && elf_resolver.is_none() {
             return Err(Error::with_not_found(
                 "failed to create kernel resolver: neither kallsyms nor vmlinux symbol source are present",
             ))
         }
-
-        let kaslr_offset = if let Some(kaslr_offset) = kaslr_offset {
-            kaslr_offset
-        } else {
-            find_kalsr_offset()
-                .context("failed to query system KASLR offset")?
-                .unwrap_or_default()
-        };
 
         Ok(KernelResolver {
             ksym_resolver,
@@ -110,7 +100,7 @@ mod tests {
     #[test]
     fn debug_repr() {
         let ksym = Rc::new(KsymResolver::load_file_name(Path::new(KALLSYMS)).unwrap());
-        let kernel = KernelResolver::new(Some(ksym), None, Some(0)).unwrap();
+        let kernel = KernelResolver::new(Some(ksym), None, 0).unwrap();
         assert_ne!(format!("{kernel:?}"), "");
     }
 }
