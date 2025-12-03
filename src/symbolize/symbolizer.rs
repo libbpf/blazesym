@@ -28,9 +28,8 @@ use crate::file_cache::FileCache;
 #[cfg(feature = "gsym")]
 use crate::gsym::GsymResolver;
 use crate::insert_map::InsertMap;
-use crate::kernel::find_kalsr_offset;
+use crate::kernel::KernelCache;
 use crate::kernel::KernelResolver;
-use crate::kernel::KsymResolver;
 use crate::kernel::KALLSYMS;
 use crate::log;
 use crate::maps;
@@ -455,12 +454,11 @@ impl Builder {
             elf_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             #[cfg(feature = "gsym")]
             gsym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
-            ksym_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             process_vma_cache: RefCell::new(HashMap::new()),
             process_cache: InsertMap::new(),
+            kernel_cache: KernelCache::default(),
             vdso_parser: OnceCell::new(),
-            kaslr_offset: OnceCell::new(),
             find_sym_opts,
             demangle,
             #[cfg(feature = "dwarf")]
@@ -750,7 +748,6 @@ pub struct Symbolizer {
     elf_cache: FileCache<ElfResolverData>,
     #[cfg(feature = "gsym")]
     gsym_cache: FileCache<GsymResolver<'static>>,
-    ksym_cache: FileCache<Rc<KsymResolver>>,
     perf_map_cache: FileCache<PerfMap>,
     /// Cache of VMA data on per-process basis.
     ///
@@ -758,8 +755,8 @@ pub struct Symbolizer {
     /// data by the user.
     process_vma_cache: RefCell<HashMap<Pid, Box<[maps::MapsEntry]>>>,
     process_cache: InsertMap<PathName, Option<Box<dyn Resolve>>>,
-    /// The system's KASLR offset.
-    kaslr_offset: OnceCell<u64>,
+    /// Cache of kernel related data.
+    kernel_cache: KernelCache,
     /// The ELF parser used for the system-wide vDSO.
     vdso_parser: OnceCell<Box<ElfParser<StaticMem>>>,
     find_sym_opts: FindSymOpts,
@@ -1025,18 +1022,6 @@ impl Symbolizer {
         Ok(handler.all_symbols)
     }
 
-    fn create_ksym_resolver(&self, path: &Path, file: &File) -> Result<Rc<KsymResolver>> {
-        let resolver = KsymResolver::load_from_reader(file, path)?;
-        let resolver = Rc::new(resolver);
-        Ok(resolver)
-    }
-
-    fn ksym_resolver<'slf>(&'slf self, path: &Path) -> Result<&'slf Rc<KsymResolver>> {
-        let (file, cell) = self.ksym_cache.entry(path)?;
-        let resolver = cell.get_or_try_init_(|| self.create_ksym_resolver(path, file))?;
-        Ok(resolver)
-    }
-
     #[cfg(linux)]
     fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
         use crate::util::bytes_to_os_str;
@@ -1052,12 +1037,12 @@ impl Symbolizer {
 
         let ksym_resolver = match kallsyms {
             MaybeDefault::Some(kallsyms) => {
-                let ksym_resolver = self.ksym_resolver(kallsyms)?;
+                let ksym_resolver = self.kernel_cache.ksym_resolver(kallsyms)?;
                 Some(ksym_resolver)
             }
             MaybeDefault::Default => {
                 let kallsyms = Path::new(KALLSYMS);
-                let result = self.ksym_resolver(kallsyms);
+                let result = self.kernel_cache.ksym_resolver(kallsyms);
                 match result {
                     Ok(resolver) => Some(resolver),
                     Err(err) => {
@@ -1117,15 +1102,9 @@ impl Symbolizer {
 
         let ksym_resolver = ksym_resolver.map(Rc::clone);
         let elf_resolver = elf_resolver.map(Rc::clone);
-        let kaslr_offset = kaslr_offset.map(Ok).unwrap_or_else(|| {
-            self.kaslr_offset
-                .get_or_try_init_(|| {
-                    find_kalsr_offset()
-                        .context("failed to query system KASLR offset")
-                        .map(Option::unwrap_or_default)
-                })
-                .copied()
-        })?;
+        let kaslr_offset = kaslr_offset
+            .map(Ok)
+            .unwrap_or_else(|| self.kernel_cache.kaslr_offset())?;
         KernelResolver::new(ksym_resolver, elf_resolver, kaslr_offset)
     }
 
