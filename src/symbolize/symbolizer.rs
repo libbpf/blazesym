@@ -320,7 +320,7 @@ pub struct Builder {
     /// List of additional directories in which split debug information
     /// is looked for.
     #[cfg(feature = "dwarf")]
-    debug_dirs: Box<[PathBuf]>,
+    debug_dirs: Rc<[PathBuf]>,
     /// The "dispatch" function to use when symbolizing addresses
     /// mapping to members of an APK.
     #[cfg(feature = "apk")]
@@ -457,7 +457,10 @@ impl Builder {
             perf_map_cache: FileCache::builder().enable_auto_reload(auto_reload).build(),
             process_vma_cache: RefCell::new(HashMap::new()),
             process_cache: InsertMap::new(),
-            kernel_cache: KernelCache::default(),
+            #[cfg(feature = "dwarf")]
+            kernel_cache: KernelCache::new(Rc::clone(&debug_dirs)),
+            #[cfg(not(feature = "dwarf"))]
+            kernel_cache: KernelCache::new(),
             vdso_parser: OnceCell::new(),
             find_sym_opts,
             demangle,
@@ -762,7 +765,7 @@ pub struct Symbolizer {
     find_sym_opts: FindSymOpts,
     demangle: bool,
     #[cfg(feature = "dwarf")]
-    debug_dirs: Box<[PathBuf]>,
+    debug_dirs: Rc<[PathBuf]>,
     #[cfg(feature = "apk")]
     apk_dispatch: Option<Dbg<Box<dyn ApkDispatch>>>,
     process_dispatch: Option<Dbg<Box<dyn ProcessDispatch>>>,
@@ -1555,7 +1558,7 @@ mod tests {
     fn symbolizer_size() {
         // TODO: This size is rather large and we should look into
         //       minimizing it.
-        assert_eq!(size_of::<Symbolizer>(), 1016);
+        assert_eq!(size_of::<Symbolizer>(), 1168);
     }
 
     /// Check that we can correctly construct the source code path to a symbol.
