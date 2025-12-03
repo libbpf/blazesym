@@ -36,7 +36,6 @@ use super::bpf::BpfProg;
 #[cfg(not(feature = "bpf"))]
 type BpfInfoCache = ();
 
-pub const KALLSYMS: &str = "/proc/kallsyms";
 const DFL_KSYM_CAP: usize = 200000;
 
 
@@ -348,6 +347,7 @@ mod tests {
     use test_log::test;
     use test_tag::tag;
 
+    use crate::kernel::KALLSYMS;
     use crate::ErrorKind;
 
 
