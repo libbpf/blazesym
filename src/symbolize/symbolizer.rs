@@ -321,7 +321,7 @@ pub struct Builder {
     /// List of additional directories in which split debug information
     /// is looked for.
     #[cfg(feature = "dwarf")]
-    debug_dirs: Vec<PathBuf>,
+    debug_dirs: Box<[PathBuf]>,
     /// The "dispatch" function to use when symbolizing addresses
     /// mapping to members of an APK.
     #[cfg(feature = "apk")]
@@ -393,10 +393,7 @@ impl Builder {
                 .map(|p| p.as_ref().to_path_buf())
                 .collect();
         } else {
-            self.debug_dirs = DEFAULT_DEBUG_DIRS
-                .iter()
-                .map(PathBuf::from)
-                .collect::<Vec<_>>();
+            self.debug_dirs = DEFAULT_DEBUG_DIRS.iter().map(PathBuf::from).collect();
         }
         self
     }
@@ -483,10 +480,7 @@ impl Default for Builder {
             inlined_fns: true,
             demangle: true,
             #[cfg(feature = "dwarf")]
-            debug_dirs: DEFAULT_DEBUG_DIRS
-                .iter()
-                .map(PathBuf::from)
-                .collect::<Vec<_>>(),
+            debug_dirs: DEFAULT_DEBUG_DIRS.iter().map(PathBuf::from).collect(),
             #[cfg(feature = "apk")]
             apk_dispatch: None,
             process_dispatch: None,
@@ -771,7 +765,7 @@ pub struct Symbolizer {
     find_sym_opts: FindSymOpts,
     demangle: bool,
     #[cfg(feature = "dwarf")]
-    debug_dirs: Vec<PathBuf>,
+    debug_dirs: Box<[PathBuf]>,
     #[cfg(feature = "apk")]
     apk_dispatch: Option<Dbg<Box<dyn ApkDispatch>>>,
     process_dispatch: Option<Dbg<Box<dyn ProcessDispatch>>>,
@@ -1584,7 +1578,7 @@ mod tests {
     fn symbolizer_size() {
         // TODO: This size is rather large and we should look into
         //       minimizing it.
-        assert_eq!(size_of::<Symbolizer>(), 1024);
+        assert_eq!(size_of::<Symbolizer>(), 1016);
     }
 
     /// Check that we can correctly construct the source code path to a symbol.
