@@ -44,31 +44,32 @@ impl KernelResolver {
 
 impl Symbolize for KernelResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
-        let elf_addr = || {
-            addr.checked_sub(self.kaslr_offset).ok_or_invalid_input(|| {
-                format!(
-                    "address {addr:#x} is less than KASLR offset ({:#x})",
-                    self.kaslr_offset
-                )
-            })
-        };
-
         match (self.elf_resolver.as_ref(), self.ksym_resolver.as_ref()) {
-            (Some(elf_resolver), None) => elf_resolver.find_sym(elf_addr()?, opts),
-            (None, Some(ksym_resolver)) => ksym_resolver.find_sym(addr, opts),
-            (Some(elf_resolver), Some(ksym_resolver)) => {
+            (Some(elf_resolver), ksym_resolver) => {
+                let elf_addr = addr
+                    .checked_sub(self.kaslr_offset)
+                    .ok_or_invalid_input(|| {
+                        format!(
+                            "address {addr:#x} is less than KASLR offset ({:#x})",
+                            self.kaslr_offset
+                        )
+                    })?;
+
                 // We give preference to vmlinux, because it is likely
                 // to report more information. If it could not find an
                 // address, though, we fall back to kallsyms. This is
                 // helpful for example for kernel modules, which
                 // naturally are not captured by vmlinux.
-                let result = elf_resolver.find_sym(elf_addr()?, opts)?;
+                let result = elf_resolver.find_sym(elf_addr, opts)?;
                 if result.is_ok() {
                     Ok(result)
-                } else {
+                } else if let Some(ksym_resolver) = ksym_resolver {
                     ksym_resolver.find_sym(addr, opts)
+                } else {
+                    Ok(result)
                 }
             }
+            (None, Some(ksym_resolver)) => ksym_resolver.find_sym(addr, opts),
             // SANITY: We ensure that at least one resolver is present at
             //         construction time.
             (None, None) => unreachable!(),
