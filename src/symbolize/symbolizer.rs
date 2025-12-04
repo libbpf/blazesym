@@ -1323,14 +1323,12 @@ impl Symbolizer {
                     }
                 };
 
-                let resolver = Rc::new(self.create_kernel_resolver(kernel)?);
+                let resolver = self.create_kernel_resolver(kernel)?;
                 let symbols = addrs
                     .as_ref()
                     .iter()
                     .copied()
-                    .map(|addr| {
-                        self.symbolize_with_resolver(addr, &Resolver::Uncached(resolver.deref()))
-                    })
+                    .map(|addr| self.symbolize_with_resolver(addr, &Resolver::Uncached(&resolver)))
                     .map(|result| result.or_else(maybe_fold_error))
                     .collect();
                 Ok(symbols)
