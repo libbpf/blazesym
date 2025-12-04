@@ -30,7 +30,6 @@ use crate::gsym::GsymResolver;
 use crate::insert_map::InsertMap;
 use crate::kernel::KernelCache;
 use crate::kernel::KernelResolver;
-use crate::kernel::KALLSYMS;
 use crate::log;
 use crate::maps;
 use crate::maps::EntryPath;
@@ -46,8 +45,6 @@ use crate::perf_map::PerfMap;
 use crate::symbolize::Resolve;
 use crate::symbolize::TranslateFileOffset;
 use crate::util;
-#[cfg(linux)]
-use crate::util::uname_release;
 use crate::util::Dbg;
 #[cfg(feature = "tracing")]
 use crate::util::Hexify;
@@ -1026,10 +1023,7 @@ impl Symbolizer {
     }
 
     #[cfg(linux)]
-    fn create_kernel_resolver(&self, src: &Kernel) -> Result<KernelResolver> {
-        use crate::util::bytes_to_os_str;
-        use crate::MaybeDefault;
-
+    fn create_kernel_resolver<'slf>(&'slf self, src: &Kernel) -> Result<KernelResolver<'slf>> {
         let Kernel {
             kallsyms,
             vmlinux,
@@ -1038,81 +1032,17 @@ impl Symbolizer {
             _non_exhaustive: (),
         } = src;
 
-        let ksym_resolver = match kallsyms {
-            MaybeDefault::Some(kallsyms) => {
-                let ksym_resolver = self.kernel_cache.ksym_resolver(kallsyms)?;
-                Some(ksym_resolver)
-            }
-            MaybeDefault::Default => {
-                let kallsyms = Path::new(KALLSYMS);
-                let result = self.kernel_cache.ksym_resolver(kallsyms);
-                match result {
-                    Ok(resolver) => Some(resolver),
-                    Err(err) => {
-                        log::warn!(
-                            "failed to load kallsyms from {}: {err}; ignoring...",
-                            kallsyms.display()
-                        );
-                        None
-                    }
-                }
-            }
-            MaybeDefault::None => None,
-        };
-
-        let elf_resolver = match vmlinux {
-            MaybeDefault::Some(vmlinux) => {
-                let resolver = self
-                    .elf_cache
-                    .elf_resolver(vmlinux, self.maybe_debug_dirs(*debug_syms))?;
-                Some(resolver)
-            }
-            MaybeDefault::Default => {
-                let release = uname_release()?;
-                let release = bytes_to_os_str(release.as_bytes())?;
-                let basename = OsStr::new("vmlinux-");
-                let dirs = [Path::new("/boot/"), Path::new("/usr/lib/debug/boot/")];
-                let vmlinux = dirs.iter().find_map(|dir| {
-                    let mut file = basename.to_os_string();
-                    let () = file.push(release);
-                    let path = dir.join(file);
-                    path.exists().then_some(path)
-                });
-
-                if let Some(vmlinux) = vmlinux {
-                    let result = self
-                        .elf_cache
-                        .elf_resolver(&vmlinux, self.maybe_debug_dirs(*debug_syms));
-                    match result {
-                        Ok(resolver) => {
-                            log::debug!("found suitable vmlinux file `{}`", vmlinux.display());
-                            Some(resolver)
-                        }
-                        Err(err) => {
-                            log::warn!(
-                                "failed to load vmlinux `{}`: {err}; ignoring...",
-                                vmlinux.display()
-                            );
-                            None
-                        }
-                    }
-                } else {
-                    None
-                }
-            }
-            MaybeDefault::None => None,
-        };
-
-        let ksym_resolver = ksym_resolver.map(Rc::clone);
-        let elf_resolver = elf_resolver.map(Rc::clone);
-        let kaslr_offset = kaslr_offset
-            .map(Ok)
-            .unwrap_or_else(|| self.kernel_cache.kaslr_offset())?;
-        KernelResolver::new(ksym_resolver, elf_resolver, kaslr_offset)
+        KernelResolver::new(
+            kallsyms,
+            vmlinux,
+            *kaslr_offset,
+            *debug_syms,
+            &self.kernel_cache,
+        )
     }
 
     #[cfg(not(linux))]
-    fn create_kernel_resolver(&self, _src: &Kernel) -> Result<KernelResolver> {
+    fn create_kernel_resolver<'slf>(&'slf self, _src: &Kernel) -> Result<KernelResolver<'slf>> {
         Err(Error::with_unsupported(
             "kernel address symbolization is unsupported on operating systems other than Linux",
         ))
