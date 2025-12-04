@@ -13,7 +13,7 @@ use crate::ErrorExt as _;
 use crate::Result;
 
 use super::kaslr::find_kalsr_offset;
-use super::KsymResolver;
+use super::ksym::KsymResolver;
 
 
 /// A cache for kernel related data.
