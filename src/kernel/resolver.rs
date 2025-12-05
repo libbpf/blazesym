@@ -18,17 +18,17 @@ use super::ksym::KsymResolver;
 
 pub(crate) struct KernelResolver {
     ksym_resolver: Option<Rc<KsymResolver>>,
-    elf_resolver: Option<Rc<ElfResolver>>,
+    vmlinux_resolver: Option<Rc<ElfResolver>>,
     kaslr_offset: u64,
 }
 
 impl KernelResolver {
     pub(crate) fn new(
         ksym_resolver: Option<Rc<KsymResolver>>,
-        elf_resolver: Option<Rc<ElfResolver>>,
+        vmlinux_resolver: Option<Rc<ElfResolver>>,
         kaslr_offset: u64,
     ) -> Result<KernelResolver> {
-        if ksym_resolver.is_none() && elf_resolver.is_none() {
+        if ksym_resolver.is_none() && vmlinux_resolver.is_none() {
             return Err(Error::with_not_found(
                 "failed to create kernel resolver: neither kallsyms nor vmlinux symbol source are present",
             ))
@@ -36,7 +36,7 @@ impl KernelResolver {
 
         Ok(KernelResolver {
             ksym_resolver,
-            elf_resolver,
+            vmlinux_resolver,
             kaslr_offset,
         })
     }
@@ -44,8 +44,8 @@ impl KernelResolver {
 
 impl Symbolize for KernelResolver {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
-        match (self.elf_resolver.as_ref(), self.ksym_resolver.as_ref()) {
-            (Some(elf_resolver), ksym_resolver) => {
+        match (self.vmlinux_resolver.as_ref(), self.ksym_resolver.as_ref()) {
+            (Some(vmlinux_resolver), ksym_resolver) => {
                 let elf_addr = addr
                     .checked_sub(self.kaslr_offset)
                     .ok_or_invalid_input(|| {
@@ -60,7 +60,7 @@ impl Symbolize for KernelResolver {
                 // address, though, we fall back to kallsyms. This is
                 // helpful for example for kernel modules, which
                 // naturally are not captured by vmlinux.
-                let result = elf_resolver.find_sym(elf_addr, opts)?;
+                let result = vmlinux_resolver.find_sym(elf_addr, opts)?;
                 if result.is_ok() {
                     Ok(result)
                 } else if let Some(ksym_resolver) = ksym_resolver {
@@ -82,7 +82,7 @@ impl Debug for KernelResolver {
         write!(
             f,
             "KernelResolver({:?} {:?})",
-            self.ksym_resolver, self.elf_resolver,
+            self.ksym_resolver, self.vmlinux_resolver,
         )
     }
 }
