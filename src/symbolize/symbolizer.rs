@@ -1487,7 +1487,7 @@ mod tests {
     fn symbolizer_size() {
         // TODO: This size is rather large and we should look into
         //       minimizing it.
-        assert_eq!(size_of::<Symbolizer>(), 1168);
+        assert_eq!(size_of::<Symbolizer>(), 1264);
     }
 
     /// Check that we can correctly construct the source code path to a symbol.

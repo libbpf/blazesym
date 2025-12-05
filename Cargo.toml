@@ -113,16 +113,18 @@ gsym = []
 # subscribing. Refer to the documentation of the [tracing] crate.
 # [tracing]: https://github.com/tokio-rs/tracing
 tracing = ["dep:tracing"]
-# Enable this feature to enable support for zlib decompression. This is
-# currently only used for handling compressed debug information.
-zlib = ["dep:miniz_oxide"]
-# Enable this feature to enable support for zstd decompression. This is
-# currently only used for handling compressed debug information.
-zstd = ["dep:zstd"]
-# Enable this feature to enable support for xz decompression. This is
-# currently only used for handling `.gnu_debugdata` section data
-# (MiniDebugInfo)
+# Enable this feature to enable support for xz/lzma decompression. This
+# is used for handling `.gnu_debugdata` section data (MiniDebugInfo) as
+# well as compressed kernel modules.
 xz = ["dep:xz2"]
+# Enable this feature to enable support for zlib decompression. This is
+# used for handling compressed debug information as well as compressed
+# kernel modules.
+zlib = ["dep:flate2", "dep:miniz_oxide"]
+# Enable this feature to enable support for zstd decompression. This is
+# used for handling compressed debug information as well as compressed
+# kernel modules.
+zstd = ["dep:zstd"]
 
 # Below here are dev-mostly features that should not be needed by
 # regular users.
@@ -174,14 +176,16 @@ codegen-units = 256
 
 [dependencies]
 cpp_demangle = {version = "0.5", optional = true}
+flate2 = {version = "1", optional = true}
 gimli = {version = "0.33", optional = true}
 libc = "0.2"
 memmap2 = {version = "0.9", default-features = false}
-miniz_oxide = {version = "0.9", default-features = false, features = ["simd", "with-alloc"], optional = true}
+miniz_oxide = {version = "0.8", default-features = false, features = ["simd", "with-alloc"], optional = true}
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1", optional = true}
+tempfile = {version = "3", default-features = false}
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
-xz2 = {version = "0.1.7", default-features = false, optional = true}
+xz2 = {version = "0.1", default-features = false, optional = true}
 zstd = {version = "0.13", default-features = false, optional = true}
 
 [dev-dependencies]
@@ -193,7 +197,6 @@ blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 criterion = {version = "0.8", default-features = false, features = ["rayon", "cargo_bench_support"]}
 scopeguard = "1.2"
 stats_alloc = {version = "0.1.1", features = ["nightly"]}
-tempfile = {version = "3", default-features = false}
 test-fork = "0.1"
 test-log = {version = "0.2", default-features = false, features = ["trace"]}
 test-tag = "0.1"

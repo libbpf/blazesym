@@ -1,6 +1,8 @@
 use std::path::Path;
 use std::path::PathBuf;
 
+use tempfile::NamedTempFile;
+
 
 pub(crate) trait PathLike {
     /// Retrieve the actual path that the object represents.
@@ -35,5 +37,15 @@ impl PathLike for PathBuf {
 
     fn represented_path(&self) -> &Path {
         self.as_path()
+    }
+}
+
+impl PathLike for (NamedTempFile, PathBuf) {
+    fn actual_path(&self) -> &Path {
+        self.0.path()
+    }
+
+    fn represented_path(&self) -> &Path {
+        &self.1
     }
 }
