@@ -6,6 +6,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use tempfile::NamedTempFile;
+
 use crate::elf::ElfResolver;
 use crate::log;
 use crate::symbolize::FindSymOpts;
@@ -26,11 +28,35 @@ use super::KernelCache;
 use super::KALLSYMS;
 
 
+#[cfg(feature = "xz")]
+fn decompress_xz(path: &Path) -> Result<NamedTempFile> {
+    use crate::error::ErrorExt as _;
+    use std::fs::File;
+    use std::io::copy;
+    use xz2::read::XzDecoder;
+
+    let file = File::open(path).with_context(|| format!("failed to open `{}`", path.display()))?;
+    let mut out = NamedTempFile::new().context("failed to create temporary file")?;
+    // TODO: Should we use a `BufReader` here?
+    let mut decoder = XzDecoder::new(file);
+    let _cnt = copy(&mut decoder, &mut out)
+        .with_context(|| format!("failed to xz-decode `{}` contents", path.display()))?;
+    Ok(out)
+}
+
+#[cfg(not(feature = "xz"))]
+fn decompress_xz(_path: &Path) -> Result<NamedTempFile> {
+    Err(Error::with_unsupported(
+        "Kernel module is xz compressed but xz compression support is not enabled",
+    ))
+}
+
 pub(crate) struct KernelResolver<'cache> {
-    _cache: &'cache KernelCache,
+    cache: &'cache KernelCache,
     ksym_resolver: Option<Rc<KsymResolver>>,
     vmlinux_resolver: Option<Rc<ElfResolver>>,
     kaslr_offset: u64,
+    debug_syms: bool,
 }
 
 impl<'cache> KernelResolver<'cache> {
@@ -116,10 +142,11 @@ impl<'cache> KernelResolver<'cache> {
         }
 
         Ok(KernelResolver {
-            _cache: cache,
+            cache,
             ksym_resolver,
             vmlinux_resolver,
             kaslr_offset,
+            debug_syms,
         })
     }
 }
@@ -128,24 +155,62 @@ impl Symbolize for KernelResolver<'_> {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         match (self.vmlinux_resolver.as_ref(), self.ksym_resolver.as_ref()) {
             (Some(vmlinux_resolver), ksym_resolver) => {
-                let elf_addr = addr
-                    .checked_sub(self.kaslr_offset)
-                    .ok_or_invalid_input(|| {
-                        format!(
-                            "address {addr:#x} is less than KASLR offset ({:#x})",
-                            self.kaslr_offset
-                        )
-                    })?;
+                // We start off with checking whether the address belongs
+                // to a kernel module. The response should be 100% reliable.
+                let modmap = self.cache.modmap()?;
+                if let Ok((mod_name, mod_base)) = modmap.find_module(addr) {
+                    log::debug!("address {addr:#x} belongs to module `{mod_name}` (base address: {mod_base:#x})");
+                    // TODO: Should probably handle a non-present file more
+                    //       gracefully.
+                    let depmod = self.cache.depmod()?;
 
-                // We give preference to vmlinux, because it is likely
-                // to report more information. If it could not find an
-                // address, though, we fall back to kallsyms. This is
-                // helpful for example for kernel modules, which
-                // naturally are not captured by vmlinux.
-                let result = vmlinux_resolver.find_sym(elf_addr, opts)?;
+                    if let Some(mod_path) = depmod.find_path(mod_name)? {
+                        log::debug!("module `{mod_name}` has path `{}`", mod_path.display());
+
+                        // The kernel module may be stored in compressed
+                        // form. If so, decompress it transparently into
+                        // a temporary file.
+                        // TODO: Other compression formats may be in use
+                        //       as well?
+                        let mod_resolver = if mod_path.extension() == Some(OsStr::new("xz")) {
+                            let tmpfile = decompress_xz(&mod_path)?;
+                            // The temporary file *represents* `mod_path` without the
+                            // `.xz` extension.
+                            let path = (tmpfile, mod_path.with_extension(""));
+                            self.cache.elf_resolver(&path, self.debug_syms)?
+                        } else {
+                            self.cache.elf_resolver(&mod_path, self.debug_syms)?
+                        };
+
+                        let elf_addr = addr.checked_sub(mod_base).ok_or_invalid_input(|| {
+                            format!(
+                            "address {addr:#x} is less than module base address ({mod_base:#x})",
+                        )
+                        })?;
+                        let result = mod_resolver.find_sym(elf_addr, opts)?;
+                        if result.is_ok() {
+                            return Ok(result)
+                        }
+                    }
+                }
+
+                // Next check the core kernel via its vmlinux file.
+                let vmlinux_addr =
+                    addr.checked_sub(self.kaslr_offset)
+                        .ok_or_invalid_input(|| {
+                            format!(
+                                "address {addr:#x} is less than KASLR offset ({:#x})",
+                                self.kaslr_offset
+                            )
+                        })?;
+
+                let result = vmlinux_resolver.find_sym(vmlinux_addr, opts)?;
                 if result.is_ok() {
-                    Ok(result)
-                } else if let Some(ksym_resolver) = ksym_resolver {
+                    return Ok(result)
+                }
+
+                if let Some(ksym_resolver) = ksym_resolver {
+                    // If all else failed we use kallsyms.
                     ksym_resolver.find_sym(addr, opts)
                 } else {
                     Ok(result)
@@ -180,10 +245,11 @@ mod tests {
     fn debug_repr() {
         let cache = KernelCache::new(Rc::new([]));
         let kernel = KernelResolver {
-            _cache: &cache,
+            cache: &cache,
             ksym_resolver: None,
             vmlinux_resolver: None,
             kaslr_offset: 0,
+            debug_syms: false,
         };
         assert_ne!(format!("{kernel:?}"), "");
     }
