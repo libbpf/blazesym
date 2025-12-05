@@ -14,6 +14,9 @@ use crate::Result;
 
 use super::kaslr::find_kalsr_offset;
 use super::ksym::KsymResolver;
+use super::DepmodIndex;
+use super::ModMap;
+use super::MODULES;
 
 
 /// A cache for kernel related data.
@@ -23,6 +26,10 @@ pub(crate) struct KernelCache {
     elf_cache: FileCache<ElfResolverData>,
     /// `/proc/kallsyms` cache.
     ksym_cache: FileCache<Rc<KsymResolver>>,
+    /// The system's module map (`/proc/modules`).
+    modmap: OnceCell<ModMap>,
+    /// The system's depmod index.
+    depmod: OnceCell<DepmodIndex>,
     /// The system's KASLR offset.
     kaslr_offset: OnceCell<u64>,
     #[cfg(feature = "dwarf")]
@@ -35,6 +42,8 @@ impl KernelCache {
         Self {
             elf_cache: FileCache::default(),
             ksym_cache: FileCache::default(),
+            modmap: OnceCell::default(),
+            depmod: OnceCell::default(),
             kaslr_offset: OnceCell::default(),
             debug_dirs,
         }
@@ -45,6 +54,8 @@ impl KernelCache {
         Self {
             elf_cache: FileCache::default(),
             ksym_cache: FileCache::default(),
+            modmap: OnceCell::default(),
+            depmod: OnceCell::default(),
             kaslr_offset: OnceCell::default(),
         }
     }
@@ -76,6 +87,23 @@ impl KernelCache {
         let (file, cell) = self.ksym_cache.entry(path)?;
         let resolver = cell.get_or_try_init_(|| self.create_ksym_resolver(path, file))?;
         Ok(resolver)
+    }
+
+    pub fn modmap(&self) -> Result<&ModMap> {
+        self.modmap
+            .get_or_try_init_(|| ModMap::new(Path::new(MODULES)))
+    }
+
+    #[cfg(linux)]
+    pub fn depmod(&self) -> Result<&DepmodIndex> {
+        self.depmod
+            .get_or_try_init_(DepmodIndex::with_system_default)
+            .context("failed to read system depmod information")
+    }
+
+    #[cfg(not(linux))]
+    pub fn depmod(&self) -> Result<&DepmodIndex> {
+        unimplemented!()
     }
 
     pub fn kaslr_offset(&self) -> Result<u64> {

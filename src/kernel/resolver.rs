@@ -2,11 +2,18 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+#[cfg(any(feature = "xz", feature = "zlib", feature = "zstd"))]
+use std::fs::File;
+#[cfg(any(feature = "xz", feature = "zlib", feature = "zstd"))]
+use std::io;
 use std::path::Path;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use tempfile::NamedTempFile;
+
 use crate::elf::ElfResolver;
+use crate::error::ErrorExt as _;
 use crate::log;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::Reason;
@@ -26,11 +33,79 @@ use super::KernelCache;
 use super::KALLSYMS;
 
 
+#[cfg(any(feature = "xz", feature = "zlib", feature = "zstd"))]
+fn decompress_into_tmp(decoder: &mut dyn io::Read, path: &Path) -> Result<NamedTempFile> {
+    use std::io::copy;
+    use std::io::Write as _;
+
+    let mut out = NamedTempFile::new().context("failed to create temporary file")?;
+    let _cnt = copy(decoder, &mut out)
+        .with_context(|| format!("failed to zlib-decode `{}` contents", path.display()))?;
+    let () = out
+        .flush()
+        .context("failed to flush temporary file contents")?;
+    Ok(out)
+}
+
+
+#[cfg(feature = "zlib")]
+fn decompress_zlib(path: &Path) -> Result<NamedTempFile> {
+    use flate2::read::GzDecoder;
+
+    let file = File::open(path).with_context(|| format!("failed to open `{}`", path.display()))?;
+    let mut decoder = GzDecoder::new(file);
+
+    decompress_into_tmp(&mut decoder, path)
+}
+
+#[cfg(not(feature = "zlib"))]
+fn decompress_zlib(_path: &Path) -> Result<NamedTempFile> {
+    Err(Error::with_unsupported(
+        "Kernel module is zlib compressed but zlib compression support is not enabled",
+    ))
+}
+
+#[cfg(feature = "xz")]
+fn decompress_xz(path: &Path) -> Result<NamedTempFile> {
+    use xz2::read::XzDecoder;
+
+    let file = File::open(path).with_context(|| format!("failed to open `{}`", path.display()))?;
+    let mut decoder = XzDecoder::new(file);
+
+    decompress_into_tmp(&mut decoder, path)
+}
+
+#[cfg(not(feature = "xz"))]
+fn decompress_xz(_path: &Path) -> Result<NamedTempFile> {
+    Err(Error::with_unsupported(
+        "Kernel module is xz compressed but xz compression support is not enabled",
+    ))
+}
+
+#[cfg(feature = "zstd")]
+fn decompress_zstd(path: &Path) -> Result<NamedTempFile> {
+    use zstd::stream::read::Decoder;
+
+    let file = File::open(path).with_context(|| format!("failed to open `{}`", path.display()))?;
+    let mut decoder = Decoder::new(file).context("failed to create zstd decoder")?;
+
+    decompress_into_tmp(&mut decoder, path)
+}
+
+#[cfg(not(feature = "zstd"))]
+fn decompress_zstd(_path: &Path) -> Result<NamedTempFile> {
+    Err(Error::with_unsupported(
+        "Kernel module is zstd compressed but zstd compression support is not enabled",
+    ))
+}
+
+
 pub(crate) struct KernelResolver<'cache> {
-    _cache: &'cache KernelCache,
+    cache: &'cache KernelCache,
     ksym_resolver: Option<Rc<KsymResolver>>,
     vmlinux_resolver: Option<Rc<ElfResolver>>,
     kaslr_offset: u64,
+    debug_syms: bool,
 }
 
 impl<'cache> KernelResolver<'cache> {
@@ -116,10 +191,11 @@ impl<'cache> KernelResolver<'cache> {
         }
 
         Ok(KernelResolver {
-            _cache: cache,
+            cache,
             ksym_resolver,
             vmlinux_resolver,
             kaslr_offset,
+            debug_syms,
         })
     }
 }
@@ -128,24 +204,70 @@ impl Symbolize for KernelResolver<'_> {
     fn find_sym(&self, addr: Addr, opts: &FindSymOpts) -> Result<Result<ResolvedSym<'_>, Reason>> {
         match (self.vmlinux_resolver.as_ref(), self.ksym_resolver.as_ref()) {
             (Some(vmlinux_resolver), ksym_resolver) => {
-                let elf_addr = addr
-                    .checked_sub(self.kaslr_offset)
-                    .ok_or_invalid_input(|| {
-                        format!(
-                            "address {addr:#x} is less than KASLR offset ({:#x})",
-                            self.kaslr_offset
-                        )
-                    })?;
+                // We start off with checking whether the address belongs
+                // to a kernel module. The response should be 100% reliable.
+                let modmap = self.cache.modmap()?;
+                if let Ok((mod_name, mod_base)) = modmap.find_module(addr) {
+                    log::debug!("address {addr:#x} belongs to module `{mod_name}` (base address: {mod_base:#x})");
+                    // TODO: Should probably handle a non-present file more
+                    //       gracefully.
+                    let depmod = self.cache.depmod()?;
 
-                // We give preference to vmlinux, because it is likely
-                // to report more information. If it could not find an
-                // address, though, we fall back to kallsyms. This is
-                // helpful for example for kernel modules, which
-                // naturally are not captured by vmlinux.
-                let result = vmlinux_resolver.find_sym(elf_addr, opts)?;
+                    if let Some(mod_path) = depmod.find_path(mod_name)? {
+                        log::debug!("module `{mod_name}` has path `{}`", mod_path.display());
+
+                        // The kernel module may be stored in compressed
+                        // form. If so, decompress it transparently into
+                        // a temporary file.
+                        let ext = mod_path.extension().unwrap_or_else(|| OsStr::new(""));
+                        let path;
+                        let mod_resolver = match ext.to_str() {
+                            Some("gz") | Some("xz") | Some("zstd") => {
+                                let tmpfile = match ext.to_str() {
+                                    Some("gz") => decompress_zlib(&mod_path)?,
+                                    Some("xz") => decompress_xz(&mod_path)?,
+                                    Some("zstd") => decompress_zstd(&mod_path)?,
+                                    _ => unreachable!(),
+                                };
+                                // The temporary file *represents* `mod_path` without the
+                                // `.xz` extension.
+                                path = (tmpfile, mod_path.with_extension(""));
+                                self.cache.elf_resolver(&path, self.debug_syms)?
+                            }
+                            _ => self.cache.elf_resolver(&mod_path, self.debug_syms)?,
+                        };
+
+                        let elf_addr = addr.checked_sub(mod_base).ok_or_invalid_input(|| {
+                            format!(
+                            "address {addr:#x} is less than module base address ({mod_base:#x})",
+                        )
+                        })?;
+                        let result = mod_resolver.find_sym(elf_addr, opts)?;
+                        if result.is_ok() {
+                            return Ok(result)
+                        }
+                    } else {
+                        log::info!("module `{mod_name}` not found in depmod");
+                    }
+                }
+
+                // Next check the core kernel via its vmlinux file.
+                let vmlinux_addr =
+                    addr.checked_sub(self.kaslr_offset)
+                        .ok_or_invalid_input(|| {
+                            format!(
+                                "address {addr:#x} is less than KASLR offset ({:#x})",
+                                self.kaslr_offset
+                            )
+                        })?;
+
+                let result = vmlinux_resolver.find_sym(vmlinux_addr, opts)?;
                 if result.is_ok() {
-                    Ok(result)
-                } else if let Some(ksym_resolver) = ksym_resolver {
+                    return Ok(result)
+                }
+
+                if let Some(ksym_resolver) = ksym_resolver {
+                    // If all else failed we use kallsyms.
                     ksym_resolver.find_sym(addr, opts)
                 } else {
                     Ok(result)
@@ -180,10 +302,11 @@ mod tests {
     fn debug_repr() {
         let cache = KernelCache::new(Rc::new([]));
         let kernel = KernelResolver {
-            _cache: &cache,
+            cache: &cache,
             ksym_resolver: None,
             vmlinux_resolver: None,
             kaslr_offset: 0,
+            debug_syms: false,
         };
         assert_ne!(format!("{kernel:?}"), "");
     }

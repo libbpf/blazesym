@@ -174,7 +174,7 @@ dependencies = [
  "addr2line 0.24.2",
  "cfg-if",
  "libc",
- "miniz_oxide 0.8.9",
+ "miniz_oxide",
  "object 0.36.7",
  "rustc-demangle",
  "windows-targets",
@@ -246,10 +246,11 @@ dependencies = [
  "blazesym-dev",
  "cpp_demangle 0.5.1",
  "criterion",
+ "flate2",
  "gimli 0.33.0",
  "libc",
  "memmap2",
- "miniz_oxide 0.9.0",
+ "miniz_oxide",
  "nom",
  "rustc-demangle",
  "scopeguard",
@@ -845,7 +846,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c936bfdafb507ebbf50b8074c54fa31c5be9a1e7e5f467dd659697041407d07c"
 dependencies = [
  "crc32fast",
- "miniz_oxide 0.8.9",
+ "miniz_oxide",
 ]
 
 [[package]]
@@ -1607,15 +1608,6 @@ name = "miniz_oxide"
 version = "0.8.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fa76a2c86f704bdb222d66965fb3d63269ce38518b83cb0575fca855ebb6316"
-dependencies = [
- "adler2",
-]
-
-[[package]]
-name = "miniz_oxide"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5faa9f23e86bd5768d76def086192ff5f869fb088da12a976ea21e9796b975f6"
 dependencies = [
  "adler2",
  "simd-adler32",

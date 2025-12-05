@@ -37,7 +37,7 @@ reqwest = {version = "0.12", optional = true, default-features = false, features
 tempfile = {version = "3", default-features = false, optional = true}
 thorin_dwp = {package = "thorin-dwp", version = "0.9", optional = true, default-features = false}
 vmlinux = {git = "https://github.com/libbpf/vmlinux.h.git", rev = "a9c092aa771310bf8b00b5018f7d40a1fdb6ec82"}
-xz2 = {version = "0.1.7", optional = true}
+xz2 = {version = "0.1", default-features = false, optional = true}
 zip = {version = "7", optional = true, default-features = false}
 zstd = {version = "0.13", default-features = false, optional = true}
 
