@@ -31,7 +31,7 @@ jobs:
       kernel-artifact-id: ${{ steps.upload-linux-kernel.outputs.artifact-id }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v5
         id: restore-cached-kernel
         with:
           path: |
@@ -71,7 +71,7 @@ jobs:
           popd
           mv build/arch/x86/boot/bzImage build/
       - if: steps.restore-cached-kernel.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: |
             build/bzImage
