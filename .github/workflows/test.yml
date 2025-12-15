@@ -295,7 +295,7 @@ jobs:
     needs: [build-test-artifacts]
     steps:
     - uses: actions/checkout@v6
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         name: test-stable-addrs
         path: data/
