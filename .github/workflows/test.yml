@@ -20,13 +20,14 @@ env:
 
 jobs:
   build-linux-kernel:
-    uses: ./.github/workflows/build-linux.yml
+    uses: libbpf/github-actions/.github/workflows/build-linux.yml@bd7fc70260c9ab81801001fcd86ba94070b34e5d
     secrets: inherit
     with:
       # Please keep in sync with vmlinux release version specification
       # below.
       rev: v6.11
       config: 'data/config'
+      vmlinux: true
   build:
     name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}, ${{ matrix.args }}]
     runs-on: ${{ matrix.runs-on }}
