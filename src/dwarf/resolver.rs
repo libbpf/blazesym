@@ -5,6 +5,7 @@ use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
+use std::io;
 use std::mem;
 use std::mem::swap;
 use std::ops::ControlFlow;
@@ -93,7 +94,20 @@ impl From<Option<gimli::DwLang>> for SrcLang {
 }
 
 
-/// Find a debug file in a list of default directories.
+fn try_canonicalize(path: &Path) -> io::Result<Cow<'_, Path>> {
+    match path.canonicalize() {
+        Ok(path) => Ok(Cow::Owned(path)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            // If the file doesn't actually exist we may still want to use
+            // its path for constructing *.debug candidates, so be liberal
+            // here and just ignore this error.
+            Ok(Cow::Borrowed(path))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// Find a debug file in a list of directories.
 ///
 /// `linker` is the path to the file containing the debug link. This function
 /// searches a couple of "well-known" locations and then others constructed
@@ -102,9 +116,8 @@ impl From<Option<gimli::DwLang>> for SrcLang {
 /// # Notes
 /// This function ignores any errors encountered.
 fn find_debug_file(file: &OsStr, linker: Option<&Path>, debug_dirs: &[PathBuf]) -> Option<PathBuf> {
-    let canonical_linker = linker.and_then(|linker| linker.canonicalize().ok());
+    let canonical_linker = linker.and_then(|linker| try_canonicalize(linker).ok());
     let it = DebugFileIter::new(debug_dirs, canonical_linker.as_deref(), file);
-
     for path in it {
         if path.exists() {
             debug!("found debug info at `{}`", path.display());
@@ -552,6 +565,8 @@ mod tests {
     use std::ops::ControlFlow;
     use std::path::PathBuf;
 
+    use tempfile::NamedTempFile;
+
     use test_log::test;
 
     use crate::ErrorKind;
@@ -578,6 +593,22 @@ mod tests {
             .with_context(|| "failed to read")
             .unwrap_err();
         assert_eq!(format!("{err:#}"), format!("failed to read: {inner}"));
+    }
+
+    /// Make sure that `try_canonicalize` works as it should.
+    #[test]
+    fn canonicalization_attempt() {
+        let file = NamedTempFile::new().unwrap();
+        let path = file.path().to_path_buf();
+        let expected = path.clone();
+
+        let canonical = try_canonicalize(&path).unwrap();
+        assert_eq!(canonical, expected);
+
+        drop(file);
+
+        let canonical = try_canonicalize(&path).unwrap();
+        assert_eq!(canonical, expected);
     }
 
     /// Check that we resolve debug links correctly.
