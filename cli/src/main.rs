@@ -7,9 +7,6 @@ use std::cmp::max;
 use std::io::stderr;
 use std::ops::ControlFlow;
 
-use anyhow::Context;
-use anyhow::Result;
-
 use blazesym::helper::read_elf_build_id;
 use blazesym::inspect;
 use blazesym::inspect::Inspector;
@@ -19,7 +16,9 @@ use blazesym::normalize::Normalizer;
 use blazesym::symbolize;
 use blazesym::symbolize::Symbolizer;
 use blazesym::Addr;
+use blazesym::ErrorExt as _;
 use blazesym::MaybeDefault;
+use blazesym::Result;
 use blazesym::SymType;
 
 use clap::Parser as _;
@@ -357,8 +356,7 @@ fn main() -> Result<()> {
         .with_time(Some(SystemTime))
         .build(stderr());
     let subscriber = Registry::default().with(hierarchical);
-    let () =
-        set_global_subscriber(subscriber).with_context(|| "failed to set tracing subscriber")?;
+    let () = set_global_subscriber(subscriber).expect("failed to set tracing subscriber");
 
     match args.command {
         args::Command::Inspect(inspect) => self::inspect(inspect),
