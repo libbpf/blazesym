@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Improved backtrace reporting when requested via `RUST_BACKTRACE` or
+  `RUST_LIB_BACKTRACE` environment variables
+
+
 0.1.12
 ------
 - Bumped `blazesym` dependency to `0.2.0`
