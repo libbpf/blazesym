@@ -3,6 +3,7 @@ Unreleased
 - Improved data caching for debug link targets and DWP files
 - Improved kernel symbolization performance when no KASLR offset is
   provided by the user
+- Fixed backtrace reporting on contextualized errors
 
 
 0.2.1
