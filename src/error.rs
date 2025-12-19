@@ -166,8 +166,8 @@ impl ErrorImpl {
             Self::Dwarf { backtrace, .. } => Some(backtrace),
             Self::Io { backtrace, .. } => Some(backtrace),
             Self::Std { backtrace, .. } => Some(backtrace),
-            Self::ContextOwned { .. } => None,
-            Self::ContextStatic { .. } => None,
+            Self::ContextOwned { source, .. } => source.backtrace(),
+            Self::ContextStatic { source, .. } => source.backtrace(),
         }
     }
 
@@ -881,6 +881,13 @@ Caused by:
 
         let err = io::Error::new(io::ErrorKind::InvalidData, "some invalid data");
         let err = Error::from(err);
+        let debug = format!("{err:?}");
+
+        let start_idx = debug.find("Stack backtrace").unwrap();
+        let backtrace = &debug[start_idx..];
+        assert!(backtrace.contains("src/error.rs"), "{backtrace}");
+
+        let err = err.context("foobar");
         let debug = format!("{err:?}");
 
         let start_idx = debug.find("Stack backtrace").unwrap();
