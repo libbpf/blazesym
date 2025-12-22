@@ -22,6 +22,7 @@ use blazesym::Pid;
 use clap::ArgAction;
 use clap::Parser;
 
+use debuginfod::reqwest::blocking::Client as ReqwestBlockingClient;
 use debuginfod::BuildId;
 use debuginfod::CachingClient;
 use debuginfod::Client;
@@ -174,7 +175,10 @@ fn main() -> Result<()> {
 
     set_global_subscriber(subscriber).with_context(|| "failed to set tracing subscriber")?;
 
-    let client = Client::from_env()
+
+    let client = Client::builder()
+        .http_client(ReqwestBlockingClient::new())
+        .build_from_env()
         .context("failed to create debuginfod client")?
         .context("failed to find valid URLs in DEBUGINFOD_URLS environment variable")?;
     let client = CachingClient::from_env(client)?;
