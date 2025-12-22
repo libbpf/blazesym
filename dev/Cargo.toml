@@ -39,7 +39,7 @@ thorin_dwp = {package = "thorin-dwp", version = "0.9", optional = true, default-
 vmlinux = {git = "https://github.com/libbpf/vmlinux.h.git", rev = "a9c092aa771310bf8b00b5018f7d40a1fdb6ec82"}
 xz2 = {version = "0.1.7", optional = true}
 zip = {version = "7", optional = true, default-features = false}
-zstd = {version = "0.13.3", default-features = false, optional = true}
+zstd = {version = "0.13", default-features = false, optional = true}
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.build-dependencies]
 libbpf-sys = {version = "1.6", default-features = false, optional = true}
