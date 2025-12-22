@@ -175,7 +175,7 @@ miniz_oxide = {version = "0.8", default-features = false, features = ["simd", "w
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1", optional = true}
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
-zstd = {version = "0.13.3", default-features = false, optional = true}
+zstd = {version = "0.13", default-features = false, optional = true}
 
 [dev-dependencies]
 # For performance comparison; pinned, because we use #[doc(hidden)]
