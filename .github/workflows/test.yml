@@ -139,6 +139,8 @@ jobs:
   build-minimum:
     name: Build using minimum versions of dependencies
     runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: '-A warnings -C debuginfo=line-tables-only'
     steps:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
