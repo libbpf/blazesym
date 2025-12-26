@@ -534,16 +534,26 @@ impl SymbolizeHandler<'_> {
     }
 
     fn handle_elf_addr(&mut self, addr: Addr, file_off: u64, entry_path: &EntryPath) -> Result<()> {
+        let debug_dirs = self
+            .symbolizer
+            .maybe_debug_dirs(self.debug_syms)
+            .map(|dirs| {
+                dirs.iter()
+                    .filter_map(|dir| Some(entry_path.root_path.join(dir.strip_prefix("/").ok()?)))
+                    .chain(dirs.iter().cloned())
+                    .collect::<Vec<_>>()
+            });
+
+
         let resolver = if self.map_files {
-            self.symbolizer.elf_cache.elf_resolver(
-                entry_path,
-                self.symbolizer.maybe_debug_dirs(self.debug_syms),
-            )
+            self.symbolizer
+                .elf_cache
+                .elf_resolver(entry_path, debug_dirs.as_deref())
         } else {
             let path = &entry_path.symbolic_path;
             self.symbolizer
                 .elf_cache
-                .elf_resolver(path, self.symbolizer.maybe_debug_dirs(self.debug_syms))
+                .elf_resolver(path, debug_dirs.as_deref())
         }?;
 
 
