@@ -46,6 +46,8 @@ pub struct EntryPath {
     /// parsed. This path has been sanitized and no longer contains any
     /// `(deleted)` suffixes.
     pub symbolic_path: PathBuf,
+    /// The path to the root of the mount namespace through `/proc/<xxx>/root`.
+    pub root_path: PathBuf,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -211,9 +213,11 @@ pub(crate) fn parse_path_name(
             let pid = pid.resolve();
             let maps_file =
                 PathBuf::from(format!("/proc/{pid}/map_files/{vma_start:x}-{vma_end:x}"));
+            let root_path = PathBuf::from(format!("/proc/{pid}/root"));
             Some(PathName::Path(EntryPath {
                 maps_file,
                 symbolic_path,
+                root_path,
                 _non_exhaustive: (),
             }))
         }
