@@ -38,7 +38,8 @@ pub struct EntryPath {
     /// `/proc/<xxx>/map_files/` component.
     ///
     /// This path should generally be used on the local system, unless perhaps
-    /// for reporting purposes (for which `path` below may be more appropriate).
+    /// for reporting purposes (for which [`symbolic_path`][Self::symbolic_path]
+    /// may be more appropriate).
     pub maps_file: PathBuf,
     /// The path to the file backing the proc maps entry as found directly in
     /// the `/proc/<xxx>/maps` file. This path should generally only be used for
