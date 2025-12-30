@@ -1,0 +1,188 @@
+package blazesym_test
+
+import (
+	"debug/elf"
+	"os"
+	"path/filepath"
+	"reflect"
+	"testing"
+
+	blazesym "github.com/libbpf/blazesym/go"
+)
+
+func isSelfStripped() bool {
+	f, err := os.Open(os.Args[0])
+	if err != nil {
+		panic(err)
+	}
+
+	e, err := elf.NewFile(f)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, section := range e.Sections {
+		if section.Name == ".debug_line" {
+			return false
+		}
+	}
+
+	return true
+}
+
+func TestSymbolizeProcess(t *testing.T) {
+	if isSelfStripped() {
+		t.Skip("test binary is stripped, skipping")
+		return
+	}
+
+	symbolizer, err := blazesym.NewSymbolizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addr := reflect.ValueOf(TestSymbolizeProcess).Pointer()
+
+	syms, err := symbolizer.SymbolizeProcessAbsAddrs(&blazesym.ProcessSource{Pid: uint32(os.Getpid()), DebugSyms: true, NoMapFiles: true}, []uint64{uint64(addr)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if syms[0].Name != "github.com/libbpf/blazesym/go_test.TestSymbolizeProcess" {
+		t.Errorf("unexpected name: %v", syms[0].Name)
+	}
+}
+
+func TestSymbolizeElfStripped(t *testing.T) {
+	symbolizer, err := blazesym.NewSymbolizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	syms, err := symbolizer.SymbolizeElfVirtOffsets(&blazesym.ElfSource{Path: "../data/test-stable-addrs-stripped.bin"}, []uint64{uint64(0x2000200)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if syms[0].Reason != blazesym.SymbolizeReasonMissingSyms {
+		t.Errorf("expected SymbolizeReasonMissingSyms, got %v", syms[0].Reason)
+	}
+}
+
+func testElfDwarfSource(t *testing.T, source *blazesym.ElfSource, hasCodeInfo bool) {
+	symbolizer, err := blazesym.NewSymbolizer()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	syms, err := symbolizer.SymbolizeElfVirtOffsets(source, []uint64{0x2000200})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if syms[0].Reason != blazesym.SymbolizeReasonSuccess {
+		t.Errorf("expected symbolication to succeed, got reason %d", syms[0].Reason)
+	}
+
+	if syms[0].Name != "factorial" {
+		t.Errorf("expected name factorial, got %q", syms[0].Name)
+	}
+
+	if syms[0].Addr != 0x2000200 {
+		t.Errorf("expected addr 0x2000200, got 0x%x", syms[0].Addr)
+	}
+
+	if syms[0].Offset != 0 {
+		t.Errorf("expected offset 0, got %d", syms[0].Offset)
+	}
+
+	if hasCodeInfo {
+		if syms[0].CodeInfo.Dir == "" {
+			t.Errorf("expected non-empty dir, got %q", syms[0].CodeInfo.Dir)
+		}
+
+		if syms[0].CodeInfo.File != "test-stable-addrs.c" {
+			t.Errorf("expected file to be test-stable-addrs.c, got %q", syms[0].CodeInfo.File)
+		}
+
+		if syms[0].CodeInfo.Line != 10 {
+			t.Errorf("expected line to be 10, got %d", syms[0].CodeInfo.Line)
+		}
+	} else {
+		if syms[0].CodeInfo != nil {
+			t.Errorf("expected no code info, got %#v", syms[0].CodeInfo)
+		}
+	}
+
+	if syms[0].Size == 0 {
+		t.Error("expected non-zero size, got zero")
+	}
+
+	offsetAddrs := make([]uint64, syms[0].Size-1)
+	for offset := range syms[0].Size - 1 {
+		offsetAddrs[offset] = uint64(0x2000200 + offset + 1)
+	}
+
+	syms, err = symbolizer.SymbolizeElfVirtOffsets(source, offsetAddrs)
+	if err != nil {
+		t.Error(err)
+	}
+
+	if len(syms) != len(offsetAddrs) {
+		t.Errorf("got %d syms for %d addrs", len(syms), len(offsetAddrs))
+	}
+
+	for i := range syms {
+		if syms[i].Name != "factorial" {
+			t.Errorf("expected name factorial, got %q", syms[i].Name)
+		}
+
+		if syms[i].Addr != 0x2000200 {
+			t.Errorf("expected addr 0x2000200, got 0x%x", syms[i].Addr)
+		}
+
+		if syms[i].Offset != uint64(i+1) {
+			t.Errorf("expected offset %d, got %d", i+1, syms[i].Offset)
+		}
+
+		if hasCodeInfo {
+			if syms[i].CodeInfo.Dir == "" {
+				t.Errorf("expected non-empty dir, got %q", syms[i].CodeInfo.Dir)
+			}
+
+			if syms[i].CodeInfo.File != "test-stable-addrs.c" {
+				t.Errorf("expected file to be test-stable-addrs.c, got %q", syms[i].CodeInfo.File)
+			}
+
+			if syms[i].CodeInfo.Line == 0 {
+				t.Error("expected line to non-zero")
+			}
+		} else {
+			if syms[i].CodeInfo != nil {
+				t.Errorf("expected no code info, got %#v", syms[i].CodeInfo)
+			}
+		}
+	}
+}
+
+func TestSymbolizeElfDwarf(t *testing.T) {
+	for _, file := range []string{
+		"test-stable-addrs-no-dwarf.bin",
+		"test-stable-addrs-stripped-with-link-to-elf-only.bin",
+		"test-stable-addrs-32-no-dwarf.bin",
+	} {
+		t.Run(file, func(t *testing.T) {
+			testElfDwarfSource(t, &blazesym.ElfSource{Path: filepath.Join("../data", file), DebugSyms: true}, false)
+		})
+	}
+
+	for _, file := range []string{
+		"test-stable-addrs-stripped-elf-with-dwarf.bin",
+		"test-stable-addrs-lto.bin",
+		"test-stable-addrs-compressed-debug-zlib.bin",
+	} {
+		t.Run(file, func(t *testing.T) {
+			testElfDwarfSource(t, &blazesym.ElfSource{Path: filepath.Join("../data", file), DebugSyms: true}, true)
+		})
+	}
+}
