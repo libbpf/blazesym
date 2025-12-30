@@ -492,6 +492,31 @@ jobs:
       - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo doc --workspace --exclude=blazesym-dev --exclude=gsym-in-apk --no-deps --document-private-items
+  go:
+    name: Run Go tests
+    runs-on: ubuntu-24.04
+    env:
+      LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
+    steps:
+      - name: Install development dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo check --package blazesym-dev --features=generate-unit-test-files
+      - run: cargo build --package blazesym-c
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.6
+          working-directory: go
+        env:
+          CGO_CFLAGS: "-I${{ github.workspace }}/capi/include"
+      # Tests are compiled first to include debug info, which is skipped in regular `go test`.
+      - run: cd go && CGO_CFLAGS="-I$(pwd)/../capi/include" CGO_LDFLAGS="-L$(pwd)/../target/debug" go test -v -c -o /tmp/test . && LD_LIBRARY_PATH=$(pwd)/../target/debug /tmp/test -test.v
 
   required-checks:
     needs: [
