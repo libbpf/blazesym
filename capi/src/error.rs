@@ -38,7 +38,7 @@ impl blaze_err {
     /// because a call to [`write`][std::io::Write::write] returned
     /// [`Ok(0)`][Ok].
     pub const WRITE_ZERO: blaze_err = blaze_err(-257);
-    /// An error returned when an operation ould not be completed
+    /// An error returned when an operation could not be completed
     /// because an "end of file" was reached prematurely.
     pub const UNEXPECTED_EOF: blaze_err = blaze_err(-258);
     /// DWARF input data was invalid.

@@ -69,7 +69,7 @@ typedef int16_t blaze_err;
  */
 #define BLAZE_ERR_WRITE_ZERO -257
 /**
- * An error returned when an operation ould not be completed
+ * An error returned when an operation could not be completed
  * because an "end of file" was reached prematurely.
  */
 #define BLAZE_ERR_UNEXPECTED_EOF -258
