@@ -22,8 +22,15 @@ type Symbolizer struct {
 
 // NewSymbolizer creates an instance of a symbolizer.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/fn.blaze_symbolizer_new.html
-func NewSymbolizer() (*Symbolizer, error) {
-	s := C.blaze_symbolizer_new()
+func NewSymbolizer(options ...SymbolizerOption) (*Symbolizer, error) {
+	so := newSymbolizerOptions()
+	defer so.Close()
+
+	for _, option := range options {
+		option(so)
+	}
+
+	s := C.blaze_symbolizer_new_opts(&so.opts)
 	if s == nil {
 		return nil, blazeErr(C.blaze_err_last()).Error()
 	}

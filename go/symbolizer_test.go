@@ -2,6 +2,7 @@ package blazesym_test
 
 import (
 	"debug/elf"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -97,16 +98,20 @@ func testElfDwarfSource(t *testing.T, source *blazesym.ElfSource, hasCodeInfo bo
 	}
 
 	if hasCodeInfo {
-		if syms[0].CodeInfo.Dir == "" {
-			t.Errorf("expected non-empty dir, got %q", syms[0].CodeInfo.Dir)
-		}
+		if syms[0].CodeInfo == nil {
+			t.Error("expected code info to be present")
+		} else {
+			if syms[0].CodeInfo.Dir == "" {
+				t.Errorf("expected non-empty dir, got %q", syms[0].CodeInfo.Dir)
+			}
 
-		if syms[0].CodeInfo.File != "test-stable-addrs.c" {
-			t.Errorf("expected file to be test-stable-addrs.c, got %q", syms[0].CodeInfo.File)
-		}
+			if syms[0].CodeInfo.File != "test-stable-addrs.c" {
+				t.Errorf("expected file to be test-stable-addrs.c, got %q", syms[0].CodeInfo.File)
+			}
 
-		if syms[0].CodeInfo.Line != 10 {
-			t.Errorf("expected line to be 10, got %d", syms[0].CodeInfo.Line)
+			if syms[0].CodeInfo.Line != 10 {
+				t.Errorf("expected line to be 10, got %d", syms[0].CodeInfo.Line)
+			}
 		}
 	} else {
 		if syms[0].CodeInfo != nil {
@@ -146,16 +151,20 @@ func testElfDwarfSource(t *testing.T, source *blazesym.ElfSource, hasCodeInfo bo
 		}
 
 		if hasCodeInfo {
-			if syms[i].CodeInfo.Dir == "" {
-				t.Errorf("expected non-empty dir, got %q", syms[i].CodeInfo.Dir)
-			}
+			if syms[i].CodeInfo == nil {
+				t.Error("expected code info to be present")
+			} else {
+				if syms[i].CodeInfo.Dir == "" {
+					t.Errorf("expected non-empty dir, got %q", syms[i].CodeInfo.Dir)
+				}
 
-			if syms[i].CodeInfo.File != "test-stable-addrs.c" {
-				t.Errorf("expected file to be test-stable-addrs.c, got %q", syms[i].CodeInfo.File)
-			}
+				if syms[i].CodeInfo.File != "test-stable-addrs.c" {
+					t.Errorf("expected file to be test-stable-addrs.c, got %q", syms[i].CodeInfo.File)
+				}
 
-			if syms[i].CodeInfo.Line == 0 {
-				t.Error("expected line to non-zero")
+				if syms[i].CodeInfo.Line == 0 {
+					t.Error("expected line to non-zero")
+				}
 			}
 		} else {
 			if syms[i].CodeInfo != nil {
@@ -184,5 +193,95 @@ func TestSymbolizeElfDwarf(t *testing.T) {
 		t.Run(file, func(t *testing.T) {
 			testElfDwarfSource(t, &blazesym.ElfSource{Path: filepath.Join("../data", file), DebugSyms: true}, true)
 		})
+	}
+}
+
+func copy(dst, src string) error {
+	s, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+
+	defer s.Close()
+
+	d, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+
+	defer d.Close()
+
+	_, err = io.Copy(d, s)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func TestConfigurableDebugDirs(t *testing.T) {
+	tmp, err := os.MkdirTemp(os.TempDir(), "*")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dst := filepath.Join(tmp, "test-stable-addrs-stripped-with-link.bin")
+
+	err = copy(dst, filepath.Join("../data", "test-stable-addrs-stripped-with-link.bin"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	symbolizer, err := blazesym.NewSymbolizer(blazesym.WithDebugDirs([]string{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	syms, err := symbolizer.SymbolizeElfVirtOffsets(&blazesym.ElfSource{Path: dst, DebugSyms: true}, []uint64{0x2000200})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if syms[0].Name != "" {
+		t.Errorf("expected symbol to be not resolved, got %q", syms[0].Name)
+	}
+
+	if syms[0].Reason != blazesym.SymbolizeReasonMissingSyms {
+		t.Errorf("expected reason to be SymbolizeReasonMissingSyms, got %v", syms[0].Reason)
+	}
+
+	debugDir1, err := os.MkdirTemp(os.TempDir(), "*")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	debugDir2, err := os.MkdirTemp(os.TempDir(), "*")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	debugDst := filepath.Join(debugDir2, "test-stable-addrs-dwarf-only.dbg")
+
+	err = copy(debugDst, filepath.Join("../data", "test-stable-addrs-dwarf-only.dbg"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	symbolizer, err = blazesym.NewSymbolizer(blazesym.WithDebugDirs([]string{debugDir1, debugDir2}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	syms, err = symbolizer.SymbolizeElfVirtOffsets(&blazesym.ElfSource{Path: dst, DebugSyms: true}, []uint64{0x2000200})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if syms[0].Name != "factorial" {
+		t.Errorf("expected symbol to resolve to factorial, got %q", syms[0].Name)
+	}
+
+	if syms[0].Module != dst {
+		t.Errorf("expected module to be %q, got %q", dst, syms[0].Module)
 	}
 }
