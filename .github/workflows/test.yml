@@ -506,7 +506,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo check --package blazesym-dev --features=generate-unit-test-files
       - run: cargo build --package blazesym-c
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: stable
       - uses: golangci/golangci-lint-action@v9
