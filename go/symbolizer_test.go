@@ -196,7 +196,7 @@ func TestSymbolizeElfDwarf(t *testing.T) {
 	}
 }
 
-func copy(dst, src string) error {
+func copyFile(dst, src string) error {
 	s, err := os.Open(src)
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func TestConfigurableDebugDirs(t *testing.T) {
 
 	dst := filepath.Join(tmp, "test-stable-addrs-stripped-with-link.bin")
 
-	err = copy(dst, filepath.Join("../data", "test-stable-addrs-stripped-with-link.bin"))
+	err = copyFile(dst, filepath.Join("../data", "test-stable-addrs-stripped-with-link.bin"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +262,7 @@ func TestConfigurableDebugDirs(t *testing.T) {
 
 	debugDst := filepath.Join(debugDir2, "test-stable-addrs-dwarf-only.dbg")
 
-	err = copy(debugDst, filepath.Join("../data", "test-stable-addrs-dwarf-only.dbg"))
+	err = copyFile(debugDst, filepath.Join("../data", "test-stable-addrs-dwarf-only.dbg"))
 	if err != nil {
 		t.Fatal(err)
 	}

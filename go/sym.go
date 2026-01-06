@@ -1,6 +1,6 @@
 package blazesym
 
-// The result of address symbolization by Symbolizer.
+// Sym is the result of address symbolization by Symbolizer.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_sym.html
 type Sym struct {
 	// The symbol name that an address belongs to.
@@ -21,7 +21,7 @@ type Sym struct {
 	Reason SymbolizeReason
 }
 
-// Source code location information for a symbol or inlined function.
+// CodeInfo describes source code location information for a symbol or inlined function.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolize_code_info.html
 type CodeInfo struct {
 	// The directory in which the source file resides.
@@ -34,7 +34,7 @@ type CodeInfo struct {
 	Column uint16
 }
 
-// A type representing an inlined function.
+// InlinedFn represents an inlined function.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolize_inlined_fn.html
 type InlinedFn struct {
 	// The symbol name of the inlined function.

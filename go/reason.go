@@ -5,20 +5,25 @@ package blazesym
 type SymbolizeReason int
 
 const (
-	// Symbolization was successful.
+	// SymbolizeReasonSuccess means that symbolization was successful.
 	SymbolizeReasonSuccess SymbolizeReason = 0
-	// The absolute address was not found in the corresponding process' virtual memory map.
+	// SymbolizeReasonUnmapped means that the absolute address was not found
+	// in the corresponding process' virtual memory map.
 	SymbolizeReasonUnmapped SymbolizeReason = 1
-	// The file offset does not map to a valid piece of code/data.
+	// SymbolizeReasonInvalidFileOffset means that the file offset does not map
+	// to a valid piece of code/data.
 	SymbolizeReasonInvalidFileOffset SymbolizeReason = 2
-	// The `/proc/<pid>/maps` entry corresponding to the address does
-	// not have a component (file system path, object, ...) associated
-	// with it.
+	// SymbolizeReasonMissingComponent means that the `/proc/<pid>/maps` entry
+	// corresponding to the address does not have a component (file system path,
+	// object, ...) associated with it.
 	SymbolizeReasonMissingComponent SymbolizeReason = 3
-	// The symbolization source has no or no relevant symbols.
+	// SymbolizeReasonMissingSyms means that the symbolization source has no
+	// or no relevant symbols.
 	SymbolizeReasonMissingSyms SymbolizeReason = 4
-	// The address could not be found in the symbolization source.
+	// SymbolizeReasonUnknownAddr means that the address could not be found
+	// in the symbolization source.
 	SymbolizeReasonUnknownAddr SymbolizeReason = 5
-	// The address belonged to an entity that is currently unsupported.
+	// SymbolizeReasonUnsupported means that the address belonged to an entity
+	// that is currently unsupported.
 	SymbolizeReasonUnsupported SymbolizeReason = 6
 )
