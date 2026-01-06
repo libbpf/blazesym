@@ -1,3 +1,4 @@
+// Package blazesym provides Go bindings for blazesym library.
 package blazesym
 
 import (
@@ -51,7 +52,7 @@ func (s *Symbolizer) SymbolizeElfVirtOffsets(source *ElfSource, input []uint64) 
 
 	caddr, clen := addrsToPtr(input)
 
-	return s.processSyms(C.blaze_symbolize_elf_virt_offsets(s.s, elf, caddr, clen), input)
+	return s.processSyms(C.blaze_symbolize_elf_virt_offsets(s.s, elf, caddr, clen))
 }
 
 // SymbolizeProcessAbsAddrs symbolizes a list of process absolute addresses.
@@ -61,10 +62,10 @@ func (s *Symbolizer) SymbolizeProcessAbsAddrs(source *ProcessSource, input []uin
 
 	caddr, clen := addrsToPtr(input)
 
-	return s.processSyms(C.blaze_symbolize_process_abs_addrs(s.s, process, caddr, clen), input)
+	return s.processSyms(C.blaze_symbolize_process_abs_addrs(s.s, process, caddr, clen))
 }
 
-func (s *Symbolizer) processSyms(syms *C.blaze_syms, input []uint64) ([]Sym, error) {
+func (s *Symbolizer) processSyms(syms *C.blaze_syms) ([]Sym, error) {
 	lastErr := blazeErr(C.blaze_err_last())
 	if lastErr != blazeErrOk {
 		return nil, lastErr.Error()
