@@ -35,9 +35,9 @@ func (so *SymbolizerOptions) Close() {
 // SymbolizerOption configures SymbolizerOptions objects.
 type SymbolizerOption func(*SymbolizerOptions)
 
-// WithDebugDirs sets the array of debug directories to search for split debug information.
+// SymbolizerWithDebugDirs sets the array of debug directories to search for split debug information.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolizer_opts.html#structfield.debug_dirs
-func WithDebugDirs(dirs []string) SymbolizerOption {
+func SymbolizerWithDebugDirs(dirs []string) SymbolizerOption {
 	return func(so *SymbolizerOptions) {
 		if so.opts.debug_dirs_len != 0 {
 			freeCArrayOfStrings(so.opts.debug_dirs, so.opts.debug_dirs_len)
@@ -48,34 +48,34 @@ func WithDebugDirs(dirs []string) SymbolizerOption {
 	}
 }
 
-// WithAutoReload sets whether or not to automatically reload file system based
+// SymbolizerWithAutoReload sets whether or not to automatically reload file system based
 // symbolization sources that were updated since the last symbolization operation.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolizer_opts.html#structfield.auto_reload
-func WithAutoReload(enabled bool) SymbolizerOption {
+func SymbolizerWithAutoReload(enabled bool) SymbolizerOption {
 	return func(so *SymbolizerOptions) {
 		so.opts.auto_reload = C.bool(enabled)
 	}
 }
 
-// WithCodeInfo sets whether to attempt to gather source code location information.
+// SymbolizerWithCodeInfo sets whether to attempt to gather source code location information.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolizer_opts.html#structfield.code_info
-func WithCodeInfo(enabled bool) SymbolizerOption {
+func SymbolizerWithCodeInfo(enabled bool) SymbolizerOption {
 	return func(so *SymbolizerOptions) {
 		so.opts.code_info = C.bool(enabled)
 	}
 }
 
-// WithInlinedFns sets whether to report inlined functions as part of symbolization.
+// SymbolizerWithInlinedFns sets whether to report inlined functions as part of symbolization.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolizer_opts.html#structfield.inlined_fns
-func WithInlinedFns(enabled bool) SymbolizerOption {
+func SymbolizerWithInlinedFns(enabled bool) SymbolizerOption {
 	return func(so *SymbolizerOptions) {
 		so.opts.inlined_fns = C.bool(enabled)
 	}
 }
 
-// WithDemangle sets whether or not to transparently demangle symbols.
+// SymbolizerWithDemangle sets whether or not to transparently demangle symbols.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolizer_opts.html#structfield.demangle
-func WithDemangle(enabled bool) SymbolizerOption {
+func SymbolizerWithDemangle(enabled bool) SymbolizerOption {
 	return func(so *SymbolizerOptions) {
 		so.opts.demangle = C.bool(enabled)
 	}

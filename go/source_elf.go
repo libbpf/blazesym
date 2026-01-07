@@ -7,21 +7,30 @@ import "C"
 
 import "unsafe"
 
-// ElfSource described the parameters to load symbols and debug information from an ELF.
+// ElfSource describes the parameters to load symbols and debug information from an ELF.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolize_src_elf.html
 type ElfSource struct {
-	// The path to an ELF file.
-	Path string
-	// Whether or not to consult debug symbols to satisfy the request (if present).
-	DebugSyms bool
+	source C.struct_blaze_symbolize_src_elf
 }
 
-func (s *ElfSource) toCStruct() *C.struct_blaze_symbolize_src_elf {
-	elf := C.struct_blaze_symbolize_src_elf{}
-	elf.type_size = C.ulong(unsafe.Sizeof(elf))
-	elf.path = C.CString(s.Path)
-	elf.debug_syms = C.bool(s.DebugSyms)
-	return &elf
+// newElfSource creates a new elf source with the path to the ELF file.
+// See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolize_src_elf.html#structfield.path
+func newElfSource(path string) *ElfSource {
+	source := C.struct_blaze_symbolize_src_elf{}
+	source.type_size = C.ulong(unsafe.Sizeof(source))
+	source.path = C.CString(path)
+	return &ElfSource{source: source}
+}
+
+// ElfSourceOption configures ElfSource objects.
+type ElfSourceOption func(*ElfSource)
+
+// ElfSourceWithDebugSyms configures whether or not to consult debug symbols to satisfy the request (if present).
+// See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolize_src_elf.html#structfield.debug_syms
+func ElfSourceWithDebugSyms(enabled bool) ElfSourceOption {
+	return func(es *ElfSource) {
+		es.source.debug_syms = C.bool(enabled)
+	}
 }
 
 func cleanupElfSourceStruct(elf *C.struct_blaze_symbolize_src_elf) {
