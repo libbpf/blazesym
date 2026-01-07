@@ -13,7 +13,7 @@ func ExampleElfSource() {
 		log.Fatalf("error creating symbolizer: %v", err)
 	}
 
-	symbols, err := symbolizer.SymbolizeElfVirtOffsets(&blazesym.ElfSource{Path: "../data/test-stable-addrs-compressed-debug-zlib.bin", DebugSyms: true}, []uint64{0x2000200})
+	symbols, err := symbolizer.SymbolizeElfVirtOffsets([]uint64{0x2000200}, "../data/test-stable-addrs-compressed-debug-zlib.bin", blazesym.ElfSourceWithDebugSyms(true))
 	if err != nil {
 		log.Fatalf("error symbolizing: %v", err)
 	}

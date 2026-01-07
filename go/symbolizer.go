@@ -46,23 +46,31 @@ func (s *Symbolizer) Close() {
 
 // SymbolizeElfVirtOffsets symbolizes virtual offsets in an ELF file.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/fn.blaze_symbolize_elf_virt_offsets.html
-func (s *Symbolizer) SymbolizeElfVirtOffsets(source *ElfSource, input []uint64) ([]Sym, error) {
-	elf := source.toCStruct()
-	defer cleanupElfSourceStruct(elf)
+func (s *Symbolizer) SymbolizeElfVirtOffsets(addrs []uint64, path string, options ...ElfSourceOption) ([]Sym, error) {
+	elf := newElfSource(path)
+	defer cleanupElfSourceStruct(&elf.source)
 
-	caddr, clen := addrsToPtr(input)
+	for _, option := range options {
+		option(elf)
+	}
 
-	return s.processSyms(C.blaze_symbolize_elf_virt_offsets(s.s, elf, caddr, clen))
+	caddr, clen := addrsToPtr(addrs)
+
+	return s.processSyms(C.blaze_symbolize_elf_virt_offsets(s.s, &elf.source, caddr, clen))
 }
 
 // SymbolizeProcessAbsAddrs symbolizes a list of process absolute addresses.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/fn.blaze_symbolize_process_abs_addrs.html
-func (s *Symbolizer) SymbolizeProcessAbsAddrs(source *ProcessSource, input []uint64) ([]Sym, error) {
-	process := source.toCStruct()
+func (s *Symbolizer) SymbolizeProcessAbsAddrs(addrs []uint64, pid uint32, options ...ProcessSourceOption) ([]Sym, error) {
+	process := newProcessSource(pid)
 
-	caddr, clen := addrsToPtr(input)
+	for _, option := range options {
+		option(process)
+	}
 
-	return s.processSyms(C.blaze_symbolize_process_abs_addrs(s.s, process, caddr, clen))
+	caddr, clen := addrsToPtr(addrs)
+
+	return s.processSyms(C.blaze_symbolize_process_abs_addrs(s.s, &process.source, caddr, clen))
 }
 
 func (s *Symbolizer) processSyms(syms *C.blaze_syms) ([]Sym, error) {

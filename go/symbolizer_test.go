@@ -44,7 +44,12 @@ func TestSymbolizeProcess(t *testing.T) {
 
 	addr := reflect.ValueOf(TestSymbolizeProcess).Pointer()
 
-	syms, err := symbolizer.SymbolizeProcessAbsAddrs(&blazesym.ProcessSource{Pid: uint32(os.Getpid()), DebugSyms: true, NoMapFiles: true}, []uint64{uint64(addr)})
+	syms, err := symbolizer.SymbolizeProcessAbsAddrs(
+		[]uint64{uint64(addr)},
+		uint32(os.Getpid()),
+		blazesym.ProcessSourceWithDebugSyms(true),
+		blazesym.ProcessSourceWithoutMapFiles(true),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +65,7 @@ func TestSymbolizeElfStripped(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	syms, err := symbolizer.SymbolizeElfVirtOffsets(&blazesym.ElfSource{Path: "../data/test-stable-addrs-stripped.bin"}, []uint64{uint64(0x2000200)})
+	syms, err := symbolizer.SymbolizeElfVirtOffsets([]uint64{uint64(0x2000200)}, "../data/test-stable-addrs-stripped.bin")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,13 +75,13 @@ func TestSymbolizeElfStripped(t *testing.T) {
 	}
 }
 
-func testElfDwarfSource(t *testing.T, source *blazesym.ElfSource, hasCodeInfo bool) {
+func testElfDwarfSource(t *testing.T, path string, hasCodeInfo bool) {
 	symbolizer, err := blazesym.NewSymbolizer()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	syms, err := symbolizer.SymbolizeElfVirtOffsets(source, []uint64{0x2000200})
+	syms, err := symbolizer.SymbolizeElfVirtOffsets([]uint64{0x2000200}, path, blazesym.ElfSourceWithDebugSyms(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +133,7 @@ func testElfDwarfSource(t *testing.T, source *blazesym.ElfSource, hasCodeInfo bo
 		offsetAddrs[offset] = uint64(0x2000200 + offset + 1)
 	}
 
-	syms, err = symbolizer.SymbolizeElfVirtOffsets(source, offsetAddrs)
+	syms, err = symbolizer.SymbolizeElfVirtOffsets(offsetAddrs, path, blazesym.ElfSourceWithDebugSyms(true))
 	if err != nil {
 		t.Error(err)
 	}
@@ -181,7 +186,7 @@ func TestSymbolizeElfDwarf(t *testing.T) {
 		"test-stable-addrs-32-no-dwarf.bin",
 	} {
 		t.Run(file, func(t *testing.T) {
-			testElfDwarfSource(t, &blazesym.ElfSource{Path: filepath.Join("../data", file), DebugSyms: true}, false)
+			testElfDwarfSource(t, filepath.Join("../data", file), false)
 		})
 	}
 
@@ -191,7 +196,7 @@ func TestSymbolizeElfDwarf(t *testing.T) {
 		"test-stable-addrs-compressed-debug-zlib.bin",
 	} {
 		t.Run(file, func(t *testing.T) {
-			testElfDwarfSource(t, &blazesym.ElfSource{Path: filepath.Join("../data", file), DebugSyms: true}, true)
+			testElfDwarfSource(t, filepath.Join("../data", file), true)
 		})
 	}
 }
@@ -232,12 +237,12 @@ func TestConfigurableDebugDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	symbolizer, err := blazesym.NewSymbolizer(blazesym.WithDebugDirs([]string{}))
+	symbolizer, err := blazesym.NewSymbolizer(blazesym.SymbolizerWithDebugDirs([]string{}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	syms, err := symbolizer.SymbolizeElfVirtOffsets(&blazesym.ElfSource{Path: dst, DebugSyms: true}, []uint64{0x2000200})
+	syms, err := symbolizer.SymbolizeElfVirtOffsets([]uint64{0x2000200}, dst, blazesym.ElfSourceWithDebugSyms(true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -267,12 +272,12 @@ func TestConfigurableDebugDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	symbolizer, err = blazesym.NewSymbolizer(blazesym.WithDebugDirs([]string{debugDir1, debugDir2}))
+	symbolizer, err = blazesym.NewSymbolizer(blazesym.SymbolizerWithDebugDirs([]string{debugDir1, debugDir2}))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	syms, err = symbolizer.SymbolizeElfVirtOffsets(&blazesym.ElfSource{Path: dst, DebugSyms: true}, []uint64{0x2000200})
+	syms, err = symbolizer.SymbolizeElfVirtOffsets([]uint64{0x2000200}, dst, blazesym.ElfSourceWithDebugSyms(true))
 	if err != nil {
 		t.Fatal(err)
 	}
