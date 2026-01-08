@@ -42,6 +42,8 @@ capi = []
 check-doc-snippets = []
 # Enable this feature to enable blazesym's DWARF support.
 dwarf = ["blazesym/dwarf"]
+# Enable this feature to enable blazesym's ZSTD support.
+zstd = ["blazesym/zstd"]
 # Enable this feature to re-generate the library's C header file. An
 # up-to-date version of this header should already be available in the
 # include/ directory, so this feature is only necessary when APIs are
@@ -68,8 +70,6 @@ which = {version = "8.0.0", optional = true}
 
 [dependencies]
 # Pinned, because we use #[doc(hidden)] APIs.
-# TODO: Enable `zstd` feature once we enabled it for testing in the main
-#       crate.
 blazesym = {version = ">=0.2.0, <=0.2.1", path = "../", features = ["apk", "demangle", "gsym", "tracing", "zlib"]}
 libc = "0.2"
 # TODO: Remove dependency once MSRV is 1.77.

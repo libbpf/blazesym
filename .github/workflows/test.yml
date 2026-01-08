@@ -219,7 +219,7 @@ jobs:
         echo "export PYTHON=${PYTHON}" >> env.sh
         source env.sh
 
-        cargo test --no-run --workspace --all-targets --features=nightly,blazesym-dev/generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
+        cargo test --no-run --workspace --all-targets --features=zstd,nightly,blazesym-dev/generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
         tests=$(IFS='' grep Executable /tmp/cargo-build.log |
           awk '{print $NF}' |
           sed 's@[()]@@g' |
@@ -332,7 +332,7 @@ jobs:
         #CXXFLAGS: "-fsanitize=${{ matrix.sanitizer }}"
         RUSTFLAGS: "-Zsanitizer=${{ matrix.sanitizer }}"
         ASAN_OPTIONS: "detect_odr_violation=0:detect_leaks=1"
-      run: cargo test --workspace --lib --tests --target x86_64-unknown-linux-gnu
+      run: cargo test --workspace --exclude=blazecli --lib --tests --target x86_64-unknown-linux-gnu
   test-release:
     name: Test with release build
     runs-on: ubuntu-24.04
@@ -351,7 +351,7 @@ jobs:
         # Support incremental compilation here to not penalize CI compile times too much.
         CARGO_PROFILE_RELEASE_INCREMENTAL: true
         CARGO_PROFILE_RELEASE_LTO: false
-      run: cargo test --workspace --release
+      run: cargo test --workspace --exclude=blazecli --release
   test-miri:
     name: Test with Miri
     runs-on: ubuntu-latest
