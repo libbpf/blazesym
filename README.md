@@ -26,11 +26,12 @@ runtime configuration of the corresponding features.
 **blazesym** supports a variety of formats, such as DWARF, ELF, Breakpad, and
 Gsym (see below for an up-to-date list).
 
-The library is written in Rust and provides a first class C API. This crate
-adheres to Cargo's [semantic versioning rules][cargo-semver]. At a minimum, it
-builds with the most recent Rust stable release minus five minor versions ("N -
-5"). E.g., assuming the most recent Rust stable is `1.68`, the crate is
-guaranteed to build with `1.63` and higher.
+The library is written in Rust and provides a first class C API as well
+as Go language bindings. This crate adheres to Cargo's [semantic
+versioning rules][cargo-semver]. At a minimum, it builds with the most
+recent Rust stable release minus five minor versions ("N - 5"). E.g.,
+assuming the most recent Rust stable is
+`1.68`, the crate is guaranteed to build with `1.63` and higher.
 
 
 ## Status
@@ -101,6 +102,12 @@ information about those.
 The companion crate [`blazesym-c`](capi/) provides the means for interfacing
 with the library from C. Please refer to its [`README`](capi/README.md) for
 usage details.
+
+
+### Go
+For convenient use from Go, the library comes with bindings in the form
+of the [`blazesym-go`](go/) package. Please refer to its
+[`README`](go/README.md) for usage details.
 
 
 ### Command-line
