@@ -25,6 +25,7 @@ use crate::elf::ElfResolverData;
 use crate::elf::DEFAULT_DEBUG_DIRS;
 use crate::error::IntoCowStr;
 use crate::file_cache::FileCache;
+use crate::helper::read_elf_build_id;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::ForEachFn;
 use crate::inspect::Inspect;
@@ -117,7 +118,10 @@ fn try_canonicalize(path: &Path) -> io::Result<Cow<'_, Path>> {
 /// This function ignores any errors encountered.
 fn find_debug_file(file: &OsStr, linker: Option<&Path>, debug_dirs: &[PathBuf]) -> Option<PathBuf> {
     let canonical_linker = linker.and_then(|linker| try_canonicalize(linker).ok());
-    let it = DebugFileIter::new(debug_dirs, canonical_linker.as_deref(), file);
+    let build_id = canonical_linker
+        .as_ref()
+        .and_then(|linker| read_elf_build_id(linker).unwrap_or_default());
+    let it = DebugFileIter::new(debug_dirs, canonical_linker.as_deref(), file, build_id);
     for path in it {
         if path.exists() {
             debug!("found debug info at `{}`", path.display());

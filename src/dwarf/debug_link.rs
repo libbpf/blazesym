@@ -19,14 +19,17 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::elf::ElfParser;
+use crate::elf::BUILD_ID_DEBUG_DIR;
+use crate::elf::BUILD_ID_DEBUG_EXTENSION;
 use crate::error::IntoError as _;
 use crate::util::align_up_usize;
 use crate::util::bytes_to_os_str;
 use crate::util::ReadRaw as _;
+use crate::BuildId;
 use crate::Result;
 
-
 enum State {
+    BuildId,
     FixedDir {
         idx: usize,
     },
@@ -47,6 +50,8 @@ pub(crate) struct DebugFileIter<'path> {
     canonical_linker: Option<&'path Path>,
     /// The debug link target file.
     linkee: &'path OsStr,
+    /// The build id of the binary.
+    build_id: Option<BuildId<'path>>,
     /// The iteration state.
     state: State,
 }
@@ -56,12 +61,14 @@ impl<'path> DebugFileIter<'path> {
         fixed_dirs: &'path [PathBuf],
         canonical_linker: Option<&'path Path>,
         linkee: &'path OsStr,
+        build_id: Option<BuildId<'path>>,
     ) -> Self {
         Self {
             fixed_dirs,
             canonical_linker,
             linkee,
-            state: State::FixedDir { idx: 0 },
+            build_id,
+            state: State::BuildId,
         }
     }
 
@@ -84,6 +91,38 @@ impl Iterator for DebugFileIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.state {
+            State::BuildId => {
+                self.state = State::FixedDir { idx: 0 };
+
+                let Some(build_id) = self.build_id.as_ref() else {
+                    return self.next()
+                };
+
+                // Technically we can check just 2 bytes with the code below,
+                // but anything that short is probably bogus and worth skipping.
+                if build_id.len() < 8 {
+                    return self.next();
+                }
+
+                let mut path = PathBuf::from(BUILD_ID_DEBUG_DIR);
+
+                let mut build_id_iter = build_id.iter();
+
+                if let Some(first) = build_id_iter.next() {
+                    path.push(format!("{first:02x}"));
+                } else {
+                    return self.next();
+                }
+
+                path.push(format!(
+                    "{}.{BUILD_ID_DEBUG_EXTENSION}",
+                    build_id_iter
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect::<String>()
+                ));
+
+                self.report_or_next(path)
+            }
             State::FixedDir { idx } => {
                 if let Some(dir) = self.fixed_dirs.get(*idx) {
                     *idx += 1;
@@ -309,8 +348,13 @@ mod tests {
     #[test]
     fn debug_file_iteration() {
         let fixed_dirs = [PathBuf::from("/usr/lib/debug")];
-        let files = DebugFileIter::new(fixed_dirs.as_slice(), None, OsStr::new("libc.so.debug"))
-            .collect::<Vec<_>>();
+        let files = DebugFileIter::new(
+            fixed_dirs.as_slice(),
+            None,
+            OsStr::new("libc.so.debug"),
+            None,
+        )
+        .collect::<Vec<_>>();
         let expected = vec![PathBuf::from("/usr/lib/debug/libc.so.debug")];
         assert_eq!(files, expected);
 
@@ -318,8 +362,13 @@ mod tests {
             .iter()
             .map(PathBuf::from)
             .collect::<Vec<_>>();
-        let files = DebugFileIter::new(fixed_dirs.as_slice(), None, OsStr::new("libc.so.debug"))
-            .collect::<Vec<_>>();
+        let files = DebugFileIter::new(
+            fixed_dirs.as_slice(),
+            None,
+            OsStr::new("libc.so.debug"),
+            None,
+        )
+        .collect::<Vec<_>>();
         let expected = vec![
             PathBuf::from("/usr/lib/debug/libc.so.debug"),
             PathBuf::from("/lib/debug/libc.so.debug"),
@@ -331,6 +380,7 @@ mod tests {
             fixed_dirs.as_slice(),
             Some(Path::new("/usr/lib64/libc.so")),
             OsStr::new("libc.so.debug"),
+            Some(BuildId::Owned(vec![0xbe, 0xef, 0xbe, 0xef])), // too short
         )
         .collect::<Vec<_>>();
 
@@ -350,10 +400,14 @@ mod tests {
             fixed_dirs.as_slice(),
             Some(Path::new("/usr/lib64/libc.so")),
             OsStr::new("libc.so.debug"),
+            Some(BuildId::Owned(vec![
+                0xbe, 0xef, 0xbe, 0xef, 0xfe, 0xed, 0xba, 0xbe,
+            ])),
         )
         .collect::<Vec<_>>();
 
         let expected = vec![
+            PathBuf::from("/usr/lib/debug/.build-id/be/efbeeffeedbabe.debug"),
             PathBuf::from("/usr/lib/debug/libc.so.debug"),
             PathBuf::from("/lib/debug/libc.so.debug"),
             PathBuf::from("/usr/lib64/libc.so.debug"),
@@ -371,8 +425,16 @@ mod tests {
             fixed_dirs.as_slice(),
             Some(Path::new("/usr/lib64/libc.so")),
             OsStr::new("libc.so"),
+            Some(BuildId::Owned(vec![
+                0xbe, 0xef, 0xbe, 0xef, 0xfe, 0xed, 0xba, 0xbe,
+            ])),
         )
         .collect::<Vec<_>>();
-        assert_eq!(files, Vec::<PathBuf>::new());
+        assert_eq!(
+            files,
+            vec![PathBuf::from(
+                "/usr/lib/debug/.build-id/be/efbeeffeedbabe.debug"
+            )]
+        );
     }
 }
