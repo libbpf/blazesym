@@ -525,13 +525,14 @@ where
                             (chdr.ch_type, chdr.ch_size)
                         };
 
-                        let decompressed = match ch_type {
+                        let mut decompressed = match ch_type {
                             t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data),
                             t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data),
                             _ => Err(Error::with_unsupported(format!(
                                 "ELF section is compressed with unknown compression algorithm ({ch_type})",
                             ))),
                         }?;
+                        decompressed.shrink_to_fit();
                         debug_assert_eq!(
                             decompressed.len(),
                             ch_size as usize,
