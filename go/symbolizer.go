@@ -2,6 +2,7 @@
 package blazesym
 
 import (
+	"runtime"
 	"unsafe"
 )
 
@@ -57,6 +58,32 @@ func (s *Symbolizer) SymbolizeElfVirtOffsets(addrs []uint64, path string, option
 	caddr, clen := addrsToPtr(addrs)
 
 	return s.processSyms(C.blaze_symbolize_elf_virt_offsets(s.s, &elf.source, caddr, clen))
+}
+
+// SymbolizeGsymFileVirtOffsets symbolizes virtual offsets in a Gsym file.
+// See: https://docs.rs/blazesym-c/latest/blazesym_c/fn.blaze_symbolize_gsym_file_virt_offsets.html
+func (s *Symbolizer) SymbolizeGsymFileVirtOffsets(addrs []uint64, path string) ([]Sym, error) {
+	gsym := newGsymFileSource(path)
+	defer cleanupGsymFileSourceStruct(&gsym.source)
+
+	caddr, clen := addrsToPtr(addrs)
+
+	return s.processSyms(C.blaze_symbolize_gsym_file_virt_offsets(s.s, &gsym.source, caddr, clen))
+}
+
+// SymbolizeGsymDataVirtOffsets symbolizes virtual offsets using “raw” Gsym data.
+// See: https://docs.rs/blazesym-c/latest/blazesym_c/fn.blaze_symbolize_gsym_data_virt_offsets.html
+func (s *Symbolizer) SymbolizeGsymDataVirtOffsets(addrs []uint64, data []byte) ([]Sym, error) {
+	// See: https://github.com/golang/go/issues/28606
+	pinner := runtime.Pinner{}
+	pinner.Pin(unsafe.Pointer(&data[0]))
+	defer pinner.Unpin()
+
+	gsym := newGsymDataSource(data)
+
+	caddr, clen := addrsToPtr(addrs)
+
+	return s.processSyms(C.blaze_symbolize_gsym_data_virt_offsets(s.s, &gsym.source, caddr, clen))
 }
 
 // SymbolizeProcessAbsAddrs symbolizes a list of process absolute addresses.

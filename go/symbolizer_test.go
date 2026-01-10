@@ -75,13 +75,15 @@ func TestSymbolizeElfStripped(t *testing.T) {
 	}
 }
 
-func testElfDwarfSource(t *testing.T, path string, hasCodeInfo bool) {
+type symbolizeClosure func(*blazesym.Symbolizer, []uint64) ([]blazesym.Sym, error)
+
+func testElfDwarfGsymSource(t *testing.T, symbolize symbolizeClosure, hasCodeInfo bool) {
 	symbolizer, err := blazesym.NewSymbolizer()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	syms, err := symbolizer.SymbolizeElfVirtOffsets([]uint64{0x2000200}, path, blazesym.ElfSourceWithDebugSyms(true))
+	syms, err := symbolize(symbolizer, []uint64{0x2000200})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +135,7 @@ func testElfDwarfSource(t *testing.T, path string, hasCodeInfo bool) {
 		offsetAddrs[offset] = uint64(0x2000200 + offset + 1)
 	}
 
-	syms, err = symbolizer.SymbolizeElfVirtOffsets(offsetAddrs, path, blazesym.ElfSourceWithDebugSyms(true))
+	syms, err = symbolize(symbolizer, offsetAddrs)
 	if err != nil {
 		t.Error(err)
 	}
@@ -179,14 +181,20 @@ func testElfDwarfSource(t *testing.T, path string, hasCodeInfo bool) {
 	}
 }
 
-func TestSymbolizeElfDwarf(t *testing.T) {
+func TestSymbolizeElfDwarfGsym(t *testing.T) {
+	elfSymbolize := func(path string) symbolizeClosure {
+		return func(symbolizer *blazesym.Symbolizer, addrs []uint64) ([]blazesym.Sym, error) {
+			return symbolizer.SymbolizeElfVirtOffsets(addrs, path, blazesym.ElfSourceWithDebugSyms(true))
+		}
+	}
+
 	for _, file := range []string{
 		"test-stable-addrs-no-dwarf.bin",
 		"test-stable-addrs-stripped-with-link-to-elf-only.bin",
 		"test-stable-addrs-32-no-dwarf.bin",
 	} {
 		t.Run(file, func(t *testing.T) {
-			testElfDwarfSource(t, filepath.Join("../data", file), false)
+			testElfDwarfGsymSource(t, elfSymbolize(filepath.Join("../data", file)), false)
 		})
 	}
 
@@ -196,9 +204,35 @@ func TestSymbolizeElfDwarf(t *testing.T) {
 		"test-stable-addrs-compressed-debug-zlib.bin",
 	} {
 		t.Run(file, func(t *testing.T) {
-			testElfDwarfSource(t, filepath.Join("../data", file), true)
+			testElfDwarfGsymSource(t, elfSymbolize(filepath.Join("../data", file)), true)
 		})
 	}
+
+	gsymFileSymbolize := func(path string) symbolizeClosure {
+		return func(symbolizer *blazesym.Symbolizer, addrs []uint64) ([]blazesym.Sym, error) {
+			return symbolizer.SymbolizeGsymFileVirtOffsets(addrs, path)
+		}
+	}
+
+	gsymDataSymbolize := func(data []byte) symbolizeClosure {
+		return func(symbolizer *blazesym.Symbolizer, addrs []uint64) ([]blazesym.Sym, error) {
+			return symbolizer.SymbolizeGsymDataVirtOffsets(addrs, data)
+		}
+	}
+
+	gsymFilePath := "test-stable-addrs.gsym"
+	t.Run(gsymFilePath, func(t *testing.T) {
+		path := filepath.Join("../data", gsymFilePath)
+
+		testElfDwarfGsymSource(t, gsymFileSymbolize(path), true)
+
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("error reading %q: %v", path, err)
+		}
+
+		testElfDwarfGsymSource(t, gsymDataSymbolize(data), true)
+	})
 }
 
 func copyFile(dst, src string) error {
