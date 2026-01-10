@@ -537,6 +537,7 @@ jobs:
       clippy,
       rustfmt,
       cargo-doc,
+      go,
     ]
     if: always()
     runs-on: ubuntu-latest
