@@ -1,9 +1,10 @@
-Unreleased
-----------
+0.2.2
+-----
 - Improved data caching for debug link targets and DWP files
 - Improved kernel symbolization performance when no KASLR offset is
   provided by the user
 - Fixed backtrace reporting on contextualized errors
+- Added bindings for Go language
 
 
 0.2.1
