@@ -10,7 +10,7 @@
 //!   boundary within the section, and
 //! - a four-byte CRC checksum, stored in the same endianness used for the
 //!   executable file itself. The checksum is computed on the debugging
-//!   information file’s full contents by the function given below, passing zero
+//!   information file's full contents by the function given below, passing zero
 //!   as the crc argument.
 
 use std::ffi::OsStr;

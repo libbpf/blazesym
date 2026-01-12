@@ -13,7 +13,7 @@ type ProcessSource struct {
 	source C.struct_blaze_symbolize_src_process
 }
 
-// newProcessSource creates a new process source with the referenced process’ ID.
+// newProcessSource creates a new process source with the referenced process' ID.
 // https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolize_src_process.html#structfield.pid
 func newProcessSource(pid uint32) *ProcessSource {
 	source := C.struct_blaze_symbolize_src_process{}
@@ -33,7 +33,7 @@ func ProcessSourceWithDebugSyms(enabled bool) ProcessSourceOption {
 	}
 }
 
-// ProcessSourceWithPerfMap configures whether to incorporate a process’ perf map file into the symbolization procedure.
+// ProcessSourceWithPerfMap configures whether to incorporate a process' perf map file into the symbolization procedure.
 // See: https://docs.rs/blazesym-c/latest/blazesym_c/struct.blaze_symbolize_src_process.html#structfield.perf_map
 func ProcessSourceWithPerfMap(enabled bool) ProcessSourceOption {
 	return func(ps *ProcessSource) {
