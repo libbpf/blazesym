@@ -11,7 +11,7 @@ type Sym struct {
 	Addr uint64
 	// The byte offset of the address that got symbolized from the start of the symbol (i.e., from addr).
 	Offset uint64
-	// The symbol’s size, if available.
+	// The symbol's size, if available.
 	Size int64
 	// Source code location information for the symbol.
 	CodeInfo *CodeInfo

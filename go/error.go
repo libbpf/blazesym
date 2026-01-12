@@ -25,7 +25,7 @@ const (
 	blazeErrWouldBlock blazeErr = -11
 	// Data not valid for the operation were encountered.
 	blazeErrInvalidData blazeErr = -22
-	// The I/O operation’s timeout expired, causing it to be canceled.
+	// The I/O operation's timeout expired, causing it to be canceled.
 	blazeErrTimedOut blazeErr = -110
 	// This operation is unsupported on this platform.
 	blazeErrUnsupported blazeErr = -95
