@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.13
+------
 - Improved backtrace reporting when requested via `RUST_BACKTRACE` or
   `RUST_LIB_BACKTRACE` environment variables
 

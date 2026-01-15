@@ -224,7 +224,7 @@ checksum = "8f68f53c83ab957f72c32642f3868eec03eb974d1fb82e453128456482613d36"
 
 [[package]]
 name = "blazecli"
-version = "0.1.12"
+version = "0.1.13"
 dependencies = [
  "anyhow",
  "blazesym",
