@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.6
+-----
 - Added `BLAZE_{NORMALIZE,SYMBOLIZE}_REASON_IGNORED_ERROR` constants
 
 
