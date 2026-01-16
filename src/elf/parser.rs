@@ -1271,16 +1271,36 @@ where
 
     /// Translate a file offset into a virtual offset.
     pub(crate) fn file_offset_to_virt_offset(&self, offset: u64) -> Result<Option<Addr>> {
-        let phdrs = self.program_headers()?;
-        let addr = phdrs.iter(0).find_map(|phdr| {
-            let phdr = phdr.to_64bit();
-            if phdr.p_type == PT_LOAD {
-                if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&offset) {
-                    return Some(offset - phdr.p_offset + phdr.p_vaddr)
+        let translate_phdrs = |offset: u64| -> Result<Option<Addr>> {
+            let phdrs = self.program_headers()?;
+            let addr = phdrs.iter(0).find_map(|phdr| {
+                let phdr = phdr.to_64bit();
+                if phdr.p_type == PT_LOAD {
+                    if (phdr.p_offset..phdr.p_offset + phdr.p_filesz).contains(&offset) {
+                        return Some(offset - phdr.p_offset + phdr.p_vaddr)
+                    }
                 }
-            }
-            None
-        });
+                None
+            });
+            Result::Ok(addr)
+        };
+
+        let translate_shdrs = |offset: u64| -> Result<Option<Addr>> {
+            let shdrs = self.section_headers()?;
+            let addr = shdrs.iter(0).find_map(|shdr| {
+                let shdr = shdr.to_64bit();
+                if (shdr.sh_offset..shdr.sh_offset + shdr.sh_size).contains(&offset) {
+                    return Some(offset - shdr.sh_offset + shdr.sh_addr)
+                }
+                None
+            });
+            Result::Ok(addr)
+        };
+
+        let addr = match translate_phdrs(offset)? {
+            addr @ Some(..) => addr,
+            None => translate_shdrs(offset)?,
+        };
 
         Ok(addr)
     }
