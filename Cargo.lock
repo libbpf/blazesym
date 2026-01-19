@@ -750,9 +750,9 @@ dependencies = [
 
 [[package]]
 name = "dump_syms"
-version = "2.3.5"
+version = "2.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b16f31d2e3160010dc6dee38b17c409dd856a96fe0a226d93e936bde539f184d"
+checksum = "94c39740e8d64a6343d46d1d5691b5c8a06a78d8e0f1e8a453230dd4a9436f9a"
 dependencies = [
  "anyhow",
  "bitflags 2.8.0",
