@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Added support for `/usr/lib/debug/.build-id` debug link target
+  directory
+
+
 0.2.2
 -----
 - Improved data caching for debug link targets and DWP files
