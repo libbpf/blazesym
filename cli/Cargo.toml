@@ -38,6 +38,7 @@ grev = "0.1.4"
 [dependencies]
 anyhow = "1.0"
 bufio = "0.1"
+# TODO: Enable `xz` feature at some point.
 blazesym = {version = "0.2", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib", "zstd"]}
 clap = {version = "4.5", features = ["derive"]}
 clap_complete = {version = "4.5", optional = true}
