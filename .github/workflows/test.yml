@@ -368,11 +368,8 @@ jobs:
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends libelf-dev zlib1g-dev
     - uses: actions/checkout@v6
-    - uses: dtolnay/rust-toolchain@master
+    - uses: dtolnay/rust-toolchain@nightly
       with:
-        # TODO: Remove specification and switch back to @nightly once
-        #       `function_casts_as_integer` lint is stable.
-        toolchain: 'nightly-2025-11-05'
         components: miri
     # Miri would honor our custom test runner, but doesn't work with it. We
     # could conceivably override that by specifying
