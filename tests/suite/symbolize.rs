@@ -936,7 +936,10 @@ fn symbolize_rust_dwp() {
 #[test]
 fn symbolize_process() {
     let src = Source::Process(Process::new(Pid::Slf));
-    let addrs = [symbolize_process as Addr, Symbolizer::symbolize as Addr];
+    let addrs = [
+        symbolize_process as *const () as Addr,
+        Symbolizer::symbolize as *const () as Addr,
+    ];
     let symbolizer = Symbolizer::new();
     let results = symbolizer
         .symbolize(&src, Input::AbsAddr(&addrs))
@@ -1107,8 +1110,8 @@ fn symbolize_process_with_custom_dispatch() {
     fn test(dispatcher: impl ProcessDispatch + 'static) {
         let src = Source::Process(Process::new(Pid::Slf));
         let addrs = [
-            symbolize_process as Addr,
-            symbolize_process_with_custom_dispatch as Addr,
+            symbolize_process as *const () as Addr,
+            symbolize_process_with_custom_dispatch as *const () as Addr,
         ];
         let symbolizer = Symbolizer::builder()
             .set_process_dispatcher(dispatcher)
@@ -1146,7 +1149,10 @@ fn symbolize_own_process_vdso() {
     let src = Source::Process(Process::new(Pid::Slf));
     // Both functions are typically provided by the vDSO, though there
     // is no guarantee of that.
-    let addrs = [gettimeofday as Addr, clock_gettime as Addr];
+    let addrs = [
+        gettimeofday as *const () as Addr,
+        clock_gettime as *const () as Addr,
+    ];
     let symbolizer = Symbolizer::new();
 
     // Symbolize twice, to exercise both cache population and cache

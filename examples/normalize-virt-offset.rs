@@ -16,7 +16,7 @@ use blazesym::Pid;
 fn main() {
     let normalizer = Normalizer::new();
     let normalized = normalizer
-        .normalize_user_addrs(Pid::Slf, [main as Addr].as_slice())
+        .normalize_user_addrs(Pid::Slf, [main as *const () as Addr].as_slice())
         .unwrap();
     assert_eq!(normalized.outputs.len(), 1);
 

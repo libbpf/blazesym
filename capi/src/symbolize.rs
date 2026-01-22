@@ -2071,7 +2071,7 @@ mod tests {
         };
 
         let symbolizer = blaze_symbolizer_new();
-        let addrs = [blaze_symbolizer_new as Addr];
+        let addrs = [blaze_symbolizer_new as *const () as Addr];
         let result = unsafe {
             blaze_symbolize_process_abs_addrs(symbolizer, &process_src, addrs.as_ptr(), addrs.len())
         };
@@ -2110,7 +2110,7 @@ mod tests {
             perf_map: true,
             ..Default::default()
         };
-        let addrs = [blaze_symbolizer_new as Addr];
+        let addrs = [blaze_symbolizer_new as *const () as Addr];
         let result = unsafe {
             blaze_symbolize_process_abs_addrs(symbolizer, &src, addrs.as_ptr(), addrs.len())
         };
@@ -2183,7 +2183,7 @@ mod tests {
         };
 
         let symbolizer = blaze_symbolizer_new();
-        let addrs = [blaze_symbolizer_new as Addr];
+        let addrs = [blaze_symbolizer_new as *const () as Addr];
         let result = unsafe {
             blaze_symbolize_elf_virt_offsets(symbolizer, &elf_src, addrs.as_ptr(), addrs.len())
         };
