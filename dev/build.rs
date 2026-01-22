@@ -454,7 +454,7 @@ fn zip(files: &[PathBuf], dst: &Path) {
             let contents = read_file(file).unwrap();
             let path = file.strip_prefix(dst_dir).unwrap();
             let () = zip.start_file(path.to_str().unwrap(), options).unwrap();
-            let _count = zip.write(&contents).unwrap();
+            let _count = zip.write_all(&contents).unwrap();
         }
     }
 
@@ -919,7 +919,7 @@ fn download_multi_part(base_url: &reqwest::Url, part_count: usize, dst: &Path) {
     for part in 1..=part_count {
         let url = reqwest::Url::parse(&format!("{}.part{part}", base_url.as_str())).unwrap();
         let response = client.get(url).send().unwrap();
-        let _count = dst.write(&response.bytes().unwrap()).unwrap();
+        let _count = dst.write_all(&response.bytes().unwrap()).unwrap();
     }
 }
 
