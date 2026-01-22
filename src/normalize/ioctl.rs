@@ -314,7 +314,7 @@ mod tests {
             let pid = Pid::Slf;
             let path = format!("/proc/{pid}/maps");
             let file = File::open(path).unwrap();
-            let addr = valid_vma_querying_ioctl as Addr;
+            let addr = valid_vma_querying_ioctl as *const () as Addr;
             let entry = query_procmap(&file, pid, addr, build_ids).unwrap().unwrap();
             assert!(
                 entry.range.contains(&addr),

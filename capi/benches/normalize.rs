@@ -16,11 +16,11 @@ use criterion::BenchmarkGroup;
 
 fn normalize_process_impl(read_build_ids: bool) {
     let mut addrs = [
-        libc::atexit as Addr,
-        libc::chdir as Addr,
-        libc::fopen as Addr,
-        blaze_normalizer_new_opts as Addr,
-        blaze_normalize_user_addrs_opts as Addr,
+        libc::atexit as *const () as Addr,
+        libc::chdir as *const () as Addr,
+        libc::fopen as *const () as Addr,
+        blaze_normalizer_new_opts as *const () as Addr,
+        blaze_normalize_user_addrs_opts as *const () as Addr,
     ];
     let () = addrs.sort();
 

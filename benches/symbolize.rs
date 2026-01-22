@@ -24,11 +24,11 @@ use criterion::BenchmarkGroup;
 fn symbolize_process() {
     let src = Source::Process(Process::new(Pid::Slf));
     let addrs = [
-        libc::atexit as Addr,
-        libc::chdir as Addr,
-        libc::fopen as Addr,
-        symbolize_process as Addr,
-        Symbolizer::symbolize_single as Addr,
+        libc::atexit as *const () as Addr,
+        libc::chdir as *const () as Addr,
+        libc::fopen as *const () as Addr,
+        symbolize_process as *const () as Addr,
+        Symbolizer::symbolize_single as *const () as Addr,
     ];
 
     let symbolizer = Symbolizer::new();

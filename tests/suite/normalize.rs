@@ -36,9 +36,9 @@ use crate::suite::common::RemoteProcess;
 #[test]
 fn normalize_unsorted_err() {
     let mut addrs = [
-        libc::atexit as Addr,
-        libc::chdir as Addr,
-        libc::fopen as Addr,
+        libc::atexit as *const () as Addr,
+        libc::chdir as *const () as Addr,
+        libc::fopen as *const () as Addr,
     ];
     let () = addrs.sort();
     let () = addrs.swap(0, 1);
@@ -86,18 +86,18 @@ fn normalize_unknown_addrs() {
 fn normalization_self() {
     fn test(normalizer: &Normalizer) {
         let addrs = [
-            libc::__errno_location as Addr,
-            libc::dlopen as Addr,
-            libc::fopen as Addr,
-            normalize_unknown_addrs as Addr,
-            normalization_self as Addr,
-            normalize::Normalizer::new as Addr,
+            libc::__errno_location as *const () as Addr,
+            libc::dlopen as *const () as Addr,
+            libc::fopen as *const () as Addr,
+            normalize_unknown_addrs as *const () as Addr,
+            normalization_self as *const () as Addr,
+            normalize::Normalizer::new as *const () as Addr,
         ];
 
         let (errno_idx, _) = addrs
             .iter()
             .enumerate()
-            .find(|(_idx, addr)| **addr == libc::__errno_location as Addr)
+            .find(|(_idx, addr)| **addr == libc::__errno_location as *const () as Addr)
             .unwrap();
 
         let normalized = normalizer
@@ -460,7 +460,7 @@ fn normalize_no_self_vma_path_reporting() {
     let normalized = normalizer
         .normalize_user_addrs_opts(
             Pid::Slf,
-            [normalize_no_self_vma_path_reporting as Addr].as_slice(),
+            [normalize_no_self_vma_path_reporting as *const () as Addr].as_slice(),
             &opts,
         )
         .unwrap();
@@ -505,7 +505,7 @@ fn normalize_process_symbolic_paths() {
 fn normalize_local_vdso_address() {
     use libc::gettimeofday;
 
-    let addrs = [gettimeofday as Addr];
+    let addrs = [gettimeofday as *const () as Addr];
     let normalizer = Normalizer::new();
     let normalized = normalizer.normalize_user_addrs(Pid::Slf, &addrs).unwrap();
     assert_eq!(normalized.outputs.len(), 1);

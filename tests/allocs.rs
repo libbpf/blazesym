@@ -66,11 +66,11 @@ fn normalize_process() {
     {
         let normalizer = Normalizer::builder().build();
         let mut addrs = [
-            libc::atexit as Addr,
-            libc::chdir as Addr,
-            libc::fopen as Addr,
-            normalize_process as Addr,
-            Normalizer::normalize_user_addrs as Addr,
+            libc::atexit as *const () as Addr,
+            libc::chdir as *const () as Addr,
+            libc::fopen as *const () as Addr,
+            normalize_process as *const () as Addr,
+            Normalizer::normalize_user_addrs as *const () as Addr,
         ];
         let () = addrs.sort();
 

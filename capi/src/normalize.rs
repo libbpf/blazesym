@@ -1066,11 +1066,11 @@ mod tests {
         fn test(normalizer: *const blaze_normalizer) {
             let addrs = [
                 0x0,
-                libc::atexit as Addr,
-                libc::chdir as Addr,
-                libc::fopen as Addr,
-                elf_conversion as Addr,
-                normalize_user_addrs as Addr,
+                libc::atexit as *const () as Addr,
+                libc::chdir as *const () as Addr,
+                libc::fopen as *const () as Addr,
+                elf_conversion as *const () as Addr,
+                normalize_user_addrs as *const () as Addr,
             ];
 
             let result = unsafe {
@@ -1110,11 +1110,11 @@ mod tests {
 
     fn test_normalize_user_addrs_sorted(use_procmap_query: bool) {
         let mut addrs = [
-            libc::atexit as Addr,
-            libc::chdir as Addr,
-            libc::fopen as Addr,
-            elf_conversion as Addr,
-            normalize_user_addrs as Addr,
+            libc::atexit as *const () as Addr,
+            libc::chdir as *const () as Addr,
+            libc::fopen as *const () as Addr,
+            elf_conversion as *const () as Addr,
+            normalize_user_addrs as *const () as Addr,
         ];
         let () = addrs.sort();
 
@@ -1167,11 +1167,11 @@ mod tests {
     #[test]
     fn normalize_user_addrs_unsorted_failure() {
         let mut addrs = [
-            libc::atexit as Addr,
-            libc::chdir as Addr,
-            libc::fopen as Addr,
-            elf_conversion as Addr,
-            normalize_user_addrs as Addr,
+            libc::atexit as *const () as Addr,
+            libc::chdir as *const () as Addr,
+            libc::fopen as *const () as Addr,
+            elf_conversion as *const () as Addr,
+            normalize_user_addrs as *const () as Addr,
         ];
         let () = addrs.sort_by(|addr1, addr2| addr1.cmp(addr2).reverse());
 
@@ -1344,7 +1344,10 @@ mod tests {
     fn normalize_local_vdso_address() {
         use libc::gettimeofday;
 
-        let addrs = [normalize_local_vdso_address as Addr, gettimeofday as Addr];
+        let addrs = [
+            normalize_local_vdso_address as *const () as Addr,
+            gettimeofday as *const () as Addr,
+        ];
         let normalizer = blaze_normalizer_new();
         assert!(!normalizer.is_null());
 
