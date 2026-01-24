@@ -273,6 +273,21 @@ fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("strip", src, dst, options)
 }
 
+/// Create a file with compressed `.gnu_debugdata` data based on a
+/// source binary.
+fn gnu_debugdata(src: &Path, dst: impl AsRef<OsStr>) {
+    let dst = src.with_file_name(dst);
+    let convert_sh = data_dir().join("gnu_debugdata.sh");
+    println!("cargo:rerun-if-changed={}", src.display());
+    println!("cargo:rerun-if-changed={}", dst.display());
+    println!("cargo:rerun-if-changed={}", convert_sh.display());
+
+    let () = run("/bin/sh", [&convert_sh, src, &dst], identity)
+        .expect("failed to create mini debuginfo file");
+
+    let () = adjust_mtime(&dst).unwrap();
+}
+
 /// Create a DWARF package for a list of DWO files.
 #[cfg(feature = "thorin_dwp")]
 fn dwp<'p, D, P>(dwos: D, dst: &Path)
@@ -740,6 +755,7 @@ fn prepare_test_files() {
             &format!("--add-gnu-debuglink={}", dbg.display()),
         ],
     );
+    gnu_debugdata(&src, "test-stable-addrs-debugdata.bin");
 
     let elf = data_dir.join("test-stable-addrs-no-dwarf.bin");
     objcopy(

@@ -7,6 +7,8 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io;
+#[cfg(feature = "xz")]
+use std::io::Read as _;
 use std::io::Seek as _;
 use std::io::SeekFrom;
 use std::mem;
@@ -268,6 +270,26 @@ fn decompress_zstd(data: &[u8]) -> Result<Vec<u8>> {
 fn decompress_zstd(_data: &[u8]) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
         "ELF section is zstd compressed but zstd compression support is not enabled",
+    ))
+}
+
+#[cfg(feature = "xz")]
+fn decompress_xz(data: &[u8]) -> Result<Vec<u8>> {
+    use xz2::read::XzDecoder;
+
+    let mut decoder = XzDecoder::new(data);
+    let mut decompressed = Vec::new();
+    decoder
+        .read_to_end(&mut decompressed)
+        .context("xz decompression failed")?;
+
+    Ok(decompressed)
+}
+
+#[cfg(not(feature = "xz"))]
+fn decompress_xz(_data: &[u8]) -> Result<Vec<u8>> {
+    Err(Error::with_unsupported(
+        "ELF section is xz compressed but xz compression support is not enabled",
     ))
 }
 
@@ -808,10 +830,37 @@ where
         Ok(syms)
     }
 
+    fn parse_debugdata(&self) -> Result<Vec<u8>> {
+        if let Some(idx) = self.find_section(".gnu_debugdata")? {
+            // NB: We assume here that `.gnu_debugdata` will never be
+            //     of type `SHT_NOBITS`, which just logically doesn't
+            //     make sense to be used.
+            self.section_data_raw(idx)
+                .and_then(|data| decompress_xz(&data))
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
     fn ensure_symtab_cache(&self) -> Result<&SymbolTableCache<'elf>> {
-        self.symtab.get_or_try_init_(|| {
-            let syms = self.parse_syms(".symtab")?;
-            let strtab = self.parse_strs(".strtab")?;
+        self.symtab.get_or_try_init_(move || {
+            let mut syms = self.parse_syms(".symtab")?;
+            let mut strtab = self.parse_strs(".strtab")?;
+
+            if syms.is_empty() {
+                let data = self.parse_debugdata()?;
+                if !data.is_empty() {
+                    let cache = Cache::new(data.as_slice());
+                    // Because we don't store the decompressed data
+                    // anywhere (and we don't want to to avoid
+                    // self-referentiality), convert the parsed data
+                    // into their owned counterparts.
+                    syms = cache.parse_syms(".symtab")?.to_owned();
+                    strtab = cache
+                        .parse_strs(".strtab")
+                        .map(|strs| Cow::Owned(strs.to_vec()))?;
+                }
+            }
             let cache = SymbolTableCache::new(syms, strtab);
             Ok(cache)
         })

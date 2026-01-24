@@ -260,6 +260,7 @@ dependencies = [
  "test-log",
  "test-tag",
  "tracing",
+ "xz2",
  "zstd",
 ]
 

@@ -48,7 +48,7 @@ libbpf-sys = {version = "1.6", default-features = false, optional = true}
 # TODO: Enable `zstd` feature once toolchain support for it is more
 #       widespread (enabled by default in `ld`). Remove conditionals in
 #       test code alongside.
-blazesym = {path = "../", features = ["apk", "breakpad", "gsym", "tracing", "test"]}
+blazesym = {path = "../", features = ["apk", "breakpad", "gsym", "tracing", "test", "xz"]}
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]

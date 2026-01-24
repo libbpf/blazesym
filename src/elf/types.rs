@@ -115,6 +115,13 @@ where
             ),
         }
     }
+
+    pub fn to_owned(&self) -> ElfNSlice<'static, T> {
+        match self {
+            Self::B32(slice) => ElfNSlice::B32(Cow::Owned(slice.to_vec())),
+            Self::B64(slice) => ElfNSlice::B64(Cow::Owned(slice.to_vec())),
+        }
+    }
 }
 
 
@@ -724,6 +731,10 @@ mod tests {
 
         let sym = Elf32_Sym::default();
         let _sym64 = Elf64_Sym::from(&sym);
+
+        let syms = [sym];
+        let syms = ElfN_Syms::B32(Cow::Borrowed(&syms));
+        let _syms = syms.to_owned();
     }
 
     /// Exercise some accessor functions.

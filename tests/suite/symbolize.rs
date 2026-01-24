@@ -463,6 +463,26 @@ fn symbolize_elf_stripped() {
     assert_eq!(result, Symbolized::Unknown(Reason::MissingSyms));
 }
 
+/// Make sure that we can symbolize data from a compressed
+/// `.gnu_debugdata` section.
+#[tag(other_os)]
+#[test]
+fn symbolize_elf_compressed_gnu_debugdata() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-debugdata.bin");
+    let src = Source::Elf(Elf::new(path));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(0x2000200))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "factorial");
+    assert_eq!(result.addr, 0x2000200);
+}
+
 /// Check that we can symbolize data in a non-existent ELF binary after
 /// caching it.
 #[test]
