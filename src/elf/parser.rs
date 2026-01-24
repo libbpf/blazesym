@@ -7,6 +7,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io;
+use std::io::Read as _;
 use std::io::Seek as _;
 use std::io::SeekFrom;
 use std::mem;
@@ -271,6 +272,26 @@ fn decompress_zstd(_data: &[u8]) -> Result<Vec<u8>> {
     ))
 }
 
+#[cfg(feature = "xz2")]
+fn decompress_xz(data: &[u8]) -> Result<Vec<u8>> {
+    use xz2::read::XzDecoder;
+
+    let mut decoder = XzDecoder::new(data);
+    let mut decompressed = Vec::new();
+    decoder
+        .read_to_end(&mut decompressed)
+        .context("xz decompression failed")?;
+
+    Ok(decompressed)
+}
+
+#[cfg(not(feature = "xz2"))]
+fn decompress_xz(_data: &[u8]) -> Result<Vec<u8>> {
+    Err(Error::with_unsupported(
+        "ELF section is xz compressed but xz compression support is not enabled",
+    ))
+}
+
 
 #[derive(Debug)]
 struct EhdrExt<'elf> {
@@ -437,6 +458,8 @@ struct Cache<'elf, B> {
     dynsym: OnceCell<SymbolTableCache<'elf>>,
     /// The section data.
     section_data: OnceCell<Box<[OnceCell<Cow<'elf, [u8]>>]>>,
+    /// Potential decompressed `.gnu_debugdata` contents.
+    debugdata: OnceCell<Cow<'elf, [u8]>>,
 }
 
 impl<'elf, B> Cache<'elf, B>
@@ -454,6 +477,7 @@ where
             symtab: OnceCell::new(),
             dynsym: OnceCell::new(),
             section_data: OnceCell::new(),
+            debugdata: OnceCell::new(),
         }
     }
 
@@ -808,10 +832,60 @@ where
         Ok(syms)
     }
 
+    #[cfg(feature = "xz2")]
+    fn parse_debugdata(&self) -> Result<Option<Vec<u8>>> {
+        let idx = if let Some(idx) = self.find_section(".gnu_debugdata")? {
+            idx
+        } else {
+            // The symbol table does not exists. Fake an empty one.
+            return Ok(None)
+        };
+
+        let shdr = self.section_hdr(idx)?;
+        if shdr.type_() == SHT_NOBITS {
+            return Ok(None)
+        }
+
+        let sh_size = shdr.size();
+        let sh_offset = shdr.offset();
+
+        let data = self
+            .backend
+            .read_pod_slice::<u8>(sh_offset, sh_size as usize)
+            .context("failed to read .gnu_debugdata section data")?;
+
+        let decompressed = decompress_xz(&data)?;
+
+        Ok(Some(decompressed))
+    }
+
+    #[cfg(not(feature = "xz2"))]
+    fn parse_debugdata(&self) -> Result<Option<Vec<u8>>> {
+        // We don't have the means to decompress it, fake an empty one.
+        return Ok(None)
+    }
+
     fn ensure_symtab_cache(&self) -> Result<&SymbolTableCache<'elf>> {
         self.symtab.get_or_try_init_(|| {
-            let syms = self.parse_syms(".symtab")?;
-            let strtab = self.parse_strs(".strtab")?;
+            let mut syms = self.parse_syms(".symtab")?;
+            let mut strtab = self.parse_strs(".strtab")?;
+            if syms.is_empty() {
+                let data = self.debugdata.get_or_try_init_(|| {
+                    if let Some(data) = self.parse_debugdata()? {
+                        Result::<_, Error>::Ok(Cow::Owned(data))
+                    } else {
+                        Ok(Cow::Borrowed([].as_slice()))
+                    }
+                })?;
+                if !data.is_empty() {
+                    // to allow self-referentiality here, we have to artificially
+                    // extend the lifetime of `data` to `'elf`
+                    let data_slice = unsafe { mem::transmute::<&[u8], &'elf [u8]>(data) };
+                    let cache = Cache::new(data_slice);
+                    syms = cache.parse_syms(".symtab")?;
+                    strtab = cache.parse_strs(".strtab")?;
+                }
+            }
             let cache = SymbolTableCache::new(syms, strtab);
             Ok(cache)
         })
@@ -2053,6 +2127,7 @@ mod tests {
             symtab: OnceCell::new(),
             dynsym: OnceCell::new(),
             section_data: OnceCell::new(),
+            debugdata: OnceCell::new(),
         };
 
         assert_eq!(cache.find_section(".symtab").unwrap(), Some(2));
@@ -2159,10 +2234,27 @@ mod tests {
             symtab: OnceCell::new(),
             dynsym: OnceCell::new(),
             section_data: OnceCell::from(vec![OnceCell::new(), OnceCell::new()].into_boxed_slice()),
+            debugdata: OnceCell::new(),
         };
 
         let new_data = cache.section_data(1).unwrap();
         assert_eq!(new_data, data);
+    }
+
+    /// Make sure that we can look up a symbol residing in `.gnu_debugdata`.
+    #[cfg(feature = "xz2")]
+    #[test]
+    fn lookup_from_gnu_debugdata() {
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-debugdata.bin");
+
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
+        let opts = FindAddrOpts::default();
+        let addr = parser.find_addr("fibonacci", &opts).unwrap();
+        assert_eq!(addr.len(), 1);
+        let sym = &addr[0];
+        assert_eq!(sym.name, "fibonacci");
     }
 
     /// Benchmark creation of our "str2symtab" table.

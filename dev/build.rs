@@ -273,6 +273,20 @@ fn strip(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("strip", src, dst, options)
 }
 
+/// move symbols from .symtab into `.gnu_debugdata`
+fn gnu_debugdata(src: &Path, dst: impl AsRef<OsStr>) {
+    let dst = src.with_file_name(dst);
+    let convert_sh = data_dir().join("gnu_debugdata.sh");
+    println!("cargo:rerun-if-changed={}", src.display());
+    println!("cargo:rerun-if-changed={}", dst.display());
+    println!("cargo:rerun-if-env-changed={}", convert_sh.display());
+
+    let () = run("/bin/sh", [&convert_sh, src, &dst], identity)
+        .expect("failed to convert to .gnu_debugdata");
+
+    let () = adjust_mtime(&dst).unwrap();
+}
+
 /// Create a DWARF package for a list of DWO files.
 #[cfg(feature = "thorin_dwp")]
 fn dwp<'p, D, P>(dwos: D, dst: &Path)
@@ -649,6 +663,7 @@ fn prepare_test_files() {
             &["-gstrict-dwarf", "-gdwarf-5", "-gz=zstd"],
         );
     }
+    gnu_debugdata(&data_dir.join("test-no-debug.bin"), "test-debugdata.bin");
 
     // Generate this binary by passing the source file name without a
     // path to the compiler (which means we need to `cd` into the

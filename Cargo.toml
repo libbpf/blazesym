@@ -88,6 +88,7 @@ default = [
   "demangle",
   "dwarf",
   "zlib",
+  "xz2",
 ]
 # Enable this feature to enable APK support (mostly relevant for
 # Android).
@@ -117,6 +118,9 @@ zlib = ["dep:miniz_oxide"]
 # Enable this feature to enable support for zstd decompression. This is
 # currently only used for handling compressed debug information.
 zstd = ["dep:zstd"]
+# Enable this feature to enable support for xz decompression. This is
+# currently only used for handling .gnu_debugdata section (MiniDebugInfo)
+xz2 = ["dep:xz2"]
 
 # Below here are dev-mostly features that should not be needed by
 # regular users.
@@ -175,6 +179,7 @@ miniz_oxide = {version = "0.9", default-features = false, features = ["simd", "w
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1", optional = true}
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
+xz2 = {version = "0.1.7", default-features = false, optional = true}
 zstd = {version = "0.13", default-features = false, optional = true}
 
 [dev-dependencies]

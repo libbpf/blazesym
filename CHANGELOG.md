@@ -11,6 +11,7 @@ Unreleased
   provided by the user
 - Fixed backtrace reporting on contextualized errors
 - Added bindings for Go language
+- Added support for .gnu_debugdata
 
 
 0.2.1
