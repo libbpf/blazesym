@@ -72,7 +72,7 @@ impl<'dwarf> Units<'dwarf> {
         let mut units = sections.units();
         while let Some(header) = units.next()? {
             let unit_id = res_units.len();
-            let offset = match header.offset().as_debug_info_offset() {
+            let offset = match header.offset().to_debug_info_offset(&header) {
                 Some(offset) => offset,
                 None => continue,
             };
@@ -268,13 +268,13 @@ impl<'dwarf> Units<'dwarf> {
             .binary_search_by_key(&offset.0, |unit| unit.offset().0)
         {
             // There is never a DIE at the unit offset or before the first unit.
-            Ok(_) | Err(0) => return Err(gimli::Error::NoEntryAtGivenOffset),
+            Ok(_) | Err(0) => return Err(gimli::Error::NoEntryAtGivenOffset(offset.0 as u64)),
             Err(i) => self.units[i - 1].dw_unit(),
         };
 
         let unit_offset = offset
             .to_unit_offset(&unit.header)
-            .ok_or(gimli::Error::NoEntryAtGivenOffset)?;
+            .ok_or(gimli::Error::NoEntryAtGivenOffset(offset.0 as u64))?;
         let unit = gimli::UnitRef::new(&self.dwarf, unit);
         Ok((unit, unit_offset))
     }
