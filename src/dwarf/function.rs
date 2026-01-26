@@ -49,7 +49,7 @@ fn name_entry<'dwarf>(
     let abbrev = if let Some(abbrev) = entries.read_abbreviation()? {
         abbrev
     } else {
-        return Err(gimli::Error::NoEntryAtGivenOffset)
+        return Err(gimli::Error::NoEntryAtGivenOffset(offset.0 as u64))
     };
 
     let mut name = None;
@@ -112,7 +112,7 @@ fn name_attr<'dwarf>(
 
 struct InlinedState<'call, 'dwarf> {
     // Mutable fields.
-    entries: gimli::EntriesRaw<'call, 'call, R<'dwarf>>,
+    entries: gimli::EntriesRaw<'call, R<'dwarf>>,
     functions: Vec<InlinedFunction<'dwarf>>,
     addresses: Vec<InlinedFunctionAddress>,
 
@@ -395,7 +395,7 @@ impl<'dwarf> Function<'dwarf> {
 
 
     fn skip(
-        entries: &mut gimli::EntriesRaw<'_, '_, R<'dwarf>>,
+        entries: &mut gimli::EntriesRaw<'_, R<'dwarf>>,
         abbrev: &gimli::Abbreviation,
         depth: isize,
     ) -> Result<(), Error> {
