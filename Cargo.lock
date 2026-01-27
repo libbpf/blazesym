@@ -2616,9 +2616,9 @@ dependencies = [
 
 [[package]]
 name = "test-tag"
-version = "0.1.5"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "870e51c04e5ffc307cf6a06be049e5deae94ce726235d196a64e867a58049740"
+checksum = "e5a2455608f6a56fc2ce66c89dd005501c169688f29165468e65f0b47e060333"
 dependencies = [
  "proc-macro2",
  "quote",
