@@ -518,6 +518,19 @@ jobs:
           CGO_CFLAGS: "-I${{ github.workspace }}/capi/include"
       # Tests are compiled first to include debug info, which is skipped in regular `go test`.
       - run: cd go && CGO_CFLAGS="-I$(pwd)/../capi/include" CGO_LDFLAGS="-L$(pwd)/../target/debug" go test -v -c -o /tmp/test . && LD_LIBRARY_PATH=$(pwd)/../target/debug /tmp/test -test.v
+  deps:
+    name: Check for duplicate dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - shell: bash
+        run: |
+          out=$(cargo tree --quiet --duplicates --edges normal 2> /dev/null)
+          if [ -n "$out" ]; then
+            echo -e "duplicate dependencies found:\n${out}"
+            exit 1
+          fi
 
   required-checks:
     needs: [
@@ -535,6 +548,7 @@ jobs:
       rustfmt,
       cargo-doc,
       go,
+      deps,
     ]
     if: always()
     runs-on: ubuntu-latest
