@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped `blazesym` dependency to `0.2.3`
+
+
 0.1.13
 ------
 - Improved backtrace reporting when requested via `RUST_BACKTRACE` or

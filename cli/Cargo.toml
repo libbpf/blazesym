@@ -38,7 +38,17 @@ grev = "0.1.4"
 [dependencies]
 anyhow = "1.0"
 bufio = "0.1"
-blazesym = {version = "0.2", path = "../", features = ["apk", "breakpad", "demangle", "dwarf", "gsym", "tracing", "zlib", "zstd"]}
+blazesym = {version = "0.2.3", path = "../", features = [
+  "apk",
+  "breakpad",
+  "demangle",
+  "dwarf",
+  "gsym",
+  "tracing",
+  "xz",
+  "zlib",
+  "zstd",
+]}
 clap = {version = "4.5", features = ["derive"]}
 clap_complete = {version = "4.5", optional = true}
 tracing = "0.1"
