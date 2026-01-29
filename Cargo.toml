@@ -111,16 +111,16 @@ gsym = []
 # subscribing. Refer to the documentation of the [tracing] crate.
 # [tracing]: https://github.com/tokio-rs/tracing
 tracing = ["dep:tracing"]
+# Enable this feature to enable support for xz/lzma decompression. This
+# is used for handling `.gnu_debugdata` section data (MiniDebugInfo) as
+# well as compressed debug information of kernel modules.
+xz = ["dep:xz2"]
 # Enable this feature to enable support for zlib decompression. This is
 # currently only used for handling compressed debug information.
 zlib = ["dep:miniz_oxide"]
 # Enable this feature to enable support for zstd decompression. This is
 # currently only used for handling compressed debug information.
 zstd = ["dep:zstd"]
-# Enable this feature to enable support for xz decompression. This is
-# currently only used for handling `.gnu_debugdata` section data
-# (MiniDebugInfo)
-xz = ["dep:xz2"]
 
 # Below here are dev-mostly features that should not be needed by
 # regular users.
@@ -178,8 +178,9 @@ memmap2 = {version = "0.9", default-features = false}
 miniz_oxide = {version = "0.9", default-features = false, features = ["simd", "with-alloc"], optional = true}
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1", optional = true}
+tempfile = "3"
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
-xz2 = {version = "0.1.7", default-features = false, optional = true}
+xz2 = {version = "0.1", default-features = false, optional = true}
 zstd = {version = "0.13", default-features = false, optional = true}
 
 [dev-dependencies]
@@ -192,7 +193,6 @@ criterion = {version = "0.8", default-features = false, features = ["rayon", "ca
 rand = {version = "0.9", default-features = false, features = ["std", "thread_rng"]}
 scopeguard = "1.2"
 stats_alloc = {version = "0.1.1", features = ["nightly"]}
-tempfile = "3"
 test-fork = "0.1"
 test-log = {version = "0.2", default-features = false, features = ["trace"]}
 test-tag = "0.1"
