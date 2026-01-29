@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.3
+-----
 - Added support for `/usr/lib/debug/.build-id` debug link target
   directory
 - Added support for compressed `.gnu_debugdata` ELF sections
