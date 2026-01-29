@@ -1,7 +1,7 @@
 [package]
 name = "blazecli"
 description = "A command line utility for the blazesym library."
-version = "0.1.13"
+version = "0.1.14"
 edition.workspace = true
 rust-version.workspace = true
 default-run = "blazecli"

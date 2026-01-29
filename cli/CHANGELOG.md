@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.14
+------
 - Bumped `blazesym` dependency to `0.2.3`
 
 
