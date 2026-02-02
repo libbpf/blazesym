@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <stdio.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 void close_so(void **handle) {
   int rc;
@@ -12,7 +14,6 @@ void close_so(void **handle) {
 
 int main(int argc, char **argv) {
   int rc;
-  int err;
 
   if (argc != 2) {
     fprintf(stderr, "usage: %s <path-to-libtest.so>\n",
@@ -35,6 +36,20 @@ int main(int argc, char **argv) {
   if (sym == NULL) {
     fprintf(stderr, "failed to dlsym `await_input` function: %s\n", dlerror());
     return -1;
+  }
+
+  /* Write PID and address to stdout for the test harness. */
+  pid_t pid = getpid();
+  rc = write(STDOUT_FILENO, &pid, sizeof(pid));
+  if (rc < 0) {
+    perror("failed to write pid to stdout");
+    return 1;
+  }
+
+  rc = write(STDOUT_FILENO, &sym, sizeof(sym));
+  if (rc < 0) {
+    perror("failed to write address to stdout");
+    return 1;
   }
 
   int (*await_input)(void) = sym;
