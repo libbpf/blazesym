@@ -92,9 +92,9 @@ impl RemoteProcess {
 
     /// Execute a binary and then run a function with data from it.
     ///
-    /// The provided binary is expected to print some address that is
-    /// read (as a raw byte dump) and then provided to the passed-in
-    /// function, alongside the spawned process' PID.
+    /// The provided binary is expected to print its PID and an
+    /// address that are read (as raw byte dumps) and then provided to
+    /// the passed-in function.
     ///
     /// The binary is further more expected to block waiting for input
     /// and to stop once said input has been received.
@@ -112,16 +112,25 @@ impl RemoteProcess {
         }
         let mut child = cmd.spawn().unwrap();
 
-        let mut buf = [0u8; size_of::<Addr>()];
+        let mut pid_buf = [0u8; size_of::<u32>()];
         let () = child
             .stdout
             .as_mut()
             .unwrap()
-            .read_exact(&mut buf)
-            .expect("failed to read child output");
-        let addr = Addr::from_ne_bytes(buf);
+            .read_exact(&mut pid_buf)
+            .expect("failed to read child pid");
+        let pid = u32::from_ne_bytes(pid_buf);
 
-        let result = f(Pid::from(child.id()), addr);
+        let mut addr_buf = [0u8; size_of::<Addr>()];
+        let () = child
+            .stdout
+            .as_mut()
+            .unwrap()
+            .read_exact(&mut addr_buf)
+            .expect("failed to read child address");
+        let addr = Addr::from_ne_bytes(addr_buf);
+
+        let result = f(Pid::from(pid), addr);
 
         // "Signal" the child to terminate gracefully.
         let () = child.stdin.as_ref().unwrap().write_all(&[0x04]).unwrap();

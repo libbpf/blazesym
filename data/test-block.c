@@ -1,6 +1,6 @@
 /* A binary basically just blocking waiting for input and exiting. It also write
- * the address of its `_start` function to stdout (unformatted; just a byte
- * dump).
+ * its PID and the address of its `_start` function to stdout (unformatted;
+ * just a byte dump).
  *
  * It uses raw system calls to avoid dependency on libc, which pulls in
  * start up code and various other artifacts that perturb ELF layout in
@@ -18,6 +18,19 @@ void __stack_chk_fail(void) {}
 void _start(void) {
   char buf[2];
   int rc;
+  int pid;
+  asm volatile (
+      "syscall"
+      : "=a"(pid)
+      : "a"(SYS_getpid)
+      : "rcx", "r11", "memory"
+  );
+  asm volatile (
+      "syscall"
+      : "=a"(rc)
+      : "a"(SYS_write), "D"(STDOUT_FILENO), "S"(&pid), "d"(sizeof(pid))
+      : "rcx", "r11", "memory"
+  );
   void* addr = (void*)&_start;
   asm volatile (
       "syscall"
