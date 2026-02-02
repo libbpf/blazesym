@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr, "usage: %s <path-to-libtest.so>\n",
             argc > 0 ? argv[0] : "<program>");
-    return -1;
+    return 1;
   }
 
   char const *libtest_path = argv[1];
@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
   handle = dlopen(libtest_path, RTLD_NOW);
   if (handle == NULL) {
     fprintf(stderr, "failed to dlopen %s: %s\n", libtest_path, dlerror());
-    return -1;
+    return 1;
   }
   void *_dlclose __attribute__((cleanup(close_so))) = handle;
 
@@ -37,7 +37,7 @@ int main(int argc, char **argv) {
   sym = dlsym(handle, "await_input");
   if (sym == NULL) {
     fprintf(stderr, "failed to dlsym `await_input` function: %s\n", dlerror());
-    return -1;
+    return 1;
   }
 
   /* Write PID and address to stdout for the test harness. */
