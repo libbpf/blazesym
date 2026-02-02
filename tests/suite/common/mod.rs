@@ -90,6 +90,14 @@ impl RemoteProcess {
         self
     }
 
+    /// Execute a binary and then run a function with data from it.
+    ///
+    /// The provided binary is expected to print some address that is
+    /// read (as a raw byte dump) and then provided to the passed-in
+    /// function, alongside the spawned process' PID.
+    ///
+    /// The binary is further more expected to block waiting for input
+    /// and to stop once said input has been received.
     pub fn exec<F, R>(self, bin: impl AsRef<OsStr>, f: F) -> R
     where
         F: FnOnce(Pid, Addr) -> R,
