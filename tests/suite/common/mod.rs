@@ -105,13 +105,12 @@ impl RemoteProcess {
         let mut child = cmd.spawn().unwrap();
 
         let mut buf = [0u8; size_of::<Addr>()];
-        let count = child
+        let () = child
             .stdout
             .as_mut()
             .unwrap()
-            .read(&mut buf)
+            .read_exact(&mut buf)
             .expect("failed to read child output");
-        assert_eq!(count, buf.len());
         let addr = Addr::from_ne_bytes(buf);
 
         let result = f(Pid::from(child.id()), addr);
