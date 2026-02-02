@@ -1004,11 +1004,15 @@ fn symbolize_process_in_mount_namespace() {
     let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
+    let mnt_ns_child = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-mnt-ns-child.bin");
     let mnt_ns = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-mnt-ns.bin");
 
     let () = RemoteProcess::default()
+        .arg(&mnt_ns_child)
         .arg(&test_so)
         .exec(&mnt_ns, |pid, addr| {
             let src = Source::Process(Process::new(pid));
@@ -1260,12 +1264,15 @@ fn symbolize_process_perf_map() {
 
     let script = r#"
 import ctypes
+import os
 import sys
 
 sys.activate_stack_trampoline("perf")
 
 def main():
-  open("/proc/self/fd/1", "wb").write(ctypes.c_uint64(0x0))
+  with open("/proc/self/fd/1", "wb") as stderr:
+    stderr.write(ctypes.c_uint32(os.getpid()))
+    stderr.write(ctypes.c_uint64(0x0))
   input()
   return 0
 
