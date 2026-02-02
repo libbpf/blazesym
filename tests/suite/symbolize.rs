@@ -1058,6 +1058,86 @@ fn symbolize_process_in_mount_namespace() {
         });
 }
 
+/// Check symbolization involving a debug link reference relative to a
+/// process's changed root directory.
+#[cfg(linux)]
+#[test]
+fn symbolize_process_debug_link_in_chroot() {
+    use tempfile::tempdir;
+
+    let stripped_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so-stripped-with-link.so");
+    let debug_file = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so-dwarf-only.dbg");
+    let mnt_ns_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-chroot-dbg-link.bin");
+
+    let mnt_dir = tempdir().unwrap();
+    let mnt_path = mnt_dir.path().to_path_buf();
+    let lib_path = mnt_path.join("lib.so");
+
+    let () = RemoteProcess::default()
+        .arg(&mnt_path)
+        .arg(&lib_path)
+        .pre_exec(move || {
+            // Create a mount namespace.
+            let rc = unsafe { libc::unshare(libc::CLONE_NEWNS) };
+            if rc != 0 {
+                return Err(io::Error::last_os_error());
+            }
+
+            // Mount a tmpfs at the temp directory.
+            let target = CString::new(mnt_path.as_os_str().as_encoded_bytes()).unwrap();
+            let rc = unsafe {
+                libc::mount(
+                    CStr::from_bytes_with_nul(b"tmpfs\0").unwrap().as_ptr(),
+                    target.as_ptr(),
+                    CStr::from_bytes_with_nul(b"tmpfs\0").unwrap().as_ptr(),
+                    0,
+                    CStr::from_bytes_with_nul(b"size=16M\0")
+                        .unwrap()
+                        .as_ptr()
+                        .cast(),
+                )
+            };
+            if rc != 0 {
+                return Err(io::Error::last_os_error());
+            }
+
+            // Copy the stripped library.
+            let _cnt = fs::copy(&stripped_so, mnt_path.join("lib.so"))?;
+
+            // Create the debug directory structure and copy the debug file.
+            let () = fs::create_dir_all(mnt_path.join("usr/lib/debug"))?;
+            let _cnt = fs::copy(
+                &debug_file,
+                mnt_path.join("usr/lib/debug/libtest-so-dwarf-only.dbg"),
+            )?;
+            Ok(())
+        })
+        .exec(&mnt_ns_bin, |pid, addr| {
+            let src = Source::Process(Process::new(pid));
+            let symbolizer = Symbolizer::new();
+            let result = symbolizer
+                .symbolize_single(&src, Input::AbsAddr(addr))
+                .unwrap()
+                .into_sym();
+            // The address is of a static function (`private_function`) which
+            // is stripped from `.dynsym`. It can only be symbolized via DWARF
+            // debug info. The debug file only exists in the target process's
+            // mount namespace.
+            // TODO: Once mount namespace support is added for debug
+            //       link lookup, this assertion should be adjusted.
+            assert_eq!(
+                result, None,
+                "expected symbolization to fail because debug file is in different mount namespace"
+            );
+        });
+}
+
 /// Check that we can symbolize addresses from a process that has
 /// already exited, based on VMA data cached earlier.
 #[cfg(linux)]

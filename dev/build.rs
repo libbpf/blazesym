@@ -645,6 +645,16 @@ fn prepare_test_files() {
         "libtest-so-partly-stripped.so",
         &["--keep-symbol=the_ignored_answer"],
     );
+    dwarf(&src, "libtest-so-dwarf-only.dbg");
+    let dbg = data_dir.join("libtest-so-dwarf-only.dbg");
+    objcopy(
+        &src,
+        "libtest-so-stripped-with-link.so",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg.display()),
+        ],
+    );
 
     let src = data_dir.join("test-exe.c");
     cc(&src, "test-no-debug.bin", &["-g0", "-Wl,--build-id=none"]);
@@ -687,6 +697,9 @@ fn prepare_test_files() {
 
     let src = data_dir.join("test-mnt-ns.c");
     cc(&src, "test-mnt-ns.bin", &[]);
+
+    let src = data_dir.join("test-chroot-dbg-link.c");
+    cc(&src, "test-chroot-dbg-link.bin", &[]);
 
     let src = data_dir.join("test-block.c");
     let ld_script = data_dir.join("test-block-augmented.ld");
