@@ -34,7 +34,7 @@ impl SymbolFile {
     ///
     /// The reader is wrapped in a buffer reader so you shouldn't
     /// buffer the input yourself.
-    fn parse(input: &[u8]) -> Result<SymbolFile> {
+    fn parse(input: &[u8]) -> Result<Self> {
         let mut parser = SymbolParser::new();
         let consumed = parser.parse(input)?;
         if consumed == 0 {
@@ -53,7 +53,7 @@ impl SymbolFile {
     }
 
     /// Parse a [`SymbolFile`] from bytes.
-    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<SymbolFile> {
+    pub(crate) fn from_bytes(bytes: &[u8]) -> Result<Self> {
         Self::parse(bytes)
     }
 }

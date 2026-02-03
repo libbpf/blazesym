@@ -36,7 +36,7 @@ impl Display for Pid {
 
 impl From<u32> for Pid {
     fn from(pid: u32) -> Self {
-        NonZeroU32::new(pid).map(Pid::Pid).unwrap_or(Pid::Slf)
+        NonZeroU32::new(pid).map(Pid::Pid).unwrap_or(Self::Slf)
     }
 }
 

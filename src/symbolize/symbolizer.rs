@@ -703,7 +703,7 @@ impl<A> FromIterator<A> for Single<A> {
         I: IntoIterator<Item = A>,
     {
         let mut iter = i.into_iter();
-        let slf = Single(iter.next().unwrap());
+        let slf = Self(iter.next().unwrap());
         debug_assert!(iter.next().is_none());
         slf
     }

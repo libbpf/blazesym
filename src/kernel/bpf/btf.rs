@@ -23,7 +23,7 @@ pub(crate) struct Btf {
 
 impl Btf {
     /// Load BTF information with the given ID from the kernel.
-    pub fn load_from_id(btf_id: u32) -> Result<Option<Btf>> {
+    pub fn load_from_id(btf_id: u32) -> Result<Option<Self>> {
         // A BTF ID of 0 means that there is no BTF information present.
         if btf_id == 0 {
             return Ok(None)

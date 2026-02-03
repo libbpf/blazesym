@@ -67,9 +67,9 @@ impl Ksym {
         _bpf_info_cache: &BpfInfoCache,
     ) -> Result<ResolvedSym<'_>> {
         match self {
-            Ksym::Kfunc(kfunc) => kfunc.resolve(addr, opts),
+            Self::Kfunc(kfunc) => kfunc.resolve(addr, opts),
             #[cfg(feature = "bpf")]
-            Ksym::BpfProg(bpf_prog) => bpf_prog.resolve(addr, opts, _bpf_info_cache),
+            Self::BpfProg(bpf_prog) => bpf_prog.resolve(addr, opts, _bpf_info_cache),
         }
     }
 
@@ -129,7 +129,7 @@ struct Kfunc {
 
 impl Kfunc {
     fn resolve(&self, _addr: Addr, _opts: &FindSymOpts) -> Result<ResolvedSym<'_>> {
-        let Kfunc { name, addr } = self;
+        let Self { name, addr } = self;
         let sym = ResolvedSym {
             name,
             // TODO: Report kernel path somehow? Also, should include

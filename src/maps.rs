@@ -103,17 +103,17 @@ impl PathName {
 pub(crate) struct Perm(u8);
 
 impl Perm {
-    pub const R: Perm = Perm(0b100);
-    pub const W: Perm = Perm(0b010);
-    pub const X: Perm = Perm(0b001);
+    pub const R: Self = Self(0b100);
+    pub const W: Self = Self(0b010);
+    pub const X: Self = Self(0b001);
     #[cfg(test)]
-    pub const RW: Perm = Perm(0b110);
+    pub const RW: Self = Self(0b110);
     #[cfg(test)]
-    pub const RX: Perm = Perm(0b101);
+    pub const RX: Self = Self(0b101);
 }
 
 impl BitAnd for Perm {
-    type Output = Perm;
+    type Output = Self;
 
     #[inline]
     fn bitand(self, other: Self) -> Self::Output {
@@ -131,7 +131,7 @@ impl BitAndAssign for Perm {
 }
 
 impl BitOr for Perm {
-    type Output = Perm;
+    type Output = Self;
 
     #[inline]
     fn bitor(self, other: Self) -> Self::Output {
@@ -168,9 +168,9 @@ pub(crate) struct MapsEntry {
     pub build_id: Option<BuildId<'static>>,
 }
 
-impl AsRef<MapsEntry> for MapsEntry {
+impl AsRef<Self> for MapsEntry {
     #[inline]
-    fn as_ref(&self) -> &MapsEntry {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
