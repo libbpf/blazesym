@@ -11,10 +11,12 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -63,22 +65,58 @@ void rm_file(const char **path) {
 }
 
 int copy_file(char const *src, char const *dst) {
-  int rc;
-  char cmd_buf[512];
+  int src_fd = -1;
+  int dst_fd = -1;
+  int err;
+  char buf[4096];
+  ssize_t nread;
+  ssize_t nwritten;
+  int rc = 0;
 
-  rc = snprintf(cmd_buf, sizeof(cmd_buf), "cp %s %s", src, dst);
-  if (rc >= sizeof(cmd_buf)) {
-    fprintf(stderr,
-            "failed to construct cp command: insufficient buffer space\n");
+  src_fd = open(src, O_RDONLY);
+  if (src_fd < 0) {
+    err = errno;
+    fprintf(stderr, "failed to open %s for reading: %s (errno: %d)\n", src,
+            strerror(err), err);
     return -1;
   }
 
-  rc = system(cmd_buf);
-  if (rc != 0) {
-    fprintf(stderr, "failed to copy %s to %s: %d\n", src, dst, rc);
-    return rc;
+  dst_fd = open(dst, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  if (dst_fd < 0) {
+    err = errno;
+    fprintf(stderr, "failed to open %s for writing: %s (errno: %d)\n", dst,
+            strerror(err), err);
+    close(src_fd);
+    return -1;
   }
-  return 0;
+
+  while ((nread = read(src_fd, buf, sizeof(buf))) > 0) {
+    char *ptr = buf;
+    while (nread > 0) {
+      nwritten = write(dst_fd, ptr, nread);
+      if (nwritten < 0) {
+        err = errno;
+        fprintf(stderr, "failed to write to %s: %s (errno: %d)\n", dst,
+                strerror(err), err);
+        rc = -1;
+        goto out;
+      }
+      nread -= nwritten;
+      ptr += nwritten;
+    }
+  }
+
+  if (nread < 0) {
+    err = errno;
+    fprintf(stderr, "failed to read from %s: %s (errno: %d)\n", src,
+            strerror(err), err);
+    rc = -1;
+  }
+
+out:
+  close(src_fd);
+  close(dst_fd);
+  return rc;
 }
 
 int main(int argc, char **argv) {
