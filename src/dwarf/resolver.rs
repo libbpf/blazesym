@@ -80,7 +80,7 @@ impl ErrorExt for gimli::Error {
 impl From<Option<gimli::DwLang>> for SrcLang {
     fn from(other: Option<gimli::DwLang>) -> Self {
         match other {
-            Some(gimli::DW_LANG_Rust) => SrcLang::Rust,
+            Some(gimli::DW_LANG_Rust) => Self::Rust,
             Some(
                 gimli::DW_LANG_C_plus_plus
                 | gimli::DW_LANG_C_plus_plus_03
@@ -88,8 +88,8 @@ impl From<Option<gimli::DwLang>> for SrcLang {
                 | gimli::DW_LANG_C_plus_plus_14
                 | gimli::DW_LANG_C_plus_plus_17
                 | gimli::DW_LANG_C_plus_plus_20,
-            ) => SrcLang::Cpp,
-            _ => SrcLang::Unknown,
+            ) => Self::Cpp,
+            _ => Self::Unknown,
         }
     }
 }

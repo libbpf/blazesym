@@ -26,29 +26,29 @@ impl blaze_trace_lvl {
     /// Emit all trace events.
     ///
     /// This is the most verbose level and includes all others.
-    pub const TRACE: blaze_trace_lvl = blaze_trace_lvl(0);
+    pub const TRACE: Self = Self(0);
     /// Emit debug traces and above.
     ///
     /// This level excludes traces emitted with "TRACE" verbosity.
-    pub const DEBUG: blaze_trace_lvl = blaze_trace_lvl(1);
+    pub const DEBUG: Self = Self(1);
     /// Emit info level traces and above.
     ///
     /// This level excludes traces emitted with "TRACE" or "DEBUG"
     /// verbosity.
-    pub const INFO: blaze_trace_lvl = blaze_trace_lvl(2);
+    pub const INFO: Self = Self(2);
     /// Only emit warnings.
-    pub const WARN: blaze_trace_lvl = blaze_trace_lvl(3);
+    pub const WARN: Self = Self(3);
 }
 
 
 impl From<blaze_trace_lvl> for LevelFilter {
     fn from(other: blaze_trace_lvl) -> Self {
         match other {
-            blaze_trace_lvl::WARN => LevelFilter::WARN,
-            blaze_trace_lvl::INFO => LevelFilter::INFO,
-            blaze_trace_lvl::DEBUG => LevelFilter::DEBUG,
-            blaze_trace_lvl::TRACE => LevelFilter::TRACE,
-            _ => LevelFilter::TRACE,
+            blaze_trace_lvl::WARN => Self::WARN,
+            blaze_trace_lvl::INFO => Self::INFO,
+            blaze_trace_lvl::DEBUG => Self::DEBUG,
+            blaze_trace_lvl::TRACE => Self::TRACE,
+            _ => Self::TRACE,
         }
     }
 }

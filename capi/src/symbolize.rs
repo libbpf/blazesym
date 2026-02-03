@@ -464,37 +464,37 @@ pub struct blaze_symbolize_reason(u8);
 // variant.
 impl blaze_symbolize_reason {
     /// Symbolization was successful.
-    pub const SUCCESS: blaze_symbolize_reason = blaze_symbolize_reason(0);
+    pub const SUCCESS: Self = Self(0);
     /// The absolute address was not found in the corresponding process'
     /// virtual memory map.
-    pub const UNMAPPED: blaze_symbolize_reason = blaze_symbolize_reason(1);
+    pub const UNMAPPED: Self = Self(1);
     /// The file offset does not map to a valid piece of code/data.
-    pub const INVALID_FILE_OFFSET: blaze_symbolize_reason = blaze_symbolize_reason(2);
+    pub const INVALID_FILE_OFFSET: Self = Self(2);
     /// The `/proc/<pid>/maps` entry corresponding to the address does
     /// not have a component (file system path, object, ...) associated
     /// with it.
-    pub const MISSING_COMPONENT: blaze_symbolize_reason = blaze_symbolize_reason(3);
+    pub const MISSING_COMPONENT: Self = Self(3);
     /// The symbolization source has no or no relevant symbols.
-    pub const MISSING_SYMS: blaze_symbolize_reason = blaze_symbolize_reason(4);
+    pub const MISSING_SYMS: Self = Self(4);
     /// The address could not be found in the symbolization source.
-    pub const UNKNOWN_ADDR: blaze_symbolize_reason = blaze_symbolize_reason(5);
+    pub const UNKNOWN_ADDR: Self = Self(5);
     /// The address belonged to an entity that is currently unsupported.
-    pub const UNSUPPORTED: blaze_symbolize_reason = blaze_symbolize_reason(6);
+    pub const UNSUPPORTED: Self = Self(6);
     /// An error prevented the symbolization of the address from succeeding.
-    pub const IGNORED_ERROR: blaze_symbolize_reason = blaze_symbolize_reason(7);
+    pub const IGNORED_ERROR: Self = Self(7);
 }
 
 
 impl From<Reason> for blaze_symbolize_reason {
     fn from(reason: Reason) -> Self {
         match reason {
-            Reason::Unmapped => blaze_symbolize_reason::UNMAPPED,
-            Reason::InvalidFileOffset => blaze_symbolize_reason::INVALID_FILE_OFFSET,
-            Reason::MissingComponent => blaze_symbolize_reason::MISSING_COMPONENT,
-            Reason::MissingSyms => blaze_symbolize_reason::MISSING_SYMS,
-            Reason::Unsupported => blaze_symbolize_reason::UNSUPPORTED,
-            Reason::UnknownAddr => blaze_symbolize_reason::UNKNOWN_ADDR,
-            Reason::IgnoredError => blaze_symbolize_reason::IGNORED_ERROR,
+            Reason::Unmapped => Self::UNMAPPED,
+            Reason::InvalidFileOffset => Self::INVALID_FILE_OFFSET,
+            Reason::MissingComponent => Self::MISSING_COMPONENT,
+            Reason::MissingSyms => Self::MISSING_SYMS,
+            Reason::Unsupported => Self::UNSUPPORTED,
+            Reason::UnknownAddr => Self::UNKNOWN_ADDR,
+            Reason::IgnoredError => Self::IGNORED_ERROR,
             _ => unreachable!(),
         }
     }

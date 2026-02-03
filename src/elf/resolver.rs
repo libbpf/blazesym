@@ -195,7 +195,7 @@ impl ElfResolver {
         #[cfg(not(feature = "dwarf"))]
         let backend = ElfBackend::Elf(parser);
 
-        let resolver = ElfResolver { backend };
+        let resolver = Self { backend };
         Ok(resolver)
     }
 

@@ -13,57 +13,57 @@ pub struct blaze_err(i16);
 
 impl blaze_err {
     /// The operation was successful.
-    pub const OK: blaze_err = blaze_err(0);
+    pub const OK: Self = Self(0);
     /// An entity was not found, often a file.
-    pub const NOT_FOUND: blaze_err = blaze_err(-2);
+    pub const NOT_FOUND: Self = Self(-2);
     /// The operation lacked the necessary privileges to complete.
-    pub const PERMISSION_DENIED: blaze_err = blaze_err(-1);
+    pub const PERMISSION_DENIED: Self = Self(-1);
     /// An entity already exists, often a file.
-    pub const ALREADY_EXISTS: blaze_err = blaze_err(-17);
+    pub const ALREADY_EXISTS: Self = Self(-17);
     /// The operation needs to block to complete, but the blocking
     /// operation was requested to not occur.
-    pub const WOULD_BLOCK: blaze_err = blaze_err(-11);
+    pub const WOULD_BLOCK: Self = Self(-11);
     /// Data not valid for the operation were encountered.
-    pub const INVALID_DATA: blaze_err = blaze_err(-22);
+    pub const INVALID_DATA: Self = Self(-22);
     /// The I/O operation's timeout expired, causing it to be canceled.
-    pub const TIMED_OUT: blaze_err = blaze_err(-110);
+    pub const TIMED_OUT: Self = Self(-110);
     /// This operation is unsupported on this platform.
-    pub const UNSUPPORTED: blaze_err = blaze_err(-95);
+    pub const UNSUPPORTED: Self = Self(-95);
     /// An operation could not be completed, because it failed
     /// to allocate enough memory.
-    pub const OUT_OF_MEMORY: blaze_err = blaze_err(-12);
+    pub const OUT_OF_MEMORY: Self = Self(-12);
     /// A parameter was incorrect.
-    pub const INVALID_INPUT: blaze_err = blaze_err(-256);
+    pub const INVALID_INPUT: Self = Self(-256);
     /// An error returned when an operation could not be completed
     /// because a call to [`write`][std::io::Write::write] returned
     /// [`Ok(0)`][Ok].
-    pub const WRITE_ZERO: blaze_err = blaze_err(-257);
+    pub const WRITE_ZERO: Self = Self(-257);
     /// An error returned when an operation could not be completed
     /// because an "end of file" was reached prematurely.
-    pub const UNEXPECTED_EOF: blaze_err = blaze_err(-258);
+    pub const UNEXPECTED_EOF: Self = Self(-258);
     /// DWARF input data was invalid.
-    pub const INVALID_DWARF: blaze_err = blaze_err(-259);
+    pub const INVALID_DWARF: Self = Self(-259);
     /// A custom error that does not fall under any other I/O error
     /// kind.
-    pub const OTHER: blaze_err = blaze_err(-260);
+    pub const OTHER: Self = Self(-260);
 }
 
 impl From<ErrorKind> for blaze_err {
     fn from(other: ErrorKind) -> Self {
         match other {
-            ErrorKind::NotFound => blaze_err::NOT_FOUND,
-            ErrorKind::PermissionDenied => blaze_err::PERMISSION_DENIED,
-            ErrorKind::AlreadyExists => blaze_err::ALREADY_EXISTS,
-            ErrorKind::WouldBlock => blaze_err::WOULD_BLOCK,
-            ErrorKind::InvalidInput => blaze_err::INVALID_INPUT,
-            ErrorKind::InvalidData => blaze_err::INVALID_DATA,
-            ErrorKind::InvalidDwarf => blaze_err::INVALID_DWARF,
-            ErrorKind::TimedOut => blaze_err::TIMED_OUT,
-            ErrorKind::WriteZero => blaze_err::WRITE_ZERO,
-            ErrorKind::Unsupported => blaze_err::UNSUPPORTED,
-            ErrorKind::UnexpectedEof => blaze_err::UNEXPECTED_EOF,
-            ErrorKind::OutOfMemory => blaze_err::OUT_OF_MEMORY,
-            ErrorKind::Other => blaze_err::OTHER,
+            ErrorKind::NotFound => Self::NOT_FOUND,
+            ErrorKind::PermissionDenied => Self::PERMISSION_DENIED,
+            ErrorKind::AlreadyExists => Self::ALREADY_EXISTS,
+            ErrorKind::WouldBlock => Self::WOULD_BLOCK,
+            ErrorKind::InvalidInput => Self::INVALID_INPUT,
+            ErrorKind::InvalidData => Self::INVALID_DATA,
+            ErrorKind::InvalidDwarf => Self::INVALID_DWARF,
+            ErrorKind::TimedOut => Self::TIMED_OUT,
+            ErrorKind::WriteZero => Self::WRITE_ZERO,
+            ErrorKind::Unsupported => Self::UNSUPPORTED,
+            ErrorKind::UnexpectedEof => Self::UNEXPECTED_EOF,
+            ErrorKind::OutOfMemory => Self::OUT_OF_MEMORY,
+            ErrorKind::Other => Self::OTHER,
             _ => unreachable!(),
         }
     }

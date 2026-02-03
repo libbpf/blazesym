@@ -68,11 +68,11 @@ impl FromStr for BpfTag {
     type Err = ();
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        if s.len() != 2 * size_of::<BpfTag>() {
+        if s.len() != 2 * size_of::<Self>() {
             return Err(())
         }
 
-        let mut tag = [0; size_of::<BpfTag>()];
+        let mut tag = [0; size_of::<Self>()];
         (0..s.len())
             .step_by(2)
             .enumerate()
@@ -291,7 +291,7 @@ impl BpfProg {
         };
 
         let tag = BpfTag::from_str(tag).ok()?;
-        let prog = BpfProg {
+        let prog = Self {
             addr,
             name: Box::from(s),
             tag,
@@ -368,7 +368,7 @@ impl BpfProg {
             None
         };
 
-        let BpfProg {
+        let Self {
             name,
             addr: prog_addr,
             ..

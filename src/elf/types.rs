@@ -525,9 +525,9 @@ impl Elf64_Sym {
 impl SymType {
     fn try_from_elf_type(elf_type: u8) -> Result<Self, ()> {
         match elf_type {
-            STT_NOTYPE => Ok(SymType::Undefined),
-            STT_FUNC | STT_GNU_IFUNC => Ok(SymType::Function),
-            STT_OBJECT => Ok(SymType::Variable),
+            STT_NOTYPE => Ok(Self::Undefined),
+            STT_FUNC | STT_GNU_IFUNC => Ok(Self::Function),
+            STT_OBJECT => Ok(Self::Variable),
             _ => Err(()),
         }
     }
@@ -537,7 +537,7 @@ impl TryFrom<&Elf64_Sym> for SymType {
     type Error = ();
 
     fn try_from(other: &Elf64_Sym) -> Result<Self, Self::Error> {
-        SymType::try_from_elf_type(other.type_())
+        Self::try_from_elf_type(other.type_())
     }
 }
 
@@ -545,7 +545,7 @@ impl TryFrom<&ElfN<'_, Elf64_Sym>> for SymType {
     type Error = ();
 
     fn try_from(other: &ElfN<'_, Elf64_Sym>) -> Result<Self, Self::Error> {
-        SymType::try_from_elf_type(other.type_())
+        Self::try_from_elf_type(other.type_())
     }
 }
 

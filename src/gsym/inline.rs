@@ -22,7 +22,7 @@ impl InlineInfo {
         data: &mut &[u8],
         base_addr: u64,
         lookup_addr: Option<u64>,
-    ) -> Result<Option<InlineInfo>> {
+    ) -> Result<Option<Self>> {
         let range_cnt = data
             .read_u64_leb128()
             .ok_or_invalid_data(|| "failed to read range count from inline information")?;

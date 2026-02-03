@@ -33,7 +33,7 @@ impl Breakpad {
 
 impl From<Breakpad> for Source {
     fn from(breakpad: Breakpad) -> Self {
-        Source::Breakpad(breakpad)
+        Self::Breakpad(breakpad)
     }
 }
 
@@ -78,7 +78,7 @@ impl Elf {
 
 impl From<Elf> for Source {
     fn from(elf: Elf) -> Self {
-        Source::Elf(elf)
+        Self::Elf(elf)
     }
 }
 

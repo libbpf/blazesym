@@ -284,8 +284,8 @@ impl Archive {
     pub fn with_mmap(mmap: Mmap) -> Result<Self> {
         // Check that a central directory is present as at least some form
         // of validation that we are in fact dealing with a valid zip file.
-        let (cd_offset, cd_records) = Archive::find_cd(&mmap)?;
-        let slf = Archive {
+        let (cd_offset, cd_records) = Self::find_cd(&mmap)?;
+        let slf = Self {
             mmap,
             cd_offset,
             cd_records,

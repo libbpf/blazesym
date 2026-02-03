@@ -135,19 +135,19 @@ impl blaze_sym_type {
     /// In input contexts this variant can be used to encompass all
     /// other variants (functions and variables), whereas in output
     /// contexts it means that the type is not known.
-    pub const UNDEF: blaze_sym_type = blaze_sym_type(0);
+    pub const UNDEF: Self = Self(0);
     /// The symbol is a function.
-    pub const FUNC: blaze_sym_type = blaze_sym_type(1);
+    pub const FUNC: Self = Self(1);
     /// The symbol is a variable.
-    pub const VAR: blaze_sym_type = blaze_sym_type(2);
+    pub const VAR: Self = Self(2);
 }
 
 impl From<SymType> for blaze_sym_type {
     fn from(other: SymType) -> Self {
         match other {
-            SymType::Undefined => blaze_sym_type::UNDEF,
-            SymType::Function => blaze_sym_type::FUNC,
-            SymType::Variable => blaze_sym_type::VAR,
+            SymType::Undefined => Self::UNDEF,
+            SymType::Function => Self::FUNC,
+            SymType::Variable => Self::VAR,
             _ => unreachable!(),
         }
     }

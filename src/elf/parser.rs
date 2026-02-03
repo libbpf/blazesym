@@ -940,18 +940,18 @@ pub(crate) trait Backend {
 }
 
 impl Backend for Mmap {
-    type ObjTy = Mmap;
+    type ObjTy = Self;
     type ImplTy<'bcknd> = &'bcknd [u8];
 }
 
 impl Backend for StaticMem {
-    type ObjTy = StaticMem;
+    type ObjTy = Self;
     type ImplTy<'bcknd> = &'bcknd [u8];
 }
 
 impl Backend for File {
-    type ObjTy = Box<File>;
-    type ImplTy<'bcknd> = &'bcknd File;
+    type ObjTy = Box<Self>;
+    type ImplTy<'bcknd> = &'bcknd Self;
 }
 
 
@@ -1098,7 +1098,7 @@ impl ElfParser<Mmap> {
     }
 
     /// Create an `ElfParser` for a path.
-    pub(crate) fn open<P>(path: &P) -> Result<ElfParser>
+    pub(crate) fn open<P>(path: &P) -> Result<Self>
     where
         P: ?Sized + PathLike,
     {

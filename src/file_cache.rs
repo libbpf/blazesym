@@ -99,7 +99,7 @@ impl<T> Builder<T> {
 
     /// Create the [`FileCache`] object.
     pub(crate) fn build(self) -> FileCache<T> {
-        let Builder {
+        let Self {
             auto_reload,
             _phantom: _,
         } = self;

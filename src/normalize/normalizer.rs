@@ -98,7 +98,7 @@ impl Builder {
     /// IDs (if enabled). Build ID reading logic in the kernel is known
     /// to be incomplete in 6.11 and earlier, but a fix included with
     /// 6.12.
-    pub fn enable_procmap_query(mut self, enable: bool) -> Builder {
+    pub fn enable_procmap_query(mut self, enable: bool) -> Self {
         self.use_procmap_query = enable;
         self
     }
@@ -113,7 +113,7 @@ impl Builder {
     ///
     /// Please note than if the `PROCMAP_QUERY` ioctl is being used, VMA
     /// caching implies build ID caching as well.
-    pub fn enable_vma_caching(mut self, enable: bool) -> Builder {
+    pub fn enable_vma_caching(mut self, enable: bool) -> Self {
         self.cache_vmas = enable;
         self
     }
@@ -122,7 +122,7 @@ impl Builder {
     ///
     /// Note that build ID read failures will be swallowed without
     /// failing the normalization operation.
-    pub fn enable_build_ids(mut self, enable: bool) -> Builder {
+    pub fn enable_build_ids(mut self, enable: bool) -> Self {
         self.build_ids = enable;
         self
     }
@@ -132,14 +132,14 @@ impl Builder {
     /// # Notes
     /// This property only has a meaning if reading of build IDs is
     /// enabled as well and it is not auto-enabled by this method.
-    pub fn enable_build_id_caching(mut self, enable: bool) -> Builder {
+    pub fn enable_build_id_caching(mut self, enable: bool) -> Self {
         self.cache_build_ids = enable;
         self
     }
 
     /// Create the [`Normalizer`] object.
     pub fn build(self) -> Normalizer {
-        let Builder {
+        let Self {
             use_procmap_query,
             cache_vmas,
             build_ids,

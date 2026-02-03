@@ -287,24 +287,24 @@ pub struct blaze_user_meta_kind(u8);
 
 impl blaze_user_meta_kind {
     /// [`blaze_user_meta_variant::unknown`] is valid.
-    pub const UNKNOWN: blaze_user_meta_kind = blaze_user_meta_kind(0);
+    pub const UNKNOWN: Self = Self(0);
     /// [`blaze_user_meta_variant::apk`] is valid.
-    pub const APK: blaze_user_meta_kind = blaze_user_meta_kind(1);
+    pub const APK: Self = Self(1);
     /// [`blaze_user_meta_variant::elf`] is valid.
-    pub const ELF: blaze_user_meta_kind = blaze_user_meta_kind(2);
+    pub const ELF: Self = Self(2);
     /// [`blaze_user_meta_variant::sym`] is valid.
-    pub const SYM: blaze_user_meta_kind = blaze_user_meta_kind(3);
+    pub const SYM: Self = Self(3);
 
     // TODO: Remove the following constants with the 0.2 release
     /// Deprecated; use `BLAZE_USER_META_KIND_UNKNOWN`.
     #[deprecated]
-    pub const BLAZE_USER_META_UNKNOWN: blaze_user_meta_kind = blaze_user_meta_kind(0);
+    pub const BLAZE_USER_META_UNKNOWN: Self = Self(0);
     /// Deprecated; use `BLAZE_USER_META_KIND_APK`.
     #[deprecated]
-    pub const BLAZE_USER_META_APK: blaze_user_meta_kind = blaze_user_meta_kind(1);
+    pub const BLAZE_USER_META_APK: Self = Self(1);
     /// Deprecated; use `BLAZE_USER_META_KIND_ELF`.
     #[deprecated]
-    pub const BLAZE_USER_META_ELF: blaze_user_meta_kind = blaze_user_meta_kind(2);
+    pub const BLAZE_USER_META_ELF: Self = Self(2);
 }
 
 
@@ -402,7 +402,7 @@ impl blaze_user_meta_elf {
     }
 
     unsafe fn free(self) {
-        let blaze_user_meta_elf {
+        let Self {
             path,
             build_id_len,
             build_id,
@@ -465,7 +465,7 @@ impl blaze_user_meta_sym {
     }
 
     unsafe fn free(self) {
-        let blaze_user_meta_sym { sym, reserved: _ } = self;
+        let Self { sym, reserved: _ } = self;
 
         let buf = unsafe { sym.byte_sub(mem::size_of::<u64>()).cast::<u8>().cast_mut() };
         let size = unsafe { *(buf as *mut u64) } as usize;
@@ -486,32 +486,32 @@ pub struct blaze_normalize_reason(u8);
 impl blaze_normalize_reason {
     /// The absolute address was not found in the corresponding process' virtual
     /// memory map.
-    pub const UNMAPPED: blaze_normalize_reason = blaze_normalize_reason(0);
+    pub const UNMAPPED: Self = Self(0);
     /// The `/proc/<pid>/maps` entry corresponding to the address does not have
     /// a component (file system path, object, ...) associated with it.
-    pub const MISSING_COMPONENT: blaze_normalize_reason = blaze_normalize_reason(1);
+    pub const MISSING_COMPONENT: Self = Self(1);
     /// The address belonged to an entity that is currently unsupported.
-    pub const UNSUPPORTED: blaze_normalize_reason = blaze_normalize_reason(2);
+    pub const UNSUPPORTED: Self = Self(2);
     /// The file offset does not map to a valid piece of code/data.
-    pub const INVALID_FILE_OFFSET: blaze_normalize_reason = blaze_normalize_reason(3);
+    pub const INVALID_FILE_OFFSET: Self = Self(3);
     /// The symbolization source has no or no relevant symbols.
-    pub const MISSING_SYMS: blaze_normalize_reason = blaze_normalize_reason(4);
+    pub const MISSING_SYMS: Self = Self(4);
     /// The address could not be found in the symbolization source.
-    pub const UNKNOWN_ADDR: blaze_normalize_reason = blaze_normalize_reason(5);
+    pub const UNKNOWN_ADDR: Self = Self(5);
     /// An error prevented the symbolization of the address from succeeding.
-    pub const IGNORED_ERROR: blaze_normalize_reason = blaze_normalize_reason(7);
+    pub const IGNORED_ERROR: Self = Self(7);
 }
 
 impl From<Reason> for blaze_normalize_reason {
     fn from(reason: Reason) -> Self {
         match reason {
-            Reason::Unmapped => blaze_normalize_reason::UNMAPPED,
-            Reason::MissingComponent => blaze_normalize_reason::MISSING_COMPONENT,
-            Reason::Unsupported => blaze_normalize_reason::UNSUPPORTED,
-            Reason::InvalidFileOffset => blaze_normalize_reason::INVALID_FILE_OFFSET,
-            Reason::MissingSyms => blaze_normalize_reason::MISSING_SYMS,
-            Reason::UnknownAddr => blaze_normalize_reason::UNKNOWN_ADDR,
-            Reason::IgnoredError => blaze_normalize_reason::IGNORED_ERROR,
+            Reason::Unmapped => Self::UNMAPPED,
+            Reason::MissingComponent => Self::MISSING_COMPONENT,
+            Reason::Unsupported => Self::UNSUPPORTED,
+            Reason::InvalidFileOffset => Self::INVALID_FILE_OFFSET,
+            Reason::MissingSyms => Self::MISSING_SYMS,
+            Reason::UnknownAddr => Self::UNKNOWN_ADDR,
+            Reason::IgnoredError => Self::IGNORED_ERROR,
             _ => unreachable!(),
         }
     }
@@ -566,7 +566,7 @@ impl blaze_user_meta_unknown {
     }
 
     fn free(self) {
-        let blaze_user_meta_unknown {
+        let Self {
             reason: _,
             reserved: _,
         } = self;
