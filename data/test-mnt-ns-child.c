@@ -62,6 +62,25 @@ void rm_file(const char **path) {
   }
 }
 
+int copy_file(char const *src, char const *dst) {
+  int rc;
+  char cmd_buf[512];
+
+  rc = snprintf(cmd_buf, sizeof(cmd_buf), "cp %s %s", src, dst);
+  if (rc >= sizeof(cmd_buf)) {
+    fprintf(stderr,
+            "failed to construct cp command: insufficient buffer space\n");
+    return -1;
+  }
+
+  rc = system(cmd_buf);
+  if (rc != 0) {
+    fprintf(stderr, "failed to copy %s to %s: %d\n", src, dst, rc);
+    return rc;
+  }
+  return 0;
+}
+
 int main(int argc, char **argv) {
   int rc;
   int err;
@@ -107,25 +126,9 @@ int main(int argc, char **argv) {
   libtest_buf[rc] = 0;
   char const *libtest_dst = libtest_buf;
 
-  char cmd_buf[256];
-  rc = snprintf(cmd_buf, sizeof(cmd_buf), "cp %s %s", libtest_src, libtest_dst);
-  if (rc >= sizeof(cmd_buf)) {
-    fprintf(stderr,
-            "failed to construct cp command: insufficient buffer space\n");
-    return -1;
-  }
-  cmd_buf[rc] = 0;
-
-  char const *cp_cmd = cmd_buf;
-  /* Sorry, not gonna put up with copying a file in C using system
-   * APIs...
-   */
-  rc = system(cp_cmd);
+  rc = copy_file(libtest_src, libtest_dst);
   if (rc != 0) {
-    err = errno;
-    fprintf(stderr, "failed to copy %s to %s: %d\n", libtest_src, libtest_dst,
-            rc);
-    return err;
+    return rc;
   }
   const char *_rm __attribute__((cleanup(rm_file))) = libtest_dst;
 
