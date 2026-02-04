@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::io::Error;
 use std::io::Read as _;
+use std::io::Result;
 use std::io::Write as _;
 #[cfg(not(windows))]
 use std::os::unix::process::CommandExt as _;
@@ -72,10 +73,11 @@ pub fn non_root_uid() -> uid_t {
 /// Helper for launching a process of a binary that emits an address to
 /// stdout and waits for input on stdin.
 #[cfg(not(windows))]
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct RemoteProcess {
     args: Vec<OsString>,
     uid: Option<u32>,
+    pre_exec_fn: Option<Box<dyn FnMut() -> Result<()> + Send + Sync>>,
 }
 
 #[cfg(not(windows))]
@@ -90,6 +92,17 @@ impl RemoteProcess {
         self
     }
 
+    /// Run a closure in the child process before exec.
+    ///
+    /// The closure runs after `fork()` but before the binary is executed.
+    pub fn pre_exec<F>(mut self, f: F) -> Self
+    where
+        F: FnMut() -> Result<()> + Send + Sync + 'static,
+    {
+        self.pre_exec_fn = Some(Box::new(f));
+        self
+    }
+
     /// Execute a binary and then run a function with data from it.
     ///
     /// The provided binary is expected to print its PID and an
@@ -98,7 +111,7 @@ impl RemoteProcess {
     ///
     /// The binary is further more expected to block waiting for input
     /// and to stop once said input has been received.
-    pub fn exec<F, R>(self, bin: impl AsRef<OsStr>, f: F) -> R
+    pub fn exec<F, R>(mut self, bin: impl AsRef<OsStr>, f: F) -> R
     where
         F: FnOnce(Pid, Addr) -> R,
     {
@@ -109,6 +122,11 @@ impl RemoteProcess {
             .stderr(Stdio::inherit());
         if let Some(uid) = self.uid {
             cmd.uid(uid);
+        }
+        if let Some(pre_exec_fn) = self.pre_exec_fn.take() {
+            unsafe {
+                cmd.pre_exec(pre_exec_fn);
+            }
         }
         let mut child = cmd.spawn().unwrap();
 

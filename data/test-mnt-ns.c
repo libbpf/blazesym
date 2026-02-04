@@ -1,24 +1,21 @@
-/* A binary that creates a new mount namespace, sets up a tmpfs mount,
- * copies a shared object into it, and then loads and calls the
- * await_input function from that library.
+/* A binary that loads a shared object from a specified path and
+ * calls the `await_input` function from that library.
  *
- * This tests symbolization of libraries that are only visible within
- * the mount namespace.
+ * The mount namespace setup (unshare, tmpfs mount, file copy) is done
+ * by the test harness via `pre_exec()`.
  *
  * Usage: test-mnt-ns <path-to-libtest.so>
  */
 
-#define _GNU_SOURCE
 #include "util.h"
 
-#include <sched.h>
+#include <dlfcn.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 int main(int argc, char **argv) {
   int rc;
-  int err;
 
   if (argc != 2) {
     fprintf(stderr, "usage: %s <path-to-libtest.so>\n",
@@ -26,59 +23,12 @@ int main(int argc, char **argv) {
     return -1;
   }
 
-  char const *libtest_src = argv[1];
-
-  /* Create a new mount namespace for this process. */
-  rc = unshare(CLONE_NEWNS);
-  if (rc != 0) {
-    err = errno;
-    fprintf(stderr, "unshare failed: %s (errno: %d)\n", strerror(err), err);
-    return err;
-  }
-
-  /* Create a temporary directory and mount a ramdisk in there.
-   * This should be done inside a mount namespace so that the mount
-   * is only visible to this process.
-   */
-  char tmpl[] = "/tmp/mnt-ns.XXXXXX";
-  char *dir = mkdtemp(tmpl);
-
-  if (dir == NULL) {
-    err = errno;
-    fprintf(stderr, "mkdtemp failed: %s (errno: %d)\n", strerror(err), err);
-    return err;
-  }
-  char *_rm_dir __attribute__((cleanup(rm_dir))) = dir;
-
-  rc = mount("tmpfs", dir, "tmpfs", 0, "size=16M");
-  if (rc != 0) {
-    err = errno;
-    fprintf(stderr, "mount failed: %s (errno: %d)\n", strerror(err), err);
-    return err;
-  }
-  char *_umount __attribute__((cleanup(unmount))) = dir;
-
-  char libtest_buf[256];
-  rc = snprintf(libtest_buf, sizeof(libtest_buf), "%s/libtest-so.so", dir);
-  if (rc >= sizeof(libtest_buf)) {
-    fprintf(
-        stderr,
-        "failed to construct destination path: insufficient buffer space\n");
-    return -1;
-  }
-  libtest_buf[rc] = 0;
-  char const *libtest_dst = libtest_buf;
-
-  rc = copy_file(libtest_src, libtest_dst);
-  if (rc != 0) {
-    return rc;
-  }
-  const char *_rm __attribute__((cleanup(rm_file))) = libtest_dst;
+  char const *libtest_path = argv[1];
 
   void *handle;
-  handle = dlopen(libtest_dst, RTLD_NOW);
+  handle = dlopen(libtest_path, RTLD_NOW);
   if (handle == NULL) {
-    fprintf(stderr, "failed to dlopen %s: %s\n", libtest_dst, dlerror());
+    fprintf(stderr, "failed to dlopen %s: %s\n", libtest_path, dlerror());
     return -1;
   }
   void *_dlclose __attribute__((cleanup(close_so))) = handle;

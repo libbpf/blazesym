@@ -1,7 +1,10 @@
 use std::borrow::Cow;
 use std::env;
 use std::env::current_exe;
+use std::ffi::CStr;
+use std::ffi::CString;
 use std::ffi::OsStr;
+use std::fs;
 use std::fs::copy;
 use std::fs::metadata;
 use std::fs::read as read_file;
@@ -1004,13 +1007,46 @@ fn symbolize_process_in_mount_namespace() {
     let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
-    let mnt_ns = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let mnt_ns_bin = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-mnt-ns.bin");
 
+    let mnt_dir = tempdir().unwrap();
+    let mnt_path = mnt_dir.path().to_path_buf();
+    let lib_path = mnt_path.join("lib.so");
+
     let () = RemoteProcess::default()
-        .arg(&test_so)
-        .exec(&mnt_ns, |pid, addr| {
+        .arg(&lib_path)
+        .pre_exec(move || {
+            // Create a mount namespace.
+            let rc = unsafe { libc::unshare(libc::CLONE_NEWNS) };
+            if rc != 0 {
+                return Err(io::Error::last_os_error());
+            }
+
+            // Mount a tmpfs at the temp directory.
+            let target = CString::new(mnt_path.as_os_str().as_encoded_bytes()).unwrap();
+            let rc = unsafe {
+                libc::mount(
+                    CStr::from_bytes_with_nul(b"tmpfs\0").unwrap().as_ptr(),
+                    target.as_ptr(),
+                    CStr::from_bytes_with_nul(b"tmpfs\0").unwrap().as_ptr(),
+                    0,
+                    CStr::from_bytes_with_nul(b"size=16M\0")
+                        .unwrap()
+                        .as_ptr()
+                        .cast(),
+                )
+            };
+            if rc != 0 {
+                return Err(io::Error::last_os_error());
+            }
+
+            // Copy the library.
+            let _cnt = fs::copy(&test_so, &lib_path)?;
+            Ok(())
+        })
+        .exec(&mnt_ns_bin, |pid, addr| {
             let src = Source::Process(Process::new(pid));
             let symbolizer = Symbolizer::new();
             let result = symbolizer
