@@ -1,9 +1,9 @@
-/* A binary that sets up a tmpfs mount, copies a shared object into it,
- * and then loads and calls the await_input function from that library.
+/* A binary that creates a new mount namespace, sets up a tmpfs mount,
+ * copies a shared object into it, and then loads and calls the
+ * await_input function from that library.
  *
- * This is designed to be run inside a mount namespace (e.g., via
- * test-mnt-ns.bin) to test symbolization of libraries that are only
- * visible within that namespace.
+ * This tests symbolization of libraries that are only visible within
+ * the mount namespace.
  *
  * Usage: test-mnt-ns-child <path-to-libtest.so>
  */
@@ -11,6 +11,7 @@
 #define _GNU_SOURCE
 #include "util.h"
 
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -26,6 +27,14 @@ int main(int argc, char **argv) {
   }
 
   char const *libtest_src = argv[1];
+
+  /* Create a new mount namespace for this process. */
+  rc = unshare(CLONE_NEWNS);
+  if (rc != 0) {
+    err = errno;
+    fprintf(stderr, "unshare failed: %s (errno: %d)\n", strerror(err), err);
+    return err;
+  }
 
   /* Create a temporary directory and mount a ramdisk in there.
    * This should be done inside a mount namespace so that the mount
