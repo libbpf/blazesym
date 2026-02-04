@@ -5,7 +5,7 @@
  * This tests symbolization of libraries that are only visible within
  * the mount namespace.
  *
- * Usage: test-mnt-ns-child <path-to-libtest.so>
+ * Usage: test-mnt-ns <path-to-libtest.so>
  */
 
 #define _GNU_SOURCE

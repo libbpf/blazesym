@@ -685,8 +685,8 @@ fn prepare_test_files() {
     let src = data_dir.join("test-wait.c");
     cc(&src, "test-wait.bin", &[]);
 
-    let src = data_dir.join("test-mnt-ns-child.c");
-    cc(&src, "test-mnt-ns-child.bin", &[]);
+    let src = data_dir.join("test-mnt-ns.c");
+    cc(&src, "test-mnt-ns.bin", &[]);
 
     let src = data_dir.join("test-block.c");
     let ld_script = data_dir.join("test-block-augmented.ld");

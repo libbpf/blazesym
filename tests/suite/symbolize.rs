@@ -1004,13 +1004,13 @@ fn symbolize_process_in_mount_namespace() {
     let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("libtest-so.so");
-    let mnt_ns_child = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let mnt_ns = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("test-mnt-ns-child.bin");
+        .join("test-mnt-ns.bin");
 
     let () = RemoteProcess::default()
         .arg(&test_so)
-        .exec(&mnt_ns_child, |pid, addr| {
+        .exec(&mnt_ns, |pid, addr| {
             let src = Source::Process(Process::new(pid));
             let symbolizer = Symbolizer::new();
             let result = symbolizer
