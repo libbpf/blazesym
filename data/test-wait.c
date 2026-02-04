@@ -1,6 +1,8 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -18,7 +20,7 @@ int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr, "usage: %s <path-to-libtest.so>\n",
             argc > 0 ? argv[0] : "<program>");
-    return -1;
+    return 1;
   }
 
   char const *libtest = argv[1];
@@ -27,7 +29,7 @@ int main(int argc, char **argv) {
   handle = dlopen(libtest, RTLD_NOW);
   if (handle == NULL) {
     fprintf(stderr, "failed to dlopen %s: %s\n", libtest, dlerror());
-    return -1;
+    return 1;
   }
   void *_dlclose __attribute__((cleanup(close_so))) = handle;
 
@@ -35,20 +37,20 @@ int main(int argc, char **argv) {
   sym = dlsym(handle, "await_input");
   if (sym == NULL) {
     fprintf(stderr, "failed to dlsym `await_input` function: %s\n", dlerror());
-    return -1;
+    return 1;
   }
 
   /* Write PID and address to stdout for the test harness. */
   pid_t pid = getpid();
   rc = write(STDOUT_FILENO, &pid, sizeof(pid));
   if (rc < 0) {
-    perror("failed to write pid to stdout");
+    fprintf(stderr, "failed to write pid to stdout: %s\n", strerror(errno));
     return 1;
   }
 
   rc = write(STDOUT_FILENO, &sym, sizeof(sym));
   if (rc < 0) {
-    perror("failed to write address to stdout");
+    fprintf(stderr, "failed to write address to stdout: %s\n", strerror(errno));
     return 1;
   }
 

@@ -1,5 +1,7 @@
-#include <unistd.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 #include "test-so.h"
 
@@ -30,7 +32,7 @@ int await_input(void) {
   char buf[2];
   int rc = read(STDIN_FILENO, buf, sizeof(buf));
   if (rc < 0) {
-    perror("failed to read from stdin");
+    fprintf(stderr, "failed to read from stdin: %s\n", strerror(errno));
     return 1;
   }
   return 0;
