@@ -10,7 +10,9 @@
 #include "util.h"
 
 #include <dlfcn.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -33,27 +35,27 @@ int main(int argc, char **argv) {
   }
   void *_dlclose __attribute__((cleanup(close_so))) = handle;
 
-  void *sym;
-  sym = dlsym(handle, "await_input");
-  if (sym == NULL) {
-    fprintf(stderr, "failed to dlsym `await_input` function: %s\n", dlerror());
+  int (*await_input)(void);
+  await_input = dlsym(handle, "await_input");
+  if (await_input == NULL) {
+    fprintf(stderr, "failed to dlsym `await_input`: %s\n", dlerror());
     return 1;
   }
+
 
   /* Write PID and address to stdout for the test harness. */
   pid_t pid = getpid();
   rc = write(STDOUT_FILENO, &pid, sizeof(pid));
   if (rc < 0) {
-    perror("failed to write pid to stdout");
+    fprintf(stderr, "failed to write pid to stdout: %s\n", strerror(errno));
     return 1;
   }
 
-  rc = write(STDOUT_FILENO, &sym, sizeof(sym));
+  rc = write(STDOUT_FILENO, &await_input, sizeof(await_input));
   if (rc < 0) {
-    perror("failed to write address to stdout");
+    fprintf(stderr, "failed to write address to stdout: %s\n", strerror(errno));
     return 1;
   }
 
-  int (*await_input)(void) = sym;
   return await_input();
 }

@@ -11,7 +11,9 @@
 #include "util.h"
 
 #include <dlfcn.h>
+#include <errno.h>
 #include <stdio.h>
+#include <string.h>
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -40,7 +42,7 @@ int main(int argc, char **argv) {
    */
   rc = chroot(mount_dir);
   if (rc < 0) {
-    perror("failed to chroot");
+    fprintf(stderr, "failed to chroot: %s\n", strerror(errno));
     return 1;
   }
 
@@ -67,13 +69,13 @@ int main(int argc, char **argv) {
   pid_t pid = getpid();
   rc = write(STDOUT_FILENO, &pid, sizeof(pid));
   if (rc < 0) {
-    perror("failed to write pid to stdout");
+    fprintf(stderr, "failed to write pid to stdout: %s\n", strerror(errno));
     return 1;
   }
 
   rc = write(STDOUT_FILENO, &private_addr, sizeof(private_addr));
   if (rc < 0) {
-    perror("failed to write address to stdout");
+    fprintf(stderr, "failed to write address to stdout: %s\n", strerror(errno));
     return 1;
   }
 
