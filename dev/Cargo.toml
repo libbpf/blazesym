@@ -52,7 +52,7 @@ blazesym = {path = "../", features = ["apk", "breakpad", "gsym", "tracing", "tes
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libbpf-rs = "0.25"
+libbpf-rs = "0.26"
 
 [lints]
 workspace = true
