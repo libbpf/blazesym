@@ -207,7 +207,11 @@ fn symbolize_no_permission_impl(path: &Path) {
 /// permission to open the symbolization source.
 #[cfg(linux)]
 #[fork]
-#[test]
+// We use the default `#[test]` here to not initialize `tracing`. This
+// is suspected to be the cause of occasional segfaults.
+// TODO: Once ruled out/confirmed, we should revert or fix this
+//       properly, respectively.
+#[std::prelude::v1::test]
 fn symbolize_elf_no_permission() {
     use libc::getresuid;
     use std::os::unix::fs::PermissionsExt as _;
