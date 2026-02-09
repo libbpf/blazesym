@@ -59,7 +59,7 @@ use blazesym::__private::find_the_answer_fn_in_zip;
 #[cfg(linux)]
 use blazesym_dev::with_bpf_symbolization_target_addrs;
 
-use rand::Rng as _;
+use rand::RngExt as _;
 use scopeguard::defer;
 
 use tempfile::tempdir;
