@@ -190,7 +190,7 @@ addr2line = "=0.25.1"
 anyhow = "1.0"
 blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 criterion = {version = "0.8", default-features = false, features = ["rayon", "cargo_bench_support"]}
-rand = {version = "0.9", default-features = false, features = ["std", "thread_rng"]}
+rand = {version = "0.10", default-features = false, features = ["std", "thread_rng"]}
 scopeguard = "1.2"
 stats_alloc = {version = "0.1.1", features = ["nightly"]}
 tempfile = "3"
