@@ -26,6 +26,7 @@ jobs:
       rev: v6.11
       config: 'data/config'
       vmlinux: true
+      modules: true
   build:
     name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}, ${{ matrix.args }}]
     runs-on: ${{ matrix.runs-on }}
@@ -229,7 +230,8 @@ jobs:
         # Lord.
 
         # Download artifact in parallel with test compilation. The unzip
-        # will produce the kernel bzImage and vmlinux.
+        # will produce the kernel bzImage, boot/ with vmlinux and aux
+        # files, and lib/modules/ with modules and aux files.
         (curl --location \
           --fail-with-body \
           --header "Accept: application/vnd.github+json" \
@@ -254,6 +256,9 @@ jobs:
         . ./env.sh
         mount -t tmpfs tmpfs /boot
         cp -a boot/* /boot/
+        mount -t tmpfs tmpfs /lib/modules
+        cp -a lib/modules/* /lib/modules/
+        insmod lib/modules/6.11.0/kernel/lib/test_hexdump.ko.xz
         $tests
         cargo llvm-cov report --ignore-filename-regex=cli/src/ --lcov --output-path lcov.info
         EOF

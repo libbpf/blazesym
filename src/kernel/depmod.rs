@@ -244,10 +244,9 @@ mod tests {
             Err(err) => panic!("{err}"),
         };
 
-        // We don't know which modules are available. So we just pick a
-        // few possible ones and search for them, just making sure that
-        // we don't err out while doing so.
-        let mods = ["ecdh_generic", "intel_pch_thermal", "libarc4", "snd_sof"];
+        // We assume that `test_hexdump` is loaded. Make sure we can
+        // discover it.
+        let mods = ["test_hexdump"];
         for name in mods {
             let _result = depmod.find_path(name).unwrap().unwrap();
         }
