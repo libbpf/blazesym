@@ -1,3 +1,8 @@
+0.1.7
+-----
+- Bumped maximum supported `blazesym` dependency to `0.2.3`
+
+
 0.1.6
 -----
 - Added `BLAZE_{NORMALIZE,SYMBOLIZE}_REASON_IGNORED_ERROR` constants
