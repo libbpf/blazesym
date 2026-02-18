@@ -331,7 +331,7 @@ pub fn stat(path: &Path) -> io::Result<libc::stat> {
 
 #[cfg(linux)]
 #[cfg(test)]
-#[allow(clippy::absolute_paths)]
+#[expect(clippy::absolute_paths)]
 fn fstat(fd: std::os::unix::io::RawFd) -> io::Result<libc::stat> {
     let mut dst = MaybeUninit::uninit();
     let rc = unsafe { libc::fstat(fd, dst.as_mut_ptr()) };
@@ -373,7 +373,6 @@ where
     None
 }
 
-#[allow(dead_code)]
 pub(crate) fn find_lowest_match_by_key<T, B, F>(slice: &[T], b: &B, mut f: F) -> Option<usize>
 where
     F: FnMut(&T) -> B,

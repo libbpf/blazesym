@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped minimum supported Rust version to `1.88`
+
+
 0.2.3
 -----
 - Added support for `/usr/lib/debug/.build-id` debug link target

@@ -21,7 +21,7 @@ use crate::Result;
 // From uapi/linux/fs.h
 const PROCMAP_QUERY: usize = 0xC0686611; // _IOWR(PROCFS_IOCTL_MAGIC, 17, struct procmap_query)
 
-#[allow(non_camel_case_types)]
+#[expect(non_camel_case_types)]
 type procmap_query_flags = c_int;
 
 const PROCMAP_QUERY_VMA_READABLE: procmap_query_flags = 0x01;
@@ -32,7 +32,6 @@ const PROCMAP_QUERY_VMA_SHARED: procmap_query_flags = 0x08;
 const PROCMAP_QUERY_COVERING_OR_NEXT_VMA: procmap_query_flags = 0x10;
 
 
-#[allow(non_camel_case_types)]
 #[repr(C)]
 #[derive(Clone, Default)]
 struct procmap_query {

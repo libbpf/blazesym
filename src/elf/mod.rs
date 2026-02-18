@@ -1,7 +1,7 @@
 mod parser;
 #[cfg_attr(not(feature = "dwarf"), allow(unused_variables))]
 mod resolver;
-#[allow(dead_code, non_camel_case_types)]
+#[expect(dead_code, non_camel_case_types)]
 pub(crate) mod types;
 
 // Please adjust the documentation when adjusting directories.

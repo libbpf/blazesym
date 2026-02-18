@@ -210,7 +210,7 @@ pub mod __private {
 
 #[cfg(feature = "tracing")]
 #[macro_use]
-#[allow(unused_imports)]
+#[expect(unused_imports)]
 mod log {
     pub(crate) use tracing::debug;
     pub(crate) use tracing::error;

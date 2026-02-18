@@ -1264,7 +1264,6 @@ where
     }
 
     /// Perform an operation on each symbol.
-    #[allow(clippy::needless_borrows_for_generic_args)]
     pub(crate) fn for_each(&self, opts: &FindAddrOpts, f: &mut ForEachFn) -> Result<()> {
         let cache = self.cache.ensure_symtab_cache()?;
         let symtab = &cache.syms;
