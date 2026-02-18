@@ -69,7 +69,7 @@ impl Default for blaze_inspect_elf_src {
     }
 }
 
-#[cfg_attr(not(test), allow(unused))]
+#[cfg_attr(not(test), expect(unused))]
 impl blaze_inspect_elf_src {
     fn from(other: Elf) -> ManuallyDrop<Self> {
         let Elf {

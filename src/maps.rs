@@ -436,7 +436,7 @@ mod tests {
     }
 
     /// Check that we can parse `/proc/self/maps`.
-    #[allow(clippy::suspicious_map)]
+    #[expect(clippy::suspicious_map)]
     #[test]
     fn self_map_parsing() {
         let maps = parse(Pid::Slf).unwrap();

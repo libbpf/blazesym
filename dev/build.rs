@@ -199,7 +199,7 @@ fn toolize_impl<'p, S, I>(
         &mut identity as &mut dyn FnMut(Command) -> Command
     };
 
-    #[allow(clippy::redundant_closure_for_method_calls)]
+    #[expect(clippy::redundant_closure_for_method_calls)]
     let () = run(
         tool,
         options

@@ -1,4 +1,5 @@
 blank_lines_upper_bound = 2
+edition = "2021"
 imports_granularity = "item"
 trailing_semicolon = false
 wrap_comments = true

@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Bumped minimum supported Rust version to `1.88`
+
+
 0.1.7
 -----
 - Bumped maximum supported `blazesym` dependency to `0.2.3`

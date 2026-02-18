@@ -34,7 +34,7 @@ use super::types::INFO_TYPE_INLINE_INFO;
 use super::types::INFO_TYPE_LINE_TABLE_INFO;
 
 
-#[allow(dead_code)]
+#[expect(dead_code)]
 enum Data<'dat> {
     Mmap(Mmap),
     Slice(&'dat [u8]),

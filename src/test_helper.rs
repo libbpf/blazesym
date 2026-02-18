@@ -31,7 +31,7 @@ use crate::SymType;
 ///
 /// This function returns the symbol information of the function along
 /// with it's absolute address in the memory mapped region.
-#[allow(clippy::missing_transmute_annotations)]
+#[expect(clippy::missing_transmute_annotations)]
 pub fn find_the_answer_fn(mmap: &Mmap) -> (inspect::SymInfo<'static>, Addr) {
     // Look up the address of the `the_answer` function inside of the shared
     // object.
