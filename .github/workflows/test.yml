@@ -219,34 +219,40 @@ jobs:
         echo "export PYTHON=${PYTHON}" >> env.sh
         source env.sh
 
-        cargo test --no-run --workspace --all-targets --features=zstd,nightly,blazesym-dev/generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
-        tests=$(IFS='' grep Executable /tmp/cargo-build.log |
-          awk '{print $NF}' |
-          sed 's@[()]@@g' |
-          sed 's@.*@\0 --include-ignored@'
-        )
         # Yes, there appears to be no way to just retrieve the
         # uploaded artifact. One can't use actions/download-artifact
         # and provide any of the outputs of actions/upload-artifact.
         # Neither does it seem possible to just download the thing
         # directly, because contents are unconditionally zipped. Good.
         # Lord.
-        curl --location \
+
+        # Download artifact in parallel with test compilation. The unzip
+        # will produce the kernel bzImage and vmlinux.
+        (curl --location \
           --fail-with-body \
           --header "Accept: application/vnd.github+json" \
           --header "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}"\
           --header "X-GitHub-Api-Version: 2022-11-28" \
           --output artifact.zip \
-          "${ARTIFACT_URL}"
-        # This unzip will produce the kernel bzImage and vmlinux.
-        unzip artifact.zip
-        # Put vmlinux file into a location amenable to auto-discovery.
-        sudo mv vmlinux /boot/vmlinux-6.11.0
+          "${ARTIFACT_URL}" && unzip artifact.zip) &
+        artifact_pid=$!
+
+        cargo test --no-run --workspace --all-targets --features=zstd,nightly,blazesym-dev/generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
+        tests=$(IFS='' grep Executable /tmp/cargo-build.log |
+          awk '{print $NF}' |
+          sed 's@[()]@@g' |
+          sed 's@.*@\0 --include-ignored@'
+        )
+
+        wait $artifact_pid
 
         cat <<EOF > main.sh
         #!/bin/sh
-        set -e
+        set -e -u
         . ./env.sh
+        mount -t tmpfs tmpfs /boot
+        # Put vmlinux file into a location amenable to auto-discovery.
+        mv vmlinux /boot/vmlinux-6.11.0
         $tests
         cargo llvm-cov report --ignore-filename-regex=cli/src/ --lcov --output-path lcov.info
         EOF
