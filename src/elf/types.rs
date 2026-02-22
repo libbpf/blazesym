@@ -21,6 +21,7 @@ type Elf32_Xword = u64;
 type Elf32_Section = u16;
 
 
+pub(crate) const ET_REL: u16 = 1;
 pub(crate) const ET_EXEC: u16 = 2;
 pub(crate) const ET_DYN: u16 = 3;
 
@@ -219,6 +220,14 @@ impl ElfN_Ehdr<'_> {
         match self {
             ElfN::B32(ehdr) => ehdr.e_shstrndx,
             ElfN::B64(ehdr) => ehdr.e_shstrndx,
+        }
+    }
+
+    #[inline]
+    pub fn type_(&self) -> Elf64_Half {
+        match self {
+            ElfN::B32(ehdr) => ehdr.e_type,
+            ElfN::B64(ehdr) => ehdr.e_type,
         }
     }
 }
@@ -432,6 +441,22 @@ impl ElfN_Shdr<'_> {
             ElfN::B64(shdr) => shdr.sh_link,
         }
     }
+
+    #[inline]
+    pub fn info(&self) -> Elf64_Word {
+        match self {
+            ElfN::B32(shdr) => shdr.sh_info,
+            ElfN::B64(shdr) => shdr.sh_info,
+        }
+    }
+
+    #[inline]
+    pub fn entsize(&self) -> Elf64_Xword {
+        match self {
+            ElfN::B32(shdr) => shdr.sh_entsize.into(),
+            ElfN::B64(shdr) => shdr.sh_entsize,
+        }
+    }
 }
 
 
@@ -442,8 +467,10 @@ pub(crate) const SHN_LORESERVE: u16 = 0xff00;
 pub(crate) const SHN_ABS: u16 = 0xfff1;
 pub(crate) const SHN_XINDEX: u16 = 0xffff;
 
+pub(crate) const SHT_RELA: Elf64_Word = 4;
 pub(crate) const SHT_NOTE: Elf64_Word = 7;
 pub(crate) const SHT_NOBITS: Elf64_Word = 8;
+pub(crate) const SHT_REL: Elf64_Word = 9;
 
 pub(crate) const STT_NOTYPE: u8 = 0;
 pub(crate) const STT_OBJECT: u8 = 1;
@@ -694,6 +721,111 @@ impl Has32BitTy for Elf64_Chdr {
 pub(crate) const ELFCOMPRESS_ZLIB: u32 = 1;
 /// zstd algorithm.
 pub(crate) const ELFCOMPRESS_ZSTD: u32 = 2;
+
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub(crate) struct Elf32_Rela {
+    pub r_offset: Elf32_Addr,
+    pub r_info: Elf32_Word,
+    pub r_addend: i32,
+}
+
+// SAFETY: `Elf32_Rela` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Rela {}
+
+impl Elf32_Rela {
+    #[inline]
+    pub fn sym(&self) -> u32 {
+        self.r_info >> 8
+    }
+}
+
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub(crate) struct Elf64_Rela {
+    pub r_offset: Elf64_Addr,
+    pub r_info: Elf64_Xword,
+    pub r_addend: i64,
+}
+
+// SAFETY: `Elf64_Rela` is valid for any bit pattern.
+unsafe impl Pod for Elf64_Rela {}
+
+impl Elf64_Rela {
+    #[inline]
+    pub fn sym(&self) -> u32 {
+        (self.r_info >> 32) as u32
+    }
+}
+
+impl From<&Elf32_Rela> for Elf64_Rela {
+    fn from(other: &Elf32_Rela) -> Self {
+        Self {
+            r_offset: other.r_offset.into(),
+            r_info: other.r_info.into(),
+            r_addend: other.r_addend.into(),
+        }
+    }
+}
+
+impl Has32BitTy for Elf64_Rela {
+    type Ty32Bit = Elf32_Rela;
+}
+
+pub(crate) type ElfN_Relas<'elf> = ElfNSlice<'elf, Elf64_Rela>;
+
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub(crate) struct Elf32_Rel {
+    pub r_offset: Elf32_Addr,
+    pub r_info: Elf32_Word,
+}
+
+// SAFETY: `Elf32_Rel` is valid for any bit pattern.
+unsafe impl Pod for Elf32_Rel {}
+
+impl Elf32_Rel {
+    #[inline]
+    pub fn sym(&self) -> u32 {
+        self.r_info >> 8
+    }
+}
+
+
+#[derive(Clone, Copy, Debug, Default)]
+#[repr(C)]
+pub(crate) struct Elf64_Rel {
+    pub r_offset: Elf64_Addr,
+    pub r_info: Elf64_Xword,
+}
+
+// SAFETY: `Elf64_Rel` is valid for any bit pattern.
+unsafe impl Pod for Elf64_Rel {}
+
+impl Elf64_Rel {
+    #[inline]
+    pub fn sym(&self) -> u32 {
+        (self.r_info >> 32) as u32
+    }
+}
+
+impl From<&Elf32_Rel> for Elf64_Rel {
+    fn from(other: &Elf32_Rel) -> Self {
+        Self {
+            r_offset: other.r_offset.into(),
+            r_info: other.r_info.into(),
+        }
+    }
+}
+
+impl Has32BitTy for Elf64_Rel {
+    type Ty32Bit = Elf32_Rel;
+}
+
+pub(crate) type ElfN_Rels<'elf> = ElfNSlice<'elf, Elf64_Rel>;
 
 
 #[cfg(test)]
