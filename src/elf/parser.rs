@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::cell::OnceCell;
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::ffi::OsString;
 use std::fmt::Debug;
@@ -42,6 +43,8 @@ use crate::IntoError as _;
 use crate::Result;
 use crate::SymType;
 
+use super::relocations::RelocationMap;
+use super::relocations::SectionRelocations;
 use super::types::Elf32_Chdr;
 use super::types::Elf32_Ehdr;
 use super::types::Elf32_Phdr;
@@ -49,10 +52,14 @@ use super::types::Elf32_Shdr;
 use super::types::Elf64_Chdr;
 use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
+use super::types::Elf64_Rel;
+use super::types::Elf64_Rela;
 use super::types::Elf64_Shdr;
 use super::types::Elf64_Sym;
 use super::types::ElfN_Ehdr;
 use super::types::ElfN_Phdrs;
+use super::types::ElfN_Relas;
+use super::types::ElfN_Rels;
 use super::types::ElfN_Shdr;
 use super::types::ElfN_Shdrs;
 use super::types::ElfN_Sym;
@@ -62,6 +69,7 @@ use super::types::ELFCLASS32;
 use super::types::ELFCLASS64;
 use super::types::ELFCOMPRESS_ZLIB;
 use super::types::ELFCOMPRESS_ZSTD;
+use super::types::ET_REL;
 use super::types::PN_XNUM;
 use super::types::PT_LOAD;
 use super::types::SHF_COMPRESSED;
@@ -70,6 +78,8 @@ use super::types::SHN_LORESERVE;
 use super::types::SHN_UNDEF;
 use super::types::SHN_XINDEX;
 use super::types::SHT_NOBITS;
+use super::types::SHT_REL;
+use super::types::SHT_RELA;
 
 
 pub(crate) type StaticMem = &'static [u8];
@@ -460,6 +470,8 @@ struct Cache<'elf, B> {
     dynsym: OnceCell<SymbolTableCache<'elf>>,
     /// The section data.
     section_data: OnceCell<Box<[OnceCell<Cow<'elf, [u8]>>]>>,
+    /// The cached section relocations.
+    section_relocs: OnceCell<SectionRelocations>,
 }
 
 impl<'elf, B> Cache<'elf, B>
@@ -477,6 +489,7 @@ where
             symtab: OnceCell::new(),
             dynsym: OnceCell::new(),
             section_data: OnceCell::new(),
+            section_relocs: OnceCell::new(),
         }
     }
 
@@ -844,6 +857,14 @@ where
         self.parse_section_data::<Elf64_Sym>(idx)
     }
 
+    fn parse_relas_for_idx(&self, idx: usize) -> Result<ElfN_Relas<'elf>> {
+        self.parse_section_data::<Elf64_Rela>(idx)
+    }
+
+    fn parse_rels_for_idx(&self, idx: usize) -> Result<ElfN_Rels<'elf>> {
+        self.parse_section_data::<Elf64_Rel>(idx)
+    }
+
     fn parse_debugdata(&self) -> Result<Vec<u8>> {
         if let Some(idx) = self.find_section(".gnu_debugdata")? {
             // NB: We assume here that `.gnu_debugdata` will never be
@@ -938,6 +959,56 @@ where
             !matches!(result, Ok(Some(_)))
         })?;
         Ok(str2sym)
+    }
+
+    fn parse_section_relocs(&self) -> Result<SectionRelocations> {
+        let ehdr = self.ensure_ehdr()?;
+        if ehdr.ehdr.type_() != ET_REL {
+            return Ok(SectionRelocations::empty())
+        }
+
+        let mut maps = HashMap::<usize, RelocationMap>::new();
+
+        for i in 0..ehdr.shnum {
+            let shdr = self.section_hdr(i)?;
+            let sh_type = shdr.type_();
+
+            if sh_type == SHT_RELA {
+                let target_idx = shdr.info() as usize;
+                let symtab_idx = shdr.link() as usize;
+                let syms = self.parse_syms_for_idx(symtab_idx)?;
+                let relas = self.parse_relas_for_idx(i)?;
+                let map = maps.entry(target_idx).or_default();
+
+                for rela in relas.iter(0) {
+                    let rela = rela.to_64bit();
+                    let sym_idx = rela.sym() as usize;
+                    let sym_value = syms.get(sym_idx).map(|s| s.value()).unwrap_or(0);
+                    let addend = sym_value.wrapping_add(rela.r_addend as u64);
+                    let () = map.insert(rela.r_offset, addend, false);
+                }
+            } else if sh_type == SHT_REL {
+                let target_idx = shdr.info() as usize;
+                let symtab_idx = shdr.link() as usize;
+                let syms = self.parse_syms_for_idx(symtab_idx)?;
+                let rels = self.parse_rels_for_idx(i)?;
+                let map = maps.entry(target_idx).or_default();
+
+                for rel in rels.iter(0) {
+                    let rel = rel.to_64bit();
+                    let sym_idx = rel.sym() as usize;
+                    let sym_value = syms.get(sym_idx).map(|s| s.value()).unwrap_or(0);
+                    let () = map.insert(rel.r_offset, sym_value, true);
+                }
+            }
+        }
+
+        Ok(SectionRelocations::new(maps))
+    }
+
+    fn ensure_section_relocs(&self) -> Result<&SectionRelocations> {
+        self.section_relocs
+            .get_or_try_init_(|| self.parse_section_relocs())
     }
 }
 
@@ -1162,6 +1233,11 @@ where
     pub(crate) fn find_section(&self, name: &str) -> Result<Option<usize>> {
         let index = self.cache.find_section(name)?;
         Ok(index)
+    }
+
+    /// Retrieve the cached section relocations.
+    pub(crate) fn section_relocations(&self) -> Result<&SectionRelocations> {
+        self.cache.ensure_section_relocs()
     }
 
     fn find_addr_impl<'slf>(
@@ -2115,6 +2191,7 @@ mod tests {
             symtab: OnceCell::new(),
             dynsym: OnceCell::new(),
             section_data: OnceCell::new(),
+            section_relocs: OnceCell::new(),
         };
 
         assert_eq!(cache.find_section(".symtab").unwrap(), Some(2));
@@ -2221,6 +2298,7 @@ mod tests {
             symtab: OnceCell::new(),
             dynsym: OnceCell::new(),
             section_data: OnceCell::from(vec![OnceCell::new(), OnceCell::new()].into_boxed_slice()),
+            section_relocs: OnceCell::new(),
         };
 
         let new_data = cache.section_data(1).unwrap();
