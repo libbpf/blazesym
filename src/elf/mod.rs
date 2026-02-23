@@ -1,4 +1,5 @@
 mod parser;
+pub(crate) mod relocations;
 #[cfg_attr(not(feature = "dwarf"), allow(unused_variables))]
 mod resolver;
 #[expect(dead_code, non_camel_case_types)]
