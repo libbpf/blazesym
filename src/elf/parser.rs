@@ -19,6 +19,8 @@ use std::path::Path;
 use std::slice;
 use std::str;
 
+use crate::elf::types::ElfNSlice;
+use crate::elf::types::Has32BitTy;
 use crate::inspect::FindAddrOpts;
 use crate::inspect::ForEachFn;
 use crate::inspect::SymInfo;
@@ -44,7 +46,6 @@ use super::types::Elf32_Chdr;
 use super::types::Elf32_Ehdr;
 use super::types::Elf32_Phdr;
 use super::types::Elf32_Shdr;
-use super::types::Elf32_Sym;
 use super::types::Elf64_Chdr;
 use super::types::Elf64_Ehdr;
 use super::types::Elf64_Phdr;
@@ -786,21 +787,30 @@ where
             return Ok(ElfN_Syms::empty(ehdr.is_32bit()))
         };
 
+        self.parse_syms_for_idx(idx)
+    }
+
+    fn parse_section_data<T>(&self, idx: usize) -> Result<ElfNSlice<'elf, T>>
+    where
+        T: Pod + Has32BitTy,
+        T::Ty32Bit: Clone + Pod,
+    {
+        let ehdr = self.ensure_ehdr()?;
         let shdr = self.section_hdr(idx)?;
         // There may be no data in case of certain split debug binaries,
         // which may only preserve (some) meta data but no section
         // contents.
         if shdr.type_() == SHT_NOBITS {
-            return Ok(ElfN_Syms::empty(ehdr.is_32bit()))
+            return Ok(ElfNSlice::empty(ehdr.is_32bit()))
         }
 
         let sh_size = shdr.size();
         let sh_offset = shdr.offset();
 
         let sym_size = if ehdr.is_32bit() {
-            mem::size_of::<Elf32_Sym>()
+            mem::size_of::<T::Ty32Bit>()
         } else {
-            mem::size_of::<Elf64_Sym>()
+            mem::size_of::<T>()
         } as u64;
 
         if sh_size % sym_size != 0 {
@@ -813,21 +823,25 @@ where
         // Short-circuit if there are no symbols. The data may not actually be
         // properly aligned in this case either, so don't attempt to even read.
         if count == 0 {
-            return Ok(ElfN_Syms::empty(ehdr.is_32bit()))
+            return Ok(ElfNSlice::empty(ehdr.is_32bit()))
         }
 
-        let syms = if ehdr.is_32bit() {
+        let data = if ehdr.is_32bit() {
             self.backend
-                .read_pod_slice::<Elf32_Sym>(sh_offset, count)
-                .map(ElfN_Syms::B32)
+                .read_pod_slice::<T::Ty32Bit>(sh_offset, count)
+                .map(ElfNSlice::B32)
         } else {
             self.backend
-                .read_pod_slice::<Elf64_Sym>(sh_offset, count)
-                .map(ElfN_Syms::B64)
+                .read_pod_slice::<T>(sh_offset, count)
+                .map(ElfNSlice::B64)
         }
-        .with_context(|| format!("failed to read ELF {section} symbol table contents"))?;
+        .with_context(|| format!("failed to read ELF {idx} section contents"))?;
 
-        Ok(syms)
+        Ok(data)
+    }
+
+    fn parse_syms_for_idx(&self, idx: usize) -> Result<ElfN_Syms<'elf>> {
+        self.parse_section_data::<Elf64_Sym>(idx)
     }
 
     fn parse_debugdata(&self) -> Result<Vec<u8>> {
