@@ -20,11 +20,9 @@ env:
 
 jobs:
   build-linux-kernel:
-    uses: libbpf/github-actions/.github/workflows/build-linux.yml@bd7fc70260c9ab81801001fcd86ba94070b34e5d
+    uses: libbpf/github-actions/.github/workflows/build-linux.yml@621ebabb015460cfc6712bd137c3543cde9b9a6d
     secrets: inherit
     with:
-      # Please keep in sync with vmlinux release version specification
-      # below.
       rev: v6.11
       config: 'data/config'
       vmlinux: true
@@ -251,8 +249,7 @@ jobs:
         set -e -u
         . ./env.sh
         mount -t tmpfs tmpfs /boot
-        # Put vmlinux file into a location amenable to auto-discovery.
-        mv vmlinux /boot/vmlinux-6.11.0
+        cp -a boot/* /boot/
         $tests
         cargo llvm-cov report --ignore-filename-regex=cli/src/ --lcov --output-path lcov.info
         EOF
