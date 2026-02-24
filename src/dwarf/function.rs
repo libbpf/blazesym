@@ -33,6 +33,7 @@ use std::fmt::Result as FmtResult;
 use std::vec;
 
 use gimli::Error;
+use gimli::Reader as _;
 
 use super::range::RangeAttributes;
 use super::reader::R;

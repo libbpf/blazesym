@@ -250,15 +250,15 @@ impl DwarfResolver {
         let linkee_parser = try_deref_debug_link(&parser, debug_dirs, elf_cache)?;
         let dwp_parser = try_find_dwp(&parser, elf_cache)?;
 
+        let debug_parser = linkee_parser.as_ref().unwrap_or(&parser);
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
         //         is fine to conjure a 'static lifetime here.
-        let static_linkee_parser = unsafe {
-            mem::transmute::<&ElfParser, &'static ElfParser>(
-                linkee_parser.as_ref().unwrap_or(&parser).deref(),
-            )
-        };
-        let mut load_section = |section| reader::load_section(static_linkee_parser, section);
+        let static_linkee_parser =
+            unsafe { mem::transmute::<&ElfParser, &'static ElfParser>(debug_parser.deref()) };
+        let static_relocs = static_linkee_parser.section_relocations()?;
+        let mut load_section =
+            |section| reader::load_section(static_linkee_parser, section, static_relocs);
         let mut dwarf = Dwarf::load(&mut load_section)?;
         // Cache abbreviations (which will cause them to be
         // automatically reused across compilation units), which can
@@ -270,7 +270,10 @@ impl DwarfResolver {
         let dwp = dwp_parser
             .as_deref()
             .map(|dwp_parser| {
-                let empty = R::new(&[], Endianess::default());
+                let empty = R::new(
+                    gimli::EndianSlice::new(&[], Endianess::default()),
+                    static_relocs.get(usize::MAX),
+                );
                 // SAFETY: We own the `ElfParser` and make sure that it
                 //         stays around while the `Units` object uses
                 //         it. As such, it is fine to conjure a 'static
@@ -278,7 +281,7 @@ impl DwarfResolver {
                 let static_dwp_parser =
                     unsafe { mem::transmute::<&ElfParser, &'static ElfParser>(dwp_parser) };
                 let load_dwo_section =
-                    |section| reader::load_dwo_section(static_dwp_parser, section);
+                    |section| reader::load_dwo_section(static_dwp_parser, section, static_relocs);
                 let dwp = gimli::DwarfPackage::load(load_dwo_section, empty)?;
                 Result::<_, Error>::Ok(dwp)
             })
@@ -315,8 +318,8 @@ impl DwarfResolver {
         function: &'slf Function,
         offset_in_file: bool,
     ) -> Result<Option<SymInfo<'slf>>> {
-        let name = if let Some(name) = function.name {
-            name.to_string().unwrap()
+        let name = if let Some(ref name) = function.name {
+            name.inner().to_string().unwrap()
         } else {
             return Ok(None)
         };
@@ -353,7 +356,8 @@ impl Symbolize for DwarfResolver {
         let mut sym = if let Some((function, unit)) = data {
             let name = function
                 .name
-                .map(|name| name.to_string())
+                .as_ref()
+                .map(|name| name.inner().to_string())
                 .transpose()?
                 .unwrap_or("");
             let fn_addr = function.range.map(|range| range.begin).unwrap_or(0);

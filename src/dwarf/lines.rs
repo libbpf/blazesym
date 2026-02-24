@@ -53,7 +53,7 @@ fn render_file<'dwarf>(
     header: &gimli::LineProgramHeader<R<'dwarf>, <R<'dwarf> as gimli::Reader>::Offset>,
 ) -> gimli::Result<(Cow<'dwarf, Path>, &'dwarf OsStr)> {
     let dir = if let Some(ref comp_dir) = unit.comp_dir {
-        bytes_to_path(comp_dir.slice())?
+        bytes_to_path(comp_dir.inner().slice())?
     } else {
         Path::new("")
     };
@@ -64,12 +64,12 @@ fn render_file<'dwarf>(
     if file.directory_index() != 0 {
         if let Some(directory) = file.directory(header) {
             let d = unit.attr_string(directory)?;
-            path_push(&mut dir, bytes_to_path(d.slice())?)
+            path_push(&mut dir, bytes_to_path(d.inner().slice())?)
         }
     }
 
     let f = unit.attr_string(file.path_name())?;
-    let file = bytes_to_os_str(f.slice())?;
+    let file = bytes_to_os_str(f.inner().slice())?;
     Ok((dir, file))
 }
 

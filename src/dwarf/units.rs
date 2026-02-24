@@ -367,7 +367,8 @@ impl<'dwarf> Units<'dwarf> {
         let iter = inlined_fns.find_inlined_functions(probe).map(move |inlined_fn| {
             let name = inlined_fn
                 .name
-                .map(|name| name.to_string())
+                .as_ref()
+                .map(|name| name.inner().to_string())
                 .transpose()?
                 .unwrap_or("");
 
@@ -517,7 +518,8 @@ mod tests {
                 .join(binary);
 
             let parser = ElfParser::open(bin_name.as_path()).unwrap();
-            let mut load_section = |section| reader::load_section(&parser, section);
+            let relocs = parser.section_relocations().unwrap();
+            let mut load_section = |section| reader::load_section(&parser, section, relocs);
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
             let units = Units::parse(dwarf, None).unwrap();
 
@@ -526,7 +528,10 @@ mod tests {
             // should exist.
             let mut funcs = units.find_name("fibonacci");
             let func = funcs.next().unwrap().unwrap();
-            assert_eq!(func.name.unwrap().to_string().unwrap(), "fibonacci");
+            assert_eq!(
+                func.name.as_ref().unwrap().inner().to_string().unwrap(),
+                "fibonacci"
+            );
 
             let addr = func.range.as_ref().unwrap().begin;
             let loc = units.find_location(addr).unwrap().unwrap();
@@ -558,7 +563,8 @@ mod tests {
                 .join(binary);
 
             let parser = ElfParser::open(bin_name.as_path()).unwrap();
-            let mut load_section = |section| reader::load_section(&parser, section);
+            let relocs = parser.section_relocations().unwrap();
+            let mut load_section = |section| reader::load_section(&parser, section, relocs);
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
             let units = Units::parse(dwarf, None).unwrap();
 
@@ -580,7 +586,8 @@ mod tests {
     fn bench_function_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_path()).unwrap();
-        let mut load_section = |section| reader::load_section(&parser, section);
+        let relocs = parser.section_relocations().unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section, relocs);
 
         let () = b.iter(|| {
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
@@ -596,7 +603,8 @@ mod tests {
     fn bench_function_parsing_addr2line(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_path()).unwrap();
-        let mut load_section = |section| reader::load_section(&parser, section);
+        let relocs = parser.section_relocations().unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section, relocs);
 
         let () = b.iter(|| {
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
@@ -611,7 +619,8 @@ mod tests {
     fn bench_inlined_function_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_path()).unwrap();
-        let mut load_section = |section| reader::load_section(&parser, section);
+        let relocs = parser.section_relocations().unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section, relocs);
 
         let () = b.iter(|| {
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
@@ -627,7 +636,8 @@ mod tests {
     fn bench_inlined_function_parsing_addr2line(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_path()).unwrap();
-        let mut load_section = |section| reader::load_section(&parser, section);
+        let relocs = parser.section_relocations().unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section, relocs);
 
         let () = b.iter(|| {
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
@@ -642,7 +652,8 @@ mod tests {
     fn bench_line_parsing_blazesym(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_path()).unwrap();
-        let mut load_section = |section| reader::load_section(&parser, section);
+        let relocs = parser.section_relocations().unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section, relocs);
 
         let () = b.iter(|| {
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
@@ -658,7 +669,8 @@ mod tests {
     fn bench_line_parsing_addr2line(b: &mut Bencher) {
         let bin_name = env::current_exe().unwrap();
         let parser = ElfParser::open(bin_name.as_path()).unwrap();
-        let mut load_section = |section| reader::load_section(&parser, section);
+        let relocs = parser.section_relocations().unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section, relocs);
 
         let () = b.iter(|| {
             let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();

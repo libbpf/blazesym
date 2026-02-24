@@ -1,5 +1,6 @@
 Unreleased
 ----------
+- Added support for relocatable ELF and DWARF
 - Bumped minimum supported Rust version to `1.88`
 
 
