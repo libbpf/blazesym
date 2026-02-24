@@ -731,6 +731,10 @@ fn prepare_test_files() {
         "test-stable-addrs-no-dwarf.bin",
         &["-g0", "-Wl,--build-id=none"],
     );
+
+    let src = data_dir.join("test-stable-addrs.c");
+    cc(&src, "test-stable-addrs.o", &["-c", "-g"]);
+
     cc_stable_addrs(
         "test-stable-addrs-lto.bin",
         &[
