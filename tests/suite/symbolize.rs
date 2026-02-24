@@ -198,6 +198,52 @@ fn symbolize_elf_dwarf_gsym() {
 }
 
 
+/// Check that we can symbolize addresses in an `ET_REL` (relocatable)
+/// object file.
+#[tag(other_os)]
+#[test]
+fn symbolize_elf_relocatable() {
+    fn test_fn(sym_name: &str) {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs.o");
+        let src = Source::Elf(Elf::new(&path));
+        let symbolizer = Symbolizer::new();
+
+        let inspector = inspect::Inspector::new();
+        let isrc = inspect::source::Source::Elf(inspect::source::Elf::new(&path));
+        let results = inspector
+            .lookup(&isrc, &[sym_name])
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        assert_eq!(results.len(), 1);
+        let sym_info = results.first().unwrap();
+        let addr = sym_info.addr;
+
+        let result = symbolizer
+            .symbolize_single(&src, Input::VirtOffset(addr))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(result.name, sym_name);
+        assert_eq!(result.addr, addr);
+
+        let code_info = result.code_info.as_ref().unwrap();
+        assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
+        // In an ET_REL file all sections have address 0, so the line
+        // program mapping is ambiguous at address 0; we only verify that
+        // *some* line information was resolved.
+        assert!(code_info.line.is_some());
+    }
+
+    test_fn("factorial");
+    test_fn("my_indirect_func");
+}
+
+
 fn symbolize_no_permission_impl(path: &Path) {
     let src = Source::Elf(Elf::new(path));
     let symbolizer = Symbolizer::new();
