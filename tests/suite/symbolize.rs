@@ -18,6 +18,8 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process;
 use std::rc::Rc;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use blazesym::helper::ElfResolver;
 use blazesym::inspect;
@@ -59,7 +61,10 @@ use blazesym::__private::find_the_answer_fn_in_zip;
 #[cfg(linux)]
 use blazesym_dev::with_bpf_symbolization_target_addrs;
 
+use rand::rngs::StdRng;
 use rand::RngExt as _;
+use rand::SeedableRng;
+
 use scopeguard::defer;
 
 use tempfile::tempdir;
@@ -1739,7 +1744,12 @@ fn symbolize_kernel_system_vmlinux() {
             .collect::<Vec<_>>();
         let () = pairs.sort_by_key(|(addr, _name)| *addr);
 
-        let mut rng = rand::rng();
+        let seed = (SystemTime::now().duration_since(UNIX_EPOCH))
+            .unwrap()
+            .as_secs();
+        println!("Using seed: {seed}");
+
+        let mut rng = StdRng::seed_from_u64(seed);
         let pairs = (0..20)
             .filter_map(|_| {
                 let idx = rng.random_range(0..pairs.len());
