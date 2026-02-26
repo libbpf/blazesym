@@ -734,6 +734,7 @@ fn prepare_test_files() {
 
     let src = data_dir.join("test-stable-addrs.c");
     cc(&src, "test-stable-addrs.o", &["-c", "-g"]);
+    cc(&src, "test-stable-addrs-32.o", &["-c", "-g", "-m32"]);
 
     cc_stable_addrs(
         "test-stable-addrs-lto.bin",
