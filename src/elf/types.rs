@@ -850,6 +850,18 @@ mod tests {
 
         let sym = Elf64_Sym::default();
         assert_ne!(format!("{sym:?}"), "");
+
+        let rela64 = Elf64_Rela::default();
+        assert_ne!(format!("{rela64:?}"), "");
+
+        let rela32 = Elf32_Rela::default();
+        assert_ne!(format!("{rela32:?}"), "");
+
+        let rel64 = Elf64_Rel::default();
+        assert_ne!(format!("{rel64:?}"), "");
+
+        let rel32 = Elf32_Rel::default();
+        assert_ne!(format!("{rel32:?}"), "");
     }
 
     /// Exercise some trivial type conversion functions.
@@ -863,6 +875,12 @@ mod tests {
 
         let sym = Elf32_Sym::default();
         let _sym64 = Elf64_Sym::from(&sym);
+
+        let rela32 = Elf32_Rela::default();
+        let _rela64 = Elf64_Rela::from(&rela32);
+
+        let rel32 = Elf32_Rel::default();
+        let _rel64 = Elf64_Rel::from(&rel32);
 
         let syms = [sym];
         let syms = ElfN_Syms::B32(Cow::Borrowed(&syms));
@@ -898,5 +916,32 @@ mod tests {
         let _val = sym.size();
         let _val = sym.type_();
         let _val = sym.shndx();
+
+        // Test sym() accessor on Rela/Rel types with non-default r_info values.
+        // 32-bit: sym index is r_info >> 8
+        let rela32 = Elf32_Rela {
+            r_info: 0x0000_0500,
+            ..Default::default()
+        };
+        assert_eq!(rela32.sym(), 5);
+
+        // 64-bit: sym index is r_info >> 32
+        let rela64 = Elf64_Rela {
+            r_info: 0x0000_0007_0000_0000,
+            ..Default::default()
+        };
+        assert_eq!(rela64.sym(), 7);
+
+        let rel32 = Elf32_Rel {
+            r_info: 0x0000_0300,
+            ..Default::default()
+        };
+        assert_eq!(rel32.sym(), 3);
+
+        let rel64 = Elf64_Rel {
+            r_info: 0x0000_000A_0000_0000,
+            ..Default::default()
+        };
+        assert_eq!(rel64.sym(), 10);
     }
 }
