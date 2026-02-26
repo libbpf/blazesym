@@ -543,6 +543,34 @@ mod tests {
         }
     }
 
+    /// Check that we can parse DWARF from an `ET_REL` (relocatable)
+    /// object file by applying ELF relocations during section loading.
+    #[test]
+    fn function_and_line_parsing_relocatable() {
+        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs.o");
+
+        let parser = ElfParser::open(bin_name.as_path()).unwrap();
+        let relocs = parser.section_relocations().unwrap();
+        let mut load_section = |section| reader::load_section(&parser, section, relocs);
+        let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+        let units = Units::parse(dwarf, None).unwrap();
+
+        // Verify we can find a known function.
+        let mut funcs = units.find_name("factorial");
+        let func = funcs.next().unwrap().unwrap();
+        assert_eq!(
+            func.name.as_ref().unwrap().inner().to_string().unwrap(),
+            "factorial"
+        );
+
+        // Verify that the function has an address range (requires correct
+        // relocation of DW_AT_low_pc/DW_AT_high_pc references).
+        let range = func.range.as_ref().unwrap();
+        assert_ne!(range.begin, range.end);
+    }
+
     /// Check that we fail to find any data for an address not
     /// represented.
     #[test]
