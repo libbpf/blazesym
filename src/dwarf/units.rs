@@ -547,28 +547,39 @@ mod tests {
     /// object file by applying ELF relocations during section loading.
     #[test]
     fn function_and_line_parsing_relocatable() {
-        let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-stable-addrs.o");
+        fn test(obj_file: &str) {
+            let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
+                .join("data")
+                .join(obj_file);
 
-        let parser = ElfParser::open(bin_name.as_path()).unwrap();
-        let relocs = parser.section_relocations().unwrap();
-        let mut load_section = |section| reader::load_section(&parser, section, relocs);
-        let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
-        let units = Units::parse(dwarf, None).unwrap();
+            let parser = ElfParser::open(bin_name.as_path()).unwrap();
+            let relocs = parser.section_relocations().unwrap();
+            let mut load_section = |section| reader::load_section(&parser, section, relocs);
+            let dwarf = Dwarf::<R>::load(&mut load_section).unwrap();
+            let units = Units::parse(dwarf, None).unwrap();
 
-        // Verify we can find a known function.
-        let mut funcs = units.find_name("factorial");
-        let func = funcs.next().unwrap().unwrap();
-        assert_eq!(
-            func.name.as_ref().unwrap().inner().to_string().unwrap(),
-            "factorial"
-        );
+            // Verify we can find a known function.
+            let mut funcs = units.find_name("factorial");
+            let func = funcs.next().unwrap().unwrap();
+            assert_eq!(
+                func.name.as_ref().unwrap().inner().to_string().unwrap(),
+                "factorial"
+            );
 
-        // Verify that the function has an address range (requires correct
-        // relocation of DW_AT_low_pc/DW_AT_high_pc references).
-        let range = func.range.as_ref().unwrap();
-        assert_ne!(range.begin, range.end);
+            // Verify that the function has an address range (requires correct
+            // relocation of DW_AT_low_pc/DW_AT_high_pc references).
+            let range = func.range.as_ref().unwrap();
+            assert_ne!(range.begin, range.end);
+
+            let addr = range.begin;
+            let loc = units.find_location(addr).unwrap().unwrap();
+            assert_ne!(loc.dir, Path::new(""));
+            assert_eq!(loc.file, OsStr::new("test-stable-addrs.c"));
+            assert!(loc.line.is_some());
+        }
+
+        test("test-stable-addrs.o");
+        test("test-stable-addrs-32.o");
     }
 
     /// Check that we fail to find any data for an address not
