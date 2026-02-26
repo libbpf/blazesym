@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::Cell;
 use std::env;
 use std::env::current_exe;
 use std::ffi::CStr;
@@ -61,10 +62,6 @@ use blazesym::__private::find_the_answer_fn_in_zip;
 #[cfg(linux)]
 use blazesym_dev::with_bpf_symbolization_target_addrs;
 
-use rand::rngs::StdRng;
-use rand::RngExt as _;
-use rand::SeedableRng;
-
 use scopeguard::defer;
 
 use tempfile::tempdir;
@@ -79,6 +76,46 @@ use crate::suite::common::non_root_uid;
 use crate::suite::common::run_unprivileged_process_test;
 #[cfg(linux)]
 use crate::suite::common::RemoteProcess;
+
+
+// Permuted congruential generator implementation, based on
+// https://en.wikipedia.org/w/index.php?title=Permuted_congruential_generator&oldid=1167029503#Example_code
+#[derive(Debug)]
+pub(crate) struct Rng {
+    state: Cell<u64>,
+}
+
+impl Rng {
+    const MULTIPLIER: u64 = 6364136223846793005;
+    const INCREMENT: u64 = 1442695040888963407;
+
+
+    fn with_seed(seed: u64) -> Self {
+        let state = seed.wrapping_add(Self::INCREMENT);
+
+        Self {
+            state: Cell::new(state),
+        }
+    }
+
+    /// Generate a new pseudo random `u32` value.
+    fn rand_u32(&self) -> u32 {
+        fn rotr32(x: u32, r: usize) -> u32 {
+            (x >> r) | (x << (!r & 31))
+        }
+
+        let mut x = self.state.get();
+        let count = (x >> 59) as usize;
+
+        let () = self.state.set(
+            x.wrapping_mul(Self::MULTIPLIER)
+                .wrapping_add(Self::INCREMENT),
+        );
+
+        x ^= x >> 18;
+        rotr32((x >> 27) as u32, count)
+    }
+}
 
 
 /// Make sure that we fail symbolization when providing a non-existent source.
@@ -1839,10 +1876,10 @@ fn symbolize_kernel_system_vmlinux() {
             .as_secs();
         println!("Using seed: {seed}");
 
-        let mut rng = StdRng::seed_from_u64(seed);
+        let rng = Rng::with_seed(seed);
         let pairs = (0..20)
             .filter_map(|_| {
-                let idx = rng.random_range(0..pairs.len());
+                let idx = rng.rand_u32() as usize % pairs.len();
                 let addr = pairs[idx].0;
                 // Make sure that this address is unique by checking that the
                 // previous and following ones are different. We ignore
