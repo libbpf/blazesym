@@ -193,7 +193,7 @@ blazesym-dev = {path = "dev", features = ["generate-unit-test-files"]}
 criterion = {version = "0.8", default-features = false, features = ["rayon", "cargo_bench_support"]}
 scopeguard = "1.2"
 stats_alloc = {version = "0.1.1", features = ["nightly"]}
-tempfile = "3"
+tempfile = {version = "3", default-features = false}
 test-fork = "0.1"
 test-log = {version = "0.2", default-features = false, features = ["trace"]}
 test-tag = "0.1"
