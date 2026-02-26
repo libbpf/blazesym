@@ -244,6 +244,50 @@ fn symbolize_elf_relocatable() {
 }
 
 
+/// Check that DWARF-derived source code information is correctly resolved
+/// in an `ET_REL` (relocatable) object file.
+#[tag(other_os)]
+#[test]
+fn symbolize_dwarf_relocatable() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.o");
+    let src = Source::Elf(Elf::new(&path));
+
+    // Use `my_indirect_func`: it lives at a non-zero offset in the
+    // `.text` section, so the ELF symbol lookup is unambiguous even
+    // though multiple sections share address 0.
+    let inspector = inspect::Inspector::new();
+    let isrc = inspect::source::Source::Elf(inspect::source::Elf::new(&path));
+    let results = inspector
+        .lookup(&isrc, &["my_indirect_func"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+    let addr = results[0].addr;
+
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "my_indirect_func");
+    assert_eq!(result.addr, addr);
+    assert_eq!(result.offset, 0);
+
+    // Make sure that we have source code information available, which
+    // solely comes from DWARF.
+    let code_info = result.code_info.as_ref().unwrap();
+    assert_ne!(code_info.dir, None);
+    assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
+    assert!(code_info.line.is_some());
+}
+
+
 fn symbolize_no_permission_impl(path: &Path) {
     let src = Source::Elf(Elf::new(path));
     let symbolizer = Symbolizer::new();
