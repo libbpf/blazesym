@@ -85,7 +85,7 @@ blazesym = {version = "0.2", path = "../", features = ["test"]}
 blazesym-c = {path = ".", features = ["check-doc-snippets"]}
 bindgen = {version = "0.72", default-features = false, features = ["runtime"]}
 criterion = {version = "0.8", default-features = false, features = ["rayon", "cargo_bench_support"]}
-tempfile = "3"
+tempfile = {version = "3", default-features = false}
 test-log = {version = "0.2", default-features = false, features = ["trace"]}
 test-tag = "0.1"
 
