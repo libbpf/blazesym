@@ -180,7 +180,7 @@ flate2 = {version = "1", optional = true}
 gimli = {version = "0.33", optional = true}
 libc = "0.2"
 memmap2 = {version = "0.9", default-features = false}
-miniz_oxide = {version = "0.8", default-features = false, features = ["simd", "with-alloc"], optional = true}
+miniz_oxide = {version = "0.9", default-features = false, features = ["simd", "with-alloc"], optional = true}
 nom = {version = "7", optional = true}
 rustc-demangle = {version = "0.1", optional = true}
 tempfile = {version = "3", default-features = false}
