@@ -321,9 +321,9 @@ dependencies = [
 
 [[package]]
 name = "bufio"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62592788f1ef4d8a98bfb8df4fbf95fd9bdc3f77127424ac22de7fcd3b682788"
+checksum = "09413cff4ea930d0234a94b53bdc54584df93d4c65d7578bbe67b1c5c4cce2aa"
 
 [[package]]
 name = "bumpalo"
