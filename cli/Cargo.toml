@@ -37,7 +37,7 @@ grev = "0.1.4"
 
 [dependencies]
 anyhow = "1.0"
-bufio = "0.1"
+bufio = "0.2"
 blazesym = {version = "0.2.3", path = "../", features = [
   "apk",
   "breakpad",
