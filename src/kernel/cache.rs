@@ -115,4 +115,14 @@ impl KernelCache {
             })
             .copied()
     }
+
+    #[cfg(test)]
+    pub fn set_modmap(&self, modmap: ModMap) {
+        self.modmap.set(modmap).unwrap()
+    }
+
+    #[cfg(test)]
+    pub fn set_depmod(&self, depmod: DepmodIndex) {
+        self.depmod.set(depmod).unwrap()
+    }
 }
