@@ -249,6 +249,7 @@ impl Symbolize for KernelResolver<'_> {
                     } else {
                         log::info!("module `{mod_name}` not found in depmod");
                     }
+                    return Ok(Err(Reason::UnknownAddr))
                 }
 
                 // Next check the core kernel via its vmlinux file.
@@ -296,6 +297,13 @@ impl Debug for KernelResolver<'_> {
 mod tests {
     use super::*;
 
+    use std::fs;
+    use std::io::Write as _;
+    use std::path::PathBuf;
+
+    use super::super::depmod::DepmodIndex;
+    use super::super::modmap::ModMap;
+
 
     /// Exercise the `Debug` representation of various types.
     #[test]
@@ -309,5 +317,51 @@ mod tests {
             debug_syms: false,
         };
         assert_ne!(format!("{kernel:?}"), "");
+    }
+
+    /// Make sure that an address belonging to a kernel module is not
+    /// resolved via vmlinux.
+    #[test]
+    fn module_addr_not_resolved_via_vmlinux() {
+        // Create a modmap with a module whose address range covers
+        // 0x2000200 (which is the address of `factorial` in the test
+        // ELF).
+        let mut tmp = NamedTempFile::new().unwrap();
+        writeln!(tmp, "fake_module 4096 0 - Live 0x2000100").unwrap();
+        let modmap = ModMap::new(tmp.path()).unwrap();
+
+        // Load the test depmod index, which does not contain
+        // "fake_module".
+        let depmod_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("modules.dep.bin");
+        let file = fs::File::open(&depmod_path).unwrap();
+        let depmod = DepmodIndex::new(PathBuf::new(), file).unwrap();
+
+        let cache = KernelCache::new(Rc::new([]));
+        let () = cache.set_modmap(modmap);
+        let () = cache.set_depmod(depmod);
+
+        // Load the test ELF as the vmlinux resolver. It has `factorial`
+        // at address 0x2000200, which falls into the fake module's
+        // range.
+        let vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs.bin");
+        let vmlinux_resolver = Rc::clone(cache.elf_resolver(&vmlinux, false).unwrap());
+
+        let resolver = KernelResolver {
+            cache: &cache,
+            ksym_resolver: None,
+            vmlinux_resolver: Some(vmlinux_resolver),
+            kaslr_offset: 0,
+            debug_syms: false,
+        };
+
+        // Address 0x2000200 belongs to a kernel module (per modmap).
+        // It must NOT be resolved via vmlinux even though vmlinux
+        // contains a symbol (`factorial`) at that address.
+        let result = resolver.find_sym(0x2000200, &FindSymOpts::Basic).unwrap();
+        assert_eq!(result.unwrap_err(), Reason::UnknownAddr);
     }
 }
