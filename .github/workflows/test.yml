@@ -201,7 +201,7 @@ jobs:
       uses: taiki-e/install-action@cargo-llvm-cov
     - name: Install llvm-tools-preview
       # Install llvm-tools-preview, because we don't want this to happen
-      # from within our `vmtest` instance.
+      # from within our virtual machine.
       run: rustup component add llvm-tools-preview --toolchain nightly-x86_64-unknown-linux-gnu
     - name: Remove .cargo/config.toml
       # We don't want a custom test runner because we run in a VM.
@@ -264,10 +264,9 @@ jobs:
         EOF
         chmod a+x main.sh
     - name: Test and gather coverage
-      uses: danobi/vmtest-action@f8c84191b5925c3290595743fc46eaaafd827bf3
-      with:
-        kernel: bzImage
-        command: sh -c 'cd ${{ github.workspace }} && ./main.sh'
+      uses: d-e-s-o/vmsh@5559cdb33dc44897ef6c9cadc658d1de3c5080b5
+    - run: |
+        vmsh bzImage -- sh -c 'cd ${{ github.workspace }} && ./main.sh'
     - name: Upload code coverage results
       uses: codecov/codecov-action@v5
       env:
