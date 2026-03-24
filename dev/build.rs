@@ -119,20 +119,17 @@ where
 fn adjust_mtime(path: &Path) -> Result<()> {
     // Note that `OUT_DIR` is only present at runtime.
     let out_dir = env::var("OUT_DIR").unwrap();
-    // The $OUT_DIR/output file is (in current versions of Cargo [as of
-    // 1.69]) the file containing the reference time stamp that Cargo
-    // checks to determine whether something is considered outdated and
-    // in need to be rebuild. It's an implementation detail, yes, but we
-    // don't rely on it for anything essential.
-    let output = Path::new(&out_dir)
-        .parent()
-        .ok_or_else(|| Error::other("OUT_DIR has no parent"))?
-        .join("output");
+    // We use a self-managed marker file in `OUT_DIR` as the reference
+    // time stamp for aligning generated artifacts' mtimes. This
+    // prevents Cargo from considering build script outputs as outdated
+    // on every build. The marker is written at the end of each build
+    // script run (see [`write_mtime_marker`]), so on subsequent runs we
+    // can align generated files to the previous run's completion time.
+    let marker = Path::new(&out_dir).join(".mtime-ref");
 
-    if !output.exists() {
-        // The file may not exist for legitimate reasons, e.g., when we
-        // build for the very first time. If there is not reference there
-        // is nothing for us to do, so just bail.
+    if !marker.exists() {
+        // The marker won't exist on the very first build. Without a
+        // reference there is nothing for us to do, so just bail.
         return Ok(())
     }
 
@@ -141,11 +138,21 @@ fn adjust_mtime(path: &Path) -> Result<()> {
         [
             "-m".as_ref(),
             "--reference".as_ref(),
-            output.as_os_str(),
+            marker.as_os_str(),
             path.as_os_str(),
         ],
         identity,
     )?;
+    Ok(())
+}
+
+/// Write the mtime reference marker into `OUT_DIR`. Must be called at
+/// the end of the build script so that the next run can align generated
+/// artifacts to this run's completion time.
+fn write_mtime_marker() -> Result<()> {
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let marker = Path::new(&out_dir).join(".mtime-ref");
+    let () = write(&marker, [])?;
     Ok(())
 }
 
@@ -1017,4 +1024,6 @@ fn main() {
         download_bench_files();
         prepare_bench_files();
     }
+
+    write_mtime_marker().unwrap();
 }
