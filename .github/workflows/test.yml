@@ -20,13 +20,19 @@ env:
 
 jobs:
   build-linux-kernel:
-    uses: libbpf/github-actions/.github/workflows/build-linux.yml@621ebabb015460cfc6712bd137c3543cde9b9a6d
-    secrets: inherit
-    with:
-      rev: v6.18
-      config: 'data/config'
-      vmlinux: true
-      modules: true
+    name: Build Linux
+    runs-on: ubuntu-latest
+    outputs:
+      kernel-artifact-url: ${{ steps.build.outputs.kernel-artifact-url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: d-e-s-o/build-linux@23cb60a346b84ab120feb1a4e584f18563b3867f
+        id: build
+        with:
+          rev: v6.18
+          config: 'data/config'
+          vmlinux: 'true'
+          modules: 'true'
   build:
     name: Build [${{ matrix.runs-on }}, ${{ matrix.rust }}, ${{ matrix.profile }}, ${{ matrix.args }}]
     runs-on: ${{ matrix.runs-on }}
