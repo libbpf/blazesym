@@ -50,7 +50,7 @@ blazesym = {version = "0.2.3", path = "../", features = [
   "zstd",
 ]}
 clap = {version = "4.6", features = ["derive"]}
-clap_complete = {version = "4.5", optional = true}
+clap_complete = {version = "4.6", optional = true}
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["ansi", "env-filter", "fmt"]}
 
