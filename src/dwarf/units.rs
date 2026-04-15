@@ -238,6 +238,12 @@ impl<'dwarf> Units<'dwarf> {
         Ok(slf)
     }
 
+    /// Retrieve a reference to the underlying [`gimli::Dwarf`].
+    #[inline]
+    pub(crate) fn dwarf(&self) -> &gimli::Dwarf<R<'dwarf>> {
+        &self.dwarf
+    }
+
     pub(super) fn load_dwo(
         &self,
         dwo_id: gimli::DwoId,
@@ -269,14 +275,14 @@ impl<'dwarf> Units<'dwarf> {
         {
             // There is never a DIE at the unit offset or before the first unit.
             Ok(_) | Err(0) => return Err(gimli::Error::NoEntryAtGivenOffset(offset.0 as u64)),
-            Err(i) => self.units[i - 1].dw_unit(),
+            Err(i) => &self.units[i - 1],
         };
 
         let unit_offset = offset
-            .to_unit_offset(&unit.header)
+            .to_unit_offset(unit.header())
             .ok_or(gimli::Error::NoEntryAtGivenOffset(offset.0 as u64))?;
-        let unit = gimli::UnitRef::new(&self.dwarf, unit);
-        Ok((unit, unit_offset))
+        let unit_ref = unit.unit_ref(self)?;
+        Ok((unit_ref, unit_offset))
     }
 
     /// Finds the CUs for the function address given.
