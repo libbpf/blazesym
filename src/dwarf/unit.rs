@@ -59,8 +59,11 @@ pub(super) struct UnitRange {
 #[derive(Debug)]
 pub(super) struct Unit<'dwarf> {
     offset: gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset>,
-    dw_unit: gimli::Unit<R<'dwarf>>,
-    lang: Option<gimli::DwLang>,
+    /// The gimli unit, lazily constructed from the header.
+    dw_unit: OnceCell<gimli::Result<gimli::Unit<R<'dwarf>>>>,
+    /// The unit header, stored for lazy construction of `dw_unit`.
+    header: gimli::UnitHeader<R<'dwarf>>,
+    lang: OnceCell<gimli::Result<Option<gimli::DwLang>>>,
     lines: OnceCell<gimli::Result<Lines<'dwarf>>>,
     funcs: OnceCell<gimli::Result<Functions<'dwarf>>>,
     dwo: OnceCell<gimli::Result<Option<DwoUnit<'dwarf>>>>,
@@ -73,10 +76,12 @@ impl<'dwarf> Unit<'dwarf> {
         lang: Option<gimli::DwLang>,
         lines: OnceCell<Lines<'dwarf>>,
     ) -> Self {
+        let header = unit.header.clone();
         Self {
             offset,
-            dw_unit: unit,
-            lang,
+            dw_unit: OnceCell::from(Ok(unit)),
+            header,
+            lang: OnceCell::from(Ok(lang)),
             lines: lines
                 .into_inner()
                 .map(Result::Ok)
@@ -87,8 +92,20 @@ impl<'dwarf> Unit<'dwarf> {
         }
     }
 
+    /// Get or lazily construct the `gimli::Unit`.
+    fn ensure_dw_unit(&self, units: &Units<'dwarf>) -> gimli::Result<&gimli::Unit<R<'dwarf>>> {
+        let dw_unit = self
+            .dw_unit
+            .get_or_init(|| units.dwarf().unit(self.header.clone()))
+            .as_ref()
+            .map_err(|err| *err)?;
+
+        Ok(dw_unit)
+    }
+
     fn process_dwo(
         &self,
+        dw_unit: &gimli::Unit<R<'dwarf>>,
         dwo_dwarf: Option<gimli::Dwarf<R<'dwarf>>>,
     ) -> gimli::Result<Option<DwoUnit<'dwarf>>> {
         let dwo_dwarf = match dwo_dwarf {
@@ -102,7 +119,7 @@ impl<'dwarf> Unit<'dwarf> {
         };
 
         let mut dwo_unit = dwo_dwarf.unit(dwo_header)?;
-        let () = dwo_unit.copy_relocated_attributes(&self.dw_unit);
+        let () = dwo_unit.copy_relocated_attributes(dw_unit);
 
         Ok(Some(DwoUnit {
             dwarf: dwo_dwarf,
@@ -114,12 +131,14 @@ impl<'dwarf> Unit<'dwarf> {
         &'unit self,
         units: &'unit Units<'dwarf>,
     ) -> gimli::Result<gimli::UnitRef<'unit, R<'dwarf>>> {
+        let dw_unit = self.ensure_dw_unit(units)?;
+
         let map_dwo_result = |dwo_result: &'unit gimli::Result<Option<DwoUnit<'dwarf>>>| {
             dwo_result
                 .as_ref()
                 .map(|dwo_unit| match dwo_unit {
                     Some(dwo_unit) => dwo_unit.unit_ref(),
-                    None => units.unit_ref(&self.dw_unit),
+                    None => units.unit_ref(dw_unit),
                 })
                 .map_err(|err| *err)
         };
@@ -128,14 +147,14 @@ impl<'dwarf> Unit<'dwarf> {
             return map_dwo_result(result)
         }
 
-        let dwo_id = match self.dw_unit.dwo_id {
+        let dwo_id = match dw_unit.dwo_id {
             Some(dwo_id) => dwo_id,
             None => return map_dwo_result(self.dwo.get_or_init(|| Ok(None))),
         };
 
         let result = self
             .dwo
-            .get_or_init(|| self.process_dwo(units.load_dwo(dwo_id)?));
+            .get_or_init(|| self.process_dwo(dw_unit, units.load_dwo(dwo_id)?));
         map_dwo_result(result)
     }
 
@@ -169,7 +188,8 @@ impl<'dwarf> Unit<'dwarf> {
         &self,
         units: &Units<'dwarf>,
     ) -> gimli::Result<Option<&Lines<'dwarf>>> {
-        let ilnp = match self.dw_unit.line_program {
+        let dw_unit = self.ensure_dw_unit(units)?;
+        let ilnp = match dw_unit.line_program {
             Some(ref ilnp) => ilnp,
             None => return Ok(None),
         };
@@ -178,7 +198,7 @@ impl<'dwarf> Unit<'dwarf> {
             .get_or_init(|| {
                 // NB: line information is always stored in the main
                 //     debug file so this does not need to handle DWOs.
-                let unit = units.unit_ref(&self.dw_unit);
+                let unit = units.unit_ref(dw_unit);
                 Lines::parse(unit, ilnp.clone())
             })
             .as_ref()
@@ -249,15 +269,34 @@ impl<'dwarf> Unit<'dwarf> {
         self.offset
     }
 
-    /// Retrieve the underlying [`gimli::Unit`] object.
+    /// Retrieve the underlying [`gimli::Unit`] header.
     #[inline]
-    pub(super) fn dw_unit(&self) -> &gimli::Unit<R<'dwarf>> {
-        &self.dw_unit
+    pub(super) fn header(&self) -> &gimli::UnitHeader<R<'dwarf>> {
+        &self.header
     }
 
     /// Attempt to retrieve the compilation unit's source code language.
     #[inline]
-    pub(super) fn language(&self) -> Option<gimli::DwLang> {
-        self.lang
+    pub(super) fn language(&self, units: &Units<'dwarf>) -> gimli::Result<Option<gimli::DwLang>> {
+        let dw_unit = self.ensure_dw_unit(units)?;
+
+        let lang = self.lang.get_or_init(|| {
+            let unit_ref = units.unit_ref(dw_unit);
+            let mut entries = unit_ref.entries_raw(None)?;
+            if let Some(abbrev) = entries.read_abbreviation()? {
+                for spec in abbrev.attributes() {
+                    let attr = entries.read_attribute(*spec)?;
+                    if attr.name() == gimli::DW_AT_language {
+                        if let gimli::AttributeValue::Language(val) = attr.value() {
+                            return Ok(Some(val))
+                        }
+                        break;
+                    }
+                }
+            }
+            gimli::Result::Ok(None)
+        });
+
+        *lang
     }
 }

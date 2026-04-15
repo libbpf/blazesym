@@ -369,7 +369,7 @@ impl Symbolize for DwarfResolver {
                 module: self.parser.module(),
                 addr: fn_addr,
                 size,
-                lang: unit.language().into(),
+                lang: unit.language(&self.units)?.into(),
                 code_info: None,
                 inlined: Box::new([]),
                 _non_exhaustive: (),
