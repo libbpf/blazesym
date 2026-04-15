@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Improved DWARF symbolization performance for some debug info variants
+
+
 0.2.4
 -----
 - Added support for relocatable ELF and DWARF

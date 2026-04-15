@@ -92,6 +92,25 @@ impl<'dwarf> Unit<'dwarf> {
         }
     }
 
+    /// Create a unit with deferred `gimli::Unit` construction.
+    ///
+    /// The full `gimli::Unit` (which involves abbreviation parsing and
+    /// line program header parsing) is deferred until first access.
+    pub(super) fn new_deferred(
+        offset: gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset>,
+        header: gimli::UnitHeader<R<'dwarf>>,
+    ) -> Self {
+        Self {
+            offset,
+            dw_unit: OnceCell::new(),
+            header,
+            lang: OnceCell::new(),
+            lines: OnceCell::new(),
+            funcs: OnceCell::new(),
+            dwo: OnceCell::new(),
+        }
+    }
+
     /// Get or lazily construct the `gimli::Unit`.
     fn ensure_dw_unit(&self, units: &Units<'dwarf>) -> gimli::Result<&gimli::Unit<R<'dwarf>>> {
         let dw_unit = self
