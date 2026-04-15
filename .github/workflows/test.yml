@@ -118,7 +118,7 @@ jobs:
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ matrix.runs-on }}-${{ matrix.rust }}-${{ matrix.profile }}
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+        save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     - name: Build ${{ matrix.profile }}
       run: |
         cargo build --profile=${{ matrix.profile }} ${{ matrix.args }}
@@ -162,7 +162,7 @@ jobs:
           toolchain: 1.88.0
       - uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
+          save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
       - run: cargo build --features="apk,backtrace,bpf,demangle,dwarf,gsym,tracing"
       - run: cargo build --package=blazesym-c
   nop-rebuilds:
@@ -203,7 +203,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
     - uses: Swatinem/rust-cache@v2
       with:
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+        save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     - uses: actions/setup-python@v6
       id: py312
       with:
@@ -349,7 +349,7 @@ jobs:
     - uses: Swatinem/rust-cache@v2
       with:
         key: ${{ matrix.sanitizer }}
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+        save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     - name: cargo test -Zsanitizer=${{ matrix.sanitizer }}
       env:
         # TODO: Ideally we'd set CFLAGS and CXXFLAGS as well, but some
@@ -376,7 +376,7 @@ jobs:
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
       with:
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+        save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     - run: echo "RUSTFLAGS=${RUSTFLAGS} -C debuginfo=limited" >> $GITHUB_ENV
     - env:
         # Support incremental compilation here to not penalize CI compile times too much.
@@ -428,7 +428,7 @@ jobs:
         targets: "i686-unknown-linux-gnu"
     - uses: Swatinem/rust-cache@v2
       with:
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+        save-if: ${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
     - run: cargo check --target x86_64-unknown-linux-gnu --package=blazesym-dev --features=generate-unit-test-files
     - name: Install development dependencies
       run: |
