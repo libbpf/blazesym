@@ -88,69 +88,12 @@ impl<'dwarf> Units<'dwarf> {
                 }
                 _ => true,
             };
-            let dw_unit = match sections.unit(header) {
-                Ok(dw_unit) => dw_unit,
-                Err(_) => continue,
-            };
 
-            let dw_unit_ref = gimli::UnitRef::new(&sections, &dw_unit);
-            let mut lang = None;
+            // Try to get ranges from .debug_aranges first, before doing
+            // any expensive unit parsing (abbreviations, line program
+            // headers, etc.).
             if need_unit_range {
-                let mut entries = dw_unit_ref.entries_raw(None)?;
-
-                let abbrev = match entries.read_abbreviation()? {
-                    Some(abbrev) => abbrev,
-                    None => continue,
-                };
-
-                let mut ranges = RangeAttributes::default();
-                for spec in abbrev.attributes() {
-                    let attr = entries.read_attribute(*spec)?;
-                    match attr.name() {
-                        gimli::DW_AT_low_pc => match attr.value() {
-                            gimli::AttributeValue::Addr(val) => ranges.low_pc = Some(val),
-                            gimli::AttributeValue::DebugAddrIndex(index) => {
-                                ranges.low_pc = Some(sections.address(&dw_unit, index)?);
-                            }
-                            _ => {}
-                        },
-                        gimli::DW_AT_high_pc => match attr.value() {
-                            gimli::AttributeValue::Addr(val) => ranges.high_pc = Some(val),
-                            gimli::AttributeValue::DebugAddrIndex(index) => {
-                                ranges.high_pc = Some(sections.address(&dw_unit, index)?);
-                            }
-                            gimli::AttributeValue::Udata(val) => ranges.size = Some(val),
-                            _ => {}
-                        },
-                        gimli::DW_AT_ranges => {
-                            ranges.ranges_offset =
-                                sections.attr_ranges_offset(&dw_unit, attr.value())?;
-                        }
-                        gimli::DW_AT_language => {
-                            if let gimli::AttributeValue::Language(val) = attr.value() {
-                                lang = Some(val);
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-
-                // Find the address ranges for the CU, using in order of preference:
-                // - DW_AT_ranges
-                // - .debug_aranges
-                // - DW_AT_low_pc/DW_AT_high_pc
-                //
-                // Using DW_AT_ranges before .debug_aranges is possibly an arbitrary choice,
-                // but the feeling is that DW_AT_ranges is more likely to be reliable or
-                // complete if it is present.
-                //
-                // .debug_aranges must be used before DW_AT_low_pc/DW_AT_high_pc because
-                // it has been observed on macOS that DW_AT_ranges was not emitted even for
-                // discontiguous CUs.
-                let i = match ranges.ranges_offset {
-                    Some(_) => None,
-                    None => aranges.binary_search_by_key(&offset, |x| x.0).ok(),
-                };
+                let i = aranges.binary_search_by_key(&offset, |x| x.0).ok();
                 if let Some(mut i) = i {
                     // There should be only one set per CU, but in practice multiple
                     // sets have been observed. This is probably a compiler bug, but
@@ -182,16 +125,76 @@ impl<'dwarf> Units<'dwarf> {
                         }
                     }
                 }
-                if need_unit_range {
-                    need_unit_range = !ranges.for_each_range(dw_unit_ref, |range| {
-                        unit_ranges.push(UnitRange {
-                            range,
-                            unit_id,
-                            max_end: 0,
-                        });
-                    })?;
+            }
+
+            // If we got ranges from aranges, we can defer the expensive
+            // `gimli::Unit` construction (abbreviation parsing, line
+            // program header parsing) until the unit is actually queried.
+            if !need_unit_range {
+                res_units.push(Unit::new_deferred(offset, header));
+                continue;
+            }
+
+            let dw_unit = match sections.unit(header) {
+                Ok(dw_unit) => dw_unit,
+                Err(_) => continue,
+            };
+
+            let dw_unit_ref = gimli::UnitRef::new(&sections, &dw_unit);
+            let mut lang = None;
+            let mut entries = dw_unit_ref.entries_raw(None)?;
+
+            let abbrev = match entries.read_abbreviation()? {
+                Some(abbrev) => abbrev,
+                None => continue,
+            };
+
+            let mut ranges = RangeAttributes::default();
+            for spec in abbrev.attributes() {
+                let attr = entries.read_attribute(*spec)?;
+                match attr.name() {
+                    gimli::DW_AT_low_pc => match attr.value() {
+                        gimli::AttributeValue::Addr(val) => ranges.low_pc = Some(val),
+                        gimli::AttributeValue::DebugAddrIndex(index) => {
+                            ranges.low_pc = Some(sections.address(&dw_unit, index)?);
+                        }
+                        _ => {}
+                    },
+                    gimli::DW_AT_high_pc => match attr.value() {
+                        gimli::AttributeValue::Addr(val) => ranges.high_pc = Some(val),
+                        gimli::AttributeValue::DebugAddrIndex(index) => {
+                            ranges.high_pc = Some(sections.address(&dw_unit, index)?);
+                        }
+                        gimli::AttributeValue::Udata(val) => ranges.size = Some(val),
+                        _ => {}
+                    },
+                    gimli::DW_AT_ranges => {
+                        ranges.ranges_offset =
+                            sections.attr_ranges_offset(&dw_unit, attr.value())?;
+                    }
+                    gimli::DW_AT_language => {
+                        if let gimli::AttributeValue::Language(val) = attr.value() {
+                            lang = Some(val);
+                        }
+                    }
+                    _ => {}
                 }
             }
+
+            // Find the address ranges for the CU, using in order of preference:
+            // - DW_AT_ranges
+            // - DW_AT_low_pc/DW_AT_high_pc
+            //
+            // .debug_aranges was already checked before constructing the
+            // `gimli::Unit`, so if we're here, aranges didn't have ranges
+            // for this CU.
+            need_unit_range = !ranges.for_each_range(dw_unit_ref, |range| {
+                unit_ranges.push(UnitRange {
+                    range,
+                    unit_id,
+                    max_end: 0,
+                });
+            })?;
 
             let lines = OnceCell::new();
             if need_unit_range {
