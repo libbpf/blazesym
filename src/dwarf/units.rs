@@ -67,7 +67,7 @@ impl<'dwarf> Units<'dwarf> {
         }
         aranges.sort_by_key(|i| i.0);
 
-        let mut unit_ranges = Vec::new();
+        let mut unit_ranges = Vec::with_capacity(aranges.len());
         let mut res_units = Vec::new();
         let mut units = sections.units();
         while let Some(header) = units.next()? {
