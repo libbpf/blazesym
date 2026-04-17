@@ -384,7 +384,7 @@ impl<'elf> SymbolTableCache<'elf> {
 
         // Order symbols by address and those with equal address descending by
         // size.
-        let () = by_addr_idx.sort_by(|idx1, idx2| {
+        let () = by_addr_idx.sort_unstable_by(|idx1, idx2| {
             // SANITY: Both indexes originate in our code and are known
             //         to be in bounds.
             let sym1 = self.syms.get(*idx1).unwrap();
@@ -431,7 +431,7 @@ impl<'elf> SymbolTableCache<'elf> {
             })
             .collect::<Result<Box<[_]>>>()?;
 
-        let () = str2sym.sort_by_key(|(name, _i)| name.bytes(&self.strs));
+        let () = str2sym.sort_unstable_by_key(|(name, _i)| name.bytes(&self.strs));
         Ok(str2sym)
     }
 
