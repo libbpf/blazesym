@@ -373,14 +373,15 @@ impl<'elf> SymbolTableCache<'elf> {
     }
 
     fn create_by_addr_idx(&self) -> Box<[usize]> {
-        let mut by_addr_idx = self
-            .syms
-            .iter(0)
-            .enumerate()
-            // Filter out any symbols that we do not support.
-            .filter(|(_idx, sym)| sym.matches(SymType::Undefined))
-            .map(|(idx, _sym)| idx)
-            .collect::<Box<[_]>>();
+        let mut by_addr_idx = Vec::with_capacity(self.syms.len());
+        let () = by_addr_idx.extend(
+            self.syms
+                .iter(0)
+                .enumerate()
+                // Filter out any symbols that we do not support.
+                .filter(|(_idx, sym)| sym.matches(SymType::Undefined))
+                .map(|(idx, _sym)| idx),
+        );
 
         // Order symbols by address and those with equal address descending by
         // size.
@@ -394,7 +395,7 @@ impl<'elf> SymbolTableCache<'elf> {
                 .then_with(|| sym1.size().cmp(&sym2.size()).reverse())
         });
 
-        by_addr_idx
+        by_addr_idx.into_boxed_slice()
     }
 
     fn ensure_by_addr_idx(&self) -> &[usize] {
