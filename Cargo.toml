@@ -33,6 +33,7 @@ unused = "warn"
 [workspace.lints.clippy]
 collapsible-else-if = "allow"
 collapsible-if = "allow"
+collapsible-match = "allow"
 fn-to-numeric-cast = "allow"
 let-and-return = "allow"
 let-unit-value = "allow"
