@@ -134,7 +134,7 @@ impl<'dat> GsymResolver<'dat> {
         let lntab_hdr = LineTableHeader::parse(&mut data)
             .ok_or_invalid_data(|| "failed to parse line table header")?;
         let mut lntab_row = LineTableRow::from_header(&lntab_hdr, symaddr);
-        let mut last_lntab_row = lntab_row.clone();
+        let mut last_lntab_row = lntab_row;
         let mut row_cnt = 0;
         while !data.is_empty() {
             match run_op(&mut lntab_row, &lntab_hdr, &mut data) {
@@ -150,7 +150,7 @@ impl<'dat> GsymResolver<'dat> {
                         lntab_row = last_lntab_row;
                         break
                     }
-                    last_lntab_row = lntab_row.clone();
+                    last_lntab_row = lntab_row;
                 }
                 Some(RunResult::End) | None => break,
             }

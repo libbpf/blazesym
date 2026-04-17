@@ -67,7 +67,7 @@ impl LineTableHeader {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct LineTableRow {
     pub addr: Addr,
     pub file_idx: u32,
