@@ -247,7 +247,7 @@ jobs:
     - name: Test and gather coverage
       uses: d-e-s-o/vmsh@3424481c58244ec1410f64dc2d3e52eff3f6e53f
     - run: |
-        vmsh ${{ steps.build.outputs.build-dir }}/bzImage --env=HOME --env=PATH -- sh -c 'cd ${{ github.workspace }} && ./main.sh'
+        vmsh --cpus=$(nproc) --memory=8192 ${{ steps.build.outputs.build-dir }}/bzImage --env=HOME --env=PATH -- sh -c 'cd ${{ github.workspace }} && ./main.sh'
     - name: Upload code coverage results
       uses: codecov/codecov-action@v6
       env:
