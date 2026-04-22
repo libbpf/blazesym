@@ -243,7 +243,7 @@ impl GsymResolver<'_> {
                 INFO_TYPE_INLINE_INFO if opts.inlined_fns() => {
                     if inline_info.is_none() {
                         let mut data = addr_ent.data;
-                        inline_info = InlineInfo::parse(&mut data, sym_addr, Some(addr))?;
+                        inline_info = InlineInfo::parse(&mut data, sym_addr, addr)?;
                     }
                 }
                 typ => {

@@ -17,11 +17,52 @@ pub(super) struct InlineInfo {
 }
 
 impl InlineInfo {
+    /// Advance `data` past one `InlineInfo` node and all its descendants.
+    fn skip(data: &mut &[u8]) -> Result<bool> {
+        let range_cnt = data
+            .read_u64_leb128()
+            .ok_or_invalid_data(|| "failed to read range count from inline information")?;
+        if range_cnt == 0 {
+            return Ok(false);
+        }
+
+        for _ in 0..range_cnt {
+            let _offset = data
+                .read_u64_leb128()
+                .ok_or_invalid_data(|| "failed to read offset from inline information")?;
+            let _size = data
+                .read_u64_leb128()
+                .ok_or_invalid_data(|| "failed to read size from inline information")?;
+        }
+
+        let child_cnt = data
+            .read_u8()
+            .ok_or_invalid_data(|| "failed to read child count from inline information")?;
+        let has_children = child_cnt != 0;
+        let _name = data
+            .read_u32()
+            .ok_or_invalid_data(|| "failed to read name from inline information")?;
+        let _call_file = data
+            .read_u64_leb128()
+            .ok_or_invalid_data(|| "failed to read call file from inline information")?;
+        let _call_line = data
+            .read_u64_leb128()
+            .ok_or_invalid_data(|| "failed to read call line from inline information")?;
+
+        if has_children {
+            while Self::skip(data)? {
+                // Do nothing; we just skip the data.
+            }
+        }
+
+        Ok(true)
+    }
+
     /// Parse Gsym `InlineInfo` from raw bytes.
     pub(crate) fn parse(
         data: &mut &[u8],
         base_addr: u64,
-        lookup_addr: Option<u64>,
+        lookup_addr: u64,
     ) -> Result<Option<Self>> {
         let range_cnt = data
             .read_u64_leb128()
@@ -36,44 +77,33 @@ impl InlineInfo {
         let mut ranges = Vec::new();
         let mut child_base_addr = 0u64;
 
-        if let Some(lookup_addr) = lookup_addr {
-            for i in 0..range_cnt {
-                let offset = data
-                    .read_u64_leb128()
-                    .ok_or_invalid_data(|| "failed to read offset from inline information")?;
-                let size = data
-                    .read_u64_leb128()
-                    .ok_or_invalid_data(|| "failed to read size from inline information")?;
+        for i in 0..range_cnt {
+            let offset = data
+                .read_u64_leb128()
+                .ok_or_invalid_data(|| "failed to read offset from inline information")?;
+            let size = data
+                .read_u64_leb128()
+                .ok_or_invalid_data(|| "failed to read size from inline information")?;
 
-                let start = base_addr
-                    .checked_add(offset)
-                    .ok_or_invalid_data(|| {
-                        format!("offset {offset:#x} overflowed base address {base_addr:#x}")
-                    })
-                    .context("failed calculate start address")?;
-                let end = start
-                    .checked_add(size)
-                    .ok_or_invalid_data(|| {
-                        format!("size {size:#x} overflowed start address {start:#x}")
-                    })
-                    .context("failed calculate end address")?;
-                if i == 0 {
-                    child_base_addr = start;
-                }
-
-                let range = start..end;
-                if range.contains(&lookup_addr) {
-                    let () = ranges.push(range);
-                }
+            let start = base_addr
+                .checked_add(offset)
+                .ok_or_invalid_data(|| {
+                    format!("offset {offset:#x} overflowed base address {base_addr:#x}")
+                })
+                .context("failed calculate start address")?;
+            let end = start
+                .checked_add(size)
+                .ok_or_invalid_data(|| {
+                    format!("size {size:#x} overflowed start address {start:#x}")
+                })
+                .context("failed calculate end address")?;
+            if i == 0 {
+                child_base_addr = start;
             }
-        } else {
-            for _ in 0..range_cnt {
-                let _offset = data
-                    .read_u64_leb128()
-                    .ok_or_invalid_data(|| "failed to read offset from inline information")?;
-                let _size = data
-                    .read_u64_leb128()
-                    .ok_or_invalid_data(|| "failed to read size from inline information")?;
+
+            let range = start..end;
+            if range.contains(&lookup_addr) {
+                let () = ranges.push(range);
             }
         }
 
@@ -85,34 +115,23 @@ impl InlineInfo {
             .read_u32()
             .ok_or_invalid_data(|| "failed to read name from inline information")?;
 
-        let (call_file, call_line) = if lookup_addr.is_some() {
-            let call_file = data
-                .read_u64_leb128()
-                .ok_or_invalid_data(|| "failed to read call file from inline information")?;
-            let call_file = u32::try_from(call_file)
-                .ok()
-                .ok_or_invalid_data(|| "call file index ({}) is too big")?;
-            let call_line = data
-                .read_u64_leb128()
-                .ok_or_invalid_data(|| "failed to read call line from inline information")?;
-            let call_line = u32::try_from(call_line).unwrap_or(u32::MAX);
-            (Some(call_file), Some(call_line))
-        } else {
-            let _call_file = data
-                .read_u64_leb128()
-                .ok_or_invalid_data(|| "failed to read call file from inline information")?;
-            let _call_line = data
-                .read_u64_leb128()
-                .ok_or_invalid_data(|| "failed to read call line from inline information")?;
-            (None, None)
-        };
+        let call_file = data
+            .read_u64_leb128()
+            .ok_or_invalid_data(|| "failed to read call file from inline information")?;
+        let call_file = u32::try_from(call_file)
+            .ok()
+            .ok_or_invalid_data(|| "call file index ({}) is too big")?;
+        let call_line = data
+            .read_u64_leb128()
+            .ok_or_invalid_data(|| "failed to read call line from inline information")?;
+        let call_line = u32::try_from(call_line).unwrap_or(u32::MAX);
 
         let mut children = Vec::new();
         if has_children {
             if ranges.is_empty() {
                 // This inlined function does not contain `lookup_addr`, no need
                 // to decode ranges, just skip.
-                while let Some(_child) = Self::parse(data, child_base_addr, None)? {
+                while Self::skip(data)? {
                     // Do nothing; we just skip the data.
                 }
             } else {
@@ -124,8 +143,8 @@ impl InlineInfo {
 
         let slf = Self {
             name,
-            call_file,
-            call_line,
+            call_file: Some(call_file),
+            call_line: Some(call_line),
             ranges,
             children,
         };

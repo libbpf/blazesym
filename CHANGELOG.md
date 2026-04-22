@@ -3,6 +3,7 @@ Unreleased
 - Added support for relocatable ELF and DWARF
 - Added support for kernel module symbolization with DWARF data
 - Improved performance of ELF symbolization
+- Improved performance of Gsym symbolization
 - Bumped minimum supported Rust version to `1.88`
 
 
