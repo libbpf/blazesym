@@ -69,7 +69,7 @@ impl InlineInfo {
             .ok_or_invalid_data(|| "failed to read range count from inline information")?;
         let range_cnt = usize::try_from(range_cnt)
             .ok()
-            .ok_or_invalid_data(|| "range count ({}) is too big")?;
+            .ok_or_invalid_data(|| format!("range count ({range_cnt}) is too big"))?;
         if range_cnt == 0 {
             return Ok(None)
         }
@@ -120,7 +120,7 @@ impl InlineInfo {
             .ok_or_invalid_data(|| "failed to read call file from inline information")?;
         let call_file = u32::try_from(call_file)
             .ok()
-            .ok_or_invalid_data(|| "call file index ({}) is too big")?;
+            .ok_or_invalid_data(|| format!("call file index ({call_file}) is too big"))?;
         let call_line = data
             .read_u64_leb128()
             .ok_or_invalid_data(|| "failed to read call line from inline information")?;
