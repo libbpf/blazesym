@@ -1,20 +1,16 @@
-use std::ops::Range;
-
 use crate::util::ReadRaw as _;
 use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Result;
 
 
-#[derive(Clone)]
-pub(super) struct InlineInfo {
+pub(super) struct InlineFrame {
     pub name: u32,
     pub call_file: u32,
     pub call_line: u32,
-
-    ranges: Vec<Range<u64>>,
-    children: Vec<Self>,
 }
+
+pub(super) struct InlineInfo;
 
 impl InlineInfo {
     /// Advance `data` past one `InlineInfo` node and all its descendants.
@@ -58,12 +54,12 @@ impl InlineInfo {
         Ok(true)
     }
 
-    /// Parse Gsym `InlineInfo` from raw bytes.
-    pub(crate) fn parse(
+    fn parse_into_stack(
         data: &mut &[u8],
         base_addr: u64,
         lookup_addr: u64,
-    ) -> Result<Option<Self>> {
+        stack: &mut Vec<InlineFrame>,
+    ) -> Result<bool> {
         let range_cnt = data
             .read_u64_leb128()
             .ok_or_invalid_data(|| "failed to read range count from inline information")?;
@@ -71,10 +67,10 @@ impl InlineInfo {
             .ok()
             .ok_or_invalid_data(|| format!("range count ({range_cnt}) is too big"))?;
         if range_cnt == 0 {
-            return Ok(None)
+            return Ok(false);
         }
 
-        let mut ranges = Vec::new();
+        let mut matches = false;
         let mut child_base_addr = 0u64;
 
         for i in 0..range_cnt {
@@ -101,9 +97,8 @@ impl InlineInfo {
                 child_base_addr = start;
             }
 
-            let range = start..end;
-            if range.contains(&lookup_addr) {
-                let () = ranges.push(range);
+            if (start..end).contains(&lookup_addr) {
+                matches = true;
             }
         }
 
@@ -126,52 +121,34 @@ impl InlineInfo {
             .ok_or_invalid_data(|| "failed to read call line from inline information")?;
         let call_line = u32::try_from(call_line).unwrap_or(u32::MAX);
 
-        let mut children = Vec::new();
-        if has_children {
-            if ranges.is_empty() {
-                // This inlined function does not contain `lookup_addr`, no need
-                // to decode ranges, just skip.
-                while Self::skip(data)? {
-                    // Do nothing; we just skip the data.
-                }
-            } else {
-                while let Some(child) = Self::parse(data, child_base_addr, lookup_addr)? {
-                    let () = children.push(child);
-                }
+        if matches {
+            if name > 0 {
+                let () = stack.push(InlineFrame {
+                    name,
+                    call_file,
+                    call_line,
+                });
             }
+
+            if has_children {
+                while Self::parse_into_stack(data, child_base_addr, lookup_addr, stack)? {}
+            }
+        } else if has_children {
+            while Self::skip(data)? {}
         }
 
-        let slf = Self {
-            name,
-            call_file,
-            call_line,
-            ranges,
-            children,
-        };
-        Ok(Some(slf))
+        Ok(true)
     }
 
-    fn inline_stack_impl<'slf>(&'slf self, addr: u64, inlined: &mut Vec<&'slf Self>) -> bool {
-        for range in &self.ranges {
-            if range.contains(&addr) {
-                if self.name > 0 {
-                    let () = inlined.push(self);
-                }
-
-                for child in &self.children {
-                    if child.inline_stack_impl(addr, inlined) {
-                        break
-                    }
-                }
-                return !inlined.is_empty()
-            }
-        }
-        false
-    }
-
-    pub(crate) fn inline_stack(&self, addr: u64) -> Vec<&Self> {
-        let mut inlined = Vec::new();
-        let _done = self.inline_stack_impl(addr, &mut inlined);
-        inlined
+    /// Parse the inline info tree for `lookup_addr` and produce a flat
+    /// inline stack directly, without building an intermediate tree.
+    pub(crate) fn parse_inline_stack(
+        data: &mut &[u8],
+        base_addr: u64,
+        lookup_addr: u64,
+    ) -> Result<Vec<InlineFrame>> {
+        let mut stack = Vec::new();
+        let _parsed = Self::parse_into_stack(data, base_addr, lookup_addr, &mut stack)?;
+        Ok(stack)
     }
 }
