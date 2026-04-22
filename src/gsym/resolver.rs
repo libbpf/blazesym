@@ -22,6 +22,7 @@ use crate::Addr;
 use crate::IntoError as _;
 use crate::Result;
 
+use super::inline::InlineFrame;
 use super::inline::InlineInfo;
 use super::linetab::run_op;
 use super::linetab::LineTableHeader;
@@ -231,7 +232,7 @@ impl GsymResolver<'_> {
         }
 
         let mut line_tab_info = None;
-        let mut inline_info = None;
+        let mut inline_stack = Vec::<InlineFrame>::new();
         let addrdatas = parse_address_data(info.data);
         for addr_ent in addrdatas {
             match addr_ent.typ {
@@ -241,9 +242,9 @@ impl GsymResolver<'_> {
                     }
                 }
                 INFO_TYPE_INLINE_INFO if opts.inlined_fns() => {
-                    if inline_info.is_none() {
+                    if inline_stack.is_empty() {
                         let mut data = addr_ent.data;
-                        inline_info = InlineInfo::parse(&mut data, sym_addr, addr)?;
+                        inline_stack = InlineInfo::parse_inline_stack(&mut data, sym_addr, addr)?;
                     }
                 }
                 typ => {
@@ -261,26 +262,23 @@ impl GsymResolver<'_> {
 
         let mut inlined = Vec::<InlinedFn>::new();
 
-        if let Some(inline_info) = inline_info {
-            let mut inline_stack = inline_info.inline_stack(addr).into_iter();
+        if !inline_stack.is_empty() {
+            let mut frames = inline_stack.into_iter();
             // As per Gsym file format, the first "frame" only contains the
             // name and it effectively is meant to overwrite what is already
             // contained in the line table.
-            if let Some(inline_info) = inline_stack.next() {
+            if let Some(first) = frames.next() {
                 sym.name = self
                     .ctx
-                    .get_str(inline_info.name as usize)
+                    .get_str(first.name as usize)
                     .and_then(|s| s.to_str())
                     .ok_or_invalid_data(|| {
-                        format!(
-                            "failed to read string table entry at offset {}",
-                            inline_info.name
-                        )
+                        format!("failed to read string table entry at offset {}", first.name)
                     })?;
 
-                let () = inlined.reserve(inline_stack.len());
+                let () = inlined.reserve(frames.len());
 
-                for frame in inline_stack {
+                for frame in frames {
                     let name = self
                         .ctx
                         .get_str(frame.name as usize)
