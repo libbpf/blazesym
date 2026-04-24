@@ -2115,6 +2115,7 @@ fn create_elf_resolver_from_non_existing_path() {
 
 /// Make sure that [`ElfResolver::open_with_debug_dirs`] can be created and
 /// registered successfully.
+#[cfg(feature = "dwarf")]
 #[test]
 fn create_elf_resolver_with_debug_dirs() {
     let bin_name = Path::new(&env!("CARGO_MANIFEST_DIR"))
@@ -2131,6 +2132,7 @@ fn create_elf_resolver_with_debug_dirs() {
 
 /// Make sure that [`ElfResolver::open_with_debug_dirs`] fails for a
 /// non-existing file.
+#[cfg(feature = "dwarf")]
 #[test]
 fn create_elf_resolver_with_debug_dirs_non_existing_path() {
     let path = Path::new("/This/Path/Does.Not/Exist");

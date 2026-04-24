@@ -177,6 +177,7 @@ impl ElfResolver {
     /// Create an `ElfResolver` that loads data from the provided file,
     /// using the given directories to search for split debug
     /// information.
+    #[cfg(feature = "dwarf")]
     pub fn open_with_debug_dirs<P, D, DP>(path: P, debug_dirs: D) -> Result<Self>
     where
         P: AsRef<Path>,

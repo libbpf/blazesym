@@ -798,7 +798,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     let blaze_symbolizer_opts {
         type_size: _,
         debug_dirs,
-        debug_dirs_len: _debug_dirs_len,
+        debug_dirs_len,
         auto_reload,
         code_info,
         inlined_fns,
@@ -819,7 +819,7 @@ pub unsafe extern "C" fn blaze_symbolizer_new_opts(
     } else {
         // SAFETY: The caller ensures that the pointer is valid and the count
         //         matches.
-        let slice = unsafe { slice_from_user_array(debug_dirs, _debug_dirs_len) };
+        let slice = unsafe { slice_from_user_array(debug_dirs, debug_dirs_len) };
         Some(
             slice
                 .iter()
@@ -2391,7 +2391,7 @@ mod tests {
 
     /// Symbolize `addr` in the current process using the given dispatch
     /// callback.
-    unsafe fn symbolize_with_dispatch(
+    fn symbolize_with_dispatch(
         cb: unsafe extern "C" fn(*const c_char, *const c_char, *mut c_void) -> *mut c_char,
         addr: Addr,
         expected_sym: Option<&str>,
@@ -2446,13 +2446,11 @@ mod tests {
             unsafe { libc::strdup(maps_file) }
         }
 
-        unsafe {
-            symbolize_with_dispatch(
-                cb,
-                symbolize_in_process_with_dispatch as *const () as Addr,
-                Some("symbolize_in_process_with_dispatch"),
-            )
-        };
+        symbolize_with_dispatch(
+            cb,
+            symbolize_in_process_with_dispatch as *const () as Addr,
+            Some("symbolize_in_process_with_dispatch"),
+        )
     }
 
     /// Make sure that a dispatch callback returning NULL falls back to
@@ -2468,13 +2466,11 @@ mod tests {
             ptr::null_mut()
         }
 
-        unsafe {
-            symbolize_with_dispatch(
-                cb,
-                symbolize_in_process_with_null_dispatch as *const () as Addr,
-                Some("symbolize_in_process_with_null_dispatch"),
-            )
-        };
+        symbolize_with_dispatch(
+            cb,
+            symbolize_in_process_with_null_dispatch as *const () as Addr,
+            Some("symbolize_in_process_with_null_dispatch"),
+        )
     }
 
     /// Make sure that a dispatch callback returning a non-existent path
@@ -2490,12 +2486,10 @@ mod tests {
             unsafe { libc::strdup(c"/no/such/file".as_ptr()) }
         }
 
-        unsafe {
-            symbolize_with_dispatch(
-                cb,
-                symbolize_in_process_with_bad_dispatch as *const () as Addr,
-                None,
-            )
-        };
+        symbolize_with_dispatch(
+            cb,
+            symbolize_in_process_with_bad_dispatch as *const () as Addr,
+            None,
+        )
     }
 }
