@@ -381,6 +381,8 @@ mod tests {
 
     use std::io::copy;
     use std::io::Write as _;
+    use std::mem::offset_of;
+    use std::mem::size_of_val;
     use std::ops::Deref as _;
 
     use tempfile::NamedTempFile;
@@ -502,5 +504,143 @@ mod tests {
         // central directory marker at all.
         let err = Archive::open(corrupted_zip.path()).unwrap_err();
         assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
+    }
+
+    /// Check that we report an error for a local file header with invalid
+    /// magic.
+    #[test]
+    fn zip_entry_invalid_local_header_magic() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(&zip).unwrap();
+        let mut data = archive.mmap.deref().to_vec();
+
+        let mut cd_data = &data[archive.cd_offset as usize..];
+        let cdfh = cd_data.read_pod::<CdFileHeader>().unwrap();
+        let lfh_offset = cdfh.offset as usize;
+        let () = data[lfh_offset..lfh_offset + size_of_val(&LOCAL_FILE_HEADER_MAGIC)].fill(0);
+
+        let mut corrupted = NamedTempFile::new().unwrap();
+        let () = corrupted.write_all(&data).unwrap();
+
+        let archive = Archive::open(corrupted.path()).unwrap();
+        let err = archive.entries().next().unwrap().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
+    }
+
+    /// Check that we report an error for entries with unsupported flags.
+    #[test]
+    fn zip_entry_unsupported_flags() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(&zip).unwrap();
+        let mut data = archive.mmap.deref().to_vec();
+
+        let mut cd_data = &data[archive.cd_offset as usize..];
+        let cdfh = cd_data.read_pod::<CdFileHeader>().unwrap();
+        let lfh_offset = cdfh.offset as usize;
+        data[lfh_offset + offset_of!(LocalFileHeader, flags)] |= FLAG_ENCRYPTED as u8;
+
+        let mut corrupted = NamedTempFile::new().unwrap();
+        let () = corrupted.write_all(&data).unwrap();
+
+        let archive = Archive::open(corrupted.path()).unwrap();
+        let err = archive.entries().next().unwrap().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
+    }
+
+    /// Check that we report an error for a CD header with invalid magic.
+    #[test]
+    fn zip_entry_invalid_cd_header_magic() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(&zip).unwrap();
+        let mut data = archive.mmap.deref().to_vec();
+
+        let cd_off = archive.cd_offset as usize;
+        let () = data[cd_off..cd_off + size_of_val(&CD_FILE_HEADER_MAGIC)].fill(0);
+
+        let mut corrupted = NamedTempFile::new().unwrap();
+        let () = corrupted.write_all(&data).unwrap();
+
+        let archive = Archive::open(corrupted.path()).unwrap();
+        let err = archive.entries().next().unwrap().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
+    }
+
+    /// Check that we report an error when CD record data is truncated.
+    #[test]
+    fn zip_entry_cd_record_truncated() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(&zip).unwrap();
+        let mut data = archive.mmap.deref().to_vec();
+
+        let cd_off = archive.cd_offset as usize;
+        let name_len_field = offset_of!(CdFileHeader, file_name_length);
+        data[cd_off + name_len_field] = 0xFF;
+        data[cd_off + name_len_field + 1] = 0xFF;
+
+        let mut corrupted = NamedTempFile::new().unwrap();
+        let () = corrupted.write_all(&data).unwrap();
+
+        let archive = Archive::open(corrupted.path()).unwrap();
+        let err = archive.entries().next().unwrap().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
+    }
+
+    /// Check that we reject multi-disk ZIP archives.
+    #[test]
+    fn zip_archive_multi_disk() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(&zip).unwrap();
+        let mut data = archive.mmap.deref().to_vec();
+
+        let eocd_off = data.len() - size_of::<EndOfCdRecord>();
+        // Set this_disk to 1.
+        data[eocd_off + 4] = 1;
+
+        let mut corrupted = NamedTempFile::new().unwrap();
+        let () = corrupted.write_all(&data).unwrap();
+
+        let err = Archive::open(corrupted.path()).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
+    }
+
+    /// Check that we reject archives too small to contain an EOCD record.
+    #[test]
+    fn zip_archive_too_small() {
+        let mut tiny = NamedTempFile::new().unwrap();
+        let () = tiny.write_all(b"not a zip").unwrap();
+
+        let err = Archive::open(tiny.path()).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
+    }
+
+    /// Check that we reject archives with a CD range that exceeds the file.
+    #[test]
+    fn zip_archive_corrupted_cd_range() {
+        let zip = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.zip");
+        let archive = Archive::open(&zip).unwrap();
+        let mut data = archive.mmap.deref().to_vec();
+
+        let eocd_off = data.len() - size_of::<EndOfCdRecord>();
+        // Set both cd_records and cd_records_total to 0xFFFF so the CD range
+        // exceeds the file bounds without triggering the multi-disk check.
+        data[eocd_off + 8..eocd_off + 12].fill(0xFF);
+
+        let mut corrupted = NamedTempFile::new().unwrap();
+        let () = corrupted.write_all(&data).unwrap();
+
+        let err = Archive::open(corrupted.path()).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::UnexpectedEof, "{err}");
     }
 }
