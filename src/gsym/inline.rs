@@ -9,8 +9,8 @@ use crate::Result;
 #[derive(Clone)]
 pub(super) struct InlineInfo {
     pub name: u32,
-    pub call_file: Option<u32>,
-    pub call_line: Option<u32>,
+    pub call_file: u32,
+    pub call_line: u32,
 
     ranges: Vec<Range<u64>>,
     children: Vec<Self>,
@@ -143,8 +143,8 @@ impl InlineInfo {
 
         let slf = Self {
             name,
-            call_file: Some(call_file),
-            call_line: Some(call_line),
+            call_file,
+            call_line,
             ranges,
             children,
         };

@@ -94,7 +94,7 @@ impl<'dat> GsymResolver<'dat> {
         Ok(slf)
     }
 
-    fn query_frame_code_info(&self, file_idx: u32, line: Option<u32>) -> Result<CodeInfo<'_>> {
+    fn query_frame_code_info(&self, file_idx: u32, line: u32) -> Result<CodeInfo<'_>> {
         let finfo = self
             .ctx
             .file_info(file_idx as usize)
@@ -115,7 +115,7 @@ impl<'dat> GsymResolver<'dat> {
         let info = CodeInfo {
             dir: Some(Cow::Borrowed(Path::new(dir))),
             file: Cow::Borrowed(OsStr::new(file)),
-            line,
+            line: Some(line),
             column: None,
             _non_exhaustive: (),
         };
@@ -254,7 +254,7 @@ impl GsymResolver<'_> {
         }
 
         let mut line_tab_info = if let Some(line_tab_row) = line_tab_info {
-            self.query_frame_code_info(line_tab_row.file_idx, Some(line_tab_row.file_line))?
+            self.query_frame_code_info(line_tab_row.file_idx, line_tab_row.file_line)?
         } else {
             return Ok(())
         };
@@ -289,12 +289,8 @@ impl GsymResolver<'_> {
                             format!("failed to read string table entry at offset {}", frame.name)
                         })?;
 
-                    let mut code_info = if let Some(file) = frame.call_file {
-                        let code_info = self.query_frame_code_info(file, frame.call_line)?;
-                        Some(code_info)
-                    } else {
-                        None
-                    };
+                    let mut code_info =
+                        Some(self.query_frame_code_info(frame.call_file, frame.call_line)?);
 
                     // For each frame we need to move the code information
                     // up by one layer.
