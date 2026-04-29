@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::RefCell;
 use std::ffi::OsStr;
 use std::fmt::Debug;
 use std::fmt::Formatter;
@@ -49,6 +50,10 @@ pub(crate) struct GsymResolver<'dat> {
     //         end up with dangling references.
     _data: Data<'dat>,
     ctx: GsymContext<'dat>,
+    /// Scratch buffer reused across [`Self::fill_code_info`]
+    /// invocations to avoid a per-address allocation when parsing
+    /// inline stacks.
+    inline_stack_buf: RefCell<Vec<InlineFrame>>,
 }
 
 impl GsymResolver<'static> {
@@ -76,6 +81,7 @@ impl GsymResolver<'static> {
             //         to transmute the lifetime.
             ctx: unsafe { mem::transmute::<GsymContext<'_>, GsymContext<'static>>(ctx) },
             _data: Data::Mmap(mmap),
+            inline_stack_buf: RefCell::default(),
         };
 
         Ok(slf)
@@ -90,6 +96,7 @@ impl<'dat> GsymResolver<'dat> {
             file_name: None,
             ctx,
             _data: Data::Slice(data),
+            inline_stack_buf: RefCell::default(),
         };
 
         Ok(slf)
@@ -232,7 +239,8 @@ impl GsymResolver<'_> {
         }
 
         let mut line_tab_info = None;
-        let mut inline_stack = Vec::<InlineFrame>::new();
+        let mut inline_stack = self.inline_stack_buf.borrow_mut();
+        let () = inline_stack.clear();
         let addrdatas = parse_address_data(info.data);
         for addr_ent in addrdatas {
             match addr_ent.typ {
@@ -244,7 +252,12 @@ impl GsymResolver<'_> {
                 INFO_TYPE_INLINE_INFO if opts.inlined_fns() => {
                     if inline_stack.is_empty() {
                         let mut data = addr_ent.data;
-                        inline_stack = InlineInfo::parse_inline_stack(&mut data, sym_addr, addr)?;
+                        let () = InlineInfo::parse_inline_stack(
+                            &mut data,
+                            sym_addr,
+                            addr,
+                            &mut inline_stack,
+                        )?;
                     }
                 }
                 typ => {
@@ -263,7 +276,7 @@ impl GsymResolver<'_> {
         let mut inlined = Vec::<InlinedFn>::new();
 
         if !inline_stack.is_empty() {
-            let mut frames = inline_stack.into_iter();
+            let mut frames = inline_stack.drain(..);
             // As per Gsym file format, the first "frame" only contains the
             // name and it effectively is meant to overwrite what is already
             // contained in the line table.
@@ -438,5 +451,43 @@ mod tests {
         // Gsym this additional data is used to "refine" the result.
         assert_eq!(info.line, Some(23));
         assert_eq!(info.file, OsStr::new("test-stable-addrs.c"));
+    }
+
+    /// Make sure that the inline stack scratch buffer reused across
+    /// [`GsymResolver::fill_code_info`] invocations does not leak state
+    /// between lookups.
+    #[test]
+    fn inline_stack_buf_reuse() {
+        let test_gsym = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs.gsym");
+        let resolver = GsymResolver::open(test_gsym).unwrap();
+
+        let inlined_addr = 0x200030a;
+        let sym = resolver
+            .find_sym(inlined_addr, &FindSymOpts::CodeInfoAndInlined)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sym.name, "factorial_inline_test");
+        assert_eq!(sym.inlined.len(), 2);
+        assert_eq!(sym.inlined[0].name, "factorial_inline_wrapper");
+        assert_eq!(sym.inlined[1].name, "factorial_2nd_layer_inline_wrapper");
+
+        let sym = resolver
+            .find_sym(inlined_addr, &FindSymOpts::CodeInfoAndInlined)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sym.name, "factorial_inline_test");
+        assert_eq!(sym.inlined.len(), 2);
+        assert_eq!(sym.inlined[0].name, "factorial_inline_wrapper");
+        assert_eq!(sym.inlined[1].name, "factorial_2nd_layer_inline_wrapper");
+
+        let non_inlined_addr = 0x2000200;
+        let sym = resolver
+            .find_sym(non_inlined_addr, &FindSymOpts::CodeInfoAndInlined)
+            .unwrap()
+            .unwrap();
+        assert_eq!(sym.name, "factorial");
+        assert!(sym.inlined.is_empty());
     }
 }
