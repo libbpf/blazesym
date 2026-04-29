@@ -140,15 +140,15 @@ impl InlineInfo {
         Ok(true)
     }
 
-    /// Parse the inline info tree for `lookup_addr` and produce a flat
-    /// inline stack directly, without building an intermediate tree.
+    /// Parse the inline info tree for `lookup_addr` and append the
+    /// resulting flat inline stack to `stack`.
     pub(crate) fn parse_inline_stack(
         data: &mut &[u8],
         base_addr: u64,
         lookup_addr: u64,
-    ) -> Result<Vec<InlineFrame>> {
-        let mut stack = Vec::new();
-        let _parsed = Self::parse_into_stack(data, base_addr, lookup_addr, &mut stack)?;
-        Ok(stack)
+        stack: &mut Vec<InlineFrame>,
+    ) -> Result<()> {
+        let _parsed = Self::parse_into_stack(data, base_addr, lookup_addr, stack)?;
+        Ok(())
     }
 }
