@@ -245,9 +245,9 @@ jobs:
         EOF
         chmod a+x main.sh
     - name: Test and gather coverage
-      uses: d-e-s-o/vmsh@3424481c58244ec1410f64dc2d3e52eff3f6e53f
+      uses: d-e-s-o/vmsh@2dbf4f434b14f75b860f5550f289ac1ecde6d438
     - run: |
-        vmsh --cpus=$(nproc) --memory=8192 ${{ steps.build.outputs.build-dir }}/bzImage --env=HOME --env=PATH -- sh -c 'cd ${{ github.workspace }} && ./main.sh'
+        vmsh --cpus=$(nproc) --memory=8192 --kernel ${{ steps.build.outputs.build-dir }}/boot/vmlinux-6.18.0 --env=HOME --env=PATH -- sh -c 'cd ${{ github.workspace }} && ./main.sh'
     - name: Upload code coverage results
       uses: codecov/codecov-action@v6
       env:
