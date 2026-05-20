@@ -4,6 +4,8 @@ Unreleased
 - Added support for kernel module symbolization with DWARF data
 - Improved performance of ELF symbolization
 - Improved performance of Gsym symbolization
+- Fixed kernel symbolization failing when `/proc/kcore` is inaccessible
+  but kallsyms is available
 - Bumped minimum supported Rust version to `1.88`
 
 

@@ -180,15 +180,22 @@ impl<'cache> KernelResolver<'cache> {
 
         let ksym_resolver = ksym_resolver.map(Rc::clone);
         let vmlinux_resolver = vmlinux_resolver.map(Rc::clone);
-        let kaslr_offset = kaslr_offset
-            .map(Ok)
-            .unwrap_or_else(|| cache.kaslr_offset())?;
 
         if ksym_resolver.is_none() && vmlinux_resolver.is_none() {
             return Err(Error::with_not_found(
                 "failed to create kernel resolver: neither kallsyms nor vmlinux symbol source are present",
             ))
         }
+
+        // The KASLR offset is only needed for vmlinux based symbolization;
+        // kallsyms addresses are already relocated. Avoid querying it (which
+        // may require reading `/proc/kcore` and, hence, elevated privileges)
+        // unless we actually have a vmlinux resolver.
+        let kaslr_offset = match kaslr_offset {
+            Some(offset) => offset,
+            None if vmlinux_resolver.is_some() => cache.kaslr_offset()?,
+            None => 0,
+        };
 
         Ok(KernelResolver {
             cache,
