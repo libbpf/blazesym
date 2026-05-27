@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.4
+-----
 - Added support for relocatable ELF and DWARF
 - Added support for kernel module symbolization with DWARF data
 - Improved performance of ELF symbolization

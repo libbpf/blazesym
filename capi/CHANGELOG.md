@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Added `blaze_symbolizer_opts::process_dispatch` providing process
   dispatch functionality
+- Bumped maximum supported `blazesym` dependency to `0.2.4`
 - Bumped minimum supported Rust version to `1.88`
 
 
