@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.1.8
+-----
 - Added `blaze_symbolizer_opts::process_dispatch` providing process
   dispatch functionality
 - Bumped maximum supported `blazesym` dependency to `0.2.4`
