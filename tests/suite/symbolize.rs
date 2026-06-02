@@ -1840,6 +1840,74 @@ fn symbolize_kernel_vmlinux() {
     test(src.clone(), false);
 }
 
+/// Make sure that when the vmlinux (ELF) resolver reports a symbol of
+/// *unknown* size (an ELF `st_size == 0` symbol, which we match only on
+/// a best-effort basis), we give preference to a matching kallsyms
+/// symbol instead of blindly trusting the imprecise ELF match.
+#[test]
+fn symbolize_kernel_unsized_elf() {
+    let vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.bin");
+
+    // `zero_size` is a function symbol of *unknown* size (ELF `st_size
+    // == 0`). Its address is not fixed. So look it up dynamically.
+    let isrc = inspect::source::Source::Elf(inspect::source::Elf::new(&vmlinux));
+    let inspector = inspect::Inspector::new();
+    let results = inspector
+        .lookup(&isrc, &["zero_size"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1, "{results:#x?}");
+    let addr = results[0].addr;
+
+    // The stand-along ELF resolver should resolve this address to
+    // `zero_size`.
+    let symbolizer = Symbolizer::new();
+    let src = Source::Kernel(Kernel {
+        kallsyms: MaybeDefault::None,
+        vmlinux: MaybeDefault::Some(vmlinux.clone()),
+        kaslr_offset: Some(0),
+        // Use plain ELF symbols so that the `st_size == 0` handling is
+        // exercised.
+        debug_syms: false,
+        ..Default::default()
+    });
+    let sym = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(sym.name, "zero_size");
+    assert_eq!(sym.size, None);
+
+    // kallsyms has a precise symbol covering the same address (think: a
+    // BPF program or some other symbol only present there) and we
+    // should report that.
+    let mut kallsyms = NamedTempFile::new().unwrap();
+    let () = kallsyms
+        .write_all(format!("{addr:016x} t actual_ksym_func\n").as_bytes())
+        .unwrap();
+
+    let src = Source::Kernel(Kernel {
+        kallsyms: MaybeDefault::Some(kallsyms.path().to_path_buf()),
+        vmlinux: MaybeDefault::Some(vmlinux),
+        kaslr_offset: Some(0),
+        debug_syms: false,
+        ..Default::default()
+    });
+
+    let sym = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(sym.name, "actual_ksym_func");
+    assert_eq!(sym.addr, addr);
+}
+
 /// Test symbolization of a kernel address using vmlinux and the system
 /// KASLR state.
 #[test]
