@@ -104,20 +104,18 @@ fn find_kcore_kaslr_offset() -> Result<Option<u64>> {
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(err),
     };
-    let offset = read_kcore_kaslr_offset(&parser)?;
+    let offset = read_kcore_kaslr_offset(&parser)?.inspect(|offset| {
+        log::debug!("determined KASLR offset to be {offset:#x} based on {PROC_KCORE} contents");
+    });
     Ok(offset)
 }
 
-pub(crate) fn find_kalsr_offset() -> Result<Option<u64>> {
+pub(crate) fn find_kaslr_offset() -> Result<Option<u64>> {
     // TODO: Try other methods of determining KASLR offset, including
     //       comparisons between `/proc/kallsyms` values to
     //       `System.map-*` contents or parsing `dmesg` (no, really...)
 
-    if let offset @ Some(o) = find_kcore_kaslr_offset()? {
-        log::debug!("determined KASLR offset to be {o:#x} based on {PROC_KCORE} contents");
-        return Ok(offset)
-    }
-    Ok(None)
+    find_kcore_kaslr_offset()
 }
 
 

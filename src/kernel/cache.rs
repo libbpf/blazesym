@@ -12,7 +12,7 @@ use crate::util::OnceCellExt as _;
 use crate::ErrorExt as _;
 use crate::Result;
 
-use super::kaslr::find_kalsr_offset;
+use super::kaslr::find_kaslr_offset;
 use super::ksym::KsymResolver;
 use super::DepmodIndex;
 use super::ModMap;
@@ -109,7 +109,7 @@ impl KernelCache {
     pub fn kaslr_offset(&self) -> Result<u64> {
         self.kaslr_offset
             .get_or_try_init_(|| {
-                find_kalsr_offset()
+                find_kaslr_offset()
                     .context("failed to query system KASLR offset")
                     .map(Option::unwrap_or_default)
             })
