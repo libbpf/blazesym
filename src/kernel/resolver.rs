@@ -270,7 +270,19 @@ impl Symbolize for KernelResolver<'_> {
                         })?;
 
                 let result = vmlinux_resolver.find_sym(vmlinux_addr, opts)?;
-                if result.is_ok() {
+                if let Ok(sym) = &result {
+                    // For symbols of unknown (i.e., bogus) size (really
+                    // mostly an ELF thing where `sym.st_size == 0`,
+                    // check whether kallsyms (which also includes BPF
+                    // symbols) reports something and give preference to
+                    // that.
+                    if sym.size.is_none() {
+                        if let Some(ksym_resolver) = ksym_resolver {
+                            if let result @ Ok(Ok(_)) = ksym_resolver.find_sym(addr, opts) {
+                                return result
+                            }
+                        }
+                    }
                     return Ok(result)
                 }
 
