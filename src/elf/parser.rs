@@ -8,7 +8,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io;
-#[cfg(feature = "xz")]
+#[cfg(any(feature = "xz", feature = "zlib"))]
 use std::io::Read as _;
 use std::io::Seek as _;
 use std::io::SeekFrom;
@@ -254,14 +254,14 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
 
 #[cfg(feature = "zlib")]
 fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
-    use miniz_oxide::inflate::decompress_to_vec_zlib;
+    use flate2::bufread::ZlibDecoder;
 
-    match decompress_to_vec_zlib(data) {
-        Ok(data) => Ok(data),
-        Err(err) => Err(Error::with_invalid_data(format!(
-            "zlib decompression failed: {err}"
-        ))),
-    }
+    let mut decoder = ZlibDecoder::new(data);
+    let mut decompressed = Vec::new();
+    let _cnt = decoder
+        .read_to_end(&mut decompressed)
+        .context("failed to zlib decompress section data")?;
+    Ok(decompressed)
 }
 
 #[cfg(not(feature = "zlib"))]
@@ -1551,7 +1551,8 @@ mod tests {
     use std::path::Path;
     use std::slice;
 
-    use miniz_oxide::deflate::compress_to_vec_zlib;
+    use flate2::write::ZlibEncoder;
+    use flate2::Compression;
 
     use tempfile::NamedTempFile;
 
@@ -2226,7 +2227,11 @@ mod tests {
         };
 
         let data = [];
-        let zlib_hdr = compress_to_vec_zlib(&data, 0);
+        let zlib_hdr = {
+            let mut encoder = ZlibEncoder::new(Vec::new(), Compression::none());
+            let () = encoder.write_all(&data).unwrap();
+            encoder.finish().unwrap()
+        };
         let chdr = Elf64_Chdr {
             ch_type: ELFCOMPRESS_ZLIB,
             ch_reserved: 0,
