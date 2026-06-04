@@ -1001,6 +1001,13 @@ fn prepare_bench_files() {
     let dst = dst.file_name().unwrap();
     dwarf(&vmlinux, dst);
 
+    let dwarf_src = change_ext(&vmlinux_xz, "dwarf");
+    objcopy(
+        &dwarf_src,
+        "vmlinux-5.17.12-100.fc34.x86_64.dwarf.zlib",
+        &["--compress-debug-sections=zlib"],
+    );
+
     let dst = change_ext(&vmlinux_xz, "sym");
     let dst = dst.file_name().unwrap();
     syms(&vmlinux, dst);
