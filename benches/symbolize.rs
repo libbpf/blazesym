@@ -102,12 +102,11 @@ fn symbolize_dwarf_no_lines() {
     assert_eq!(result.code_info.as_ref(), None);
 }
 
-/// Symbolize an address in a DWARF file, end-to-end, i.e., including all
-/// necessary setup.
-fn symbolize_dwarf() {
+#[track_caller]
+fn symbolize_dwarf_impl(file: &str) {
     let dwarf_vmlinux = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("vmlinux-5.17.12-100.fc34.x86_64.dwarf");
+        .join(file);
     let src = Source::Elf(Elf::new(dwarf_vmlinux));
     let symbolizer = Symbolizer::new();
 
@@ -122,6 +121,18 @@ fn symbolize_dwarf() {
 
     assert_eq!(result.name, "abort_creds");
     assert_eq!(result.code_info.as_ref().unwrap().line, Some(534));
+}
+
+/// Symbolize an address in a DWARF file, end-to-end, i.e., including all
+/// necessary setup.
+fn symbolize_dwarf() {
+    symbolize_dwarf_impl("vmlinux-5.17.12-100.fc34.x86_64.dwarf")
+}
+
+/// Symbolize an address in a DWARF file whose `.debug_*` sections are
+/// zlib-compressed, end-to-end, i.e., including all necessary setup.
+fn symbolize_dwarf_zlib() {
+    symbolize_dwarf_impl("vmlinux-5.17.12-100.fc34.x86_64.dwarf.zlib")
 }
 
 /// Symbolize an address in a Gsym file, end-to-end, i.e., including all
@@ -228,6 +239,7 @@ where
     bench_fn!(group, symbolize_elf);
     bench_fn!(group, symbolize_dwarf_no_lines);
     bench_fn!(group, symbolize_dwarf);
+    bench_fn!(group, symbolize_dwarf_zlib);
     bench_fn!(group, symbolize_gsym);
     bench_sub_fn!(group, symbolize_gsym_multi_no_setup);
     #[cfg(linux)]
