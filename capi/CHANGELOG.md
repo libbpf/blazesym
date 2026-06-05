@@ -1,3 +1,8 @@
+Unreleased
+----------
+- Added `kaslr_offset` member to `blaze_symbolize_src_kernel`
+
+
 0.1.8
 -----
 - Added `blaze_symbolizer_opts::process_dispatch` providing process
