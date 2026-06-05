@@ -14,9 +14,6 @@ use crate::Result;
 /// does so behind an immutable interface.
 #[derive(Debug)]
 pub(crate) struct InsertMap<K, V> {
-    /// A proxy member used for making sure that we do not borrow `map` mutably
-    /// multiple times.
-    refcell: RefCell<()>,
     /// The actual map containing key-value pairs.
     ///
     /// We need to heap allocate here to make sure that entries don't
@@ -28,7 +25,6 @@ impl<K, V> InsertMap<K, V> {
     /// Create a new, empty `InsertMap` instance.
     pub(crate) fn new() -> Self {
         Self {
-            refcell: RefCell::new(()),
             map: RefCell::new(HashMap::new()),
         }
     }
@@ -39,7 +35,7 @@ impl<K, V> InsertMap<K, V> {
         K: Eq + Hash + Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        let _borrow = self.refcell.borrow();
+        let _borrow = self.map.borrow();
         // SAFETY: We are sure to not violate mutability rules because
         //         the `_borrow` guard protects us.
         let map = unsafe { self.map.as_ptr().as_ref() }.unwrap();
@@ -80,7 +76,7 @@ impl<K, V> InsertMap<K, V> {
         K: Eq + Hash,
         F: FnOnce() -> Result<V>,
     {
-        let _borrow = self.refcell.borrow_mut();
+        let _borrow = self.map.borrow_mut();
         // SAFETY: We are sure to not borrow mutably twice because the `_borrow`
         //         guard protects us.
         let map = unsafe { self.map.as_ptr().as_mut() }.unwrap();
