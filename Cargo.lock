@@ -245,6 +245,7 @@ dependencies = [
  "blazesym",
  "blazesym-dev",
  "cpp_demangle 0.5.1",
+ "crc32fast",
  "criterion",
  "flate2",
  "gimli 0.33.1",
