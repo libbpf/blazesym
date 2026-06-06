@@ -8,7 +8,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io;
-#[cfg(any(feature = "xz", feature = "zlib"))]
+#[cfg(any(feature = "xz", feature = "zlib", feature = "zstd"))]
 use std::io::Read as _;
 use std::io::Seek as _;
 use std::io::SeekFrom;
@@ -253,11 +253,11 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
 
 
 #[cfg(feature = "zlib")]
-fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
+fn decompress_zlib(data: &[u8], size_hint: Option<usize>) -> Result<Vec<u8>> {
     use flate2::bufread::ZlibDecoder;
 
     let mut decoder = ZlibDecoder::new(data);
-    let mut decompressed = Vec::new();
+    let mut decompressed = Vec::with_capacity(size_hint.unwrap_or(0));
     let _cnt = decoder
         .read_to_end(&mut decompressed)
         .context("failed to zlib decompress section data")?;
@@ -265,31 +265,36 @@ fn decompress_zlib(data: &[u8]) -> Result<Vec<u8>> {
 }
 
 #[cfg(not(feature = "zlib"))]
-fn decompress_zlib(_data: &[u8]) -> Result<Vec<u8>> {
+fn decompress_zlib(_data: &[u8], _size_hint: Option<usize>) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
         "ELF section is zlib compressed but zlib compression support is not enabled",
     ))
 }
 
 #[cfg(feature = "zstd")]
-fn decompress_zstd(data: &[u8]) -> Result<Vec<u8>> {
-    use zstd::stream::decode_all;
-    decode_all(data).context("zstd decompression failed")
+fn decompress_zstd(data: &[u8], size_hint: Option<usize>) -> Result<Vec<u8>> {
+    use zstd::stream::Decoder;
+    let mut decoder = Decoder::with_buffer(data).context("failed to create zstd decompressor")?;
+    let mut decompressed = Vec::with_capacity(size_hint.unwrap_or(0));
+    decoder
+        .read_to_end(&mut decompressed)
+        .context("failed to zstd decompress section data")?;
+    Ok(decompressed)
 }
 
 #[cfg(not(feature = "zstd"))]
-fn decompress_zstd(_data: &[u8]) -> Result<Vec<u8>> {
+fn decompress_zstd(_data: &[u8], _size_hint: Option<usize>) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
         "ELF section is zstd compressed but zstd compression support is not enabled",
     ))
 }
 
 #[cfg(feature = "xz")]
-fn decompress_xz(data: &[u8]) -> Result<Vec<u8>> {
+fn decompress_xz(data: &[u8], size_hint: Option<usize>) -> Result<Vec<u8>> {
     use xz2::read::XzDecoder;
 
     let mut decoder = XzDecoder::new(data);
-    let mut decompressed = Vec::new();
+    let mut decompressed = Vec::with_capacity(size_hint.unwrap_or(0));
     decoder
         .read_to_end(&mut decompressed)
         .context("xz decompression failed")?;
@@ -298,7 +303,7 @@ fn decompress_xz(data: &[u8]) -> Result<Vec<u8>> {
 }
 
 #[cfg(not(feature = "xz"))]
-fn decompress_xz(_data: &[u8]) -> Result<Vec<u8>> {
+fn decompress_xz(_data: &[u8], _size_hint: Option<usize>) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
         "ELF section is xz compressed but xz compression support is not enabled",
     ))
@@ -561,8 +566,8 @@ where
                         };
 
                         let mut decompressed = match ch_type {
-                            t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data),
-                            t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data),
+                            t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data, Some(ch_size as usize)),
+                            t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data, Some(ch_size as usize)),
                             _ => Err(Error::with_unsupported(format!(
                                 "ELF section is compressed with unknown compression algorithm ({ch_type})",
                             ))),
@@ -870,7 +875,7 @@ where
             //     of type `SHT_NOBITS`, which just logically doesn't
             //     make sense to be used.
             self.section_data_raw(idx)
-                .and_then(|data| decompress_xz(&data))
+                .and_then(|data| decompress_xz(&data, None))
         } else {
             Ok(Vec::new())
         }
