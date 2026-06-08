@@ -249,7 +249,7 @@ jobs:
     - run: |
         vmsh --cpus=$(nproc) --memory=8192 --kernel ${{ steps.build.outputs.build-dir }}/boot/vmlinux-6.18.0 --env=HOME --env=PATH -- sh -c 'cd ${{ github.workspace }} && ./main.sh'
     - name: Upload code coverage results
-      uses: codecov/codecov-action@v6
+      uses: codecov/codecov-action@v7
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
       with:
