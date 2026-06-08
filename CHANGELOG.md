@@ -1,6 +1,8 @@
 Unreleased
 ----------
 - Improved DWARF symbolization performance for some debug info variants
+- Improved debug link CRC checking and ELF section decompression
+  performance
 - Switched `zlib` implementation from `miniz_oxide` to `zlib-rs` for
   improved decoding performance
 
