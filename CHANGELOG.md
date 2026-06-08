@@ -5,6 +5,8 @@ Unreleased
   performance
 - Switched `zlib` implementation from `miniz_oxide` to `zlib-rs` for
   improved decoding performance
+- Added `_stext` symbol based KASLR offset inference fallback for kernel
+  address symbolization
 
 
 0.2.4

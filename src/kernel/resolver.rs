@@ -14,6 +14,7 @@ use tempfile::NamedTempFile;
 
 use crate::elf::ElfResolver;
 use crate::error::ErrorExt as _;
+use crate::inspect::Inspect;
 use crate::log;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::Reason;
@@ -193,7 +194,10 @@ impl<'cache> KernelResolver<'cache> {
         // unless we actually have a vmlinux resolver.
         let kaslr_offset = match kaslr_offset {
             Some(offset) => offset,
-            None if vmlinux_resolver.is_some() => cache.kaslr_offset()?,
+            None if vmlinux_resolver.is_some() => cache.kaslr_offset(
+                ksym_resolver.as_deref().map(|r| r as &dyn Inspect),
+                vmlinux_resolver.as_deref().map(|r| r as &dyn Inspect),
+            )?,
             None => 0,
         };
 

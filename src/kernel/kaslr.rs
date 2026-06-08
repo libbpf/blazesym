@@ -7,6 +7,8 @@ use crate::elf;
 use crate::elf::types::ElfN_Nhdr;
 use crate::elf::BackendImpl;
 use crate::elf::ElfParser;
+use crate::inspect::FindAddrOpts;
+use crate::inspect::Inspect;
 use crate::log;
 use crate::util::align_up_u32;
 use crate::util::from_radix_16;
@@ -110,12 +112,70 @@ fn find_kcore_kaslr_offset() -> Result<Option<u64>> {
     Ok(offset)
 }
 
-pub(crate) fn find_kaslr_offset() -> Result<Option<u64>> {
+/// Look up the address of an exact-named symbol through an [`Inspect`]
+/// resolver, returning the first match.
+fn inspect_sym_addr(resolver: &dyn Inspect, name: &str) -> Result<Option<u64>> {
+    let syms = resolver.find_addr(name, &FindAddrOpts::default())?;
+    // `KsymResolver::find_addr` reports symbols from a lower bound onward
+    // rather than exact matches, so filter to the exact name.
+    let sym = syms
+        .into_iter()
+        .find(|sym| sym.name.as_ref() == name)
+        .map(|sym| sym.addr);
+    Ok(sym)
+}
+
+/// Derive the KASLR offset by comparing the address of `_stext` as reported
+/// by `kallsyms` (already KASLR-relocated) against its address in the
+/// `vmlinux` image (link-time addresses).
+///
+/// `_stext` is documented by the kernel as indicating its start
+/// address:
+/// <https://www.kernel.org/doc/html/latest/admin-guide/kdump/vmcoreinfo.html#stext>
+fn find_stext_kaslr_offset(
+    ksym_resolver: &dyn Inspect,
+    vmlinux_resolver: &dyn Inspect,
+) -> Result<Option<u64>> {
+    let stext_kallsyms = inspect_sym_addr(ksym_resolver, "_stext")?;
+    let stext_vmlinux = inspect_sym_addr(vmlinux_resolver, "_stext")?;
+
+    let offset = match (stext_kallsyms, stext_vmlinux) {
+        (Some(stext_kallsyms), Some(stext_vmlinux)) => {
+            stext_kallsyms.checked_sub(stext_vmlinux).inspect(|offset| {
+                log::debug!("derived KASLR offset {offset:#x} from _stext symbol subtraction")
+            })
+        }
+        _ => None,
+    };
+    Ok(offset)
+}
+
+pub(crate) fn find_kaslr_offset(
+    ksym_resolver: Option<&dyn Inspect>,
+    vmlinux_resolver: Option<&dyn Inspect>,
+) -> Result<Option<u64>> {
     // TODO: Try other methods of determining KASLR offset, including
     //       comparisons between `/proc/kallsyms` values to
     //       `System.map-*` contents or parsing `dmesg` (no, really...)
 
-    find_kcore_kaslr_offset()
+    let result = find_kcore_kaslr_offset();
+    let () = match result {
+        Err(ref err)
+            if matches!(
+                err.kind(),
+                ErrorKind::PermissionDenied | ErrorKind::NotFound
+            ) =>
+        {
+            // For "expected" errors (e.g., `kcore` may not be available for
+            // various reasons), keep trying other methods.
+        }
+        result => return result,
+    };
+
+    if let (Some(ksym), Some(vmlinux)) = (ksym_resolver, vmlinux_resolver) {
+        return find_stext_kaslr_offset(ksym, vmlinux)
+    }
+    result
 }
 
 
@@ -123,7 +183,37 @@ pub(crate) fn find_kaslr_offset() -> Result<Option<u64>> {
 mod tests {
     use super::*;
 
+    use std::ops::Deref as _;
+    use std::path::PathBuf;
+    use std::rc::Rc;
+
     use test_log::test;
+
+    use crate::kernel::cache::KernelCache;
+    use crate::kernel::ksym::KsymResolver;
+
+
+    /// Path to a small ELF fixture that does *not* contain `_stext`.
+    fn stextless_path() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs.bin")
+    }
+
+    fn ksym_from_bytes(content: &[u8]) -> KsymResolver {
+        KsymResolver::load_from_reader(&mut &*content, Path::new("<dummy>")).unwrap()
+    }
+
+    /// Stand-in for a vmlinux inspector able to resolve the `_stext`
+    /// symbol.
+    fn vmlinux_inspector() -> Box<dyn Inspect> {
+        let inspector = ksym_from_bytes(
+            b"ffffffff81000000 T _stext
+ffffffff81000f60 T do_one_initcall
+",
+        );
+        Box::new(inspector)
+    }
 
 
     /// Check that we can parse a dummy VMCOREINFO descriptor.
@@ -151,5 +241,62 @@ PAGESIZE=4096
         // Also, we care about the parsing logic, but can't make any
         // claims about the expected offset at this point.
         let _offset = find_kcore_kaslr_offset().unwrap();
+    }
+
+    /// Check that we correctly derive the KASLR offset via `_stext` method.
+    #[test]
+    fn stext_kaslr_offset_derived() {
+        let ksym = ksym_from_bytes(
+            b"ffffffff81abc000 T _stext
+ffffffff81abf000 T do_one_initcall
+",
+        );
+        let vmlinux = vmlinux_inspector();
+        let offset = find_stext_kaslr_offset(&ksym, vmlinux.deref()).unwrap();
+        assert_eq!(offset, Some(0xabc000));
+    }
+
+    /// Check that a kallsyms `_stext` exactly equal to vmlinux's `_stext`
+    /// yields a zero KASLR offset.
+    #[test]
+    fn stext_kaslr_offset_zero() {
+        let ksym = ksym_from_bytes(b"ffffffff81000000 T _stext\n");
+        let vmlinux = vmlinux_inspector();
+
+        let offset = find_stext_kaslr_offset(&ksym, vmlinux.deref()).unwrap();
+        assert_eq!(offset, Some(0));
+    }
+
+    /// Check that a missing `_stext` in kallsyms surfaces as no KASLR
+    /// offset.
+    #[test]
+    fn stext_kaslr_offset_no_kallsyms_stext() {
+        let ksym = ksym_from_bytes(b"ffffffff81abf000 T do_one_initcall\n");
+        let vmlinux = vmlinux_inspector();
+
+        let offset = find_stext_kaslr_offset(&ksym, vmlinux.deref()).unwrap();
+        assert_eq!(offset, None);
+    }
+
+    /// Check that a missing `_stext` in vmlinux surfaces as `None`.
+    #[test]
+    fn stext_kaslr_offset_no_vmlinux_stext() {
+        let ksym = ksym_from_bytes(b"ffffffff81abc000 T _stext\n");
+        let cache = KernelCache::new(Rc::new([]));
+        let vmlinux = cache.elf_resolver(&stextless_path(), false).unwrap();
+
+        let offset = find_stext_kaslr_offset(&ksym, &**vmlinux).unwrap();
+        assert_eq!(offset, None);
+    }
+
+    /// Check that a kallsyms `_stext` below vmlinux's `_stext` yields
+    /// no KASLR offset.
+    #[test]
+    fn stext_kaslr_offset_underflow() {
+        let ksym = ksym_from_bytes(b"ffffffff80000000 T _stext\n");
+        let vmlinux = vmlinux_inspector();
+
+        let offset = find_stext_kaslr_offset(&ksym, vmlinux.deref()).unwrap();
+        assert_eq!(offset, None);
     }
 }

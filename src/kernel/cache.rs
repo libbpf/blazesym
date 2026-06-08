@@ -7,6 +7,7 @@ use std::rc::Rc;
 use crate::elf::ElfResolver;
 use crate::elf::ElfResolverData;
 use crate::file_cache::FileCache;
+use crate::inspect::Inspect;
 use crate::pathlike::PathLike;
 use crate::util::OnceCellExt as _;
 use crate::ErrorExt as _;
@@ -106,10 +107,14 @@ impl KernelCache {
         unimplemented!()
     }
 
-    pub fn kaslr_offset(&self) -> Result<u64> {
+    pub fn kaslr_offset(
+        &self,
+        ksym_resolver: Option<&dyn Inspect>,
+        vmlinux_resolver: Option<&dyn Inspect>,
+    ) -> Result<u64> {
         self.kaslr_offset
             .get_or_try_init_(|| {
-                find_kaslr_offset()
+                find_kaslr_offset(ksym_resolver, vmlinux_resolver)
                     .context("failed to query system KASLR offset")
                     .map(Option::unwrap_or_default)
             })
