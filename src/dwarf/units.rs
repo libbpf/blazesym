@@ -138,7 +138,7 @@ impl<'dwarf> Units<'dwarf> {
                 continue;
             }
 
-            let dw_unit = match sections.unit(header) {
+            let dw_unit = match sections.unit(header).map(Box::new) {
                 Ok(dw_unit) => dw_unit,
                 Err(_) => continue,
             };
