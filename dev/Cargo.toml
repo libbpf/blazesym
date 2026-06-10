@@ -13,6 +13,9 @@ path = "lib.rs"
 [features]
 # Enable this feature to enable support for zstd decompression.
 zstd = ["dep:zstd"]
+# Enable this feature to benchmark instructions instead of wall clock
+# time. Only applicable on Linux.
+bench-instrs = []
 # Enable this feature to opt in to the generation of unit test files.
 # Having these test files created is necessary for running tests.
 generate-unit-test-files = [
@@ -49,10 +52,15 @@ libbpf-sys = {version = "1.7", default-features = false, optional = true}
 #       widespread (enabled by default in `ld`). Remove conditionals in
 #       test code alongside.
 blazesym = {path = "../", features = ["apk", "breakpad", "gsym", "tracing", "test", "xz"]}
+criterion = {version = "0.8", default-features = false, features = ["rayon", "cargo_bench_support"]}
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libbpf-rs = "0.26"
+
+# `perf-event` doesn't build on 32 bit.
+[target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dependencies]
+perf-event = "0.4"
 
 [lints]
 workspace = true

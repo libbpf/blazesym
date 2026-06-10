@@ -11,10 +11,9 @@ macro_rules! bench_fn {
 
 mod normalize;
 
-use std::time::Duration;
-
 use criterion::criterion_group;
 use criterion::criterion_main;
+use criterion::measurement::Measurement;
 use criterion::Criterion;
 
 
@@ -26,13 +25,19 @@ fn bench_fn_name(name: &str) -> String {
 }
 
 
-fn benchmark(c: &mut Criterion) {
+fn benchmark<M>(c: &mut Criterion<M>)
+where
+    M: Measurement,
+{
     let mut group = c.benchmark_group("capi");
-    group.warm_up_time(Duration::from_secs(1));
     group.confidence_level(0.98);
     group.significance_level(0.02);
     normalize::benchmark(&mut group);
 }
 
-criterion_group!(benches, benchmark);
+criterion_group!(
+    name = benches;
+    config = blazesym_dev::criterion_config();
+    targets = benchmark
+);
 criterion_main!(benches);

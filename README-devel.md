@@ -59,6 +59,13 @@ $ cargo check --package blazesym-dev --features=generate-large-test-files
 $ RUSTFLAGS='--cfg has_large_test_files' cargo bench --features=nightly
 ```
 
+By default benchmarks measure wall clock time. On Linux we also support
+reporting instruction counts (for Criterion based benchmarks) instead.
+To enable that, use the feature `bench-instrs`:
+```sh
+$ RUSTFLAGS='--cfg has_large_test_files' cargo bench features=nightly,blazesym-dev/bench-instrs
+```
+
 Some benchmarks require the `PROCMAP_QUERY` ioctl kernel functionality,
 which is not yet widely available. As such, they are disabled by
 default. To enable them set the `RUSTFLAGS` environment variable to
