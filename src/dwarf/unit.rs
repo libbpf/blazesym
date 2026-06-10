@@ -60,19 +60,19 @@ pub(super) struct UnitRange {
 pub(super) struct Unit<'dwarf> {
     offset: gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset>,
     /// The gimli unit, lazily constructed from the header.
-    dw_unit: OnceCell<gimli::Result<gimli::Unit<R<'dwarf>>>>,
+    dw_unit: OnceCell<gimli::Result<Box<gimli::Unit<R<'dwarf>>>>>,
     /// The unit header, stored for lazy construction of `dw_unit`.
     header: gimli::UnitHeader<R<'dwarf>>,
     lang: OnceCell<gimli::Result<Option<gimli::DwLang>>>,
     lines: OnceCell<gimli::Result<Lines<'dwarf>>>,
     funcs: OnceCell<gimli::Result<Functions<'dwarf>>>,
-    dwo: OnceCell<gimli::Result<Option<DwoUnit<'dwarf>>>>,
+    dwo: OnceCell<gimli::Result<Option<Box<DwoUnit<'dwarf>>>>>,
 }
 
 impl<'dwarf> Unit<'dwarf> {
     pub(super) fn new(
         offset: gimli::DebugInfoOffset<<R<'dwarf> as gimli::Reader>::Offset>,
-        unit: gimli::Unit<R<'dwarf>>,
+        unit: Box<gimli::Unit<R<'dwarf>>>,
         lang: Option<gimli::DwLang>,
         lines: OnceCell<Lines<'dwarf>>,
     ) -> Self {
@@ -115,7 +115,7 @@ impl<'dwarf> Unit<'dwarf> {
     fn ensure_dw_unit(&self, units: &Units<'dwarf>) -> gimli::Result<&gimli::Unit<R<'dwarf>>> {
         let dw_unit = self
             .dw_unit
-            .get_or_init(|| units.dwarf().unit(self.header.clone()))
+            .get_or_init(|| units.dwarf().unit(self.header.clone()).map(Box::new))
             .as_ref()
             .map_err(|err| *err)?;
 
@@ -126,7 +126,7 @@ impl<'dwarf> Unit<'dwarf> {
         &self,
         dw_unit: &gimli::Unit<R<'dwarf>>,
         dwo_dwarf: Option<gimli::Dwarf<R<'dwarf>>>,
-    ) -> gimli::Result<Option<DwoUnit<'dwarf>>> {
+    ) -> gimli::Result<Option<Box<DwoUnit<'dwarf>>>> {
         let dwo_dwarf = match dwo_dwarf {
             None => return Ok(None),
             Some(dwo_dwarf) => dwo_dwarf,
@@ -140,10 +140,11 @@ impl<'dwarf> Unit<'dwarf> {
         let mut dwo_unit = dwo_dwarf.unit(dwo_header)?;
         let () = dwo_unit.copy_relocated_attributes(dw_unit);
 
-        Ok(Some(DwoUnit {
+        let dwo = Box::new(DwoUnit {
             dwarf: dwo_dwarf,
             dw_unit: dwo_unit,
-        }))
+        });
+        Ok(Some(dwo))
     }
 
     pub(super) fn unit_ref<'unit>(
@@ -152,7 +153,7 @@ impl<'dwarf> Unit<'dwarf> {
     ) -> gimli::Result<gimli::UnitRef<'unit, R<'dwarf>>> {
         let dw_unit = self.ensure_dw_unit(units)?;
 
-        let map_dwo_result = |dwo_result: &'unit gimli::Result<Option<DwoUnit<'dwarf>>>| {
+        let map_dwo_result = |dwo_result: &'unit gimli::Result<Option<Box<DwoUnit<'dwarf>>>>| {
             dwo_result
                 .as_ref()
                 .map(|dwo_unit| match dwo_unit {
