@@ -8,7 +8,7 @@ use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
 use std::io;
-#[cfg(any(feature = "xz", feature = "zlib", feature = "zstd"))]
+#[cfg(feature = "xz")]
 use std::io::Read as _;
 use std::io::Seek as _;
 use std::io::SeekFrom;
@@ -251,50 +251,78 @@ fn file_offset(shdrs: &ElfN_Shdrs<'_>, sym: &Elf64_Sym) -> Result<Option<u64>> {
     }
 }
 
-
 #[cfg(feature = "zlib")]
-fn decompress_zlib(data: &[u8], size_hint: Option<usize>) -> Result<Vec<u8>> {
-    use flate2::bufread::ZlibDecoder;
+fn decompress_zlib(data: &[u8], decompressed_len: usize) -> Result<Vec<u8>> {
+    use flate2::Decompress;
+    use flate2::FlushDecompress;
+    use flate2::Status;
 
-    let mut decoder = ZlibDecoder::new(data);
-    let mut decompressed = Vec::with_capacity(size_hint.unwrap_or(0));
-    let _cnt = decoder
-        .read_to_end(&mut decompressed)
+    // Decompress directly into the `Vec`'s spare capacity instead of going
+    // through `Read::read_to_end`, which zero-initializes the output buffer
+    // before each read only to immediately overwrite it.
+    let mut decompressed = Vec::with_capacity(decompressed_len);
+    let mut decompress = Decompress::new(true);
+
+    let status = decompress
+        .decompress_vec(data, &mut decompressed, FlushDecompress::Finish)
+        .map_err(io::Error::from)
         .context("failed to zlib decompress section data")?;
-    Ok(decompressed)
+
+    if decompress.total_out() != decompressed_len as u64 {
+        return Err(Error::with_invalid_data(format!(
+            "decompressed ELF section data has unexpected length (expected: {decompressed_len}, actual: {})",
+            decompress.total_out(),
+        )))
+    }
+
+    match status {
+        Status::StreamEnd => Ok(decompressed),
+        _ => Err(Error::with_invalid_data(format!(
+            "failed to zlib decompress section data: {status:?}",
+        ))),
+    }
 }
 
 #[cfg(not(feature = "zlib"))]
-fn decompress_zlib(_data: &[u8], _size_hint: Option<usize>) -> Result<Vec<u8>> {
+fn decompress_zlib(_data: &[u8], _decompressed_len: usize) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
         "ELF section is zlib compressed but zlib compression support is not enabled",
     ))
 }
 
 #[cfg(feature = "zstd")]
-fn decompress_zstd(data: &[u8], size_hint: Option<usize>) -> Result<Vec<u8>> {
-    use zstd::stream::Decoder;
-    let mut decoder = Decoder::with_buffer(data).context("failed to create zstd decompressor")?;
-    let mut decompressed = Vec::with_capacity(size_hint.unwrap_or(0));
-    decoder
-        .read_to_end(&mut decompressed)
+fn decompress_zstd(data: &[u8], decompressed_len: usize) -> Result<Vec<u8>> {
+    use zstd::bulk::Decompressor;
+
+    // Decompress directly into the `Vec`'s spare capacity instead of going
+    // through `Read::read_to_end`, which zero-initializes the output buffer
+    // before each read only to immediately overwrite it.
+    let mut decompressed = Vec::with_capacity(decompressed_len);
+    let bytes_written = Decompressor::new()
+        .context("failed to create zstd decompressor")?
+        .decompress_to_buffer(data, &mut decompressed)
         .context("failed to zstd decompress section data")?;
+    if bytes_written != decompressed_len {
+        return Err(Error::with_invalid_data(format!(
+            "decompressed ELF section data has unexpected length (expected: {decompressed_len}, actual: {bytes_written})",
+        )))
+    }
     Ok(decompressed)
 }
 
 #[cfg(not(feature = "zstd"))]
-fn decompress_zstd(_data: &[u8], _size_hint: Option<usize>) -> Result<Vec<u8>> {
+fn decompress_zstd(_data: &[u8], _decompressed_len: usize) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
         "ELF section is zstd compressed but zstd compression support is not enabled",
     ))
 }
 
 #[cfg(feature = "xz")]
-fn decompress_xz(data: &[u8], size_hint: Option<usize>) -> Result<Vec<u8>> {
+fn decompress_xz(data: &[u8]) -> Result<Vec<u8>> {
     use xz2::read::XzDecoder;
 
     let mut decoder = XzDecoder::new(data);
-    let mut decompressed = Vec::with_capacity(size_hint.unwrap_or(0));
+    let mut decompressed = Vec::new();
     decoder
         .read_to_end(&mut decompressed)
         .context("xz decompression failed")?;
@@ -303,7 +331,7 @@ fn decompress_xz(data: &[u8], size_hint: Option<usize>) -> Result<Vec<u8>> {
 }
 
 #[cfg(not(feature = "xz"))]
-fn decompress_xz(_data: &[u8], _size_hint: Option<usize>) -> Result<Vec<u8>> {
+fn decompress_xz(_data: &[u8]) -> Result<Vec<u8>> {
     Err(Error::with_unsupported(
         "ELF section is xz compressed but xz compression support is not enabled",
     ))
@@ -566,8 +594,8 @@ where
                         };
 
                         let mut decompressed = match ch_type {
-                            t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data, Some(ch_size as usize)),
-                            t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data, Some(ch_size as usize)),
+                            t if t == ELFCOMPRESS_ZLIB => decompress_zlib(data, ch_size as usize),
+                            t if t == ELFCOMPRESS_ZSTD => decompress_zstd(data, ch_size as usize),
                             _ => Err(Error::with_unsupported(format!(
                                 "ELF section is compressed with unknown compression algorithm ({ch_type})",
                             ))),
@@ -875,7 +903,7 @@ where
             //     of type `SHT_NOBITS`, which just logically doesn't
             //     make sense to be used.
             self.section_data_raw(idx)
-                .and_then(|data| decompress_xz(&data, None))
+                .and_then(|data| decompress_xz(&data))
         } else {
             Ok(Vec::new())
         }
