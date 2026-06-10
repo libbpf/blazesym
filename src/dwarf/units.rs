@@ -66,7 +66,7 @@ impl<'dwarf> Units<'dwarf> {
             while let Some(header) = headers.next()? {
                 aranges.push((header.debug_info_offset(), header.offset()));
             }
-            aranges.sort_by_key(|i| i.0);
+            aranges.sort_unstable_by_key(|i| i.0);
             aranges
         };
 
@@ -225,7 +225,7 @@ impl<'dwarf> Units<'dwarf> {
         }
 
         // Sort this for faster lookups.
-        unit_ranges.sort_by_key(|i| i.range.begin);
+        unit_ranges.sort_unstable_by_key(|i| i.range.begin);
 
         // Calculate the `max_end` field now that we've determined the order of
         // CUs.
