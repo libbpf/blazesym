@@ -60,12 +60,15 @@ impl<'dwarf> Units<'dwarf> {
         // Find all the references to compilation units in .debug_aranges.
         // Note that we always also iterate through all of .debug_info to
         // find compilation units, because .debug_aranges may be missing some.
-        let mut aranges = Vec::new();
-        let mut headers = sections.debug_aranges.headers();
-        while let Some(header) = headers.next()? {
-            aranges.push((header.debug_info_offset(), header.offset()));
-        }
-        aranges.sort_by_key(|i| i.0);
+        let aranges = {
+            let mut aranges = Vec::new();
+            let mut headers = sections.debug_aranges.headers();
+            while let Some(header) = headers.next()? {
+                aranges.push((header.debug_info_offset(), header.offset()));
+            }
+            aranges.sort_by_key(|i| i.0);
+            aranges
+        };
 
         let mut unit_ranges = Vec::with_capacity(aranges.len());
         let mut res_units = Vec::with_capacity(aranges.len());
