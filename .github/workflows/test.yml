@@ -97,7 +97,7 @@ jobs:
             profile: release
             args: "--package=blazesym-c --no-default-features"
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
         toolchain: ${{ matrix.rust }}
@@ -124,7 +124,7 @@ jobs:
           x86_64-unknown-linux-musl,
         ]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: taiki-e/setup-cross-toolchain-action@v1
         with:
           target: ${{ matrix.target }}
@@ -138,7 +138,7 @@ jobs:
     env:
       RUSTFLAGS: '-A warnings -C debuginfo=line-tables-only'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@nightly
       - run: cargo +nightly -Z minimal-versions update
       - uses: dtolnay/rust-toolchain@master
@@ -161,7 +161,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - name: Check incremental rebuilds
       env:
@@ -184,7 +184,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: d-e-s-o/build-linux@a2c2581c6b44879b6070699618be648480a122c5
       id: build
       with:
@@ -268,7 +268,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo check --package=blazesym-dev --features=generate-unit-test-files
     - uses: actions/upload-artifact@v7
@@ -289,7 +289,7 @@ jobs:
     runs-on: ${{ matrix.runs-on }}
     needs: [build-test-artifacts]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: actions/download-artifact@v8
       with:
         name: test-stable-addrs
@@ -310,7 +310,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
         # TODO: Remove specification and switch back to @nightly once
@@ -342,7 +342,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev liblzma-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
       with:
@@ -366,7 +366,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
         # TODO: Remove specification and switch back to @nightly once
@@ -392,7 +392,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
       with:
         targets: "i686-unknown-linux-gnu"
@@ -417,7 +417,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - run: echo "RUSTFLAGS=${RUSTFLAGS} -C debuginfo=limited" >> $GITHUB_ENV
     - run: cargo run --example backtrace
@@ -428,7 +428,7 @@ jobs:
     name: Check generated C header
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo check --package=blazesym-c --features=generate-c-header
     - name: Check that C header is up-to-date
@@ -448,7 +448,7 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
         # TODO: Remove specification and switch back to @nightly once
@@ -475,14 +475,14 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends libelf-dev zlib1g-dev
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo clippy --workspace --no-deps --all-targets --features=blazesym-dev/dont-generate-unit-test-files -- -A unknown_lints -D clippy::todo
   rustfmt:
     name: Check code formatting
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           # Current nightly seems to change formatting.
@@ -496,7 +496,7 @@ jobs:
       LLVM_GSYMUTIL: /usr/bin/llvm-gsymutil-18
       RUSTDOCFLAGS: '--cfg docsrs -D warnings'
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@master
         with:
           # TODO: Remove specification and switch back to @nightly once
@@ -513,7 +513,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo check --package blazesym-dev --features=generate-unit-test-files
       - run: cargo build --package blazesym-c
@@ -532,7 +532,7 @@ jobs:
     name: Check for duplicate dependencies
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - shell: bash
         run: |
