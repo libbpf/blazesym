@@ -1002,7 +1002,24 @@ typedef struct blaze_symbolize_src_kernel {
    * Unused member available for future expansion. Must be initialized
    * to zero.
    */
-  uint8_t reserved[23];
+  uint8_t _reserved1[7];
+  /**
+   * The KASLR offset to use.
+   *
+   * When `NULL`, the library will attempt to deduce the offset
+   * itself. Otherwise, the value pointed to is taken as the offset
+   * verbatim.
+   *
+   * Note that this value only has relevance when a `vmlinux` file is
+   * used for symbolization, because `kallsyms` based data already
+   * includes randomization adjusted addresses.
+   */
+  const uint64_t *kaslr_offset;
+  /**
+   * Unused member available for future expansion. Must be initialized
+   * to zero.
+   */
+  uint8_t reserved[8];
 } blaze_symbolize_src_kernel;
 
 /**

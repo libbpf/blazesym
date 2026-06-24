@@ -241,7 +241,20 @@ pub struct blaze_symbolize_src_kernel {
     pub debug_syms: bool,
     /// Unused member available for future expansion. Must be initialized
     /// to zero.
-    pub reserved: [u8; 23],
+    pub _reserved1: [u8; 7],
+    /// The KASLR offset to use.
+    ///
+    /// When `NULL`, the library will attempt to deduce the offset
+    /// itself. Otherwise, the value pointed to is taken as the offset
+    /// verbatim.
+    ///
+    /// Note that this value only has relevance when a `vmlinux` file is
+    /// used for symbolization, because `kallsyms` based data already
+    /// includes randomization adjusted addresses.
+    pub kaslr_offset: *const u64,
+    /// Unused member available for future expansion. Must be initialized
+    /// to zero.
+    pub reserved: [u8; 8],
 }
 
 impl Default for blaze_symbolize_src_kernel {
@@ -251,7 +264,9 @@ impl Default for blaze_symbolize_src_kernel {
             kallsyms: ptr::null(),
             vmlinux: ptr::null(),
             debug_syms: false,
-            reserved: [0; 23],
+            _reserved1: [0; 7],
+            kaslr_offset: ptr::null(),
+            reserved: [0; 8],
         }
     }
 }
@@ -276,12 +291,19 @@ impl From<blaze_symbolize_src_kernel> for Kernel {
             kallsyms,
             vmlinux,
             debug_syms,
+            _reserved1: _,
+            kaslr_offset,
             reserved: _,
         } = kernel;
+        let kaslr_offset = if kaslr_offset.is_null() {
+            None
+        } else {
+            Some(unsafe { *kaslr_offset })
+        };
         Self {
             kallsyms: to_maybe_path(kallsyms),
             vmlinux: to_maybe_path(vmlinux),
-            kaslr_offset: None,
+            kaslr_offset,
             debug_syms,
             _non_exhaustive: (),
         }
@@ -1467,7 +1489,7 @@ mod tests {
         };
         assert_eq!(
             format!("{kernel:?}"),
-            "blaze_symbolize_src_kernel { type_size: 32, kallsyms: 0x0, vmlinux: 0x0, debug_syms: true, reserved: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] }"
+            "blaze_symbolize_src_kernel { type_size: 32, kallsyms: 0x0, vmlinux: 0x0, debug_syms: true, _reserved1: [0, 0, 0, 0, 0, 0, 0], kaslr_offset: 0x0, reserved: [0, 0, 0, 0, 0, 0, 0, 0] }"
         );
 
         let process = blaze_symbolize_src_process {
@@ -1593,6 +1615,7 @@ mod tests {
         let kernel = Kernel::from(kernel);
         assert_eq!(kernel.kallsyms, MaybeDefault::Default);
         assert_eq!(kernel.vmlinux, MaybeDefault::Default);
+        assert_eq!(kernel.kaslr_offset, None);
 
         let kernel = blaze_symbolize_src_kernel {
             kallsyms: b"\0" as *const _ as *const c_char,
@@ -1619,6 +1642,14 @@ mod tests {
             kernel.vmlinux,
             MaybeDefault::Some(PathBuf::from("/boot/vmlinux"))
         );
+
+        let offset = 0x1234u64;
+        let kernel = blaze_symbolize_src_kernel {
+            kaslr_offset: &offset,
+            ..Default::default()
+        };
+        let kernel = Kernel::from(kernel);
+        assert_eq!(kernel.kaslr_offset, Some(0x1234));
     }
 
     /// Check that we can convert a [`blaze_cache_src_process`] into a
@@ -2248,6 +2279,43 @@ mod tests {
             CStr::from_bytes_with_nul(b"init_task\0").unwrap()
         );
         assert_eq!(sym.module, ptr::null_mut());
+
+        let () = unsafe { blaze_syms_free(result) };
+        let () = unsafe { blaze_symbolizer_free(symbolizer) };
+    }
+
+    /// Check that a user-provided KASLR offset is plumbed through to
+    /// `vmlinux` based symbolization.
+    #[test]
+    fn symbolize_in_kernel_with_kaslr_offset() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("data")
+            .join("test-stable-addrs.bin");
+        let path_c = CString::new(path.to_str().unwrap()).unwrap();
+        let factorial_addr = 0x2000200u64;
+        let kaslr_offset = 0x1000u64;
+        let src = blaze_symbolize_src_kernel {
+            kallsyms: b"\0" as *const _ as *const c_char,
+            vmlinux: path_c.as_ptr(),
+            kaslr_offset: &kaslr_offset,
+            ..Default::default()
+        };
+
+        let symbolizer = blaze_symbolizer_new();
+        let addrs = [factorial_addr + kaslr_offset];
+        let result = unsafe {
+            blaze_symbolize_kernel_abs_addrs(symbolizer, &src, addrs.as_ptr(), addrs.len())
+        };
+        assert!(!result.is_null());
+
+        let syms = unsafe { &*result };
+        assert_eq!(syms.cnt, 1);
+        let sym = unsafe { &*syms.syms.as_ptr() };
+        assert_eq!(
+            unsafe { CStr::from_ptr(sym.name) },
+            CStr::from_bytes_with_nul(b"factorial\0").unwrap()
+        );
 
         let () = unsafe { blaze_syms_free(result) };
         let () = unsafe { blaze_symbolizer_free(symbolizer) };
