@@ -266,7 +266,7 @@ dependencies = [
 
 [[package]]
 name = "blazesym-c"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "bindgen",
  "blazesym",

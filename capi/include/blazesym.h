@@ -1,7 +1,7 @@
 /*
  * Please refer to the documentation hosted at
  *
- *   https://docs.rs/blazesym-c/0.1.8
+ *   https://docs.rs/blazesym-c/0.1.9
  */
 
 
