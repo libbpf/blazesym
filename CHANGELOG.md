@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.5
+-----
 - Improved DWARF symbolization performance for some debug info variants
 - Improved debug link CRC checking and ELF section decompression
   performance
