@@ -40,7 +40,7 @@ macro_rules! input_zeroed {
         if user_size < std::mem::size_of_val(&user_size) {
             false
         } else {
-            let effective_size = memoffset::offset_of!($container_ty, reserved);
+            let effective_size = core::mem::offset_of!($container_ty, reserved);
             unsafe {
                 crate::util::is_mem_zero(
                     $container_ptr.cast::<u8>().add(effective_size),

@@ -72,8 +72,6 @@ which = {version = "8", optional = true}
 # Pinned, because we use #[doc(hidden)] APIs.
 blazesym = {version = ">=0.2.0, <=0.2.5", path = "../", features = ["apk", "demangle", "gsym", "tracing", "zlib"]}
 libc = "0.2"
-# TODO: Remove dependency once MSRV is 1.77.
-memoffset = "0.9"
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", default-features = false, features = ["fmt"]}
 
