@@ -598,6 +598,48 @@ fn symbolize_elf_stripped() {
     assert_eq!(result, Symbolized::Unknown(Reason::MissingSyms));
 }
 
+/// Check that a sizeless symbol from the dynamic symbol table is only
+/// reported when an address matches its value exactly.
+#[tag(other_os)]
+#[test]
+fn symbolize_elf_dynsym_sizeless() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so-stripped.so");
+
+    let isrc = inspect::source::Source::Elf(inspect::source::Elf::new(&path));
+    let inspector = inspect::Inspector::new();
+    let results = inspector
+        .lookup(&isrc, &["sizeless_fn"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+    let addr = results[0].addr;
+
+    let src = Source::Elf(Elf::new(&path));
+    let symbolizer = Symbolizer::new();
+
+    // An address matching the sizeless symbol's value exactly is
+    // reported.
+    let sym = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(sym.name, "sizeless_fn");
+    assert_eq!(sym.addr, addr);
+    assert_eq!(sym.size, None);
+
+    // An address past the symbol's value is not attributed to it,
+    // because with a size of 0 the symbol's extent is unknown.
+    let result = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(addr + 1))
+        .unwrap();
+    assert_eq!(result, Symbolized::Unknown(Reason::MissingSyms));
+}
+
 /// Make sure that we can symbolize data from a compressed
 /// `.gnu_debugdata` section.
 #[tag(other_os)]

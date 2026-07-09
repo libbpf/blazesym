@@ -145,11 +145,21 @@ fn symbol_name<'elf>(strtab: &'elf [u8], sym: &Elf64_Sym) -> Result<&'elf str> {
     Ok(name)
 }
 
+/// The flavor of ELF symbol table that a lookup is served from.
+#[derive(Clone, Copy)]
+enum SymTab {
+    /// The regular symbol table (`.symtab`).
+    Symtab,
+    /// The dynamic symbol table (`.dynsym`).
+    Dynsym,
+}
+
 fn find_sym<'elf>(
     syms: &ElfN_Syms<'_>,
     module: Option<&'elf OsStr>,
     by_addr_idx: &[usize],
     strtab: &'elf [u8],
+    table: SymTab,
     addr: Addr,
     type_: SymType,
 ) -> Result<Option<ResolvedSym<'elf>>> {
@@ -174,12 +184,27 @@ fn find_sym<'elf>(
                 }
 
                 // In ELF, a symbol size of 0 indicates "no size or an unknown
-                // size" (see elf(5)). We take our chances and report these on a
-                // best-effort basis.
-                if sym.matches(type_)
-                    && sym.st_shndx != SHN_UNDEF
-                    && (sym.st_size == 0 || addr < sym.st_value + sym.st_size)
-                {
+                // size" (see elf(5)).
+                let matches_addr = if sym.st_size == 0 {
+                    match table {
+                        // For the regular symbol table we take our chances and
+                        // report such symbols for any address at or past their
+                        // value on a best-effort basis; the next symbol bounds
+                        // the reported range.
+                        SymTab::Symtab => true,
+                        // The dynamic symbol table is often sparse relative to
+                        // the contained code. Extending a sizeless symbol up
+                        // to the next entry can attribute large swaths of
+                        // unrelated code to it, resulting in confidently
+                        // reported but wrong symbol names. Hence, only report
+                        // sizeless symbols on exact address matches here.
+                        SymTab::Dynsym => addr == sym.st_value,
+                    }
+                } else {
+                    addr < sym.st_value + sym.st_size
+                };
+
+                if sym.matches(type_) && sym.st_shndx != SHN_UNDEF && matches_addr {
                     let sym = ResolvedSym {
                         name: symbol_name(strtab, &sym)?,
                         module,
@@ -955,6 +980,7 @@ where
                 module,
                 symtab_by_addr_idx,
                 &symtab.strs,
+                SymTab::Symtab,
                 sym.value(),
                 // SANITY: We filter out all unsupported symbol types,
                 //         so this conversion should always succeed.
@@ -1496,6 +1522,7 @@ where
             self.module.as_deref(),
             symtab_by_addr_idx,
             &symtab_cache.strs,
+            SymTab::Symtab,
             addr,
             SymType::Undefined,
         )? {
@@ -1509,6 +1536,7 @@ where
             self.module.as_deref(),
             dynsym_by_addr_idx,
             &dynsym_cache.strs,
+            SymTab::Dynsym,
             addr,
             SymType::Undefined,
         )? {
@@ -2050,8 +2078,19 @@ mod tests {
         ]));
         let by_addr_idx = [2, 1, 0];
 
-        let result = find_sym(&syms, None, &by_addr_idx, strs, 0x10d20, SymType::Function).unwrap();
-        assert_eq!(result, None);
+        for table in [SymTab::Symtab, SymTab::Dynsym] {
+            let result = find_sym(
+                &syms,
+                None,
+                &by_addr_idx,
+                strs,
+                table,
+                0x10d20,
+                SymType::Function,
+            )
+            .unwrap();
+            assert_eq!(result, None);
+        }
     }
 
     /// Check that we report a symbol with an unknown `st_size` value is
@@ -2060,28 +2099,66 @@ mod tests {
     fn lookup_symbol_with_unknown_size() {
         fn test(syms: &ElfN_Syms<'_>, by_addr_idx: &[usize]) {
             let strs = b"\x00__libc_init_first\x00versionsort64\x00";
-            let sym = find_sym(syms, None, by_addr_idx, strs, 0x29d00, SymType::Function)
+            for table in [SymTab::Symtab, SymTab::Dynsym] {
+                let sym = find_sym(
+                    syms,
+                    None,
+                    by_addr_idx,
+                    strs,
+                    table,
+                    0x29d00,
+                    SymType::Function,
+                )
                 .unwrap()
                 .unwrap();
+                assert_eq!(sym.name, "__libc_init_first");
+                assert_eq!(sym.addr, 0x29d00);
+                assert_eq!(sym.size, None);
+            }
+
+            // For a regular symbol table, because the symbol has a size
+            // of 0 and is the only conceivable match, we report it on
+            // the basis that ELF reserves these for "no size or an
+            // unknown size" cases.
+            let sym = find_sym(
+                syms,
+                None,
+                by_addr_idx,
+                strs,
+                SymTab::Symtab,
+                0x29d90,
+                SymType::Function,
+            )
+            .unwrap()
+            .unwrap();
             assert_eq!(sym.name, "__libc_init_first");
             assert_eq!(sym.addr, 0x29d00);
             assert_eq!(sym.size, None);
 
-            // Because the symbol has a size of 0 and is the only conceivable
-            // match, we report it on the basis that ELF reserves these for "no
-            // size or an unknown size" cases.
-            let sym = find_sym(syms, None, by_addr_idx, strs, 0x29d90, SymType::Function)
-                .unwrap()
-                .unwrap();
-            assert_eq!(sym.name, "__libc_init_first");
-            assert_eq!(sym.addr, 0x29d00);
-            assert_eq!(sym.size, None);
+            // For the dynamic symbol table, sizeless symbols are only reported
+            // on exact address matches, because the table may be sparse
+            // relative to the contained code and an extended match could
+            // attribute unrelated code to the symbol.
+            let result = find_sym(
+                syms,
+                None,
+                by_addr_idx,
+                strs,
+                SymTab::Dynsym,
+                0x29d90,
+                SymType::Function,
+            )
+            .unwrap();
+            assert_eq!(result, None);
 
             // Note that despite of the first symbol (the invalid one; present
             // by default and reserved by ELF), is not being reported here
             // because it has an `st_shndx` value of `SHN_UNDEF`.
-            let result = find_sym(syms, None, by_addr_idx, strs, 0x1, SymType::Function).unwrap();
-            assert_eq!(result, None);
+            for table in [SymTab::Symtab, SymTab::Dynsym] {
+                let result =
+                    find_sym(syms, None, by_addr_idx, strs, table, 0x1, SymType::Function).unwrap();
+                assert_eq!(result, None);
+            }
         }
 
         let syms = ElfN_Syms::B64(Cow::Borrowed(&[

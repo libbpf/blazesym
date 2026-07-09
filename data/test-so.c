@@ -9,6 +9,19 @@ int the_answer(void) {
   return 42;
 }
 
+/* A function defined in assembly without a `.size` directive, as could
+ * appear in hand-written assembly. Its symbol ends up in `.dynsym` with
+ * `st_size == 0`.
+ */
+__asm__(
+    ".globl sizeless_fn\n"
+    ".type sizeless_fn, @function\n"
+    "sizeless_fn:\n"
+    "  nop\n"
+    "  nop\n"
+    "  nop\n"
+    "  ret\n");
+
 int the_ignored_answer(void) {
   return 43;
 }

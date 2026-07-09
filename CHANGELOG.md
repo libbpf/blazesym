@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Adjusted ELF symbolization to report sizeless `.dynsym` entries only on
+  exact address matches
+
+
 0.2.5
 -----
 - Improved DWARF symbolization performance for some debug info variants
