@@ -159,13 +159,10 @@ pub(crate) fn from_radix_16(text: &[u8]) -> Option<u64> {
     let mut index = 0;
     let mut number = 0;
     while index != text.len() {
-        if let Some(digit) = ascii_to_hexdigit(text[index]) {
-            number *= 16;
-            number += digit;
-            index += 1;
-        } else {
-            return None
-        }
+        let digit = ascii_to_hexdigit(text[index])?;
+        number *= 16;
+        number += digit;
+        index += 1;
     }
     Some(number)
 }
