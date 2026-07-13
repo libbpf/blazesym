@@ -56,24 +56,22 @@ fn name_entry<'dwarf>(
     let mut name = None;
     let mut next = None;
     for spec in abbrev.attributes() {
-        match entries.read_attribute(*spec) {
-            Ok(ref attr) => match attr.name() {
-                gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                    if let Ok(val) = unit.attr_string(attr.value()) {
-                        return Ok(Some(val))
-                    }
+        let attr = &entries.read_attribute(*spec)?;
+        match attr.name() {
+            gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
+                if let Ok(val) = unit.attr_string(attr.value()) {
+                    return Ok(Some(val))
                 }
-                gimli::DW_AT_name => {
-                    if let Ok(val) = unit.attr_string(attr.value()) {
-                        name = Some(val);
-                    }
+            }
+            gimli::DW_AT_name => {
+                if let Ok(val) = unit.attr_string(attr.value()) {
+                    name = Some(val);
                 }
-                gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
-                    next = Some(attr.value());
-                }
-                _ => {}
-            },
-            Err(e) => return Err(e),
+            }
+            gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
+                next = Some(attr.value());
+            }
+            _ => {}
         }
     }
 
@@ -143,68 +141,66 @@ impl<'dwarf> InlinedFunction<'dwarf> {
         let mut call_line = 0;
         let mut call_column = 0;
         for spec in abbrev.attributes() {
-            match state.entries.read_attribute(*spec) {
-                Ok(ref attr) => match attr.name() {
-                    gimli::DW_AT_low_pc => match attr.value() {
-                        gimli::AttributeValue::Addr(val) => ranges.low_pc = Some(val),
-                        gimli::AttributeValue::DebugAddrIndex(index) => {
-                            ranges.low_pc = Some(state.unit.address(index)?);
-                        }
-                        _ => {}
-                    },
-                    gimli::DW_AT_high_pc => match attr.value() {
-                        gimli::AttributeValue::Addr(val) => ranges.high_pc = Some(val),
-                        gimli::AttributeValue::DebugAddrIndex(index) => {
-                            ranges.high_pc = Some(state.unit.address(index)?);
-                        }
-                        gimli::AttributeValue::Udata(val) => ranges.size = Some(val),
-                        _ => {}
-                    },
-                    gimli::DW_AT_ranges => {
-                        ranges.ranges_offset = state.unit.attr_ranges_offset(attr.value())?;
-                    }
-                    gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                        if let Ok(val) = state.unit.attr_string(attr.value()) {
-                            name = Some(val);
-                        }
-                    }
-                    gimli::DW_AT_name => {
-                        if name.is_none() {
-                            name = state.unit.attr_string(attr.value()).ok();
-                        }
-                    }
-                    gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
-                        if name.is_none() {
-                            name = name_attr(attr.value(), state.unit, state.units, 16)?;
-                        }
-                    }
-                    gimli::DW_AT_call_file => {
-                        // There is a spec issue [1] with how DW_AT_call_file is
-                        // specified in DWARF 5. Before, a file index of 0 would
-                        // indicate no source file, however in DWARF 5 this could
-                        // be a valid index into the file table.
-                        //
-                        // Implementations such as LLVM generates a file index
-                        // of 0 when DWARF 5 is used.
-                        //
-                        // Thus, if we see a version of 5 or later, treat a file
-                        // index of 0 as such.
-                        // [1]: http://wiki.dwarfstd.org/index.php?title=DWARF5_Line_Table_File_Numbers
-                        if let gimli::AttributeValue::FileIndex(fi) = attr.value() {
-                            if fi > 0 || state.unit.header.version() >= 5 {
-                                call_file = Some(fi);
-                            }
-                        }
-                    }
-                    gimli::DW_AT_call_line => {
-                        call_line = attr.udata_value().unwrap_or(0) as u32;
-                    }
-                    gimli::DW_AT_call_column => {
-                        call_column = attr.udata_value().unwrap_or(0) as u32;
+            let attr = &state.entries.read_attribute(*spec)?;
+            match attr.name() {
+                gimli::DW_AT_low_pc => match attr.value() {
+                    gimli::AttributeValue::Addr(val) => ranges.low_pc = Some(val),
+                    gimli::AttributeValue::DebugAddrIndex(index) => {
+                        ranges.low_pc = Some(state.unit.address(index)?);
                     }
                     _ => {}
                 },
-                Err(e) => return Err(e),
+                gimli::DW_AT_high_pc => match attr.value() {
+                    gimli::AttributeValue::Addr(val) => ranges.high_pc = Some(val),
+                    gimli::AttributeValue::DebugAddrIndex(index) => {
+                        ranges.high_pc = Some(state.unit.address(index)?);
+                    }
+                    gimli::AttributeValue::Udata(val) => ranges.size = Some(val),
+                    _ => {}
+                },
+                gimli::DW_AT_ranges => {
+                    ranges.ranges_offset = state.unit.attr_ranges_offset(attr.value())?;
+                }
+                gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
+                    if let Ok(val) = state.unit.attr_string(attr.value()) {
+                        name = Some(val);
+                    }
+                }
+                gimli::DW_AT_name => {
+                    if name.is_none() {
+                        name = state.unit.attr_string(attr.value()).ok();
+                    }
+                }
+                gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
+                    if name.is_none() {
+                        name = name_attr(attr.value(), state.unit, state.units, 16)?;
+                    }
+                }
+                gimli::DW_AT_call_file => {
+                    // There is a spec issue [1] with how DW_AT_call_file is
+                    // specified in DWARF 5. Before, a file index of 0 would
+                    // indicate no source file, however in DWARF 5 this could
+                    // be a valid index into the file table.
+                    //
+                    // Implementations such as LLVM generates a file index
+                    // of 0 when DWARF 5 is used.
+                    //
+                    // Thus, if we see a version of 5 or later, treat a file
+                    // index of 0 as such.
+                    // [1]: http://wiki.dwarfstd.org/index.php?title=DWARF5_Line_Table_File_Numbers
+                    if let gimli::AttributeValue::FileIndex(fi) = attr.value() {
+                        if fi > 0 || state.unit.header.version() >= 5 {
+                            call_file = Some(fi);
+                        }
+                    }
+                }
+                gimli::DW_AT_call_line => {
+                    call_line = attr.udata_value().unwrap_or(0) as u32;
+                }
+                gimli::DW_AT_call_column => {
+                    call_column = attr.udata_value().unwrap_or(0) as u32;
+                }
+                _ => {}
             }
         }
 
@@ -458,53 +454,44 @@ impl<'dwarf> Functions<'dwarf> {
                     let mut name = None;
                     let mut ranges = RangeAttributes::default();
                     for spec in abbrev.attributes() {
-                        match entries.read_attribute(*spec) {
-                            Ok(ref attr) => {
-                                match attr.name() {
-                                    gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
-                                        if let Ok(val) = unit.attr_string(attr.value()) {
-                                            name = Some(val);
-                                        }
+                        {
+                            let attr = &entries.read_attribute(*spec)?;
+                            match attr.name() {
+                                gimli::DW_AT_linkage_name | gimli::DW_AT_MIPS_linkage_name => {
+                                    if let Ok(val) = unit.attr_string(attr.value()) {
+                                        name = Some(val);
                                     }
-                                    gimli::DW_AT_name => {
-                                        if name.is_none() {
-                                            name = unit.attr_string(attr.value()).ok();
-                                        }
+                                }
+                                gimli::DW_AT_name => {
+                                    if name.is_none() {
+                                        name = unit.attr_string(attr.value()).ok();
                                     }
-                                    gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
-                                        if name.is_none() {
-                                            name = name_attr(attr.value(), unit, units, 16)?;
-                                        }
+                                }
+                                gimli::DW_AT_abstract_origin | gimli::DW_AT_specification => {
+                                    if name.is_none() {
+                                        name = name_attr(attr.value(), unit, units, 16)?;
                                     }
-                                    gimli::DW_AT_low_pc => match attr.value() {
-                                        gimli::AttributeValue::Addr(val) => {
-                                            ranges.low_pc = Some(val)
-                                        }
-                                        gimli::AttributeValue::DebugAddrIndex(index) => {
-                                            ranges.low_pc = Some(unit.address(index)?);
-                                        }
-                                        _ => {}
-                                    },
-                                    gimli::DW_AT_high_pc => match attr.value() {
-                                        gimli::AttributeValue::Addr(val) => {
-                                            ranges.high_pc = Some(val)
-                                        }
-                                        gimli::AttributeValue::DebugAddrIndex(index) => {
-                                            ranges.high_pc = Some(unit.address(index)?);
-                                        }
-                                        gimli::AttributeValue::Udata(val) => {
-                                            ranges.size = Some(val)
-                                        }
-                                        _ => {}
-                                    },
-                                    gimli::DW_AT_ranges => {
-                                        ranges.ranges_offset =
-                                            unit.attr_ranges_offset(attr.value())?;
+                                }
+                                gimli::DW_AT_low_pc => match attr.value() {
+                                    gimli::AttributeValue::Addr(val) => ranges.low_pc = Some(val),
+                                    gimli::AttributeValue::DebugAddrIndex(index) => {
+                                        ranges.low_pc = Some(unit.address(index)?);
                                     }
                                     _ => {}
-                                };
-                            }
-                            Err(e) => return Err(e),
+                                },
+                                gimli::DW_AT_high_pc => match attr.value() {
+                                    gimli::AttributeValue::Addr(val) => ranges.high_pc = Some(val),
+                                    gimli::AttributeValue::DebugAddrIndex(index) => {
+                                        ranges.high_pc = Some(unit.address(index)?);
+                                    }
+                                    gimli::AttributeValue::Udata(val) => ranges.size = Some(val),
+                                    _ => {}
+                                },
+                                gimli::DW_AT_ranges => {
+                                    ranges.ranges_offset = unit.attr_ranges_offset(attr.value())?;
+                                }
+                                _ => {}
+                            };
                         }
                     }
 
