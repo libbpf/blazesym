@@ -261,8 +261,6 @@ impl<T> FileCache<T> {
     /// the last referencing path has been evicted.
     ///
     /// Returns `true` if any data was evicted.
-    // TODO: Remove this `allow` once the consumer landed.
-    #[allow(dead_code)]
     pub(crate) fn evict(&mut self, path: &Path) -> bool {
         let Some(path_entry) = self.cache.remove(path) else {
             return false

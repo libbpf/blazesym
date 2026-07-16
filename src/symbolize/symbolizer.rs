@@ -63,6 +63,8 @@ use crate::Result;
 
 use super::cache;
 use super::cache::Cache;
+use super::evict;
+use super::evict::Evict;
 #[cfg(feature = "apk")]
 use super::source::Apk;
 #[cfg(feature = "breakpad")]
@@ -1092,6 +1094,50 @@ impl Symbolizer {
                     let parsed = maps::parse_filtered(*pid)?.collect::<Result<Box<_>>>()?;
                     let _prev = self.process_vma_cache.borrow_mut().insert(*pid, parsed);
                 }
+            }
+        }
+        Ok(())
+    }
+
+    /// Evict data cached for a symbolization source.
+    ///
+    /// This method is the counterpart of [`Symbolizer::cache`]. Data is
+    /// generally cached for the lifetime of the `Symbolizer` instance.
+    /// Long-lived instances symbolizing across a churning set of files
+    /// or processes may want to release data (as well as the file
+    /// descriptor associated with each cached file) once no longer
+    /// needed, which is what this method provides.
+    ///
+    /// This method operates on a best-effort basis, meaning that not
+    /// all data associated with a request may be released, if book
+    /// keeping/discovery is expensive.
+    ///
+    /// Evicted data will be re-created transparently should a future
+    /// symbolization request require it. It is not an error if no
+    /// cached data exists for the given target.
+    #[cfg_attr(feature = "tracing", crate::log::instrument(skip_all, fields(evict = ?evict), err))]
+    pub fn evict(&mut self, evict: &Evict) -> Result<()> {
+        match evict {
+            Evict::Elf(evict::Elf {
+                path,
+                _non_exhaustive: (),
+            }) => {
+                let _evicted = self.elf_cache.evict(path);
+                let () = self.process_cache.retain(|path_name, _resolver| {
+                    !matches!(
+                        path_name,
+                        PathName::Path(entry_path)
+                            if entry_path.maps_file == *path
+                                || entry_path.symbolic_path == *path
+                    )
+                });
+            }
+            Evict::Process(evict::Process {
+                pid,
+                _non_exhaustive: (),
+            }) => {
+                let _prev = self.process_vma_cache.get_mut().remove(pid);
+                let _evicted = self.perf_map_cache.evict(&PerfMap::path(*pid));
             }
         }
         Ok(())

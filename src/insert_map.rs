@@ -106,6 +106,18 @@ impl<K, V> InsertMap<K, V> {
         self.map.get_mut().remove(key).map(|boxed| *boxed)
     }
 
+    /// Retain only the entries for which `f` returns `true`.
+    ///
+    /// Removal requires exclusive access to the map, which statically
+    /// guarantees that no references to values handed out earlier are
+    /// still alive.
+    pub(crate) fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&K, &V) -> bool,
+    {
+        self.map.get_mut().retain(|key, value| f(key, &**value))
+    }
+
     /// Retrieve the number of elements in the map.
     #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
@@ -149,6 +161,20 @@ mod tests {
         assert_eq!(map.remove(&42), Some("you win the price"));
         assert_eq!(map.get(&42), None);
         assert_eq!(map.len(), 1);
+    }
+
+    /// Check that selective retention of values works as it should.
+    #[tag(miri)]
+    #[test]
+    fn retention() {
+        let mut map = InsertMap::<usize, &'static str>::new();
+        let _s = map.get_or_insert(42, || "you win the price");
+        let _s = map.get_or_insert(43, || "you win nothing");
+
+        let () = map.retain(|_key, value| *value != "you win nothing");
+        assert_eq!(map.len(), 1);
+        assert_eq!(map.get(&43), None);
+        assert_eq!(map.get(&42), Some(&"you win the price"));
     }
 
     /// Check that value insertion works as it should.
