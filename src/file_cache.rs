@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::cell::OnceCell;
+use std::cell::RefCell;
 use std::fs::File;
 use std::marker::PhantomData;
 use std::path::Path;
@@ -43,6 +44,12 @@ impl From<&libc::stat> for FileMeta {
 
 #[derive(Debug)]
 struct Entry<T> {
+    /// The number of paths referencing this entry.
+    ///
+    /// An entry can be referenced by multiple paths, e.g., when
+    /// symbolic or hard links resolve to the same file, or when it
+    /// captures a previous version of a path's file contents.
+    references: Cell<usize>,
     file: File,
     value: OnceCell<T>,
 }
@@ -50,6 +57,7 @@ struct Entry<T> {
 impl<T> Entry<T> {
     fn new(file: File) -> Self {
         Self {
+            references: Cell::new(0),
             file,
             value: OnceCell::new(),
         }
@@ -67,12 +75,34 @@ enum PinState {
 struct PathEntry {
     /// Meta data corresponding to the most recently inserted entry.
     current: Cell<Option<(PinState, FileMeta)>>,
+    /// Meta data corresponding to previously current entries, as can
+    /// accumulate when the underlying file changed and was reloaded.
+    previous: RefCell<Vec<FileMeta>>,
+}
+
+impl PathEntry {
+    /// Retrieve the meta data of all distinct entries associated with
+    /// this path.
+    ///
+    /// The current entry may also be contained in the set of previous
+    /// ones (e.g., after a symbolic link switched to a different
+    /// target and back); it is reported only once.
+    fn metas(&self) -> Vec<FileMeta> {
+        let mut metas = self.previous.borrow().clone();
+        if let Some((_pin_state, meta)) = self.current.get() {
+            if !metas.contains(&meta) {
+                let () = metas.push(meta);
+            }
+        }
+        metas
+    }
 }
 
 impl Default for PathEntry {
     fn default() -> Self {
         Self {
             current: Cell::new(None),
+            previous: RefCell::new(Vec::new()),
         }
     }
 }
@@ -127,7 +157,8 @@ impl<T> Default for Builder<T> {
 /// The cache transparently checks whether the file contents have
 /// changed based on file system meta data and creates and hands out a
 /// new entry if so.
-/// Note that stale/old entries are never evicted.
+/// Note that stale/old entries are only removed on explicit request
+/// (see [`FileCache::evict`]).
 #[derive(Debug)]
 pub(crate) struct FileCache<T> {
     /// The map we use for associating a path with file meta data.
@@ -160,6 +191,23 @@ impl<T> FileCache<T> {
             let entry = Entry::new(file);
             Ok(entry)
         })?;
+        let current = path_entry.current.get();
+        // If the entry current for the path changed (or none was
+        // present), there is bookkeeping to do: preserve the meta data
+        // of the previously current entry and account for the
+        // reference to the new entry that the path gains, unless the
+        // path already references it as one of its previous entries.
+        if current.is_none_or(|(_pin_state, current_meta)| current_meta != meta.1) {
+            let mut previous = path_entry.previous.borrow_mut();
+            if let Some((_pin_state, previous_meta)) = current {
+                if !previous.contains(&previous_meta) {
+                    let () = previous.push(previous_meta);
+                }
+            }
+            if !previous.contains(&meta.1) {
+                let () = entry.references.set(entry.references.get() + 1);
+            }
+        }
         let () = path_entry.current.set(Some(meta));
 
         Ok(entry)
@@ -203,6 +251,38 @@ impl<T> FileCache<T> {
 
     pub(crate) fn unpin(&self, path: &Path) -> Option<()> {
         self.set_pin_state(path, PinState::Unpinned)
+    }
+
+    /// Evict all data cached for the file at the given `path`,
+    /// including any stale data for previous versions of the file.
+    ///
+    /// Data also reachable through another path (e.g., by way of
+    /// symbolic links resolving to the same file) is only removed once
+    /// the last referencing path has been evicted.
+    ///
+    /// Returns `true` if any data was evicted.
+    // TODO: Remove this `allow` once the consumer landed.
+    #[allow(dead_code)]
+    pub(crate) fn evict(&mut self, path: &Path) -> bool {
+        let Some(path_entry) = self.cache.remove(path) else {
+            return false
+        };
+
+        let mut evicted = false;
+        for meta in path_entry.metas() {
+            // SANITY: Our invariant states that every meta data object
+            //         referenced by a path has a corresponding entry.
+            let entry = self.entries.get(&meta).unwrap();
+            let references = entry.references.get();
+            debug_assert_ne!(references, 0);
+            if references > 1 {
+                let () = entry.references.set(references - 1);
+            } else {
+                let _entry = self.entries.remove(&meta);
+                evicted = true;
+            }
+        }
+        evicted
     }
 
     /// Retrieve the total number of entries in the cache.
@@ -274,6 +354,142 @@ mod tests {
             let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
             assert_eq!(cell.get(), Some(&42));
         }
+    }
+
+    /// Check that we can evict data associated with a file.
+    #[test]
+    fn evict_entry() {
+        let mut cache = FileCache::<usize>::default();
+        let tmpfile = NamedTempFile::new().unwrap();
+
+        // Evicting an unknown path is a no-op.
+        assert!(!cache.evict(Path::new("/does/not/exist")));
+
+        {
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            let () = cell.set(42).unwrap();
+        }
+        assert_eq!(cache.entry_count(), 1);
+
+        assert!(cache.evict(tmpfile.path()));
+        assert_eq!(cache.entry_count(), 0);
+
+        // Another eviction of the same path is a no-op.
+        assert!(!cache.evict(tmpfile.path()));
+
+        // A subsequent look up transparently creates a new entry.
+        {
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(cell.get(), None);
+        }
+        assert_eq!(cache.entry_count(), 1);
+    }
+
+    /// Check that eviction removes stale entries for previous versions
+    /// of a file as well.
+    #[test]
+    fn evict_stale_entries() {
+        let mut cache = FileCache::<usize>::default();
+        let tmpfile = NamedTempFile::new().unwrap();
+
+        {
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            let () = cell.set(42).unwrap();
+        }
+
+        // Sleep briefly to make sure that file times will end up being
+        // different.
+        let () = sleep(Duration::from_millis(10));
+
+        let path = tmpfile.path().to_path_buf();
+        let () = drop(tmpfile);
+        let () = write(&path, b"foobar").unwrap();
+
+        {
+            let (_file, cell) = cache.entry(&path).unwrap();
+            assert_eq!(cell.get(), None);
+            let () = cell.set(43).unwrap();
+        }
+        // Both the current and the stale entry should be present.
+        assert_eq!(cache.entry_count(), 2);
+
+        assert!(cache.evict(&path));
+        assert_eq!(cache.entry_count(), 0);
+    }
+
+    /// Check that eviction does not remove entries still referenced by
+    /// another path.
+    #[cfg(linux)]
+    #[test]
+    fn evict_shared_entry() {
+        let tmpfile = NamedTempFile::new().unwrap();
+        let tmpdir = tempdir().unwrap();
+        let link = tmpdir.path().join("symlink");
+        let () = symlink(tmpfile.path(), &link).unwrap();
+
+        let mut cache = FileCache::<usize>::default();
+        {
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            let () = cell.set(42).unwrap();
+        }
+        // The link resolves to the same entry.
+        {
+            let (_file, cell) = cache.entry(&link).unwrap();
+            assert_eq!(cell.get(), Some(&42));
+        }
+        assert_eq!(cache.entry_count(), 1);
+
+        // Evicting one path keeps the entry alive for the other one.
+        assert!(!cache.evict(tmpfile.path()));
+        assert_eq!(cache.entry_count(), 1);
+        {
+            let (_file, cell) = cache.entry(&link).unwrap();
+            assert_eq!(cell.get(), Some(&42));
+        }
+
+        // Evicting the last referencing path removes the entry.
+        assert!(cache.evict(&link));
+        assert_eq!(cache.entry_count(), 0);
+    }
+
+    /// Check that eviction handles a path whose current entry had been
+    /// superseded and then got reinstated (e.g., by way of a symbolic
+    /// link switching to a different target and back), referencing
+    /// each entry only once.
+    #[cfg(linux)]
+    #[test]
+    fn evict_reinstated_entry() {
+        let tmpfile1 = NamedTempFile::new().unwrap();
+        let tmpfile2 = NamedTempFile::new().unwrap();
+        let tmpdir = tempdir().unwrap();
+        let link = tmpdir.path().join("symlink");
+        let () = symlink(tmpfile1.path(), &link).unwrap();
+
+        let mut cache = FileCache::<usize>::default();
+        {
+            let (_file, cell) = cache.entry(&link).unwrap();
+            let () = cell.set(41).unwrap();
+        }
+
+        // Point the link at a different file and then back at the
+        // original one.
+        let () = remove_file(&link).unwrap();
+        let () = symlink(tmpfile2.path(), &link).unwrap();
+        {
+            let (_file, cell) = cache.entry(&link).unwrap();
+            let () = cell.set(42).unwrap();
+        }
+        let () = remove_file(&link).unwrap();
+        let () = symlink(tmpfile1.path(), &link).unwrap();
+        {
+            let (_file, cell) = cache.entry(&link).unwrap();
+            assert_eq!(cell.get(), Some(&41));
+        }
+        assert_eq!(cache.entry_count(), 2);
+
+        // Eviction removes both the current and the superseded entry.
+        assert!(cache.evict(&link));
+        assert_eq!(cache.entry_count(), 0);
     }
 
     /// Check that our `FileCache` deduplicates symbolic link targets
