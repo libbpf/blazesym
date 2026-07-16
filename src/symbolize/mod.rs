@@ -92,6 +92,7 @@
 //! example, which illustrates the basic workflow.
 
 pub mod cache;
+pub mod evict;
 pub mod source;
 mod symbolizer;
 
