@@ -215,20 +215,29 @@ impl<T> FileCache<T> {
 
     /// Retrieve the entry for the file at the given `path`.
     pub(crate) fn entry(&self, path: &Path) -> Result<(&File, &OnceCell<T>)> {
-        let path_entry = self
-            .cache
-            .get_or_insert(path.to_path_buf(), PathEntry::default);
-        if let Some((pin_state, current_meta)) = path_entry.current.get() {
-            if !self.auto_reload || pin_state == PinState::Pinned {
-                // SANITY: Our invariant states that if there is a
-                //         `PathEntry::current` a corresponding entry
-                //         must be in `FileCache::entries`.
-                let current = self.entries.get(&current_meta).unwrap();
-                return Ok((&current.file, &current.value))
+        // Fast path: the path is already known. We look it up by
+        // reference to avoid allocating a `PathBuf` on every hit.
+        if let Some(path_entry) = self.cache.get(path) {
+            if let Some((pin_state, current_meta)) = path_entry.current.get() {
+                if !self.auto_reload || pin_state == PinState::Pinned {
+                    // SANITY: Our invariant states that if there is a
+                    //         `PathEntry::current` a corresponding entry
+                    //         must be in `FileCache::entries`.
+                    let current = self.entries.get(&current_meta).unwrap();
+                    return Ok((&current.file, &current.value))
+                }
             }
+
+            let entry = self.get_or_insert(path, path_entry)?;
+            return Ok((&entry.file, &entry.value))
         }
 
-        let entry = self.get_or_insert(path, path_entry)?;
+        // The path is not yet known. Perform the fallible stat/open
+        // against a detached path entry and only insert it into the
+        // cache on success.
+        let path_entry = PathEntry::default();
+        let entry = self.get_or_insert(path, &path_entry)?;
+        let _path_entry = self.cache.get_or_insert(path.to_path_buf(), || path_entry);
         Ok((&entry.file, &entry.value))
     }
 
@@ -287,6 +296,12 @@ impl<T> FileCache<T> {
     #[cfg(test)]
     pub(crate) fn entry_count(&self) -> usize {
         self.entries.len()
+    }
+
+    /// Retrieve the total number of paths tracked by the cache.
+    #[cfg(test)]
+    pub(crate) fn path_count(&self) -> usize {
+        self.cache.len()
     }
 }
 
@@ -352,6 +367,27 @@ mod tests {
             let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
             assert_eq!(cell.get(), Some(&42));
         }
+    }
+
+    /// Check that a failed lookup does not leave a dangling path entry
+    /// behind.
+    #[test]
+    fn failed_lookup_leaves_no_entry() {
+        let cache = FileCache::<usize>::default();
+
+        let err = cache.entry(Path::new("/does/not/exist")).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        assert_eq!(cache.path_count(), 0);
+        assert_eq!(cache.entry_count(), 0);
+
+        // A subsequent successful lookup is unaffected.
+        let tmpfile = NamedTempFile::new().unwrap();
+        {
+            let (_file, cell) = cache.entry(tmpfile.path()).unwrap();
+            assert_eq!(cell.get(), None);
+        }
+        assert_eq!(cache.path_count(), 1);
+        assert_eq!(cache.entry_count(), 1);
     }
 
     /// Check that we can evict data associated with a file.
