@@ -70,13 +70,13 @@ which = {version = "8", optional = true}
 
 [dependencies]
 # Pinned, because we use #[doc(hidden)] APIs.
-blazesym = {version = ">=0.2.0, <=0.2.5", path = "../", features = ["apk", "demangle", "gsym", "tracing", "zlib"]}
+blazesym = {version = ">=0.2.0, <=0.2.6", path = "../", features = ["apk", "demangle", "gsym", "tracing", "zlib"]}
 libc = "0.2"
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", default-features = false, features = ["fmt"]}
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
-blazesym = {version = ">=0.2.0, <=0.2.5", path = "../", features = ["bpf"]}
+blazesym = {version = ">=0.2.0, <=0.2.6", path = "../", features = ["bpf"]}
 
 [dev-dependencies]
 blazesym = {version = "0.2", path = "../", features = ["test"]}

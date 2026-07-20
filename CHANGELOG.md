@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.6
+-----
 - Adjusted ELF symbolization to report sizeless `.dynsym` entries only on
   exact address matches
 - Added `symbolize::Symbolizer::evict` method for evicting cached data

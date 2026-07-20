@@ -56,7 +56,7 @@ wildcard-imports = "warn"
 [package]
 name = "blazesym"
 description = "blazesym is a library for address symbolization and related tasks."
-version = "0.2.5"
+version = "0.2.6"
 edition.workspace = true
 rust-version.workspace = true
 authors = ["Daniel Müller <deso@posteo.net>", "Kui-Feng <thinker.li@gmail.com>"]
