@@ -56,7 +56,7 @@ criterion = {version = "0.8", default-features = false, features = ["rayon", "ca
 libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libbpf-rs = "0.26"
+libbpf-rs = "0.27"
 
 # `perf-event` doesn't build on 32 bit.
 [target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dependencies]
