@@ -13,15 +13,15 @@ dependencies = [
 
 [[package]]
 name = "addr2line"
-version = "0.26.1"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59317f77929f0e679d39364702289274de2f0f0b22cbf50b2b8cff2169a0b27a"
+checksum = "e567177890eb1617b1f774005b66b26b2377afd138a2ca37aae7d8f0c81429d4"
 dependencies = [
  "cpp_demangle 0.5.1",
  "fallible-iterator 0.3.0",
- "gimli 0.33.1",
+ "gimli 0.34.0",
  "memmap2",
- "object 0.39.0",
+ "object 0.40.0",
  "rustc-demangle",
  "smallvec",
  "typed-arena",
@@ -219,7 +219,7 @@ dependencies = [
 name = "blazesym"
 version = "0.2.6"
 dependencies = [
- "addr2line 0.26.1",
+ "addr2line 0.27.1",
  "anyhow",
  "blazesym",
  "blazesym-dev",
@@ -962,6 +962,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gimli"
+version = "0.34.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1033caf0b349c518623b5396bfb2cf0bddf44f0306d543a250e5743297aafd10"
+dependencies = [
+ "stable_deref_trait",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1662,13 +1671,13 @@ dependencies = [
 
 [[package]]
 name = "object"
-version = "0.39.0"
+version = "0.40.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63944c133d03f44e75866bbd160b95af0ec3f6a13d936d69d31c81078cbc5baf"
+checksum = "dd229a0361b9d0d4396176e02d65897f487eebeab7caa6d443855ee152ca0b9c"
 dependencies = [
  "flate2",
  "memchr",
- "ruzstd 0.8.1",
+ "ruzstd 0.9.0",
 ]
 
 [[package]]
@@ -2157,9 +2166,9 @@ dependencies = [
 
 [[package]]
 name = "ruzstd"
-version = "0.8.1"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3640bec8aad418d7d03c72ea2de10d5c646a598f9883c7babc160d91e3c1b26c"
+checksum = "a252f5e20f038fe7b4ea53e073e65398d652c864cc162fc77c56c2f13717b888"
 dependencies = [
  "twox-hash 2.1.1",
 ]
