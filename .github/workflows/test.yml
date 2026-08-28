@@ -522,7 +522,6 @@ jobs:
           go-version: stable
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.6
           working-directory: go
         env:
           CGO_CFLAGS: "-I${{ github.workspace }}/capi/include"
