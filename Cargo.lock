@@ -989,12 +989,9 @@ dependencies = [
 
 [[package]]
 name = "grev"
-version = "0.1.4"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5019cbc0953403785d66d45ae36e1defa47740a34a15313e7c3bf08dce7109b3"
-dependencies = [
- "anyhow",
-]
+checksum = "806138095426598742fcb2032984bb97c400f4cc2ebafbb8c43067bf2fbac4e2"
 
 [[package]]
 name = "gsym-in-apk"
