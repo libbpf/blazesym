@@ -33,7 +33,7 @@ required-features = ["clap_complete"]
 
 [build-dependencies]
 anyhow = "1.0"
-grev = "0.1.4"
+grev = "0.2.0"
 
 [dependencies]
 anyhow = "1.0"
