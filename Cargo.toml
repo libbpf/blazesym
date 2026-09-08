@@ -187,7 +187,7 @@ rustc-demangle = {version = "0.1", optional = true}
 tempfile = {version = "3", default-features = false}
 tracing = {version = "0.1", default-features = false, features = ["attributes"], optional = true}
 xz2 = {version = "0.1", default-features = false, optional = true}
-zstd = {version = "0.13", default-features = false, optional = true}
+zstd = {version = "0.14", default-features = false, optional = true}
 
 [dev-dependencies]
 # For performance comparison; pinned, because we use #[doc(hidden)]
