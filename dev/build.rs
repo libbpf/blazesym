@@ -156,9 +156,11 @@ fn write_mtime_marker() -> Result<()> {
     Ok(())
 }
 
+#[expect(clippy::enum_variant_names)]
 enum ArgSpec {
     SrcDst,
     SrcDashODst,
+    DashMDst,
 }
 
 /// Invoke `tool` to convert `src` into `dst`.
@@ -192,6 +194,10 @@ fn toolize_impl<'p, S, I>(
         }
         ArgSpec::SrcDashODst => {
             args2 = ["-o".as_ref(), dst.as_os_str()];
+            args2.as_slice()
+        }
+        ArgSpec::DashMDst => {
+            args2 = ["-m".as_ref(), dst.as_os_str()];
             args2.as_slice()
         }
     };
@@ -231,6 +237,10 @@ fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
     toolize_impl(tool, ArgSpec::SrcDashODst, [src], &dst, options, None)
+}
+
+fn toolize_m(tool: &str, dst: &Path, options: &[&str]) {
+    toolize_impl(tool, ArgSpec::DashMDst, [], dst, options, None)
 }
 
 /// Compile `src` into `dst` using `cc`.
@@ -393,6 +403,11 @@ fn dwarf(src: &Path, dst: impl AsRef<OsStr>) {
 /// Invoke `objcopy` on `src` and place the result in `dst`.
 fn objcopy(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize("objcopy", src, dst, options)
+}
+
+/// Invoke `dwz` and place the result in `dst`.
+fn dwz(dst: &Path, options: &[&str]) {
+    toolize_m("dwz", dst, options)
 }
 
 /// Generate a Breakpad .sym file for the given source.
@@ -681,6 +696,47 @@ fn prepare_test_files() {
             &["-gstrict-dwarf", "-gdwarf-5", "-gz=zstd"],
         );
     }
+
+    // Generate files to test .gnu_debugaltlink section
+    cc(&src, "test-debug.bin", &["-g"]);
+    cc(&src, "test-debug-O2.bin", &["-g", "-O2"]);
+    let debug_bin = data_dir.join("test-debug.bin");
+    dwarf(&debug_bin, "test.dbg");
+    let dbg = data_dir.join("test.dbg");
+    let debug_o2_bin = data_dir.join("test-debug-O2.bin");
+    dwarf(&debug_o2_bin, "test-O2.dbg");
+    let dbg_o2 = data_dir.join("test-O2.dbg");
+    let dst = data_dir.join("test.dwz");
+    dwz(
+        &dst,
+        &[
+            &format!("{}", dbg.display()),
+            &format!("{}", dbg_o2.display()),
+        ],
+    );
+    objcopy(
+        &debug_bin,
+        "test-debuglink.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg.display()),
+        ],
+    );
+    objcopy(
+        &dbg_o2,
+        dbg_o2.as_os_str(),
+        &["--remove-section=.gnu_debugaltlink"],
+    );
+    objcopy(
+        &debug_o2_bin,
+        "test-O2-debuglink-broken-altlink.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg_o2.display()),
+        ],
+    );
+    let () = adjust_mtime(&dbg).unwrap();
+    let () = adjust_mtime(&dbg_o2).unwrap();
 
     // Generate this binary by passing the source file name without a
     // path to the compiler (which means we need to `cd` into the

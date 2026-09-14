@@ -2,6 +2,7 @@
 /data/*.dbg
 /data/*.dwo
 /data/*.dwp
+/data/*.dwz
 /data/*.gsym
 /data/*.o
 /data/*.so
