@@ -33,6 +33,7 @@ use crate::inspect::SymInfo;
 use crate::log;
 use crate::log::debug;
 use crate::log::warn;
+use crate::normalize::buildid::read_build_id;
 use crate::symbolize::CodeInfo;
 use crate::symbolize::FindSymOpts;
 use crate::symbolize::InlinedFn;
@@ -47,6 +48,7 @@ use crate::ErrorKind;
 use crate::Result;
 use crate::SymType;
 
+use super::debug_altlink::read_debug_altlink;
 use super::debug_link::debug_link_crc32;
 use super::debug_link::read_debug_link;
 use super::debug_link::DebugFileIter;
@@ -185,6 +187,93 @@ fn try_deref_debug_link(
 }
 
 
+/// Find a debug file in a list of directories.
+///
+/// `linker` is the path to the file containing the debug altlink. This function
+/// searches a couple of "well-known" locations and then others constructed
+/// based on the canonicalized path of `linker`.
+///
+/// # Notes
+/// This function ignores any errors encountered.
+fn find_altdebug_file(
+    path: &Path,
+    linker: Option<&Path>,
+    debug_dirs: &[PathBuf],
+) -> Option<PathBuf> {
+    let canonical_linker = linker.and_then(|linker| try_canonicalize(linker).ok());
+    let it = DebugFileIter::new(
+        debug_dirs,
+        canonical_linker.as_deref(),
+        path.as_os_str(),
+        None,
+    );
+    for path in it {
+        if path.exists() {
+            debug!("found altdebug info at `{}`", path.display());
+            return Some(path);
+        }
+    }
+    warn!(
+        "debug altlink references destination `{}` which was not found in any known location",
+        Path::new(path).display(),
+    );
+    None
+}
+
+fn try_deref_debug_altlink(
+    parser: &ElfParser,
+    debug_dirs: &[PathBuf],
+    elf_cache: Option<&FileCache<ElfResolverData>>,
+) -> Result<Option<Rc<ElfParser>>> {
+    if let Some((path, build_id)) = read_debug_altlink(parser)? {
+        // TODO: Usage of the module here is fishy, as it may not
+        //       represent an actual path. However, even using the
+        //       actual path is not necessarily correct. Consider if the
+        //       `ElfParser` references a map_files file.
+        let linker = parser.module().map(OsStr::as_ref);
+        match find_altdebug_file(path, linker, debug_dirs) {
+            Some(path) => {
+                let tmp_parser;
+                let dst_parser = if let Some(elf_cache) = elf_cache {
+                    // TODO: Unclear whether we should provide `debug_dirs`
+                    //       here instead of `None`?
+                    elf_cache
+                        .elf_resolver(&path, None)
+                        .with_context(|| {
+                            format!(
+                                "failed to open debug altlink destination `{}`",
+                                path.display()
+                            )
+                        })?
+                        .parser()
+                } else {
+                    let parser = ElfParser::open(&path).with_context(|| {
+                        format!(
+                            "failed to open debug altlink destination `{}`",
+                            path.display()
+                        )
+                    })?;
+                    tmp_parser = Rc::new(parser);
+                    &tmp_parser
+                };
+                let dst_build_id = read_build_id(dst_parser)?.unwrap();
+                if dst_build_id != build_id {
+                    return Err(Error::with_invalid_data(format!(
+                        "debug altlink destination `{}` build ID does not match \
+                         expected one: {dst_build_id:?} (actual) != {build_id:?} (expected)",
+                        path.display()
+                    )));
+                }
+                Ok(Some(Rc::clone(dst_parser)))
+            }
+            None => Ok(None),
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+
 /// Try to find a DWARF package (`.dwp`) "belonging" to the file
 /// referenced by the given [`ElfParser`].
 fn try_find_dwp(
@@ -231,6 +320,9 @@ pub(crate) struct DwarfResolver {
     /// If the source file contains a valid debug link, this parser
     /// represents it.
     linkee_parser: Option<Rc<ElfParser>>,
+    /// If the source file contains a valid debug altlink, this parser
+    /// represents it.
+    _altlinkee_parser: Option<Rc<ElfParser>>,
     /// If there exist an associated DWARF Package (*.dwp), this parser
     /// represents it.
     _dwp_parser: Option<Rc<ElfParser>>,
@@ -251,6 +343,7 @@ impl DwarfResolver {
         let dwp_parser = try_find_dwp(&parser, elf_cache)?;
 
         let debug_parser = linkee_parser.as_ref().unwrap_or(&parser);
+        let altlinkee_parser = try_deref_debug_altlink(debug_parser, debug_dirs, elf_cache)?;
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
         //         is fine to conjure a 'static lifetime here.
@@ -260,6 +353,17 @@ impl DwarfResolver {
         let mut load_section =
             |section| reader::load_section(static_linkee_parser, section, static_relocs);
         let mut dwarf = Dwarf::load(&mut load_section)?;
+
+        if let Some(ref altlinkee_parser) = altlinkee_parser {
+            let static_altlinkee_parser = unsafe {
+                mem::transmute::<&ElfParser, &'static ElfParser>(altlinkee_parser.deref())
+            };
+            let static_altrelocs = static_altlinkee_parser.section_relocations()?;
+            let mut load_altsection =
+                |section| reader::load_section(static_altlinkee_parser, section, static_altrelocs);
+            Dwarf::load_sup(&mut dwarf, &mut load_altsection)?;
+        }
+
         // Cache abbreviations (which will cause them to be
         // automatically reused across compilation units), which can
         // speed up parsing of debug information potentially
@@ -292,6 +396,7 @@ impl DwarfResolver {
             units,
             parser,
             linkee_parser,
+            _altlinkee_parser: altlinkee_parser,
             _dwp_parser: dwp_parser,
         };
         Ok(slf)
@@ -653,6 +758,62 @@ mod tests {
         let parser = ElfParser::open(&path).unwrap();
         let dwp_parser = try_find_dwp(&parser, None).unwrap();
         assert!(dwp_parser.is_none());
+    }
+
+    /// Check that we can discover debug altlink as expected.
+    #[test]
+    fn debug_altlink_discovery() {
+        let debug_dirs = Vec::new();
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.dbg");
+        let parser = ElfParser::open(&path).unwrap();
+        let debug_altlink_parser = try_deref_debug_altlink(&parser, &debug_dirs, None).unwrap();
+        assert!(debug_altlink_parser.is_some());
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-debug.bin");
+        let parser = ElfParser::open(&path).unwrap();
+        let debug_altlink_parser = try_deref_debug_altlink(&parser, &debug_dirs, None).unwrap();
+        assert!(debug_altlink_parser.is_none());
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-O2-debuglink-broken-altlink.bin");
+        let parser = ElfParser::open(&path).unwrap();
+        let debug_altlink_parser = try_deref_debug_altlink(&parser, &debug_dirs, None).unwrap();
+        assert!(debug_altlink_parser.is_none());
+
+        let linker = parser.module().map(OsStr::as_ref);
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("nonexistent_file");
+        let debug_altlink_file = find_altdebug_file(&path, linker, &debug_dirs);
+        assert!(debug_altlink_file.is_none());
+
+        let linker = parser.module().map(OsStr::as_ref);
+        let debug_altlink_file = find_altdebug_file(linker.unwrap(), linker, &debug_dirs);
+        assert!(debug_altlink_file.is_none());
+    }
+
+    /// Check that we resolve debug altlinks correctly.
+    #[test]
+    fn debug_altlink_resolution() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-debuglink.bin");
+        let resolver = DwarfResolver::open(&path).unwrap();
+        assert!(resolver._altlinkee_parser.is_some());
+
+        let linkee_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.dwz");
+        assert_eq!(
+            resolver._altlinkee_parser.as_ref().unwrap().module(),
+            Some(linkee_path.as_os_str())
+        );
     }
 
     /// Check that we can find the source code location of an address.

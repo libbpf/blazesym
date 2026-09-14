@@ -1,3 +1,4 @@
+mod debug_altlink;
 mod debug_link;
 mod function;
 mod lines;
