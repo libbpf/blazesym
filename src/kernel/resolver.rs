@@ -233,15 +233,16 @@ impl Symbolize for KernelResolver<'_> {
                         let ext = mod_path.extension().unwrap_or_else(|| OsStr::new(""));
                         let path;
                         let mod_resolver = match ext.to_str() {
-                            Some("gz") | Some("xz") | Some("zstd") => {
+                            Some("gz") | Some("xz") | Some("zst") => {
                                 let tmpfile = match ext.to_str() {
                                     Some("gz") => decompress_zlib(&mod_path)?,
                                     Some("xz") => decompress_xz(&mod_path)?,
-                                    Some("zstd") => decompress_zstd(&mod_path)?,
+                                    Some("zst") => decompress_zstd(&mod_path)?,
                                     _ => unreachable!(),
                                 };
                                 // The temporary file *represents* `mod_path` without the
-                                // `.xz` extension.
+                                // extension representing the compression format (e.g.,
+                                // `.xz`).
                                 path = (tmpfile, mod_path.with_extension(""));
                                 self.cache.elf_resolver(&path, self.debug_syms)?
                             }

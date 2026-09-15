@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Fixed discovery of `zstd` compressed kernel modules (expecting
+  extension `.zst` instead of `.zstd`)
+
+
 0.2.6
 -----
 - Adjusted ELF symbolization to report sizeless `.dynsym` entries only on
