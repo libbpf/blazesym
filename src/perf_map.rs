@@ -129,9 +129,13 @@ impl PerfMap {
     /// given `pid`.
     pub(crate) fn path(pid: Pid) -> PathBuf {
         let pid = pid.resolve();
+        // Perf maps are created by the process itself and, hence, live in
+        // the `/tmp` directory as seen by *it*, which need not be ours. Go
+        // through `/proc/<pid>/root/` so that we find the file even if the
+        // process uses a different root directory or mount namespace.
         // The documentation mentions /tmp by name specifically, ignoring
         // `TMPDIR` et al, so that is what we work with as well.
-        let path = Path::new("/tmp").join(format!("perf-{pid}.map"));
+        let path = PathBuf::from(format!("/proc/{pid}/root/tmp/perf-{pid}.map"));
         path
     }
 
@@ -200,6 +204,7 @@ mod tests {
     use super::*;
 
     use std::io::Write as _;
+    use std::process;
 
     use tempfile::NamedTempFile;
 
@@ -251,6 +256,17 @@ mod tests {
         let () = file.write_all(SAMPLE_PERF_MAP).unwrap();
         let perf_map = PerfMap::from_file(file.path(), file.as_file()).unwrap();
         assert_ne!(format!("{perf_map:?}"), "");
+    }
+
+    /// Check that we report the expected path for a process' perf map.
+    #[test]
+    fn perf_map_path() {
+        let pid = process::id();
+        let path = PerfMap::path(Pid::Slf);
+        assert_eq!(
+            path,
+            Path::new(&format!("/proc/{pid}/root/tmp/perf-{pid}.map"))
+        );
     }
 
     /// Exercise various error paths of the perf map line parsing logic.

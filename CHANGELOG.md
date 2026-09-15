@@ -7,6 +7,8 @@ Unreleased
   `.build-id` sub-directory of every configured debug directory
 - Fixed discovery of `zstd` compressed kernel modules (expecting
   extension `.zst` instead of `.zstd`)
+- Fixed perf map lookup for processes using a different root directory
+  or mount namespace
 
 
 0.2.6
