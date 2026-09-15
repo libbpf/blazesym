@@ -1626,12 +1626,39 @@ fn symbolize_with_empty_perf_map() {
     assert!(matches!(result, Symbolized::Unknown(..)));
 }
 
-/// Check that we can symbolize an address using a perf map.
+/// Symbolize the address range covered by a perf map entry and make sure
+/// that the expected symbol is reported for all of it.
 #[cfg(linux)]
-#[fork]
-#[test]
-#[ignore = "test requires python 3.12 or higher"]
-fn symbolize_process_perf_map() {
+fn symbolize_perf_map_entry(
+    symbolizer: &Symbolizer,
+    process: Process,
+    addr: Addr,
+    size: usize,
+    name: &str,
+) {
+    let src = Source::Process(process);
+
+    let addrs = (addr..addr + size as Addr).collect::<Vec<_>>();
+    let results = symbolizer
+        .symbolize(&src, Input::AbsAddr(&addrs))
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), size);
+    let () = results.into_iter().for_each(|symbolized| {
+        let result = symbolized.into_sym().unwrap();
+        assert_eq!(result.name, name);
+        assert_eq!(result.addr, addr);
+        assert_eq!(result.size, Some(size));
+    });
+}
+
+/// Symbolize an address covered by a process' perf map.
+///
+/// If `exited` is `true` symbolization happens only after the process
+/// terminated, based on VMA data cached earlier.
+#[cfg(linux)]
+fn symbolize_perf_map_impl(exited: bool) {
     use std::ffi::OsString;
     use std::fs::File;
     use std::io::BufRead as _;
@@ -1655,38 +1682,73 @@ if __name__ == "__main__":
   main()
 "#;
 
+    let symbolizer = Symbolizer::new();
     let python = env::var_os("PYTHON").unwrap_or_else(|| OsString::from("python"));
-    let () = RemoteProcess::default()
-        .arg("-c")
-        .arg(script)
-        .exec(python, |pid, _addr| {
-            let path = Path::new("/tmp").join(format!("perf-{pid}.map"));
-            let file = BufReader::new(File::open(&path).unwrap());
-            let lines = file.lines().collect::<Result<Vec<_>, _>>().unwrap();
-            let line = &lines[lines.len() / 2];
-            let [addr, size, name] = line.split_ascii_whitespace().collect::<Vec<_>>()[..] else {
-                panic!("failed to parse perf map line: `{line}`")
-            };
-            let addr = Addr::from_str_radix(addr, 16).unwrap();
-            let size = usize::from_str_radix(size, 16).unwrap();
+    let (pid, addr, size, name, path) =
+        RemoteProcess::default()
+            .arg("-c")
+            .arg(script)
+            .exec(python, |pid, _addr| {
+                let path = Path::new("/tmp").join(format!("perf-{pid}.map"));
+                let file = BufReader::new(File::open(&path).unwrap());
+                let lines = file.lines().collect::<Result<Vec<_>, _>>().unwrap();
+                let line = &lines[lines.len() / 2];
+                let [addr, size, name] = line.split_ascii_whitespace().collect::<Vec<_>>()[..]
+                else {
+                    panic!("failed to parse perf map line: `{line}`")
+                };
+                let addr = Addr::from_str_radix(addr, 16).unwrap();
+                let size = usize::from_str_radix(size, 16).unwrap();
+                let name = name.to_string();
 
-            let src = Source::Process(Process::new(pid));
-            let symbolizer = Symbolizer::new();
-
-            let addrs = (addr..addr + size as Addr).collect::<Vec<_>>();
-            let results = symbolizer
-                .symbolize(&src, Input::AbsAddr(&addrs))
-                .unwrap()
-                .into_iter()
-                .collect::<Vec<_>>();
-            assert_eq!(results.len(), size);
-            let () = results.into_iter().for_each(|symbolized| {
-                let result = symbolized.into_sym().unwrap();
-                assert_eq!(result.name, name);
-                assert_eq!(result.addr, addr);
-                assert_eq!(result.size, Some(size));
+                if exited {
+                    // Cache VMA information about the process while it is
+                    // alive, so that we can still symbolize once it is gone.
+                    let () = symbolizer
+                        .cache(&cache::Cache::from(cache::Process::new(pid)))
+                        .unwrap();
+                } else {
+                    let process = Process::new(pid);
+                    let () = symbolize_perf_map_entry(&symbolizer, process, addr, size, &name);
+                }
+                (pid, addr, size, name, path)
             });
-        });
+    // The perf map is not cleaned up automatically, so make sure we
+    // clean up ourselves.
+    defer!({
+        let _result = remove_file(&path);
+    });
+
+    if exited {
+        // By now the process is guaranteed to be dead (modulo PID
+        // reuse...), but its perf map is still around.
+        let mut process = Process::new(pid);
+        // Opt out of map file usage, because those files will no longer
+        // be present with the process having exited.
+        process.map_files = false;
+        let () = symbolize_perf_map_entry(&symbolizer, process, addr, size, &name);
+    }
+}
+
+/// Check that we can symbolize an address using a perf map.
+#[cfg(linux)]
+#[fork]
+#[test]
+#[ignore = "test requires python 3.12 or higher"]
+fn symbolize_process_perf_map() {
+    let exited = false;
+    symbolize_perf_map_impl(exited)
+}
+
+/// Check that we can symbolize an address using the perf map of a
+/// process that has already exited, based on VMA data cached earlier.
+#[cfg(linux)]
+#[fork]
+#[test]
+#[ignore = "test requires python 3.12 or higher"]
+fn symbolize_process_exited_perf_map() {
+    let exited = true;
+    symbolize_perf_map_impl(exited)
 }
 
 fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
