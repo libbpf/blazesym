@@ -1091,11 +1091,20 @@ impl Symbolizer {
             Cache::Process(cache::Process {
                 pid,
                 cache_vmas,
+                cache_perf_map,
                 _non_exhaustive: (),
             }) => {
                 if *cache_vmas {
                     let parsed = maps::parse_filtered(*pid)?.collect::<Result<Box<_>>>()?;
                     let _prev = self.process_vma_cache.borrow_mut().insert(*pid, parsed);
+                }
+
+                if *cache_perf_map {
+                    let path = PerfMap::path(*pid);
+                    let _unpinned = self.perf_map_cache.unpin(&path);
+                    let result = self.perf_map_resolver(&path);
+                    let _pinned = self.perf_map_cache.pin(&path);
+                    let _perf_map = result?;
                 }
             }
         }

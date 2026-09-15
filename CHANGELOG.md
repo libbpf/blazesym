@@ -2,6 +2,7 @@ Unreleased
 ----------
 - Added support for `.gnu_debugaltlink` section handling to discover
   DWARF supplementary files
+- Added `cache_perf_map` attribute to `symbolize::cache::Process`
 - Adjusted build ID based split debug information lookup to consider the
   `.build-id` sub-directory of every configured debug directory
 - Fixed discovery of `zstd` compressed kernel modules (expecting
