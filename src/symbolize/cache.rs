@@ -73,6 +73,26 @@ pub struct Process {
     /// part of the symbolization request. Refer to
     /// [`source::Process::map_files`][crate::symbolize::source::Process::map_files].
     pub cache_vmas: bool,
+    /// Whether to cache the process' [perf map] for later use.
+    ///
+    /// Caching the perf map can be useful, because it conceptually
+    /// enables the library to symbolize just-in-time compiled code of a
+    /// process even if said process has since exited the system. That
+    /// is not possible otherwise, because the file is only reachable
+    /// through the process' `/proc/<pid>/` entry.
+    ///
+    /// Note that once the perf map has been cached this way, the
+    /// library will refrain from re-reading it unless instructed to.
+    /// Hence, if you have reason to believe that a process emitted
+    /// additional symbols in the meantime, you would have to make
+    /// another request to cache it yourself.
+    ///
+    /// Note furthermore that it is not an error if the process has no
+    /// perf map, as is the case for most programs not using a JIT
+    /// compiler.
+    ///
+    /// [perf map]: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/perf/Documentation/jit-interface.txt
+    pub cache_perf_map: bool,
     /// The struct is non-exhaustive and open to extension.
     #[doc(hidden)]
     pub _non_exhaustive: (),
@@ -81,12 +101,14 @@ pub struct Process {
 impl Process {
     /// Create a new [`Process`] object using the provided `pid`.
     ///
-    /// `cache_vmas` default to `true` when using this constructor.
+    /// `cache_vmas` and `cache_perf_map` default to `true` when using
+    /// this constructor.
     #[inline]
     pub fn new(pid: Pid) -> Self {
         Self {
             pid,
             cache_vmas: true,
+            cache_perf_map: true,
             _non_exhaustive: (),
         }
     }
@@ -97,6 +119,7 @@ impl Debug for Process {
         let Self {
             pid,
             cache_vmas: _,
+            cache_perf_map: _,
             _non_exhaustive: (),
         } = self;
 

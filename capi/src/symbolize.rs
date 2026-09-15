@@ -140,6 +140,7 @@ impl From<blaze_cache_src_process> for cache::Process {
         Self {
             pid: pid.into(),
             cache_vmas,
+            cache_perf_map: false,
             _non_exhaustive: (),
         }
     }
