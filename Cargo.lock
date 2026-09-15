@@ -278,7 +278,6 @@ dependencies = [
  "vmlinux",
  "xz2",
  "zip",
- "zstd 0.14.0",
 ]
 
 [[package]]

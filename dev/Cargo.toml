@@ -12,7 +12,7 @@ path = "lib.rs"
 
 [features]
 # Enable this feature to enable support for zstd decompression.
-zstd = ["dep:zstd"]
+zstd = []
 # Enable this feature to benchmark instructions instead of wall clock
 # time. Only applicable on Linux.
 bench-instrs = []
@@ -42,7 +42,6 @@ thorin_dwp = {package = "thorin-dwp", version = "0.9", optional = true, default-
 vmlinux = {git = "https://github.com/libbpf/vmlinux.h.git", rev = "a9c092aa771310bf8b00b5018f7d40a1fdb6ec82"}
 xz2 = {version = "0.1", default-features = false, optional = true}
 zip = {version = "7", optional = true, default-features = false}
-zstd = {version = "0.14", default-features = false, optional = true}
 
 [target.'cfg(any(target_os = "linux", target_os = "android"))'.build-dependencies]
 libbpf-sys = {version = "1.7", default-features = false, optional = true}
