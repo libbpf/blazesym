@@ -1446,6 +1446,95 @@ fn symbolize_process_exited_cached_vmas() {
     let () = test_symbolize();
 }
 
+
+/// Find the start address of an unnamed VMA of the process with the
+/// given `pid`. Addresses inside such a VMA can only be symbolized with
+/// the help of a perf map.
+#[cfg(linux)]
+fn unnamed_vma_addr(pid: Pid) -> Addr {
+    let path = format!("/proc/{pid}/maps");
+    let maps = fs::read_to_string(&path).unwrap();
+    maps.lines()
+        .find_map(|line| {
+            let mut components = line.split_ascii_whitespace();
+            let range = components.next()?;
+            let perms = components.next()?;
+            // An entry without a path name has nothing past the inode
+            // component. It also has to be readable for the library to
+            // consider it relevant.
+            if components.count() != 3 || !perms.starts_with('r') {
+                return None
+            }
+            let (start, _end) = range.split_once('-')?;
+            Addr::from_str_radix(start, 16).ok()
+        })
+        .unwrap_or_else(|| panic!("failed to find unnamed VMA in `{path}`"))
+}
+
+
+/// Check that we can symbolize just-in-time compiled code of a process
+/// that has already exited, based on perf map data cached earlier.
+#[cfg(linux)]
+#[test]
+fn symbolize_process_exited_cached_perf_map() {
+    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("libtest-so.so");
+    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-wait.bin");
+
+    let cached = Symbolizer::new();
+    let uncached = Symbolizer::new();
+
+    let (pid, addr) = RemoteProcess::default()
+        .arg(&test_so)
+        .exec(&wait, |pid, _addr| {
+            // Addresses inside an unnamed VMA can only be symbolized with
+            // the help of a perf map.
+            let addr = unnamed_vma_addr(pid);
+            let path = format!("/tmp/perf-{pid}.map");
+            let () = fs::write(&path, format!("{addr:x} 1 jitted_function\n")).unwrap();
+            // Make sure that the perf map is gone by the time we
+            // symbolize, so that any success can only be based on data
+            // cached below.
+            defer!({
+                let _result = remove_file(&path);
+            });
+
+            // Cache the perf map while the process is still alive.
+            let () = cached
+                .cache(&cache::Cache::from(cache::Process::new(pid)))
+                .unwrap();
+
+            let mut process = cache::Process::new(pid);
+            process.cache_perf_map = false;
+            let () = uncached.cache(&cache::Cache::from(process)).unwrap();
+
+            (pid, addr)
+        });
+
+    let mut process = Process::new(pid);
+    process.map_files = false;
+
+    let src = Source::Process(process.clone());
+    let result = cached
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+    assert_eq!(result.name, "jitted_function");
+    assert_eq!(result.addr, addr);
+
+    // Without the perf map having been cached, there is nothing left to
+    // symbolize against.
+    let src = Source::Process(process);
+    let result = uncached
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap();
+    assert!(matches!(result, Symbolized::Unknown(..)), "{result:?}");
+}
+
 /// Check that we can evict cached process data.
 #[cfg(linux)]
 #[test]
