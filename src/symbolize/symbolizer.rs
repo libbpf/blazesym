@@ -562,7 +562,8 @@ impl SymbolizeHandler<'_> {
     }
 
     fn handle_perf_map_addr(&mut self, addr: Addr) -> Result<()> {
-        if let Some(perf_map) = self.symbolizer.perf_map_resolver(self.pid)? {
+        let path = PerfMap::path(self.pid);
+        if let Some(perf_map) = self.symbolizer.perf_map_resolver(&path)? {
             let symbolized = self
                 .symbolizer
                 .symbolize_with_resolver(addr, &Resolver::Cached(perf_map))?;
@@ -923,13 +924,11 @@ impl Symbolizer {
         Ok(perf_map)
     }
 
-    fn perf_map_resolver(&self, pid: Pid) -> Result<Option<&PerfMap>> {
-        let path = PerfMap::path(pid);
-
-        match self.perf_map_cache.entry(&path) {
+    fn perf_map_resolver(&self, path: &Path) -> Result<Option<&PerfMap>> {
+        match self.perf_map_cache.entry(path) {
             Ok((file, cell)) => {
                 let perf_map =
-                    cell.get_or_try_init_(|| self.create_perf_map_resolver(&path, file))?;
+                    cell.get_or_try_init_(|| self.create_perf_map_resolver(path, file))?;
                 Ok(Some(perf_map))
             }
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(None),
