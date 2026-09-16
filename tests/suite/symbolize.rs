@@ -1921,6 +1921,52 @@ fn symbolize_process_exited_perf_map() {
     symbolize_perf_map_impl(exited)
 }
 
+/// Unshare the namespaces described by `flags` and, in the new mount
+/// namespace, bind mount the directory at `tmp_path` over `/tmp`.
+///
+/// This function is meant to be invoked from a `pre_exec` context.
+#[cfg(linux)]
+fn unshare_with_private_tmp(flags: libc::c_int, tmp_path: &Path) -> io::Result<()> {
+    let rc = unsafe { libc::unshare(libc::CLONE_NEWNS | flags) };
+    if rc != 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    // Make sure that the mount we are about to perform does not
+    // propagate back into our parent's namespace, where it would shadow
+    // the actual `/tmp` directory.
+    let root = CStr::from_bytes_with_nul(b"/\0").unwrap();
+    let rc = unsafe {
+        libc::mount(
+            ptr::null(),
+            root.as_ptr(),
+            ptr::null(),
+            libc::MS_REC | libc::MS_PRIVATE,
+            ptr::null(),
+        )
+    };
+    if rc != 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    // Bind mount the temporary directory over `/tmp`.
+    let source = CString::new(tmp_path.as_os_str().as_encoded_bytes()).unwrap();
+    let target = CStr::from_bytes_with_nul(b"/tmp\0").unwrap();
+    let rc = unsafe {
+        libc::mount(
+            source.as_ptr(),
+            target.as_ptr(),
+            ptr::null(),
+            libc::MS_BIND,
+            ptr::null(),
+        )
+    };
+    if rc != 0 {
+        return Err(io::Error::last_os_error());
+    }
+    Ok(())
+}
+
 /// Check that we consult the perf map inside the target process' mount
 /// namespace, as opposed to the one in our own `/tmp` directory.
 #[cfg(linux)]
@@ -1941,47 +1987,7 @@ fn symbolize_process_perf_map_in_mount_namespace() {
 
     let () = RemoteProcess::default()
         .arg(&test_so)
-        .pre_exec(move || {
-            // Create a mount namespace.
-            let rc = unsafe { libc::unshare(libc::CLONE_NEWNS) };
-            if rc != 0 {
-                return Err(io::Error::last_os_error());
-            }
-
-            // Make sure that the mount we are about to perform does not
-            // propagate back into our parent's namespace, where it would
-            // shadow the actual `/tmp` directory.
-            let root = CStr::from_bytes_with_nul(b"/\0").unwrap();
-            let rc = unsafe {
-                libc::mount(
-                    ptr::null(),
-                    root.as_ptr(),
-                    ptr::null(),
-                    libc::MS_REC | libc::MS_PRIVATE,
-                    ptr::null(),
-                )
-            };
-            if rc != 0 {
-                return Err(io::Error::last_os_error());
-            }
-
-            // Bind mount the temporary directory over `/tmp`.
-            let source = CString::new(tmp_path.as_os_str().as_encoded_bytes()).unwrap();
-            let target = CStr::from_bytes_with_nul(b"/tmp\0").unwrap();
-            let rc = unsafe {
-                libc::mount(
-                    source.as_ptr(),
-                    target.as_ptr(),
-                    ptr::null(),
-                    libc::MS_BIND,
-                    ptr::null(),
-                )
-            };
-            if rc != 0 {
-                return Err(io::Error::last_os_error());
-            }
-            Ok(())
-        })
+        .pre_exec(move || unshare_with_private_tmp(0, &tmp_path))
         .exec(&wait, |pid, _addr| {
             let addr = unnamed_vma_addr(pid);
             let () = fs::write(
