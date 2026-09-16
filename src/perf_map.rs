@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::fmt::Result as FmtResult;
 use std::fs::File;
+use std::io::Read as _;
 use std::mem::transmute;
 use std::ops::Deref as _;
 use std::path::Path;
@@ -113,6 +114,34 @@ fn parse_perf_map(data: &[u8]) -> Result<Vec<Function<'_>>> {
 }
 
 
+/// Extract the ID reported for the innermost PID namespace from the
+/// contents of a `/proc/<pid>/status` file.
+fn parse_ns_tgid(status: &str) -> Result<Option<u32>> {
+    // The line of interest has the following format:
+    // > NStgid:	1337	1
+    // It lists the process' ID in each of the PID namespaces that it is
+    // visible in, starting with the one that `/proc` reports and ending
+    // with the innermost one, which is the one the process sees itself
+    // as.
+    let Some(tgids) = status.lines().find_map(|line| line.strip_prefix("NStgid:")) else {
+        // Kernels built without PID namespace support do not report the
+        // member at all.
+        return Ok(None)
+    };
+
+    let tgid = tgids
+        .split_ascii_whitespace()
+        .next_back()
+        .ok_or_invalid_data(|| format!("failed to find PID in status line `NStgid:{tgids}`"))?;
+    let tgid = tgid.parse::<u32>().map_err(|err| {
+        Error::with_invalid_data(format!(
+            "encountered malformed PID in status line `NStgid:{tgids}`: {err}"
+        ))
+    })?;
+    Ok(Some(tgid))
+}
+
+
 pub(crate) struct PerfMap {
     /// All functions found in the perf map, ordered by start address.
     // SAFETY: We must not hand out references with a 'static lifetime to
@@ -125,17 +154,35 @@ pub(crate) struct PerfMap {
 }
 
 impl PerfMap {
+    /// Retrieve the ID that the process with the given `pid` sees itself
+    /// as, i.e., its ID inside the PID namespace that it runs in.
+    pub(crate) fn ns_tgid(pid: Pid) -> Result<u32> {
+        let path = format!("/proc/{pid}/status");
+        let mut file = File::open(&path).with_context(|| format!("failed to open `{path}`"))?;
+        let mut status = String::new();
+        let _count = file
+            .read_to_string(&mut status)
+            .with_context(|| format!("failed to read `{path}`"))?;
+
+        let ns_tgid = parse_ns_tgid(&status)
+            .with_context(|| format!("failed to parse PID namespace ID from `{path}`"))?;
+        Ok(ns_tgid.unwrap_or_else(|| pid.resolve()))
+    }
+
     /// Retrieve the path to a perf map file representing the process with the
-    /// given `pid`.
-    pub(crate) fn path(pid: Pid) -> PathBuf {
+    /// given `pid`, which sees itself as `ns_tgid`.
+    pub(crate) fn path(pid: Pid, ns_tgid: u32) -> PathBuf {
         let pid = pid.resolve();
         // Perf maps are created by the process itself and, hence, live in
         // the `/tmp` directory as seen by *it*, which need not be ours. Go
         // through `/proc/<pid>/root/` so that we find the file even if the
         // process uses a different root directory or mount namespace.
+        // For the very same reason the file is named after the ID that the
+        // process sees itself as, which differs from `pid` if it lives in
+        // a descendant PID namespace.
         // The documentation mentions /tmp by name specifically, ignoring
         // `TMPDIR` et al, so that is what we work with as well.
-        let path = PathBuf::from(format!("/proc/{pid}/root/tmp/perf-{pid}.map"));
+        let path = PathBuf::from(format!("/proc/{pid}/root/tmp/perf-{ns_tgid}.map"));
         path
     }
 
@@ -241,6 +288,22 @@ mod tests {
 7fbf1fc21764 b py::FileLoader.__init__:<frozen importlib._bootstrap_external>
 "#;
 
+    /// An excerpt of a `/proc/<pid>/status` file.
+    const SAMPLE_STATUS: &str = "Name:\tcat
+Umask:\t0022
+State:\tR (running)
+Tgid:\t1337
+Ngid:\t0
+Pid:\t1337
+PPid:\t1336
+TracerPid:\t0
+NStgid:\t1
+NSpid:\t1337
+NSpgid:\t1337
+NSsid:\t1336
+VmPeak:\t    8584 kB
+";
+
 
     /// Exercise the `Debug` representation of various types.
     #[test]
@@ -262,11 +325,52 @@ mod tests {
     #[test]
     fn perf_map_path() {
         let pid = process::id();
-        let path = PerfMap::path(Pid::Slf);
+        let path = PerfMap::path(Pid::Slf, pid);
         assert_eq!(
             path,
             Path::new(&format!("/proc/{pid}/root/tmp/perf-{pid}.map"))
         );
+
+        // A process inside a descendant PID namespace names its perf map
+        // after the ID that it sees itself as.
+        let path = PerfMap::path(Pid::from(1337), 1);
+        assert_eq!(path, Path::new("/proc/1337/root/tmp/perf-1.map"));
+    }
+
+    /// Check that we can determine the ID that our own process sees
+    /// itself as.
+    #[test]
+    fn ns_tgid_retrieval() {
+        let ns_tgid = PerfMap::ns_tgid(Pid::Slf).unwrap();
+        assert_eq!(ns_tgid, process::id());
+    }
+
+    /// Make sure that we can extract the innermost PID namespace ID from
+    /// `/proc/<pid>/status` contents.
+    #[test]
+    fn ns_tgid_parsing() {
+        // A process not living in a descendant PID namespace.
+        let tgid = parse_ns_tgid(SAMPLE_STATUS).unwrap().unwrap();
+        assert_eq!(tgid, 1);
+
+        // Kernels without PID namespace support do not report the member,
+        // in which case we fall back to the PID we know.
+        let status = SAMPLE_STATUS.replace("NStgid:\t1\n", "");
+        let tgid = parse_ns_tgid(&status).unwrap();
+        assert_eq!(tgid, None);
+    }
+
+    /// Exercise various error paths of the PID namespace ID parsing
+    /// logic.
+    #[test]
+    fn ns_tgid_parsing_errors() {
+        let status = SAMPLE_STATUS.replace("NStgid:\t1", "NStgid:");
+        let result = parse_ns_tgid(&status);
+        assert!(result.is_err(), "{result:?}");
+
+        let status = SAMPLE_STATUS.replace("NStgid:\t1", "NStgid:\t1\txxx");
+        let result = parse_ns_tgid(&status);
+        assert!(result.is_err(), "{result:?}");
     }
 
     /// Exercise various error paths of the perf map line parsing logic.
