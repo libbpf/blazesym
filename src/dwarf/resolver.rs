@@ -756,6 +756,53 @@ mod tests {
         assert!(dwp_parser.is_none());
     }
 
+    /// Check that we can discover debug altlink as expected.
+    #[test]
+    fn debug_altlink_discovery() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.dbg");
+        let parser = ElfParser::open(&path).unwrap();
+        let debug_altlink_parser = try_deref_debug_altlink(&parser, None).unwrap();
+        assert!(debug_altlink_parser.is_some());
+
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-debug.bin");
+        let parser = ElfParser::open(&path).unwrap();
+        let debug_altlink_parser = try_deref_debug_altlink(&parser, None).unwrap();
+        assert!(debug_altlink_parser.is_none());
+
+        let linker = parser.module().map(OsStr::as_ref);
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("nonexistent_file");
+        let debug_altlink_file = find_altdebug_file(&path, linker);
+        assert!(debug_altlink_file.is_none());
+
+        let linker = parser.module().map(OsStr::as_ref);
+        let debug_altlink_file = find_altdebug_file(linker.unwrap(), linker);
+        assert!(debug_altlink_file.is_none());
+    }
+
+    /// Check that we resolve debug altlinks correctly.
+    #[test]
+    fn debug_altlink_resolution() {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-debuglink.bin");
+        let resolver = DwarfResolver::open(&path).unwrap();
+        assert!(resolver._altlinkee_parser.is_some());
+
+        let linkee_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test.dwz");
+        assert_eq!(
+            resolver._altlinkee_parser.as_ref().unwrap().module(),
+            Some(linkee_path.as_os_str())
+        );
+    }
+
     /// Check that we can find the source code location of an address.
     #[test]
     fn source_location_finding() {

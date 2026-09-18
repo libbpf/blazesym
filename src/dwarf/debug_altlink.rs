@@ -81,10 +81,10 @@ mod tests {
         // Now write the section data into it.
         let () = buffer.copy_from_slice(&section_data);
 
-        let (file, build_id) = parse_debug_altlink_section_data(buffer).unwrap().unwrap();
-        assert_eq!(file, OsStr::new("../../.dwz/program"));
+        let (path, build_id) = parse_debug_altlink_section_data(buffer).unwrap().unwrap();
+        assert_eq!(path, Path::new("../../.dwz/program"));
         assert_eq!(
-            build_id,
+            build_id.as_ref(),
             [
                 0x7f, 0xd3, 0x76, 0x0a, 0xf3, 0x98, 0xa1, 0xcc, 0x3f, 0x90, 0x45, 0x69, 0x9a, 0xda,
                 0x29, 0xe0, 0xb6, 0x6b, 0x45, 0xc8
