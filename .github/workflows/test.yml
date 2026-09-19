@@ -160,7 +160,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - name: Check incremental rebuilds
@@ -183,7 +183,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v7
     - uses: d-e-s-o/build-linux@a2c2581c6b44879b6070699618be648480a122c5
       id: build
@@ -267,7 +267,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - run: cargo check --package=blazesym-dev --features=generate-unit-test-files
@@ -309,7 +309,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
@@ -341,7 +341,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev liblzma-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev liblzma-dev
     - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - uses: Swatinem/rust-cache@v2
@@ -391,7 +391,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
       with:
@@ -416,7 +416,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@stable
     - run: echo "RUSTFLAGS=${RUSTFLAGS} -C debuginfo=limited" >> $GITHUB_ENV
@@ -447,7 +447,7 @@ jobs:
     - name: Install development dependencies
       run: |
         sudo apt-get update
-        sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+        sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
     - uses: actions/checkout@v7
     - uses: dtolnay/rust-toolchain@master
       with:
@@ -512,7 +512,7 @@ jobs:
       - name: Install development dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends gcc-multilib libelf-dev zlib1g-dev
+          sudo apt-get install --yes --no-install-recommends dwz gcc-multilib libelf-dev zlib1g-dev
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo check --package blazesym-dev --features=generate-unit-test-files

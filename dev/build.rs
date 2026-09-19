@@ -157,8 +157,9 @@ fn write_mtime_marker() -> Result<()> {
 }
 
 enum ArgSpec {
-    SrcDst,
-    SrcDashODst,
+    Dst,
+    DashODst,
+    DashMDst,
 }
 
 /// Invoke `tool` to convert `src` into `dst`.
@@ -186,12 +187,16 @@ fn toolize_impl<'p, S, I>(
     let args1;
     let args2;
     let args = match arg_spec {
-        ArgSpec::SrcDst => {
+        ArgSpec::Dst => {
             args1 = [dst.as_os_str()];
             args1.as_slice()
         }
-        ArgSpec::SrcDashODst => {
+        ArgSpec::DashODst => {
             args2 = ["-o".as_ref(), dst.as_os_str()];
+            args2.as_slice()
+        }
+        ArgSpec::DashMDst => {
+            args2 = ["-m".as_ref(), dst.as_os_str()];
             args2.as_slice()
         }
     };
@@ -224,13 +229,17 @@ fn toolize_impl<'p, S, I>(
 fn toolize(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
-    toolize_impl(tool, ArgSpec::SrcDst, [src], &dst, options, None)
+    toolize_impl(tool, ArgSpec::Dst, [src], &dst, options, None)
 }
 
 fn toolize_o(tool: &str, src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     let dst = dst.as_ref();
     let dst = src.with_file_name(dst);
-    toolize_impl(tool, ArgSpec::SrcDashODst, [src], &dst, options, None)
+    toolize_impl(tool, ArgSpec::DashODst, [src], &dst, options, None)
+}
+
+fn toolize_m(tool: &str, dst: &Path, options: &[&str]) {
+    toolize_impl(tool, ArgSpec::DashMDst, [], dst, options, None)
 }
 
 /// Compile `src` into `dst` using `cc`.
@@ -247,7 +256,7 @@ where
     let ld = env::var("LD")
         .map(Cow::Owned)
         .unwrap_or_else(|_| Cow::Borrowed("ld"));
-    toolize_impl(&ld, ArgSpec::SrcDashODst, srcs, dst, options, None)
+    toolize_impl(&ld, ArgSpec::DashODst, srcs, dst, options, None)
 }
 
 /// Compile `src` into `dst` using `rustc`.
@@ -393,6 +402,11 @@ fn dwarf(src: &Path, dst: impl AsRef<OsStr>) {
 /// Invoke `objcopy` on `src` and place the result in `dst`.
 fn objcopy(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize("objcopy", src, dst, options)
+}
+
+/// Invoke `dwz` on `src` and place the result in `dst`.
+fn dwz(dst: &Path, options: &[&str]) {
+    toolize_m("dwz", dst, options)
 }
 
 /// Generate a Breakpad .sym file for the given source.
@@ -692,7 +706,7 @@ fn prepare_test_files() {
     let dst = data_dir.join(Path::new("test-empty.bin"));
     toolize_impl(
         "cc",
-        ArgSpec::SrcDashODst,
+        ArgSpec::DashODst,
         [src],
         &dst,
         &["-g"],
@@ -850,6 +864,35 @@ fn prepare_test_files() {
     ];
     let dst = data_dir.join("test.zip");
     zip(files.as_slice(), &dst);
+
+    // Generate files to test .gnu_debugaltlink section
+    let src = data_dir.join("test-exe.c");
+    cc(&src, "test-debug.bin", &["-g"]);
+    cc(&src, "test-debug-O2.bin", &["-g", "-O2"]);
+    let debug_bin = data_dir.join("test-debug.bin");
+    dwarf(&debug_bin, "test.dbg");
+    let dbg = data_dir.join("test.dbg");
+    let debug_o2_bin = data_dir.join("test-debug-O2.bin");
+    dwarf(&debug_o2_bin, "test-O2.dbg");
+    let dbg_o2 = data_dir.join("test-O2.dbg");
+    let dst = data_dir.join("test.dwz");
+    dwz(
+        &dst,
+        &[
+            &format!("{}", dbg.display()),
+            &format!("{}", dbg_o2.display()),
+        ],
+    );
+    objcopy(
+        &debug_bin,
+        "test-debuglink.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg.display()),
+        ],
+    );
+    let () = adjust_mtime(&dbg).unwrap();
+    let () = adjust_mtime(&dbg_o2).unwrap();
 }
 
 
