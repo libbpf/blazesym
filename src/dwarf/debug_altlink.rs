@@ -17,6 +17,7 @@ use crate::error::IntoError as _;
 use crate::util::bytes_to_path;
 use crate::util::ReadRaw as _;
 use crate::BuildId;
+use crate::Error;
 use crate::Result;
 
 
@@ -39,9 +40,12 @@ pub(crate) fn read_debug_altlink(parser: &ElfParser) -> Result<Option<(&Path, Bu
 fn parse_debug_altlink_section_data(mut data: &[u8]) -> Result<Option<(&Path, BuildId<'_>)>> {
     let path = data
         .read_cstr()
-        .filter(|cstr| !cstr.is_empty())
         .ok_or_invalid_data(|| "failed to read debug altlink path")?;
     let path = bytes_to_path(path.to_bytes())?;
+    // TODO: Use `Path::is_empty` once our MSRV is >= 1.98.
+    if path.as_os_str().is_empty() {
+        return Err(Error::with_invalid_data("debug altlink target is empty"))
+    }
 
     let build_id = data
         .read_slice(data.len())
