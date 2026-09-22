@@ -4,7 +4,7 @@
 //!
 //! A debug altlink is a special section of the executable file named
 //! `.gnu_debugaltlink`. The section must contain:
-//! - a relative path, followed by a zero byte, and
+//! - a path, followed by a zero byte, and
 //! - a SHA-1 build ID of the linked file.
 //!
 //! Debug altlinks reference supplementary DWARF debug files.
