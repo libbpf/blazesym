@@ -223,7 +223,7 @@ jobs:
         echo "export PYTHON=${PYTHON}" >> env.sh
         source env.sh
 
-        cargo test --no-run --workspace --all-targets --features=zstd,nightly,blazesym-dev/generate-large-test-files 2>&1 | tee /tmp/cargo-build.log
+        cargo test --no-run --workspace --all-targets --features=zstd,nightly,blazesym-dev/generate-all-test-files 2>&1 | tee /tmp/cargo-build.log
         tests=$(IFS='' grep Executable /tmp/cargo-build.log |
           awk '{print $NF}' |
           sed 's@[()]@@g' |
@@ -457,7 +457,7 @@ jobs:
       shell: bash
       run: |
         echo '```' >> $GITHUB_STEP_SUMMARY
-        cargo bench --workspace --features=nightly,blazesym-dev/generate-large-test-files -- bench_ | tee --append $GITHUB_STEP_SUMMARY
+        cargo bench --workspace --features=nightly,blazesym-dev/generate-all-test-files -- bench_ | tee --append $GITHUB_STEP_SUMMARY
         # We use bencher format here for better relation to the above
         # but also because it emits less other crap into our summary.
         # Note that because libtest does not understand the

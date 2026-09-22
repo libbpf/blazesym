@@ -1145,7 +1145,7 @@ fn main() {
         prepare_bpf_files();
     }
 
-    if cfg!(feature = "generate-large-test-files") {
+    if cfg!(feature = "generate-all-test-files") {
         download_bench_files();
         prepare_bench_files();
     }
