@@ -697,6 +697,10 @@ pub struct blaze_symbolizer_opts {
     /// here will overwrite these defaults, so make sure to include these
     /// directories as desired.
     ///
+    /// The `.build-id` sub-directory of each of these directories is consulted
+    /// as well, for build ID indexed debug information, and takes precedence
+    /// over the directories themselves.
+    ///
     /// Note that the directory containing a symbolization source is always an
     /// implicit candidate target directory of the highest precedence.
     pub debug_dirs: *const *const c_char,

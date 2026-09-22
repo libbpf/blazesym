@@ -19,8 +19,8 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::elf::ElfParser;
-use crate::elf::BUILD_ID_DEBUG_DIR;
 use crate::elf::BUILD_ID_DEBUG_EXTENSION;
+use crate::elf::BUILD_ID_DEBUG_SUBDIR;
 use crate::error::IntoError as _;
 use crate::util::align_up_usize;
 use crate::util::bytes_to_os_str;
@@ -32,6 +32,10 @@ use crate::Result;
 
 enum State {
     BuildId,
+    BuildIdDirs {
+        idx: usize,
+        suffix: PathBuf,
+    },
     FixedDir {
         idx: usize,
     },
@@ -94,33 +98,47 @@ impl Iterator for DebugFileIter<'_> {
     fn next(&mut self) -> Option<Self::Item> {
         match &mut self.state {
             State::BuildId => {
-                self.state = State::FixedDir { idx: 0 };
-
                 let Some(build_id) = self.build_id.as_ref() else {
+                    self.state = State::FixedDir { idx: 0 };
                     return self.next()
                 };
 
                 // Technically we can check just 2 bytes with the code below,
                 // but anything that short is probably bogus and worth skipping.
                 if build_id.len() < 8 {
+                    self.state = State::FixedDir { idx: 0 };
                     return self.next();
                 }
 
-                let mut path = PathBuf::from(BUILD_ID_DEBUG_DIR);
+                // The suffix is the same for all directories, so assemble it
+                // only once.
+                let mut suffix = PathBuf::from(BUILD_ID_DEBUG_SUBDIR);
                 let mut build_id_iter = build_id.iter();
 
                 // SANITY: We guarantee a minimum build ID length above.
                 let first = build_id_iter.next().unwrap();
-                path.push(format!("{first:02x}"));
+                suffix.push(format!("{first:02x}"));
 
-                path.push(format!(
+                suffix.push(format!(
                     "{}.{BUILD_ID_DEBUG_EXTENSION}",
                     build_id_iter
                         .map(|byte| format!("{byte:02x}"))
                         .collect::<String>()
                 ));
 
-                self.report_or_next(path)
+                self.state = State::BuildIdDirs { idx: 0, suffix };
+                self.next()
+            }
+            State::BuildIdDirs { idx, suffix } => {
+                if let Some(dir) = self.fixed_dirs.get(*idx) {
+                    *idx += 1;
+
+                    let path = dir.join(suffix);
+                    self.report_or_next(path)
+                } else {
+                    self.state = State::FixedDir { idx: 0 };
+                    self.next()
+                }
             }
             State::FixedDir { idx } => {
                 if let Some(dir) = self.fixed_dirs.get(*idx) {
@@ -376,6 +394,7 @@ mod tests {
 
         let expected = vec![
             PathBuf::from("/usr/lib/debug/.build-id/be/efbeeffeedbabe.debug"),
+            PathBuf::from("/lib/debug/.build-id/be/efbeeffeedbabe.debug"),
             PathBuf::from("/usr/lib/debug/libc.so.debug"),
             PathBuf::from("/lib/debug/libc.so.debug"),
             PathBuf::from("/usr/lib64/libc.so.debug"),
@@ -385,6 +404,41 @@ mod tests {
             PathBuf::from("/lib/debug/usr/libc.so.debug"),
         ];
         assert_eq!(files, expected);
+
+        // Build ID based candidates are reported for each configured
+        // directory and not just a hard coded one.
+        let fixed_dirs = [PathBuf::from("/opt/debug"), PathBuf::from("/srv/dbg/")];
+        let files = DebugFileIter::new(
+            fixed_dirs.as_slice(),
+            None,
+            OsStr::new("libc.so.debug"),
+            Some(BuildId::Owned(vec![
+                0xbe, 0xef, 0xbe, 0xef, 0xfe, 0xed, 0xba, 0xbe,
+            ])),
+        )
+        .collect::<Vec<_>>();
+
+        let expected = vec![
+            PathBuf::from("/opt/debug/.build-id/be/efbeeffeedbabe.debug"),
+            PathBuf::from("/srv/dbg/.build-id/be/efbeeffeedbabe.debug"),
+            PathBuf::from("/opt/debug/libc.so.debug"),
+            PathBuf::from("/srv/dbg/libc.so.debug"),
+        ];
+        assert_eq!(files, expected);
+
+        // Without any directory configured there is nothing to search,
+        // not even for a build ID based candidate.
+        let fixed_dirs = [];
+        let files = DebugFileIter::new(
+            fixed_dirs.as_slice(),
+            None,
+            OsStr::new("libc.so.debug"),
+            Some(BuildId::Owned(vec![
+                0xbe, 0xef, 0xbe, 0xef, 0xfe, 0xed, 0xba, 0xbe,
+            ])),
+        )
+        .collect::<Vec<_>>();
+        assert_eq!(files, Vec::<PathBuf>::new());
 
         // Make sure that we don't report the "linker" itself as a
         // potential linkee.
