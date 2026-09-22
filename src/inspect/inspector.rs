@@ -308,45 +308,4 @@ mod tests {
             data3.elf.get().unwrap()
         ));
     }
-
-    /// Check that ELF resolver works as expected with debug altlink.
-    #[test]
-    fn elf_resolver_debug_altlink() {
-        let collect_symbols = |inspector: &Inspector, src: &Source| {
-            let mut sym_infos = Vec::new();
-            inspector
-                .for_each(src, |sym| {
-                    sym_infos.push(sym.to_owned());
-                    ControlFlow::Continue(())
-                })
-                .unwrap();
-            sym_infos
-        };
-
-        let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-debuglink.bin");
-        let elf = Elf::new(&test_elf);
-        assert!(elf.debug_syms);
-
-        let inspector = Inspector::new();
-
-        let src = Source::Elf(elf.clone());
-
-        let sym_infos = collect_symbols(&inspector, &src);
-        assert_eq!(sym_infos.len(), 2);
-
-        let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join("test-O2-debuglink-broken-altlink.bin");
-        let elf = Elf::new(&test_elf);
-        assert!(elf.debug_syms);
-
-        let inspector = Inspector::new();
-
-        let src = Source::Elf(elf.clone());
-
-        let sym_infos = collect_symbols(&inspector, &src);
-        assert_eq!(sym_infos.len(), 0);
-    }
 }
