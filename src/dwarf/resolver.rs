@@ -45,6 +45,7 @@ use crate::Addr;
 use crate::Error;
 use crate::ErrorExt;
 use crate::ErrorKind;
+use crate::IntoError as _;
 use crate::Result;
 use crate::SymType;
 
@@ -256,7 +257,13 @@ fn try_deref_debug_altlink(
                     tmp_parser = Rc::new(parser);
                     &tmp_parser
                 };
-                let dst_build_id = read_build_id(dst_parser)?.unwrap();
+
+                let dst_build_id = read_build_id(dst_parser)?.ok_or_invalid_data(|| {
+                    format!(
+                        "debug altlink destination `{}` does not contain a build ID",
+                        path.display()
+                    )
+                })?;
                 if dst_build_id != build_id {
                     return Err(Error::with_invalid_data(format!(
                         "debug altlink destination `{}` build ID does not match \
@@ -796,6 +803,23 @@ mod tests {
         let linker = parser.module().map(OsStr::as_ref);
         let debug_altlink_file = find_altdebug_file(linker.unwrap(), linker, &debug_dirs);
         assert!(debug_altlink_file.is_none());
+    }
+
+    /// Check that we report an error instead of panicking when a debug
+    /// altlink destination does not contain a build ID.
+    #[test]
+    fn debug_altlink_without_build_id() {
+        let debug_dirs = Vec::new();
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-no-build-id-altlink.bin");
+        let parser = ElfParser::open(&path).unwrap();
+        let err = try_deref_debug_altlink(&parser, &debug_dirs, None).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        assert!(
+            err.to_string().contains("does not contain a build ID"),
+            "{err}"
+        );
     }
 
     /// Check that we resolve debug altlinks correctly.
