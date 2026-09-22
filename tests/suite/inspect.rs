@@ -382,3 +382,37 @@ fn inspect_elf_all_symbols_without_duplicates() {
 
     assert_eq!(syms.iter().filter(|name| *name == "the_answer").count(), 1);
 }
+
+/// Check that we correctly incorporate debug altlink files in the
+/// inspection process.
+#[test]
+fn inspect_debug_altlink_honoring() {
+    let collect_symbols = |inspector: &Inspector, src: &Source| {
+        let mut sym_infos = Vec::new();
+        inspector
+            .for_each(src, |sym| {
+                sym_infos.push(sym.to_owned());
+                ControlFlow::Continue(())
+            })
+            .unwrap();
+        sym_infos
+    };
+
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-debuglink.bin");
+    let elf = Elf::new(&test_elf);
+    let inspector = Inspector::new();
+    let src = Source::Elf(elf);
+    let sym_infos = collect_symbols(&inspector, &src);
+    assert_eq!(sym_infos.len(), 2);
+
+    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-O2-debuglink-broken-altlink.bin");
+    let elf = Elf::new(&test_elf);
+    let inspector = Inspector::new();
+    let src = Source::Elf(elf.clone());
+    let sym_infos = collect_symbols(&inspector, &src);
+    assert_eq!(sym_infos.len(), 0);
+}
