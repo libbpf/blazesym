@@ -697,6 +697,25 @@ fn prepare_test_files() {
         );
     }
 
+    cc(
+        &src,
+        "test-no-build-id.bin",
+        &["-g0", "-Wl,--build-id=none"],
+    );
+    let out_dir = env::var_os("OUT_DIR").unwrap();
+    let section = Path::new(&out_dir).join("no-build-id-altlink.section");
+    let mut altlink = b"test-no-build-id.bin\0".to_vec();
+    let () = altlink.extend_from_slice(&[0; 20]);
+    let () = write(&section, altlink).unwrap();
+    objcopy(
+        &data_dir.join("test-no-build-id.bin"),
+        "test-no-build-id-altlink.bin",
+        &[&format!(
+            "--add-section=.gnu_debugaltlink={}",
+            section.display()
+        )],
+    );
+
     // Generate this binary by passing the source file name without a
     // path to the compiler (which means we need to `cd` into the
     // containing directory first). At least for gcc this causes debug
