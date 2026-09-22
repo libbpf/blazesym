@@ -30,6 +30,16 @@ artifacts before the first test run, via:
 cargo check --package blazesym-dev --features=generate-unit-test-files
 ```
 
+Some tests rely on data that we cannot create everywhere, because it
+requires additional tooling or large downloads. Those tests are ignored
+by default. To run them, generate the data using the
+`generate-all-test-files` feature and include ignored tests:
+```sh
+$ cargo test --workspace --features=blazesym-dev/generate-all-test-files -- --include-ignored
+```
+Creating this data needs the [`dwz`][dwz] program to be installed, in
+addition to the tooling required for regular test artifacts.
+
 ### Running Miri
 [Miri][miri] is used for testing the crate for any undefined behavior.
 The interpreter is restricted to functionality that does not cross FFI
@@ -121,6 +131,7 @@ $ RUST_LIB_BACKTRACE=1 cargo test --test=allocs -- normalize_process --nocapture
 
 [blazesym-allocs]: https://github.com/libbpf/blazesym/blob/main/tests/allocs.rs
 [criterion]: https://crates.io/crates/criterion
+[dwz]: https://sourceware.org/git/dwz.git
 [flamegraph]: https://crates.io/crates/flamegraph
 [libtest]: https://doc.rust-lang.org/1.4.0/book/benchmark-tests.html
 [miri]: https://github.com/rust-lang/miri

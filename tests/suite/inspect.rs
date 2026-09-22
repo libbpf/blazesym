@@ -387,6 +387,7 @@ fn inspect_elf_all_symbols_without_duplicates() {
 /// Check that we correctly incorporate debug altlink and debug sup files in the
 /// inspection process.
 #[test]
+#[ignore = "test requires dwz generated test files"]
 fn inspect_sup_file_honoring() {
     fn symbol_names(file: &str) -> Vec<String> {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))

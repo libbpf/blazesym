@@ -844,6 +844,7 @@ mod tests {
 
     /// Check that we can discover debug altlink as expected.
     #[test]
+    #[ignore = "test requires dwz generated test files"]
     fn debug_altlink_discovery() {
         let debug_dirs = Vec::new();
 
@@ -899,6 +900,7 @@ mod tests {
 
     /// Check that we can discover debug sup as expected.
     #[test]
+    #[ignore = "test requires dwz generated test files"]
     fn debug_sup_discovery() {
         let debug_dirs = Vec::new();
 
@@ -926,6 +928,7 @@ mod tests {
 
     /// Check that we resolve debug altlink and debug sup correctly.
     #[test]
+    #[ignore = "test requires dwz generated test files"]
     fn resolve_sup_file() {
         fn test(debug_file_name: &str, dwz_file_name: &str) {
             let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
