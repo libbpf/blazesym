@@ -1,5 +1,7 @@
 Unreleased
 ----------
+- Added support for `.gnu_debugaltlink` section handling to discovery
+  DWARF supplementary files
 - Fixed discovery of `zstd` compressed kernel modules (expecting
   extension `.zst` instead of `.zstd`)
 
