@@ -214,8 +214,8 @@ fn parse_debug_link_section_data(mut data: &[u8]) -> Result<Option<(&OsStr, u32)
         return Err(Error::with_invalid_data("debug link target is empty"))
     }
 
-    // TODO: Use `std::ptr::byte_offset_from` once our MSRV is 1.75.
-    let cur_offset = data.as_ptr() as usize - data_start.as_ptr() as usize;
+    // SAFETY: `data_start` is guaranteed to be before `data`.
+    let cur_offset = unsafe { data.as_ptr().byte_offset_from_unsigned(data_start) };
     // The offset is aligned to the next four byte boundary relative to
     // the start of the section.
     let align = 4;
