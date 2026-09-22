@@ -131,6 +131,7 @@ mod tests {
 
     /// Check that we can successfully read an ELF file's debug altlink.
     #[test]
+    #[ignore = "test requires dwz generated test files"]
     fn debug_link_reading() {
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -150,6 +151,7 @@ mod tests {
     /// Make sure that we report an error instead of panicking when the
     /// debug altlink section's data cannot be read.
     #[test]
+    #[ignore = "test requires dwz generated test files"]
     fn unreadable_debug_altlink_section_handling() {
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")

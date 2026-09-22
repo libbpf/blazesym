@@ -827,76 +827,80 @@ fn prepare_test_files() {
     // find anything worth sharing, feed it two copies of the same debug
     // information. The second copy has its altlink section removed
     // afterwards, leaving behind dangling references into the multifile.
-    dwarf(&src, "test-stable-addrs-dwarf-only-altlink.dbg");
-    dwarf(&src, "test-stable-addrs-dwarf-only-broken-altlink.dbg");
-    let dbg = data_dir.join("test-stable-addrs-dwarf-only-altlink.dbg");
-    let broken_dbg = data_dir.join("test-stable-addrs-dwarf-only-broken-altlink.dbg");
-    dwz(
-        &data_dir.join("test-stable-addrs.dwz"),
-        &[
-            "--relative",
-            dbg.to_str().unwrap(),
-            broken_dbg.to_str().unwrap(),
-        ],
-    );
-    let () = adjust_mtime(&dbg).unwrap();
-    objcopy(
-        &src,
-        "test-stable-addrs-stripped-with-altlink.bin",
-        &[
-            "--strip-all",
-            &format!("--add-gnu-debuglink={}", dbg.display()),
-        ],
-    );
-    objcopy(
-        &broken_dbg,
-        broken_dbg.as_os_str(),
-        &["--remove-section=.gnu_debugaltlink"],
-    );
-    objcopy(
-        &src,
-        "test-stable-addrs-stripped-with-broken-altlink.bin",
-        &[
-            "--strip-all",
-            &format!("--add-gnu-debuglink={}", broken_dbg.display()),
-        ],
-    );
+    // `dwz` is a rather niche tool, so only require it to be present
+    // when all test files were asked for.
+    if cfg!(feature = "generate-all-test-files") {
+        dwarf(&src, "test-stable-addrs-dwarf-only-altlink.dbg");
+        dwarf(&src, "test-stable-addrs-dwarf-only-broken-altlink.dbg");
+        let dbg = data_dir.join("test-stable-addrs-dwarf-only-altlink.dbg");
+        let broken_dbg = data_dir.join("test-stable-addrs-dwarf-only-broken-altlink.dbg");
+        dwz(
+            &data_dir.join("test-stable-addrs.dwz"),
+            &[
+                "--relative",
+                dbg.to_str().unwrap(),
+                broken_dbg.to_str().unwrap(),
+            ],
+        );
+        let () = adjust_mtime(&dbg).unwrap();
+        objcopy(
+            &src,
+            "test-stable-addrs-stripped-with-altlink.bin",
+            &[
+                "--strip-all",
+                &format!("--add-gnu-debuglink={}", dbg.display()),
+            ],
+        );
+        objcopy(
+            &broken_dbg,
+            broken_dbg.as_os_str(),
+            &["--remove-section=.gnu_debugaltlink"],
+        );
+        objcopy(
+            &src,
+            "test-stable-addrs-stripped-with-broken-altlink.bin",
+            &[
+                "--strip-all",
+                &format!("--add-gnu-debuglink={}", broken_dbg.display()),
+            ],
+        );
 
-    dwarf(&src, "test-stable-addrs-dwarf-only-sup.dbg");
-    dwarf(&src, "test-stable-addrs-dwarf-only-broken-sup.dbg");
-    let dbg = data_dir.join("test-stable-addrs-dwarf-only-sup.dbg");
-    let broken_dbg = data_dir.join("test-stable-addrs-dwarf-only-broken-sup.dbg");
-    dwz(
-        &data_dir.join("test-stable-addrs-dwarf-5.dwz"),
-        &[
-            "--relative",
-            "--dwarf-5",
-            dbg.to_str().unwrap(),
-            broken_dbg.to_str().unwrap(),
-        ],
-    );
-    let () = adjust_mtime(&dbg).unwrap();
-    objcopy(
-        &src,
-        "test-stable-addrs-stripped-with-sup.bin",
-        &[
-            "--strip-all",
-            &format!("--add-gnu-debuglink={}", dbg.display()),
-        ],
-    );
-    objcopy(
-        &broken_dbg,
-        broken_dbg.as_os_str(),
-        &["--remove-section=.debug_sup"],
-    );
-    objcopy(
-        &src,
-        "test-stable-addrs-stripped-with-broken-sup.bin",
-        &[
-            "--strip-all",
-            &format!("--add-gnu-debuglink={}", broken_dbg.display()),
-        ],
-    );
+        dwarf(&src, "test-stable-addrs-dwarf-only-sup.dbg");
+        dwarf(&src, "test-stable-addrs-dwarf-only-broken-sup.dbg");
+        let dbg = data_dir.join("test-stable-addrs-dwarf-only-sup.dbg");
+        let broken_dbg = data_dir.join("test-stable-addrs-dwarf-only-broken-sup.dbg");
+        dwz(
+            &data_dir.join("test-stable-addrs-dwarf-5.dwz"),
+            &[
+                "--relative",
+                "--dwarf-5",
+                dbg.to_str().unwrap(),
+                broken_dbg.to_str().unwrap(),
+            ],
+        );
+        let () = adjust_mtime(&dbg).unwrap();
+        objcopy(
+            &src,
+            "test-stable-addrs-stripped-with-sup.bin",
+            &[
+                "--strip-all",
+                &format!("--add-gnu-debuglink={}", dbg.display()),
+            ],
+        );
+        objcopy(
+            &broken_dbg,
+            broken_dbg.as_os_str(),
+            &["--remove-section=.debug_sup"],
+        );
+        objcopy(
+            &src,
+            "test-stable-addrs-stripped-with-broken-sup.bin",
+            &[
+                "--strip-all",
+                &format!("--add-gnu-debuglink={}", broken_dbg.display()),
+            ],
+        );
+    }
 
     gnu_debugdata(&src, "test-stable-addrs-debugdata.bin");
 

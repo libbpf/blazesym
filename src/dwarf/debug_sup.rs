@@ -291,6 +291,7 @@ mod tests {
 
     /// Check that we can successfully read an ELF file's debug sup section.
     #[test]
+    #[ignore = "test requires dwz generated test files"]
     fn debug_link_reading() {
         let dbg = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -327,6 +328,7 @@ mod tests {
     /// Make sure that we report an error instead of panicking when the
     /// `.debug_sup` section's data cannot be read.
     #[test]
+    #[ignore = "test requires dwz generated test files"]
     fn unreadable_debug_sup_section_handling() {
         let dbg = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")

@@ -964,6 +964,7 @@ fn symbolize_dwarf_self_referential_debug_link() {
 /// symbolizing.
 #[tag(other_os)]
 #[test]
+#[ignore = "test requires dwz generated test files"]
 fn symbolize_dwarf_debug_altlink() {
     fn test(path: &Path, debug_dirs: &[&Path], name: &str) {
         let src = Source::from(Elf::new(path));
