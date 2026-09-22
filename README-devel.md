@@ -55,7 +55,7 @@ based][libtest] unit-test style ones.
 To run the benchmark suite, use:
 ```sh
 # Perform one-time setup of required data.
-$ cargo check --package blazesym-dev --features=generate-large-test-files
+$ cargo check --package blazesym-dev --features=generate-all-test-files
 $ cargo bench --features=nightly
 ```
 
