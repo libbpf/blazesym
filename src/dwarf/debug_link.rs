@@ -4,7 +4,7 @@
 //!
 //! A debug link is a special section of the executable file named
 //! `.gnu_debuglink`. The section must contain:
-//! - A filename, with any leading directory components removed, followed by a
+//! - a filename, with any leading directory components removed, followed by a
 //!   zero byte,
 //! - zero to three bytes of padding, as needed to reach the next four-byte
 //!   boundary within the section, and
