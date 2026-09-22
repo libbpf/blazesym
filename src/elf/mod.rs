@@ -12,7 +12,9 @@ pub(crate) mod types;
 //       of concerns that is not a workable location.
 pub(crate) static DEFAULT_DEBUG_DIRS: &[&str] = &["/usr/lib/debug", "/lib/debug/"];
 
-pub(crate) static BUILD_ID_DEBUG_DIR: &str = "/usr/lib/debug/.build-id";
+/// The sub-directory of each debug directory containing build ID
+/// indexed debug information.
+pub(crate) static BUILD_ID_DEBUG_SUBDIR: &str = ".build-id";
 pub(crate) static BUILD_ID_DEBUG_EXTENSION: &str = "debug";
 
 pub(crate) use parser::BackendImpl;

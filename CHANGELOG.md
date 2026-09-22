@@ -1,7 +1,9 @@
 Unreleased
 ----------
-- Added support for `.gnu_debugaltlink` section handling to discovery
+- Added support for `.gnu_debugaltlink` section handling to discover
   DWARF supplementary files
+- Adjusted build ID based split debug information lookup to consider the
+  `.build-id` sub-directory of every configured debug directory
 - Fixed discovery of `zstd` compressed kernel modules (expecting
   extension `.zst` instead of `.zstd`)
 
