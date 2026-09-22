@@ -212,7 +212,6 @@ jobs:
     - name: Build main.sh
       env:
         PYTHON: ${{ steps.py312.outputs.python-path }}
-        RUSTFLAGS: '--cfg has_large_test_files'
       shell: bash
       run: |
         # cargo-llvm-cov ultimately is just a thin wrapper around cargo
