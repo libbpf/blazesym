@@ -808,7 +808,11 @@ fn prepare_test_files() {
     let broken_dbg = data_dir.join("test-stable-addrs-dwarf-only-broken-altlink.dbg");
     dwz(
         &data_dir.join("test-stable-addrs.dwz"),
-        &[dbg.to_str().unwrap(), broken_dbg.to_str().unwrap()],
+        &[
+            "--relative",
+            dbg.to_str().unwrap(),
+            broken_dbg.to_str().unwrap(),
+        ],
     );
     let () = adjust_mtime(&dbg).unwrap();
     objcopy(
