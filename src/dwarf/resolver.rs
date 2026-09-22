@@ -767,21 +767,21 @@ mod tests {
 
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.dbg");
+            .join("test-stable-addrs-dwarf-only-altlink.dbg");
         let parser = ElfParser::open(&path).unwrap();
         let debug_altlink_parser = try_deref_debug_altlink(&parser, &debug_dirs, None).unwrap();
         assert!(debug_altlink_parser.is_some());
 
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-debug.bin");
+            .join("test-stable-addrs.bin");
         let parser = ElfParser::open(&path).unwrap();
         let debug_altlink_parser = try_deref_debug_altlink(&parser, &debug_dirs, None).unwrap();
         assert!(debug_altlink_parser.is_none());
 
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-O2-debuglink-broken-altlink.bin");
+            .join("test-stable-addrs-dwarf-only-broken-altlink.dbg");
         let parser = ElfParser::open(&path).unwrap();
         let debug_altlink_parser = try_deref_debug_altlink(&parser, &debug_dirs, None).unwrap();
         assert!(debug_altlink_parser.is_none());
@@ -803,13 +803,13 @@ mod tests {
     fn debug_altlink_resolution() {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test-debuglink.bin");
+            .join("test-stable-addrs-stripped-with-altlink.bin");
         let resolver = DwarfResolver::open(&path).unwrap();
         assert!(resolver._altlinkee_parser.is_some());
 
         let linkee_path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.dwz");
+            .join("test-stable-addrs.dwz");
         assert_eq!(
             resolver._altlinkee_parser.as_ref().unwrap().module(),
             Some(linkee_path.as_os_str())

@@ -697,47 +697,6 @@ fn prepare_test_files() {
         );
     }
 
-    // Generate files to test .gnu_debugaltlink section
-    cc(&src, "test-debug.bin", &["-g"]);
-    cc(&src, "test-debug-O2.bin", &["-g", "-O2"]);
-    let debug_bin = data_dir.join("test-debug.bin");
-    dwarf(&debug_bin, "test.dbg");
-    let dbg = data_dir.join("test.dbg");
-    let debug_o2_bin = data_dir.join("test-debug-O2.bin");
-    dwarf(&debug_o2_bin, "test-O2.dbg");
-    let dbg_o2 = data_dir.join("test-O2.dbg");
-    let dst = data_dir.join("test.dwz");
-    dwz(
-        &dst,
-        &[
-            &format!("{}", dbg.display()),
-            &format!("{}", dbg_o2.display()),
-        ],
-    );
-    objcopy(
-        &debug_bin,
-        "test-debuglink.bin",
-        &[
-            "--strip-all",
-            &format!("--add-gnu-debuglink={}", dbg.display()),
-        ],
-    );
-    objcopy(
-        &dbg_o2,
-        dbg_o2.as_os_str(),
-        &["--remove-section=.gnu_debugaltlink"],
-    );
-    objcopy(
-        &debug_o2_bin,
-        "test-O2-debuglink-broken-altlink.bin",
-        &[
-            "--strip-all",
-            &format!("--add-gnu-debuglink={}", dbg_o2.display()),
-        ],
-    );
-    let () = adjust_mtime(&dbg).unwrap();
-    let () = adjust_mtime(&dbg_o2).unwrap();
-
     // Generate this binary by passing the source file name without a
     // path to the compiler (which means we need to `cd` into the
     // containing directory first). At least for gcc this causes debug
@@ -836,6 +795,44 @@ fn prepare_test_files() {
             &format!("--add-gnu-debuglink={}", dbg.display()),
         ],
     );
+
+    // `dwz` moves DWARF data shared between the files handed to it into
+    // a "multifile" and leaves a `.gnu_debugaltlink` section referencing
+    // the latter behind in each. Because it needs at least two inputs to
+    // find anything worth sharing, feed it two copies of the same debug
+    // information. The second copy has its altlink section removed
+    // afterwards, leaving behind dangling references into the multifile.
+    dwarf(&src, "test-stable-addrs-dwarf-only-altlink.dbg");
+    dwarf(&src, "test-stable-addrs-dwarf-only-broken-altlink.dbg");
+    let dbg = data_dir.join("test-stable-addrs-dwarf-only-altlink.dbg");
+    let broken_dbg = data_dir.join("test-stable-addrs-dwarf-only-broken-altlink.dbg");
+    dwz(
+        &data_dir.join("test-stable-addrs.dwz"),
+        &[dbg.to_str().unwrap(), broken_dbg.to_str().unwrap()],
+    );
+    let () = adjust_mtime(&dbg).unwrap();
+    objcopy(
+        &src,
+        "test-stable-addrs-stripped-with-altlink.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", dbg.display()),
+        ],
+    );
+    objcopy(
+        &broken_dbg,
+        broken_dbg.as_os_str(),
+        &["--remove-section=.gnu_debugaltlink"],
+    );
+    objcopy(
+        &src,
+        "test-stable-addrs-stripped-with-broken-altlink.bin",
+        &[
+            "--strip-all",
+            &format!("--add-gnu-debuglink={}", broken_dbg.display()),
+        ],
+    );
+
     gnu_debugdata(&src, "test-stable-addrs-debugdata.bin");
 
     let elf = data_dir.join("test-stable-addrs-no-dwarf.bin");

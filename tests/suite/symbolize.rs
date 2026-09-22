@@ -862,6 +862,40 @@ fn symbolize_dwarf_self_referential_debug_link() {
     assert_eq!(result.addr, 0x2000200);
 }
 
+/// Check that we correctly incorporate debug altlink files when
+/// symbolizing.
+#[tag(other_os)]
+#[test]
+fn symbolize_dwarf_debug_altlink() {
+    fn test(file: &str, name: &str) {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(file);
+        let src = Source::from(Elf::new(path));
+        let symbolizer = Symbolizer::new();
+        let sym = symbolizer
+            .symbolize_single(&src, Input::VirtOffset(0x2000200))
+            .unwrap()
+            .into_sym()
+            .unwrap();
+
+        assert_eq!(sym.name, name);
+        assert_eq!(sym.addr, 0x2000200);
+
+        let code_info = sym.code_info.as_ref().unwrap();
+        assert_ne!(code_info.dir, None);
+        assert_eq!(code_info.file, OsStr::new("test-stable-addrs.c"));
+        assert_eq!(code_info.line, Some(10));
+    }
+
+    // The symbol's name lives in the altlink file and, hence, is only
+    // reported if we followed the link. Everything else is contained in
+    // the debug information itself, so with the link severed we still
+    // degrade gracefully.
+    test("test-stable-addrs-stripped-with-altlink.bin", "factorial");
+    test("test-stable-addrs-stripped-with-broken-altlink.bin", "");
+}
+
 /// Check that we honor configured debug directories as one would expect.
 #[tag(other_os)]
 #[test]
