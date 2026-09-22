@@ -59,7 +59,6 @@ fn parse_debug_altlink_section_data(mut data: &[u8]) -> Result<Option<(&Path, Bu
 mod tests {
     use super::*;
 
-    use std::ffi::OsStr;
     use std::mem::size_of_val;
     use std::slice;
 
@@ -136,10 +135,7 @@ mod tests {
 
         let parser = ElfParser::open(elf.as_path()).unwrap();
         let (path, build_id) = read_debug_altlink(&parser).unwrap().unwrap();
-        assert_eq!(
-            path.file_name().unwrap(),
-            OsStr::new("test-stable-addrs.dwz")
-        );
+        assert_eq!(path, Path::new("test-stable-addrs.dwz"));
 
         let dbg = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
