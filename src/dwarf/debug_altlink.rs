@@ -132,15 +132,18 @@ mod tests {
     fn debug_link_reading() {
         let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.dbg");
+            .join("test-stable-addrs-dwarf-only-altlink.dbg");
 
         let parser = ElfParser::open(elf.as_path()).unwrap();
         let (path, build_id) = read_debug_altlink(&parser).unwrap().unwrap();
-        assert_eq!(path.file_name().unwrap(), OsStr::new("test.dwz"));
+        assert_eq!(
+            path.file_name().unwrap(),
+            OsStr::new("test-stable-addrs.dwz")
+        );
 
         let dbg = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
-            .join("test.dwz");
+            .join("test-stable-addrs.dwz");
         let parser = ElfParser::open(&dbg).unwrap();
         assert_eq!(build_id, read_build_id(&parser).unwrap().unwrap());
     }

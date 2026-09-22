@@ -387,32 +387,27 @@ fn inspect_elf_all_symbols_without_duplicates() {
 /// inspection process.
 #[test]
 fn inspect_debug_altlink_honoring() {
-    let collect_symbols = |inspector: &Inspector, src: &Source| {
-        let mut sym_infos = Vec::new();
-        inspector
-            .for_each(src, |sym| {
-                sym_infos.push(sym.to_owned());
+    fn symbol_names(file: &str) -> Vec<String> {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(file);
+        let src = Source::Elf(Elf::new(path));
+        let inspector = Inspector::new();
+        let mut names = Vec::new();
+        let () = inspector
+            .for_each(&src, |sym| {
+                let () = names.push(sym.name.to_string());
                 ControlFlow::Continue(())
             })
             .unwrap();
-        sym_infos
-    };
+        names
+    }
 
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-debuglink.bin");
-    let elf = Elf::new(&test_elf);
-    let inspector = Inspector::new();
-    let src = Source::Elf(elf);
-    let sym_infos = collect_symbols(&inspector, &src);
-    assert_eq!(sym_infos.len(), 2);
+    // The symbol's name lives in the `dwz` multifile and, hence, is only
+    // reported if we followed the altlink.
+    let names = symbol_names("test-stable-addrs-stripped-with-altlink.bin");
+    assert!(names.iter().any(|name| name == "factorial"), "{names:?}");
 
-    let test_elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-O2-debuglink-broken-altlink.bin");
-    let elf = Elf::new(&test_elf);
-    let inspector = Inspector::new();
-    let src = Source::Elf(elf.clone());
-    let sym_infos = collect_symbols(&inspector, &src);
-    assert_eq!(sym_infos.len(), 0);
+    let names = symbol_names("test-stable-addrs-stripped-with-broken-altlink.bin");
+    assert!(!names.iter().any(|name| name == "factorial"), "{names:?}");
 }
