@@ -26,7 +26,7 @@ let-underscore = "warn"
 missing-debug-implementations = "warn"
 missing-docs = "warn"
 trivial-numeric-casts = "warn"
-unexpected_cfgs = {level = "warn", check-cfg = ['cfg(has_procmap_query_ioctl)', 'cfg(has_large_test_files)']}
+unexpected_cfgs = {level = "warn", check-cfg = ['cfg(has_procmap_query_ioctl)']}
 unsafe-op-in-unsafe-fn = "warn"
 unused = "warn"
 
