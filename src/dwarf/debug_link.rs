@@ -26,6 +26,7 @@ use crate::util::align_up_usize;
 use crate::util::bytes_to_os_str;
 use crate::util::ReadRaw as _;
 use crate::BuildId;
+use crate::Error;
 use crate::Result;
 
 
@@ -209,6 +210,9 @@ fn parse_debug_link_section_data(mut data: &[u8]) -> Result<Option<(&OsStr, u32)
         .read_cstr()
         .ok_or_invalid_data(|| "failed to read debug link file name")?;
     let file = bytes_to_os_str(file.to_bytes())?;
+    if file.is_empty() {
+        return Err(Error::with_invalid_data("debug link target is empty"))
+    }
 
     // TODO: Use `std::ptr::byte_offset_from` once our MSRV is 1.75.
     let cur_offset = data.as_ptr() as usize - data_start.as_ptr() as usize;
@@ -275,6 +279,15 @@ mod tests {
         let (file, crc) = parse_debug_link_section_data(buffer).unwrap().unwrap();
         assert_eq!(file, OsStr::new("program.debug"));
         assert_eq!(crc, 0xa6d4c469, "{crc:#x}");
+    }
+
+    /// Make sure that we report an error when encountering an empty
+    /// debug link target.
+    #[tag(miri)]
+    #[test]
+    fn empty_debug_link_target_handling() {
+        let section_data = &[0x0, 0x0, 0x0, 0x69, 0xc4, 0xd4, 0xa6];
+        assert!(parse_debug_link_section_data(section_data).is_err());
     }
 
     /// Check that we can successfully read an ELF file's debug link.
