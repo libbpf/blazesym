@@ -190,9 +190,9 @@ fn try_deref_debug_link(
 
 /// Find a debug file in a list of directories.
 ///
-/// `linker` is the path to the file containing the debug altlink. This function
-/// searches a couple of "well-known" locations and then others constructed
-/// based on the canonicalized path of `linker`.
+/// `linker` is the path to the file containing the debug altlink and
+/// `build_id` the build ID of the destination, as recorded in the
+/// `.gnu_debugaltlink` section.
 ///
 /// # Notes
 /// This function ignores any errors encountered.
@@ -200,13 +200,14 @@ fn find_altdebug_file(
     path: &Path,
     linker: Option<&Path>,
     debug_dirs: &[PathBuf],
+    build_id: &[u8],
 ) -> Option<PathBuf> {
     let canonical_linker = linker.and_then(|linker| try_canonicalize(linker).ok());
     let it = DebugFileIter::new(
         debug_dirs,
         canonical_linker.as_deref(),
         path.as_os_str(),
-        None,
+        Some(Cow::Borrowed(build_id)),
     );
     for path in it {
         if path.exists() {
@@ -232,7 +233,7 @@ fn try_deref_debug_altlink(
         //       actual path is not necessarily correct. Consider if the
         //       `ElfParser` references a map_files file.
         let linker = parser.module().map(OsStr::as_ref);
-        match find_altdebug_file(path, linker, debug_dirs) {
+        match find_altdebug_file(path, linker, debug_dirs, &build_id) {
             Some(path) => {
                 let tmp_parser;
                 let dst_parser = if let Some(elf_cache) = elf_cache {
@@ -797,11 +798,11 @@ mod tests {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("nonexistent_file");
-        let debug_altlink_file = find_altdebug_file(&path, linker, &debug_dirs);
+        let debug_altlink_file = find_altdebug_file(&path, linker, &debug_dirs, &[]);
         assert!(debug_altlink_file.is_none());
 
         let linker = parser.module().map(OsStr::as_ref);
-        let debug_altlink_file = find_altdebug_file(linker.unwrap(), linker, &debug_dirs);
+        let debug_altlink_file = find_altdebug_file(linker.unwrap(), linker, &debug_dirs, &[]);
         assert!(debug_altlink_file.is_none());
     }
 
