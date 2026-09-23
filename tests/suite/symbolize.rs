@@ -7,6 +7,7 @@ use std::ffi::CString;
 use std::ffi::OsStr;
 use std::fs;
 use std::fs::copy;
+use std::fs::create_dir_all;
 use std::fs::metadata;
 use std::fs::read as read_file;
 use std::fs::remove_file;
@@ -59,6 +60,7 @@ use blazesym::SymType;
 #[cfg(linux)]
 use blazesym::__private::find_gettimeofday_in_process;
 use blazesym::__private::find_the_answer_fn_in_zip;
+use blazesym::helper::read_elf_build_id;
 
 #[cfg(linux)]
 use blazesym_dev::with_bpf_symbolization_target_addrs;
@@ -867,12 +869,11 @@ fn symbolize_dwarf_self_referential_debug_link() {
 #[tag(other_os)]
 #[test]
 fn symbolize_dwarf_debug_altlink() {
-    fn test(file: &str, name: &str) {
-        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
-            .join("data")
-            .join(file);
+    fn test(path: &Path, debug_dirs: &[&Path], name: &str) {
         let src = Source::from(Elf::new(path));
-        let symbolizer = Symbolizer::new();
+        let symbolizer = Symbolizer::builder()
+            .set_debug_dirs(Some(debug_dirs))
+            .build();
         let sym = symbolizer
             .symbolize_single(&src, Input::VirtOffset(0x2000200))
             .unwrap()
@@ -892,8 +893,53 @@ fn symbolize_dwarf_debug_altlink() {
     // reported if we followed the link. Everything else is contained in
     // the debug information itself, so with the link severed we still
     // degrade gracefully.
-    test("test-stable-addrs-stripped-with-altlink.bin", "factorial");
-    test("test-stable-addrs-stripped-with-broken-altlink.bin", "");
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-with-altlink.bin");
+    test(&path, &[], "factorial");
+
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs-stripped-with-broken-altlink.bin");
+    test(&path, &[], "");
+
+    let dwz = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-stable-addrs.dwz");
+    // Install the "multifile" in a debug directory keyed by its
+    // build ID, i.e., as `.build-id/<first-byte>/<rest>.debug` (a
+    // GDB convention).
+    let build_id = read_elf_build_id(&dwz).unwrap().unwrap();
+    // SANITY: `dwz` always records a SHA-1 build ID, so it cannot be
+    //         empty.
+    let (first, rest) = build_id.split_first().unwrap();
+    let debug_dir = tempdir().unwrap();
+    let linkee = debug_dir
+        .path()
+        .join(".build-id")
+        .join(format!("{first:02x}"))
+        .join(format!(
+            "{}.debug",
+            rest.iter()
+                .map(|byte| format!("{byte:02x}"))
+                .collect::<String>()
+        ));
+    let () = create_dir_all(linkee.parent().unwrap()).unwrap();
+    let _count = copy(&dwz, &linkee).unwrap();
+
+    // Relocate the file containing the altlink, so that the
+    // destination is no longer present next (relative) to it.
+    let dir = tempdir().unwrap();
+    let linker = dir.path().join("test-stable-addrs-dwarf-only-altlink.dbg");
+    let _count = copy(
+        Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-dwarf-only-altlink.dbg"),
+        &linker,
+    )
+    .unwrap();
+
+    test(&linker, &[debug_dir.path()], "factorial");
 }
 
 /// Check that we honor configured debug directories as one would expect.
