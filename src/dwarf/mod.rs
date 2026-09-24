@@ -1,5 +1,6 @@
 mod debug_altlink;
 mod debug_link;
+mod debug_sup;
 mod function;
 mod lines;
 mod location;
