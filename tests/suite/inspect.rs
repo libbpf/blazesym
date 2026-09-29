@@ -411,3 +411,32 @@ fn inspect_debug_altlink_honoring() {
     let names = symbol_names("test-stable-addrs-stripped-with-broken-altlink.bin");
     assert!(!names.iter().any(|name| name == "factorial"), "{names:?}");
 }
+
+/// Check that we correctly incorporate debug sup files in the
+/// inspection process.
+#[test]
+fn inspect_debug_sup_honoring() {
+    fn symbol_names(file: &str) -> Vec<String> {
+        let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join(file);
+        let src = Source::Elf(Elf::new(path));
+        let inspector = Inspector::new();
+        let mut names = Vec::new();
+        let () = inspector
+            .for_each(&src, |sym| {
+                let () = names.push(sym.name.to_string());
+                ControlFlow::Continue(())
+            })
+            .unwrap();
+        names
+    }
+
+    // The symbol's name lives in the `dwz` multifile and, hence, is only
+    // reported if we followed the sup.
+    let names = symbol_names("test-stable-addrs-stripped-with-sup.bin");
+    assert!(names.iter().any(|name| name == "factorial"), "{names:?}");
+
+    let names = symbol_names("test-stable-addrs-stripped-with-broken-sup.bin");
+    assert!(!names.iter().any(|name| name == "factorial"), "{names:?}");
+}
