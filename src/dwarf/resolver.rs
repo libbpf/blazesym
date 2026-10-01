@@ -217,7 +217,7 @@ fn find_altdebug_file(
     }
     warn!(
         "debug altlink references destination `{}` which was not found in any known location",
-        Path::new(path).display(),
+        path.display(),
     );
     None
 }
