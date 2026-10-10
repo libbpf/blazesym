@@ -383,10 +383,11 @@ fn inspect_elf_all_symbols_without_duplicates() {
     assert_eq!(syms.iter().filter(|name| *name == "the_answer").count(), 1);
 }
 
-/// Check that we correctly incorporate debug altlink files in the
+
+/// Check that we correctly incorporate debug altlink and debug sup files in the
 /// inspection process.
 #[test]
-fn inspect_debug_altlink_honoring() {
+fn inspect_sup_file_honoring() {
     fn symbol_names(file: &str) -> Vec<String> {
         let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
@@ -403,11 +404,23 @@ fn inspect_debug_altlink_honoring() {
         names
     }
 
-    // The symbol's name lives in the `dwz` multifile and, hence, is only
-    // reported if we followed the altlink.
-    let names = symbol_names("test-stable-addrs-stripped-with-altlink.bin");
-    assert!(names.iter().any(|name| name == "factorial"), "{names:?}");
+    fn test(debug_ok_name: &str, debug_broken_name: &str) {
+        // The symbol's name lives in the `dwz` multifile and, hence, is only
+        // reported if we follow the altlink / sup.
+        let names = symbol_names(debug_ok_name);
+        assert!(names.iter().any(|name| name == "factorial"), "{names:?}");
 
-    let names = symbol_names("test-stable-addrs-stripped-with-broken-altlink.bin");
-    assert!(!names.iter().any(|name| name == "factorial"), "{names:?}");
+        let names = symbol_names(debug_broken_name);
+        assert!(!names.iter().any(|name| name == "factorial"), "{names:?}");
+    }
+
+    test(
+        "test-stable-addrs-stripped-with-altlink.bin",
+        "test-stable-addrs-stripped-with-broken-altlink.bin",
+    );
+
+    test(
+        "test-stable-addrs-stripped-with-sup.bin",
+        "test-stable-addrs-stripped-with-broken-sup.bin",
+    );
 }
