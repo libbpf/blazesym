@@ -14,7 +14,6 @@
 //!     checksum field
 //!   - `sup_checksum`: [u8: `sup_checksum_len`] unique supplementary file id
 
-use std::borrow::Cow;
 use std::path::Path;
 
 use crate::elf::ElfParser;
@@ -26,11 +25,11 @@ use crate::Result;
 
 
 #[derive(Debug)]
-pub(crate) struct DebugSupInfo<'a> {
+pub(crate) struct DebugSupInfo<'dwarf> {
     pub _version: u16,
     pub is_supplementary: bool,
-    pub path: Option<&'a Path>,
-    pub checksum: Cow<'a, [u8]>,
+    pub path: Option<&'dwarf Path>,
+    pub checksum: &'dwarf [u8],
 }
 
 
@@ -72,34 +71,33 @@ fn parse_debug_sup_section_data(mut data: &[u8]) -> Result<Option<DebugSupInfo<'
         .read_cstr()
         .ok_or_invalid_data(|| "failed to read .debug_sup file field")?;
     let path = if !is_supplementary {
+        if path_string.is_empty() {
+            return Err(Error::with_invalid_data("debug sup target is empty"))
+        }
         bytes_to_path(path_string.to_bytes()).ok()
     } else {
+        if !path_string.is_empty() {
+            return Err(Error::with_invalid_data(
+                "debug sup target is not empty in a supplementary file",
+            ))
+        }
         None
     };
-
-    // TODO: Use `Path::is_empty` once our MSRV is >= 1.98.
-    if !is_supplementary && path_string.as_ref().is_empty() {
-        return Err(Error::with_invalid_data("debug sup target is empty"))
-    } else if is_supplementary && !path_string.as_ref().is_empty() {
-        return Err(Error::with_invalid_data(
-            "debug sup target is not empty in a supplementary file",
-        ))
-    }
 
     let sup_checksum_len = data
         .read_u64_leb128()
         .ok_or_invalid_data(|| "failed to read .debug_sup sup_checksum_len")?;
-
     let checksum = data
         .read_slice(sup_checksum_len.try_into().unwrap())
         .ok_or_invalid_data(|| "failed to read .debug_sup checksum")?;
-    let checksum = Cow::Borrowed(checksum);
-    Ok(Some(DebugSupInfo {
+
+    let sup = DebugSupInfo {
         _version: version,
         is_supplementary,
         path,
         checksum,
-    }))
+    };
+    Ok(Some(sup))
 }
 
 
@@ -149,7 +147,7 @@ mod tests {
         assert!(path.is_some());
         assert_eq!(path.unwrap(), Path::new("../../.dwz/program"));
         assert_eq!(
-            checksum.as_ref(),
+            checksum,
             [
                 0x7f, 0xd3, 0x76, 0x0a, 0xf3, 0x98, 0xa1, 0xcc, 0x3f, 0x90, 0x45, 0x69, 0x9a, 0xda,
                 0x29, 0xe0, 0xb6, 0x6b, 0x45, 0xc8
@@ -290,11 +288,11 @@ mod tests {
     /// Check that we can successfully read an ELF file's debug sup section.
     #[test]
     fn debug_link_reading() {
-        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        let dbg = Path::new(&env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs-dwarf-only-sup.dbg");
 
-        let parser = ElfParser::open(elf.as_path()).unwrap();
+        let parser = ElfParser::open(dbg.as_path()).unwrap();
         let DebugSupInfo {
             _version: version,
             is_supplementary,

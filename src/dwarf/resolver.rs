@@ -289,13 +289,15 @@ fn try_deref_debug_sup(
     debug_dirs: &[PathBuf],
     elf_cache: Option<&FileCache<ElfResolverData>>,
 ) -> Result<Option<Rc<ElfParser>>> {
-    if let Some(DebugSupInfo {
-        _version: _,
-        is_supplementary: _,
-        path,
-        checksum,
-    }) = read_debug_sup(parser)?
-    {
+    let sup = read_debug_sup(parser)?;
+    if let Some(sup) = sup {
+        let DebugSupInfo {
+            _version: _,
+            is_supplementary: _,
+            path,
+            checksum,
+        } = sup;
+
         // TODO: Usage of the module here is fishy, as it may not
         //       represent an actual path. However, even using the
         //       actual path is not necessarily correct. Consider if the
@@ -322,13 +324,15 @@ fn try_deref_debug_sup(
                         &tmp_parser
                     };
 
+                    let dst_sup = read_debug_sup(dst_parser)?
+                        .ok_or_invalid_data(|| "failed to find .debug_sup section")?;
                     let DebugSupInfo {
                         _version: _,
                         is_supplementary,
                         path: _,
                         checksum: dst_checksum,
-                    } = read_debug_sup(dst_parser)?
-                        .ok_or_invalid_data(|| "empty debug_sup section")?;
+                    } = dst_sup;
+
                     if !is_supplementary {
                         return Err(Error::with_invalid_data(
                             "debug sup destination marked as non-supplementary",
@@ -422,8 +426,6 @@ impl DwarfResolver {
         let dwp_parser = try_find_dwp(&parser, elf_cache)?;
 
         let debug_parser = linkee_parser.as_ref().unwrap_or(&parser);
-        let altlinkee_parser = try_deref_debug_altlink(debug_parser, debug_dirs, elf_cache)?;
-        let supee_parser = try_deref_debug_sup(debug_parser, debug_dirs, elf_cache)?;
         // SAFETY: We own the `ElfParser` and make sure that it stays
         //         around while the `Units` object uses it. As such, it
         //         is fine to conjure a 'static lifetime here.
@@ -434,16 +436,11 @@ impl DwarfResolver {
             |section| reader::load_section(static_linkee_parser, section, static_relocs);
         let mut dwarf = Dwarf::load(&mut load_section)?;
 
-        let _sup_parser = if let Some(ref altlinkee_parser) = altlinkee_parser {
-            let static_altlinkee_parser = unsafe {
-                mem::transmute::<&ElfParser, &'static ElfParser>(altlinkee_parser.deref())
-            };
-            let static_altrelocs = static_altlinkee_parser.section_relocations()?;
-            let mut load_altsection =
-                |section| reader::load_section(static_altlinkee_parser, section, static_altrelocs);
-            Dwarf::load_sup(&mut dwarf, &mut load_altsection)?;
-            Some(altlinkee_parser.to_owned())
-        } else if let Some(ref supee_parser) = supee_parser {
+        let supee_parser = match try_deref_debug_altlink(debug_parser, debug_dirs, elf_cache)? {
+            Some(altlinkee_parser) => Some(altlinkee_parser),
+            None => try_deref_debug_sup(debug_parser, debug_dirs, elf_cache)?,
+        };
+        let _sup_parser = if let Some(supee_parser) = supee_parser {
             let static_supee_parser =
                 unsafe { mem::transmute::<&ElfParser, &'static ElfParser>(supee_parser.deref()) };
             let static_suprelocs = static_supee_parser.section_relocations()?;
