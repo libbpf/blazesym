@@ -146,10 +146,7 @@ fn cache_non_existent_process() {
     let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
         .join("test-block.bin");
-    let mut pid = Pid::Slf;
-    let () = RemoteProcess::default().exec(&test_block, |child_pid, _addr| {
-        pid = child_pid;
-    });
+    let pid = RemoteProcess::default().exec(&test_block, |pid, _addr| pid);
 
     let symbolizer = Symbolizer::default();
     let mut process = cache::Process::new(pid);
@@ -1445,24 +1442,19 @@ fn symbolize_process_debug_link_in_chroot() {
 #[cfg(linux)]
 #[test]
 fn symbolize_process_exited_cached_vmas() {
-    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("libtest-so.so");
-    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-wait.bin");
+        .join("test-block.bin");
 
     let symbolizer = Symbolizer::new();
 
-    let (pid, addr) = RemoteProcess::default()
-        .arg(&test_so)
-        .exec(&wait, |pid, addr| {
-            // Cache VMA information about the process while it is alive.
-            let () = symbolizer
-                .cache(&cache::Cache::from(cache::Process::new(pid)))
-                .unwrap();
-            (pid, addr)
-        });
+    let (pid, addr) = RemoteProcess::default().exec(&test_block, |pid, addr| {
+        // Cache VMA information about the process while it is alive.
+        let () = symbolizer
+            .cache(&cache::Cache::from(cache::Process::new(pid)))
+            .unwrap();
+        (pid, addr)
+    });
 
     // By now the process is guaranteed to be dead (modulo PID reuse...).
     let mut process = Process::new(pid);
@@ -1477,7 +1469,7 @@ fn symbolize_process_exited_cached_vmas() {
             .unwrap()
             .into_sym()
             .unwrap();
-        assert_eq!(result.name, "await_input");
+        assert_eq!(result.name, "_start");
     };
 
     let () = test_symbolize();
@@ -1524,42 +1516,37 @@ fn unnamed_vma_addr(pid: Pid) -> Addr {
 #[cfg(linux)]
 #[test]
 fn symbolize_process_exited_cached_perf_map() {
-    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("libtest-so.so");
-    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-wait.bin");
+        .join("test-block.bin");
 
     let cached = Symbolizer::new();
     let uncached = Symbolizer::new();
 
-    let (pid, addr) = RemoteProcess::default()
-        .arg(&test_so)
-        .exec(&wait, |pid, _addr| {
-            // Addresses inside an unnamed VMA can only be symbolized with
-            // the help of a perf map.
-            let addr = unnamed_vma_addr(pid);
-            let path = format!("/tmp/perf-{pid}.map");
-            let () = fs::write(&path, format!("{addr:x} 1 jitted_function\n")).unwrap();
-            // Make sure that the perf map is gone by the time we
-            // symbolize, so that any success can only be based on data
-            // cached below.
-            defer!({
-                let _result = remove_file(&path);
-            });
-
-            // Cache the perf map while the process is still alive.
-            let () = cached
-                .cache(&cache::Cache::from(cache::Process::new(pid)))
-                .unwrap();
-
-            let mut process = cache::Process::new(pid);
-            process.cache_perf_map = false;
-            let () = uncached.cache(&cache::Cache::from(process)).unwrap();
-
-            (pid, addr)
+    let (pid, addr) = RemoteProcess::default().exec(&test_block, |pid, _addr| {
+        // Addresses inside an unnamed VMA can only be symbolized with
+        // the help of a perf map.
+        let addr = unnamed_vma_addr(pid);
+        let path = format!("/tmp/perf-{pid}.map");
+        let () = fs::write(&path, format!("{addr:x} 1 jitted_function\n")).unwrap();
+        // Make sure that the perf map is gone by the time we
+        // symbolize, so that any success can only be based on data
+        // cached below.
+        defer!({
+            let _result = remove_file(&path);
         });
+
+        // Cache the perf map while the process is still alive.
+        let () = cached
+            .cache(&cache::Cache::from(cache::Process::new(pid)))
+            .unwrap();
+
+        let mut process = cache::Process::new(pid);
+        process.cache_perf_map = false;
+        let () = uncached.cache(&cache::Cache::from(process)).unwrap();
+
+        (pid, addr)
+    });
 
     let mut process = Process::new(pid);
     process.map_files = false;
@@ -1586,24 +1573,19 @@ fn symbolize_process_exited_cached_perf_map() {
 #[cfg(linux)]
 #[test]
 fn symbolize_process_evicted_vmas() {
-    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("libtest-so.so");
-    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-wait.bin");
+        .join("test-block.bin");
 
     let mut symbolizer = Symbolizer::new();
 
-    let (pid, addr) = RemoteProcess::default()
-        .arg(&test_so)
-        .exec(&wait, |pid, addr| {
-            // Cache VMA information about the process while it is alive.
-            let () = symbolizer
-                .cache(&cache::Cache::from(cache::Process::new(pid)))
-                .unwrap();
-            (pid, addr)
-        });
+    let (pid, addr) = RemoteProcess::default().exec(&test_block, |pid, addr| {
+        // Cache VMA information about the process while it is alive.
+        let () = symbolizer
+            .cache(&cache::Cache::from(cache::Process::new(pid)))
+            .unwrap();
+        (pid, addr)
+    });
 
     // By now the process is guaranteed to be dead (modulo PID reuse...).
     let mut process = Process::new(pid);
@@ -1620,7 +1602,7 @@ fn symbolize_process_evicted_vmas() {
         .unwrap()
         .into_sym()
         .unwrap();
-    assert_eq!(result.name, "await_input");
+    assert_eq!(result.name, "_start");
 
     // Evict the cached process data.
     let () = symbolizer
@@ -2018,12 +2000,9 @@ fn unshare_with_private_tmp(flags: libc::c_int, tmp_path: &Path) -> io::Result<(
 #[cfg(linux)]
 #[test]
 fn symbolize_process_perf_map_in_mount_namespace() {
-    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("libtest-so.so");
-    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-wait.bin");
+        .join("test-block.bin");
 
     // This directory acts as the process' `/tmp`. By having it bind
     // mounted there we can create a perf map that is only visible in the
@@ -2032,9 +2011,8 @@ fn symbolize_process_perf_map_in_mount_namespace() {
     let tmp_path = tmp_dir.path().to_path_buf();
 
     let () = RemoteProcess::default()
-        .arg(&test_so)
         .pre_exec(move || unshare_with_private_tmp(0, &tmp_path))
-        .exec(&wait, |pid, _addr| {
+        .exec(&test_block, |pid, _addr| {
             let addr = unnamed_vma_addr(pid);
             let () = fs::write(
                 tmp_dir.path().join(format!("perf-{pid}.map")),
@@ -2054,7 +2032,7 @@ fn symbolize_process_perf_map_in_mount_namespace() {
         });
 }
 
-fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
+fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_bin: &Path) {
     let process = Process::new(pid);
     assert!(process.map_files);
 
@@ -2075,7 +2053,7 @@ fn symbolize_permissionless_impl(pid: Pid, addr: Addr, _test_lib: &Path) {
         .unwrap()
         .into_sym()
         .unwrap();
-    assert_eq!(result.name, "await_input");
+    assert_eq!(result.name, "_start");
 }
 
 /// Check that we can symbolize an address in a process using only

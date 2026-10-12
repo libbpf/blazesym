@@ -473,7 +473,7 @@ fn normalize_no_self_vma_path_reporting() {
     assert!(!elf.path.to_string_lossy().contains("self"), "{elf:?}");
 }
 
-fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
+fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_bin: &Path) {
     let normalizer = Normalizer::builder().enable_build_ids(true).build();
     let opts = NormalizeOpts::default();
     let normalized = normalizer
@@ -485,7 +485,7 @@ fn normalize_permissionless_impl(pid: Pid, addr: Addr, test_lib: &Path) {
 
     assert_eq!(
         meta.build_id,
-        Some(read_elf_build_id(&test_lib).unwrap().unwrap())
+        Some(read_elf_build_id(&test_bin).unwrap().unwrap())
     );
 }
 
