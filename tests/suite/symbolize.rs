@@ -122,6 +122,52 @@ impl Rng {
 }
 
 
+/// Check that we fail as expected when attempting to cache data for
+/// a non-existent ELF file.
+#[cfg(linux)]
+#[test]
+fn cache_non_existent_elf() {
+    let symbolizer = Symbolizer::default();
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("does-not-exist");
+
+    let err = symbolizer
+        .cache(&cache::Cache::from(cache::Elf::new(&path)))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+}
+
+/// Make sure that we fail as expected when attempting to cache data for
+/// a non-existent process.
+#[cfg(linux)]
+#[test]
+fn cache_non_existent_process() {
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-block.bin");
+    let mut pid = Pid::Slf;
+    let () = RemoteProcess::default().exec(&test_block, |child_pid, _addr| {
+        pid = child_pid;
+    });
+
+    let symbolizer = Symbolizer::default();
+    let mut process = cache::Process::new(pid);
+    process.cache_vmas = false;
+
+    // Nothing to cache so this should succeed.
+    let () = symbolizer
+        .cache(&cache::Cache::from(process.clone()))
+        .unwrap();
+
+    process.cache_vmas = true;
+    let err = symbolizer
+        .cache(&cache::Cache::from(process.clone()))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+}
+
+
 /// Make sure that we fail symbolization when providing a non-existent source.
 #[tag(other_os)]
 #[test]
