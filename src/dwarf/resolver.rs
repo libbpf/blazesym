@@ -289,72 +289,66 @@ fn try_deref_debug_sup(
     debug_dirs: &[PathBuf],
     elf_cache: Option<&FileCache<ElfResolverData>>,
 ) -> Result<Option<Rc<ElfParser>>> {
-    let sup = read_debug_sup(parser)?;
-    if let Some(sup) = sup {
-        let DebugSupInfo {
-            _version: _,
-            is_supplementary: _,
-            path,
-            checksum,
-        } = sup;
+    let Some(sup) = read_debug_sup(parser)? else {
+        return Ok(None)
+    };
 
-        // TODO: Usage of the module here is fishy, as it may not
-        //       represent an actual path. However, even using the
-        //       actual path is not necessarily correct. Consider if the
-        //       `ElfParser` references a map_files file.
-        let linker = parser.module().map(OsStr::as_ref);
-        if let Some(path) = path {
-            match find_supplementary_file(path, linker, debug_dirs, &[]) {
-                Some(path) => {
-                    let tmp_parser;
-                    let dst_parser = if let Some(elf_cache) = elf_cache {
-                        // TODO: Unclear whether we should provide `debug_dirs`
-                        //       here instead of `None`?
-                        elf_cache
-                            .elf_resolver(&path, None)
-                            .with_context(|| {
-                                format!("failed to open debug sup destination `{}`", path.display())
-                            })?
-                            .parser()
-                    } else {
-                        let parser = ElfParser::open(&path).with_context(|| {
-                            format!("failed to open debug sup destination `{}`", path.display())
-                        })?;
-                        tmp_parser = Rc::new(parser);
-                        &tmp_parser
-                    };
+    let DebugSupInfo {
+        _version: _,
+        is_supplementary: _,
+        path,
+        checksum,
+    } = sup;
 
-                    let dst_sup = read_debug_sup(dst_parser)?
-                        .ok_or_invalid_data(|| "failed to find .debug_sup section")?;
-                    let DebugSupInfo {
-                        _version: _,
-                        is_supplementary,
-                        path: _,
-                        checksum: dst_checksum,
-                    } = dst_sup;
+    let Some(path) = path else { return Ok(None) };
+    // TODO: Usage of the module here is fishy, as it may not
+    //       represent an actual path. However, even using the
+    //       actual path is not necessarily correct. Consider if the
+    //       `ElfParser` references a map_files file.
+    let linker = parser.module().map(OsStr::as_ref);
+    let sup_file = find_supplementary_file(path, linker, debug_dirs, &[]);
+    let Some(path) = sup_file else {
+        return Ok(None);
+    };
 
-                    if !is_supplementary {
-                        return Err(Error::with_invalid_data(
-                            "debug sup destination marked as non-supplementary",
-                        ))
-                    }
-                    if dst_checksum != checksum {
-                        return Err(Error::with_invalid_data(format!(
-                            "debug sup destination `{}` checksum does not match \
-                            expected one: {dst_checksum:?} (actual) != {checksum:?} (expected)",
-                            path.display()
-                        )))
-                    }
-                    Ok(Some(Rc::clone(dst_parser)))
-                }
-                None => Ok(None),
-            }
-        } else {
-            Ok(None)
-        }
+    let tmp_parser;
+    let dst_parser = if let Some(elf_cache) = elf_cache {
+        // TODO: Unclear whether we should provide `debug_dirs`
+        //       here instead of `None`?
+        elf_cache
+            .elf_resolver(&path, None)
+            .with_context(|| format!("failed to open debug sup destination `{}`", path.display()))?
+            .parser()
     } else {
-        Ok(None)
+        let parser = ElfParser::open(&path).with_context(|| {
+            format!("failed to open debug sup destination `{}`", path.display())
+        })?;
+        tmp_parser = Rc::new(parser);
+        &tmp_parser
+    };
+
+    let dst_sup =
+        read_debug_sup(dst_parser)?.ok_or_invalid_data(|| "failed to find .debug_sup section")?;
+    let DebugSupInfo {
+        _version: _,
+        is_supplementary,
+        path: _,
+        checksum: dst_checksum,
+    } = dst_sup;
+
+    if !is_supplementary {
+        return Err(Error::with_invalid_data(
+            "debug sup destination marked as non-supplementary",
+        ))
     }
+    if dst_checksum != checksum {
+        return Err(Error::with_invalid_data(format!(
+            "debug sup destination `{}` checksum does not match \
+                            expected one: {dst_checksum:?} (actual) != {checksum:?} (expected)",
+            path.display()
+        )))
+    }
+    Ok(Some(Rc::clone(dst_parser)))
 }
 
 /// Try to find a DWARF package (`.dwp`) "belonging" to the file
