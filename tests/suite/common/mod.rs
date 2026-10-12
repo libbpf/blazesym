@@ -182,18 +182,14 @@ where
         panic!("failed to get user IDs: {}", Error::last_os_error());
     }
 
-    let test_so = Path::new(&env!("CARGO_MANIFEST_DIR"))
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
         .join("data")
-        .join("libtest-so.so");
-    let wait = Path::new(&env!("CARGO_MANIFEST_DIR"))
-        .join("data")
-        .join("test-wait.bin");
+        .join("test-block.bin");
 
     let () = RemoteProcess::default()
-        .arg(&test_so)
         .uid(uid)
-        .exec(&wait, |pid, addr| {
-            let () = as_user(ruid, uid, || callback_fn(pid, addr, &test_so));
+        .exec(&test_block, |pid, addr| {
+            let () = as_user(ruid, uid, || callback_fn(pid, addr, &test_block));
         });
 }
 

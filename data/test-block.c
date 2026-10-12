@@ -1,6 +1,6 @@
-/* A binary basically just blocking waiting for input and exiting. It also write
- * its PID and the address of its `_start` function to stdout (unformatted;
- * just a byte dump).
+/* A binary basically just blocking waiting for input and exiting. It also
+ * writes its PID and the address of its `_start` function to stdout
+ * (unformatted; just a byte dump).
  *
  * It uses raw system calls to avoid dependency on libc, which pulls in
  * start up code and various other artifacts that perturb ELF layout in

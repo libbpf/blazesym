@@ -733,9 +733,6 @@ fn prepare_test_files() {
         Some(&data_dir),
     );
 
-    let src = data_dir.join("test-wait.c");
-    cc(&src, "test-wait.bin", &[]);
-
     let src = data_dir.join("test-mnt-ns.c");
     cc(&src, "test-mnt-ns.bin", &[]);
 
@@ -746,7 +743,7 @@ fn prepare_test_files() {
     let ld_script = data_dir.join("test-block-augmented.ld");
     let args = &[
         "-static",
-        "-Wl,--build-id=none",
+        "-Wl,--build-id=sha1",
         "-nostdlib",
         // Just passing the linker script as "regular" input file causes
         // it to "augment" the default linker script.
