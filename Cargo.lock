@@ -277,7 +277,7 @@ dependencies = [
  "thorin-dwp",
  "vmlinux",
  "xz2",
- "zip",
+ "zip 9.0.0",
 ]
 
 [[package]]
@@ -998,7 +998,7 @@ dependencies = [
  "blazesym",
  "blazesym-dev",
  "goblin",
- "zip",
+ "zip 9.0.0",
 ]
 
 [[package]]
@@ -2485,7 +2485,7 @@ dependencies = [
  "symbolic-ppdb",
  "thiserror 2.0.19",
  "wasmparser 0.243.0",
- "zip",
+ "zip 7.2.0",
  "zstd 0.13.3",
 ]
 
@@ -3598,6 +3598,18 @@ dependencies = [
  "memchr",
  "typed-path",
  "zopfli",
+]
+
+[[package]]
+name = "zip"
+version = "9.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "711e8c9646791c49b7eb799a19c4ae70a9b8372ddc6a1fa4778defd1e2aa5d5e"
+dependencies = [
+ "crc32fast",
+ "indexmap",
+ "memchr",
+ "typed-path",
 ]
 
 [[package]]
