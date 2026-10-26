@@ -1124,10 +1124,15 @@ impl Symbolizer {
                 cache_perf_map,
                 _non_exhaustive: (),
             }) => {
-                if *cache_vmas {
+                // Parse VMAs eagerly, but only commit them once caching
+                // the perf map succeeded as well, to not leave
+                // partially updated state behind on failure.
+                let vmas = if *cache_vmas {
                     let parsed = maps::parse_filtered(*pid)?.collect::<Result<Box<_>>>()?;
-                    let _prev = self.process_vma_cache.borrow_mut().insert(*pid, parsed);
-                }
+                    Some(parsed)
+                } else {
+                    None
+                };
 
                 if *cache_perf_map {
                     let path = self.perf_map_path(*pid)?.ok_or_not_found(|| {
@@ -1137,6 +1142,10 @@ impl Symbolizer {
                     let result = self.perf_map_resolver(&path);
                     let _pinned = self.perf_map_cache.pin(&path);
                     let _perf_map = result?;
+                }
+
+                if let Some(vmas) = vmas {
+                    let _prev = self.process_vma_cache.borrow_mut().insert(*pid, vmas);
                 }
             }
         }

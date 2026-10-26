@@ -177,6 +177,45 @@ fn cache_non_existent_process() {
     assert_eq!(err.kind(), ErrorKind::NotFound);
 }
 
+/// Make sure that a failure to cache a process' perf map does not leave
+/// behind VMAs cached as part of the same request.
+#[cfg(linux)]
+#[test]
+fn cache_process_malformed_perf_map() {
+    let test_block = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-block.bin");
+
+    let symbolizer = Symbolizer::new();
+
+    let (pid, addr) = RemoteProcess::default().exec(&test_block, |pid, addr| {
+        // Emulate a perf map caught in the middle of being written, with
+        // its only line cut short after the start address.
+        let path = format!("/tmp/perf-{pid}.map");
+        let () = fs::write(&path, "7fbf1fc21764").unwrap();
+        defer!({
+            let _result = remove_file(&path);
+        });
+
+        let err = symbolizer
+            .cache(&cache::Cache::from(cache::Process::new(pid)))
+            .unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData);
+        (pid, addr)
+    });
+
+    let mut process = Process::new(pid);
+    process.map_files = false;
+
+    // With caching having failed as a whole, no VMAs were cached either
+    // and so symbolization can no longer succeed.
+    let src = Source::Process(process);
+    let err = symbolizer
+        .symbolize_single(&src, Input::AbsAddr(addr))
+        .unwrap_err();
+    assert_eq!(err.kind(), ErrorKind::NotFound);
+}
+
 
 /// Make sure that we fail symbolization when providing a non-existent source.
 #[tag(other_os)]
