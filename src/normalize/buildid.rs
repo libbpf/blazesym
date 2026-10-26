@@ -7,6 +7,7 @@ use crate::elf::types::ElfN_Nhdr;
 use crate::elf::ElfParser;
 use crate::util::align_up_u32;
 use crate::util::ReadRaw as _;
+use crate::ErrorExt as _;
 use crate::IntoError as _;
 use crate::Mmap;
 use crate::Result;
@@ -22,9 +23,9 @@ pub(crate) fn read_build_id(parser: &ElfParser) -> Result<Option<BuildId<'_>>> {
     let shdrs = parser.section_headers()?;
     for (idx, shdr) in shdrs.iter(0).enumerate() {
         if shdr.type_() == elf::types::SHT_NOTE {
-            // SANITY: We just found the index so the section data should always
-            //         be found.
-            let mut bytes = parser.section_data(idx).unwrap();
+            let mut bytes = parser
+                .section_data(idx)
+                .context("failed to read ELF note section data")?;
 
             while bytes.len() >= size_of::<ElfN_Nhdr>() {
                 let nhdr = bytes
@@ -124,6 +125,7 @@ mod tests {
     use test_log::test;
     use test_tag::tag;
 
+    use crate::test_helper::corrupt_elf_section;
     use crate::ErrorKind;
     use crate::Result;
 
@@ -146,6 +148,21 @@ mod tests {
 
         test("libtest-so.so", read_build_id);
         test("libtest-so-32.so", read_build_id);
+    }
+
+    /// Make sure that we report an error instead of panicking when an ELF
+    /// note section's data cannot be read.
+    #[tag(other_os)]
+    #[test]
+    fn unreadable_note_section_handling() {
+        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("libtest-so.so");
+        let corrupted = corrupt_elf_section(&elf, ".note.gnu.build-id");
+
+        let parser = ElfParser::open(corrupted.path()).unwrap();
+        let err = read_build_id(&parser).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
     }
 
     /// Check that we can read a binary's build ID.
