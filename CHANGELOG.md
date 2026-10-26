@@ -1,5 +1,5 @@
-Unreleased
-----------
+0.2.7
+-----
 - Added support for `.gnu_debugaltlink` and `.debug_sup` section
   handling to discover DWARF supplementary files
 - Added `cache_perf_map` attribute to `symbolize::cache::Process`
