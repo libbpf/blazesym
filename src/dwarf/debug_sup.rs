@@ -18,6 +18,7 @@ use std::path::Path;
 
 use crate::elf::ElfParser;
 use crate::error::Error;
+use crate::error::ErrorExt as _;
 use crate::error::IntoError as _;
 use crate::util::bytes_to_path;
 use crate::util::ReadRaw as _;
@@ -42,9 +43,9 @@ pub(crate) fn read_debug_sup(parser: &ElfParser) -> Result<Option<DebugSupInfo<'
         return Ok(None)
     };
 
-    // SANITY: We just found the index so the section should always be
-    //         found.
-    let data = parser.section_data(idx).unwrap();
+    let data = parser
+        .section_data(idx)
+        .with_context(|| format!("failed to read {debug_sup_section} section data"))?;
     parse_debug_sup_section_data(data)
 }
 
@@ -109,6 +110,9 @@ mod tests {
     use std::slice;
 
     use test_tag::tag;
+
+    use crate::test_helper::corrupt_elf_section;
+    use crate::ErrorKind;
 
 
     /// Check that we can correctly read the checksum from a `.debug_sup`
@@ -318,5 +322,19 @@ mod tests {
         assert!(is_supplementary);
         assert!(path.is_none());
         assert_eq!(checksum, checksum_dwz);
+    }
+
+    /// Make sure that we report an error instead of panicking when the
+    /// `.debug_sup` section's data cannot be read.
+    #[test]
+    fn unreadable_debug_sup_section_handling() {
+        let dbg = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-dwarf-only-sup.dbg");
+        let corrupted = corrupt_elf_section(&dbg, ".debug_sup");
+
+        let parser = ElfParser::open(corrupted.path()).unwrap();
+        let err = read_debug_sup(&parser).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
     }
 }

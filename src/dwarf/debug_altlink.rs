@@ -18,6 +18,7 @@ use crate::util::bytes_to_path;
 use crate::util::ReadRaw as _;
 use crate::BuildId;
 use crate::Error;
+use crate::ErrorExt as _;
 use crate::Result;
 
 
@@ -30,9 +31,9 @@ pub(crate) fn read_debug_altlink(parser: &ElfParser) -> Result<Option<(&Path, Bu
         return Ok(None)
     };
 
-    // SANITY: We just found the index so the section should always be
-    //         found.
-    let data = parser.section_data(idx).unwrap();
+    let data = parser
+        .section_data(idx)
+        .with_context(|| format!("failed to read {debug_altlink_section} section data"))?;
     parse_debug_altlink_section_data(data)
 }
 
@@ -65,6 +66,8 @@ mod tests {
     use test_tag::tag;
 
     use crate::normalize::buildid::read_build_id;
+    use crate::test_helper::corrupt_elf_section;
+    use crate::ErrorKind;
 
 
     /// Check that we can correctly read a build id from debug altlink section
@@ -142,5 +145,19 @@ mod tests {
             .join("test-stable-addrs.dwz");
         let parser = ElfParser::open(&dbg).unwrap();
         assert_eq!(build_id, read_build_id(&parser).unwrap().unwrap());
+    }
+
+    /// Make sure that we report an error instead of panicking when the
+    /// debug altlink section's data cannot be read.
+    #[test]
+    fn unreadable_debug_altlink_section_handling() {
+        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-dwarf-only-altlink.dbg");
+        let corrupted = corrupt_elf_section(&elf, ".gnu_debugaltlink");
+
+        let parser = ElfParser::open(corrupted.path()).unwrap();
+        let err = read_debug_altlink(&parser).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
     }
 }

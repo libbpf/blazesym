@@ -27,6 +27,7 @@ use crate::util::bytes_to_os_str;
 use crate::util::ReadRaw as _;
 use crate::BuildId;
 use crate::Error;
+use crate::ErrorExt as _;
 use crate::Result;
 
 
@@ -215,9 +216,9 @@ pub(crate) fn read_debug_link(parser: &ElfParser) -> Result<Option<(&OsStr, u32)
         return Ok(None)
     };
 
-    // SANITY: We just found the index so the section should always be
-    //         found.
-    let data = parser.section_data(idx).unwrap();
+    let data = parser
+        .section_data(idx)
+        .with_context(|| format!("failed to read {debug_link_section} section data"))?;
     parse_debug_link_section_data(data)
 }
 
@@ -269,6 +270,8 @@ mod tests {
 
     use crate::elf::DEFAULT_DEBUG_DIRS;
     use crate::mmap::Mmap;
+    use crate::test_helper::corrupt_elf_section;
+    use crate::ErrorKind;
 
 
     /// Check that we can correctly read a CRC checksum from aligned
@@ -324,6 +327,20 @@ mod tests {
             .join(file);
         let mmap = Mmap::builder().open(dbg).unwrap();
         assert_eq!(crc, debug_link_crc32(&mmap));
+    }
+
+    /// Make sure that we report an error instead of panicking when the
+    /// debug link section's data cannot be read.
+    #[test]
+    fn unreadable_debug_link_section_handling() {
+        let elf = Path::new(&env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("test-stable-addrs-stripped-with-link.bin");
+        let corrupted = corrupt_elf_section(&elf, ".gnu_debuglink");
+
+        let parser = ElfParser::open(corrupted.path()).unwrap();
+        let err = read_debug_link(&parser).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidData, "{err}");
     }
 
     /// Make sure that we can iterate over all debug file target candidates as

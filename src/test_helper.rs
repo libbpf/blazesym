@@ -1,4 +1,7 @@
 use std::ffi::OsString;
+use std::fs;
+use std::io::Write as _;
+use std::mem::offset_of;
 use std::mem::transmute;
 #[cfg(linux)]
 use std::ops::ControlFlow;
@@ -7,12 +10,17 @@ use std::path::Path;
 #[cfg(linux)]
 use std::slice;
 
+use tempfile::NamedTempFile;
+
+use crate::elf::types::Elf64_Ehdr;
+use crate::elf::types::Elf64_Shdr;
 use crate::elf::ElfParser;
 use crate::inspect;
 #[cfg(linux)]
 use crate::inspect::FindAddrOpts;
 #[cfg(linux)]
 use crate::inspect::SymInfo;
+use crate::util::ReadRaw as _;
 #[cfg(linux)]
 use crate::vdso::find_vdso;
 #[cfg(linux)]
@@ -110,4 +118,24 @@ pub fn find_gettimeofday_in_process(pid: Pid) -> Addr {
         .unwrap();
 
     found.expect("`gettimeofday` function not found")
+}
+
+/// Create a copy of the ELF file at `path` in which the header of the
+/// section called `section` references data past the end of the file.
+#[cfg_attr(not(test), expect(dead_code))]
+pub(crate) fn corrupt_elf_section(path: &Path, section: &str) -> NamedTempFile {
+    let parser = ElfParser::open(path).unwrap();
+    let idx = parser.find_section(section).unwrap().unwrap();
+
+    let mut data = fs::read(path).unwrap();
+    let ehdr = data.as_slice().read_pod::<Elf64_Ehdr>().unwrap();
+    let offset = ehdr.e_shoff as usize
+        + idx * usize::from(ehdr.e_shentsize)
+        + offset_of!(Elf64_Shdr, sh_offset);
+    let past_end = (data.len() as u64).to_ne_bytes();
+    let () = data[offset..offset + past_end.len()].copy_from_slice(&past_end);
+
+    let mut file = NamedTempFile::new().unwrap();
+    let () = file.write_all(&data).unwrap();
+    file
 }
