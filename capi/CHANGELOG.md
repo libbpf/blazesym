@@ -1,3 +1,8 @@
+0.1.11
+------
+- Bumped `blazesym` dependency to `0.2.7`
+
+
 0.1.10
 ------
 - Bumped maximum supported `blazesym` dependency to `0.2.6`
