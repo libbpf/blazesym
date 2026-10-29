@@ -1,3 +1,9 @@
+Unreleased
+----------
+- Fixed `_stext` symbol based KASLR offset inference fallback not being
+  used when `/proc/kcore` does not exist
+
+
 0.2.7
 -----
 - Added support for `.gnu_debugaltlink` and `.debug_sup` section
