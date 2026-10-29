@@ -2,6 +2,8 @@ Unreleased
 ----------
 - Fixed `_stext` symbol based KASLR offset inference fallback not being
   used when `/proc/kcore` does not exist
+- Improved performance of `_stext` symbol based KASLR offset inference
+  when using `vmlinux` files with debug information
 
 
 0.2.7
