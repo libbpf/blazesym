@@ -97,17 +97,20 @@ fn read_kcore_kaslr_offset(parser: &ElfParser<File>) -> Result<Option<u64>> {
     Ok(None)
 }
 
-fn find_kcore_kaslr_offset() -> Result<Option<u64>> {
+fn find_kcore_kaslr_offset(kcore: &Path) -> Result<Option<u64>> {
     // Note that we cannot use the regular mmap based ELF parser
     // backend for this file, as it cannot be mmap'ed. We have to
     // fall back to using regular I/O instead.
-    let parser = match ElfParser::open_file_io(Path::new(PROC_KCORE)) {
+    let parser = match ElfParser::open_file_io(kcore) {
         Ok(parser) => parser,
         Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
         Err(err) => return Err(err),
     };
     let offset = read_kcore_kaslr_offset(&parser)?.inspect(|offset| {
-        log::debug!("determined KASLR offset to be {offset:#x} based on {PROC_KCORE} contents");
+        log::debug!(
+            "determined KASLR offset to be {offset:#x} based on {} contents",
+            kcore.display()
+        );
     });
     Ok(offset)
 }
@@ -150,7 +153,8 @@ fn find_stext_kaslr_offset(
     Ok(offset)
 }
 
-pub(crate) fn find_kaslr_offset(
+fn find_kaslr_offset_impl(
+    kcore: &Path,
     ksym_resolver: Option<&dyn Inspect>,
     vmlinux_resolver: Option<&dyn Inspect>,
 ) -> Result<Option<u64>> {
@@ -158,8 +162,12 @@ pub(crate) fn find_kaslr_offset(
     //       comparisons between `/proc/kallsyms` values to
     //       `System.map-*` contents or parsing `dmesg` (no, really...)
 
-    let result = find_kcore_kaslr_offset();
+    let result = find_kcore_kaslr_offset(kcore);
     let () = match result {
+        // `kcore` doesn't exist (e.g., the kernel was built without
+        // `CONFIG_PROC_KCORE`) or didn't tell us the offset, so keep
+        // trying other methods.
+        Ok(None) => (),
         Err(ref err)
             if matches!(
                 err.kind(),
@@ -176,6 +184,13 @@ pub(crate) fn find_kaslr_offset(
         return find_stext_kaslr_offset(ksym, vmlinux)
     }
     result
+}
+
+pub(crate) fn find_kaslr_offset(
+    ksym_resolver: Option<&dyn Inspect>,
+    vmlinux_resolver: Option<&dyn Inspect>,
+) -> Result<Option<u64>> {
+    find_kaslr_offset_impl(Path::new(PROC_KCORE), ksym_resolver, vmlinux_resolver)
 }
 
 
@@ -198,6 +213,13 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("data")
             .join("test-stable-addrs.bin")
+    }
+
+    /// Path to a `kcore` file that doesn't exist.
+    fn missing_kcore_path() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("data")
+            .join("kcore-does-not-exist")
     }
 
     fn ksym_from_bytes(content: &[u8]) -> KsymResolver {
@@ -240,7 +262,31 @@ PAGESIZE=4096
         // VMCOREINFO parsing path.
         // Also, we care about the parsing logic, but can't make any
         // claims about the expected offset at this point.
-        let _offset = find_kcore_kaslr_offset().unwrap();
+        let _offset = find_kcore_kaslr_offset(Path::new(PROC_KCORE)).unwrap();
+    }
+
+    /// Check that we fall back to the `_stext` method when `kcore`
+    /// doesn't exist.
+    #[test]
+    fn kaslr_offset_missing_kcore_stext_fallback() {
+        let ksym = ksym_from_bytes(b"ffffffff81abc000 T _stext\n");
+        let vmlinux = vmlinux_inspector();
+
+        let offset =
+            find_kaslr_offset_impl(&missing_kcore_path(), Some(&ksym), Some(vmlinux.deref()))
+                .unwrap();
+        assert_eq!(offset, Some(0xabc000));
+    }
+
+    /// Check that a missing `kcore` without any way to fall back still
+    /// surfaces as no KASLR offset, not an error.
+    #[test]
+    fn kaslr_offset_missing_kcore_no_fallback() {
+        let vmlinux = vmlinux_inspector();
+
+        let offset =
+            find_kaslr_offset_impl(&missing_kcore_path(), None, Some(vmlinux.deref())).unwrap();
+        assert_eq!(offset, None);
     }
 
     /// Check that we correctly derive the KASLR offset via `_stext` method.
