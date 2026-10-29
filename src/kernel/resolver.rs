@@ -192,13 +192,21 @@ impl<'cache> KernelResolver<'cache> {
         // kallsyms addresses are already relocated. Avoid querying it (which
         // may require reading `/proc/kcore` and, hence, elevated privileges)
         // unless we actually have a vmlinux resolver.
-        let kaslr_offset = match kaslr_offset {
-            Some(offset) => offset,
-            None if vmlinux_resolver.is_some() => cache.kaslr_offset(
-                ksym_resolver.as_deref().map(|r| r as &dyn Inspect),
-                vmlinux_resolver.as_deref().map(|r| r as &dyn Inspect),
-            )?,
-            None => 0,
+        let kaslr_offset = match (kaslr_offset, &vmlinux_resolver) {
+            (Some(offset), _) => offset,
+            (None, Some(vmlinux_resolver)) => {
+                // Inferring the KASLR offset only requires ELF symbols. Use
+                // a bare-bones ELF resolver for it, because looking up a
+                // symbol by name via DWARF may require parsing all debug
+                // information.
+                let parser = Rc::clone(vmlinux_resolver.parser());
+                let vmlinux_resolver = ElfResolver::from_parser(parser, None, None)?;
+                cache.kaslr_offset(
+                    ksym_resolver.as_deref().map(|r| r as &dyn Inspect),
+                    Some(&vmlinux_resolver),
+                )?
+            }
+            (None, None) => 0,
         };
 
         Ok(KernelResolver {
