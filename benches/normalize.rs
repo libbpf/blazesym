@@ -1,5 +1,6 @@
 use std::hint::black_box;
 
+use blazesym::helper::is_procmap_query_supported;
 use blazesym::normalize::NormalizeOpts;
 use blazesym::normalize::Normalizer;
 use blazesym::Addr;
@@ -199,7 +200,7 @@ where
     bench_sub_fn!(group, normalize_process_no_build_ids_uncached_vmas_maps);
     bench_sub_fn!(group, normalize_process_no_build_ids_cached_vmas_maps);
 
-    if cfg!(has_procmap_query_ioctl) {
+    if is_procmap_query_supported().unwrap() {
         bench_sub_fn!(
             group,
             normalize_process_uncached_build_ids_uncached_vmas_ioctl

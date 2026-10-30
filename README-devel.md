@@ -66,10 +66,8 @@ To enable that, use the feature `bench-instrs`:
 $ cargo bench features=nightly,blazesym-dev/bench-instrs
 ```
 
-Some benchmarks require the `PROCMAP_QUERY` ioctl kernel functionality,
-which is not yet widely available. As such, they are disabled by
-default. To enable them set the `RUSTFLAGS` environment variable to
-`--cfg has_procmap_query_ioctl`.
+Some benchmarks require the `PROCMAP_QUERY` ioctl kernel functionality
+and are skipped automatically on systems that do not support it.
 
 For all Criterion powered benchmarks, a run will automatically establish a new
 base line. You can check out a different change, re-run the above command, and
