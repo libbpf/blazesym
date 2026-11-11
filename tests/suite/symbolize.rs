@@ -424,6 +424,40 @@ fn symbolize_dwarf_relocatable() {
 }
 
 
+/// Check that a line number program that fails to parse does not
+/// prevent symbolization of addresses covered by its unit.
+#[test]
+fn symbolize_dwarf_unparsable_line_program() {
+    let path = Path::new(&env!("CARGO_MANIFEST_DIR"))
+        .join("data")
+        .join("test-asm-subsection.bin");
+
+    let inspector = inspect::Inspector::new();
+    let isrc = inspect::source::Source::Elf(inspect::source::Elf::new(&path));
+    let results = inspector
+        .lookup(&isrc, &["asm_fn"])
+        .unwrap()
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+    assert_eq!(results.len(), 1);
+    let addr = results[0].addr;
+
+    let src = Source::Elf(Elf::new(&path));
+    let symbolizer = Symbolizer::new();
+    let result = symbolizer
+        .symbolize_single(&src, Input::VirtOffset(addr + 1))
+        .unwrap()
+        .into_sym()
+        .unwrap();
+
+    assert_eq!(result.name, "asm_fn");
+    assert_eq!(result.addr, addr);
+    assert_eq!(result.offset, 1);
+    assert_eq!(result.code_info, None);
+}
+
+
 fn symbolize_no_permission_impl(path: &Path) {
     let src = Source::Elf(Elf::new(path));
     let symbolizer = Symbolizer::new();

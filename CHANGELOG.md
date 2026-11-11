@@ -4,6 +4,8 @@ Unreleased
   used when `/proc/kcore` does not exist
 - Improved performance of `_stext` symbol based KASLR offset inference
   when using `vmlinux` files with debug information
+- Fixed symbolization failing for addresses in compilation units with
+  an unparsable DWARF line number program
 
 
 0.2.7

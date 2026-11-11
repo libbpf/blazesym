@@ -257,6 +257,11 @@ fn cc(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
     toolize_o("cc", src, dst, options)
 }
 
+/// Compile `src` into `dst` using `clang`.
+fn clang(src: &Path, dst: impl AsRef<OsStr>, options: &[&str]) {
+    toolize_o("clang", src, dst, options)
+}
+
 fn ld<'p, S, I>(srcs: S, dst: &Path, options: &[&str])
 where
     S: IntoIterator<IntoIter = I>,
@@ -759,6 +764,13 @@ fn prepare_test_files() {
         ld_script.to_str().unwrap(),
     ];
     cc(&src, "test-block.bin", args);
+
+    let src = data_dir.join("test-asm-subsection.s");
+    clang(
+        &src,
+        "test-asm-subsection.bin",
+        &["-g", "-nostdlib", "-static", "-Wl,-e,asm_fn"],
+    );
 
     cc_stable_addrs(
         "test-stable-addrs.bin",
