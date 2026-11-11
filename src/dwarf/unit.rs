@@ -27,6 +27,8 @@
 
 use std::cell::OnceCell;
 
+use crate::log::warn;
+
 use super::function::Function;
 use super::function::Functions;
 use super::lines::Lines;
@@ -213,17 +215,20 @@ impl<'dwarf> Unit<'dwarf> {
             Some(ref ilnp) => ilnp,
             None => return Ok(None),
         };
-        let lines = self
-            .lines
-            .get_or_init(|| {
-                // NB: line information is always stored in the main
-                //     debug file so this does not need to handle DWOs.
-                let unit = units.unit_ref(dw_unit);
-                Lines::parse(unit, ilnp.clone())
-            })
-            .as_ref()
-            .map_err(|err| *err)?;
-        Ok(Some(lines))
+        let lines = self.lines.get_or_init(|| {
+            // NB: line information is always stored in the main
+            //     debug file so this does not need to handle DWOs.
+            let unit = units.unit_ref(dw_unit);
+            let result = Lines::parse(unit, ilnp.clone());
+            if let Err(err) = &result {
+                warn!(
+                    "failed to parse line program of unit @ {:#x}: {err}; ignoring",
+                    self.offset.0
+                );
+            }
+            result
+        });
+        Ok(lines.as_ref().ok())
     }
 
     pub(super) fn find_location(
