@@ -35,6 +35,7 @@ use std::path::Path;
 use super::location::Location;
 use super::reader::R;
 
+use crate::log::warn;
 use crate::util::bytes_to_os_str;
 use crate::util::bytes_to_path;
 
@@ -162,11 +163,16 @@ impl<'dwarf> Lines<'dwarf> {
         })
     }
 
-    fn row_location(&self, row: &LineRow) -> Location<'_> {
-        // SANITY: We always have a file present for each `file_index`.
-        let (dir, file) = self.files.get(row.file_index as usize).unwrap();
+    fn row_location(&self, row: &LineRow) -> Option<Location<'_>> {
+        let Some((dir, file)) = self.files.get(row.file_index as usize) else {
+            warn!(
+                "encountered invalid file index ({}) in line number program; ignoring...",
+                row.file_index
+            );
+            return None
+        };
 
-        Location {
+        let location = Location {
             dir,
             file,
             line: if row.line != 0 { Some(row.line) } else { None },
@@ -176,7 +182,8 @@ impl<'dwarf> Lines<'dwarf> {
             } else {
                 None
             },
-        }
+        };
+        Some(location)
     }
 
     pub(crate) fn find_location(&self, probe: u64) -> gimli::Result<Option<Location<'_>>> {
@@ -203,6 +210,40 @@ impl<'dwarf> Lines<'dwarf> {
             Err(0) => return Ok(None),
             Err(x) => x - 1,
         };
-        Ok(Some(self.row_location(&sequence.rows[idx])))
+        Ok(self.row_location(&sequence.rows[idx]))
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use test_log::test;
+
+
+    /// Check that an invalid file index does not cause a panic during
+    /// source location lookup.
+    #[test]
+    fn location_finding_invalid_file_index() {
+        let row = LineRow {
+            address: 0,
+            file_index: 1,
+            line: 1,
+            column: 0,
+        };
+        let sequence = LineSequence {
+            start: 0,
+            end: 1,
+            rows: Box::new([row]),
+        };
+        let mut lines = Lines {
+            files: Box::new([Default::default()]),
+            sequences: Box::new([sequence]),
+        };
+        assert_eq!(lines.find_location(0).unwrap(), None);
+
+        lines.sequences[0].rows[0].file_index = 0;
+        assert!(lines.find_location(0).unwrap().is_some());
     }
 }

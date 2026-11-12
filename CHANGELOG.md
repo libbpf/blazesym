@@ -6,6 +6,8 @@ Unreleased
   when using `vmlinux` files with debug information
 - Fixed symbolization failing for addresses in compilation units with
   an unparsable DWARF line number program
+- Fixed potential panic when DWARF line number information references an
+  invalid file index
 
 
 0.2.7
