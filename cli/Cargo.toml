@@ -7,7 +7,6 @@ rust-version.workspace = true
 default-run = "blazecli"
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 readme = "README.md"
 categories = [
   "api-bindings",
