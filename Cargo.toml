@@ -16,7 +16,6 @@ edition = "2021"
 rust-version = "1.88"
 license = "BSD-3-Clause"
 repository = "https://github.com/libbpf/blazesym"
-homepage = "https://github.com/libbpf/blazesym"
 
 [workspace.lints.rust]
 deprecated-safe = "warn"
@@ -61,7 +60,6 @@ rust-version.workspace = true
 authors = ["Daniel Müller <deso@posteo.net>", "Kui-Feng <thinker.li@gmail.com>"]
 license.workspace = true
 repository.workspace = true
-homepage.workspace = true
 readme = "README.md"
 documentation = "https://docs.rs/blazesym"
 categories = [
