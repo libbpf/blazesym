@@ -404,7 +404,7 @@ jobs:
         sudo dpkg --add-architecture i386
         sudo apt-get update
         sudo apt-get remove libllvm18
-        sudo apt-get install --yes --no-install-recommends libclang-dev:i386
+        sudo apt-get install --yes --no-install-recommends libclang1-18:i386
     - run: cargo test --package=blazesym-c --target i686-unknown-linux-gnu
   test-examples:
     name: Test examples
