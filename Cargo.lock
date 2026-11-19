@@ -222,7 +222,7 @@ dependencies = [
  "anyhow",
  "blazesym",
  "blazesym-dev",
- "cpp_demangle 0.5.1",
+ "cpp_demangle 0.6.0",
  "crc32fast",
  "criterion",
  "flate2",
@@ -516,6 +516,15 @@ name = "cpp_demangle"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0667304c32ea56cb4cd6d2d7c0cfe9a2f8041229db8c033af7f8d69492429def"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
+name = "cpp_demangle"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b0fa7b695ebf7023a5af95490233db9d2987c212ce56ec1cf831763f9deaf80"
 dependencies = [
  "cfg-if",
 ]
